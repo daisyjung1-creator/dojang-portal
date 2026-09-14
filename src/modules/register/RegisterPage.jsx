@@ -7,7 +7,7 @@ import { todayISO } from '../../lib/billingDates';
 import Field from '../../components/Field';
 
 function emptyForm() {
-  return { name: '', guardian_name: '', guardian_phone: '', guardian_email: '', belt: '흰띠', class_name: '', tuition: '', enroll_date: todayISO(), notes: '' };
+  return { name: '', guardian_name: '', guardian_phone: '', guardian_email: '', belt: 'White Belt', class_name: '', tuition: '', enroll_date: todayISO(), notes: '' };
 }
 
 export default function RegisterPage() {
@@ -18,7 +18,7 @@ export default function RegisterPage() {
   const [queue, setQueue] = useState([]);
 
   useEffect(() => {
-    // Picks up a draft handed off from a converted 트라이아웃 booking, if any.
+    // Picks up a draft handed off from a converted trial booking, if any.
     const draft = sessionStorage.getItem('registerDraft');
     if (draft) {
       setForm((prev) => ({ ...prev, ...JSON.parse(draft) }));
@@ -40,13 +40,13 @@ export default function RegisterPage() {
 
   async function submitRegistration() {
     if (!form.name.trim()) {
-      setFormError('학생 이름을 입력해 주세요.');
+      setFormError('Please enter a student name.');
       return;
     }
     const payload = { ...form, tuition: form.tuition === '' ? null : Number(form.tuition) };
     const { data, error } = await supabase.from('students').insert(payload).select();
     if (error) {
-      setFormError('등록하지 못했습니다: ' + error.message);
+      setFormError('Could not register: ' + error.message);
       return;
     }
     const newStudent = data[0];
@@ -73,8 +73,8 @@ export default function RegisterPage() {
     <>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>신규등록</h1>
-          <p style={styles.subtitle}>등록을 완료하면 보호자 이메일로 보낼 환영 메일이 대기열에 추가됩니다</p>
+          <h1 style={styles.title}>Enrollment</h1>
+          <p style={styles.subtitle}>Completing registration queues a welcome email to the guardian</p>
         </div>
       </div>
 
@@ -94,28 +94,28 @@ export default function RegisterPage() {
               alignItems: 'center',
             }}
           >
-            <span>등록되었습니다.</span>
+            <span>Registered.</span>
             <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => setSuccess(false)}>
-              닫기
+              Close
             </button>
           </div>
         )}
-        <Field label="학생 이름" required>
+        <Field label="Student Name" required>
           <input className="dp-input" style={{ width: '100%' }} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </Field>
         <div style={styles.formRow}>
-          <Field label="보호자 이름">
+          <Field label="Guardian Name">
             <input className="dp-input" style={{ width: '100%' }} value={form.guardian_name || ''} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />
           </Field>
-          <Field label="보호자 연락처">
+          <Field label="Guardian Phone">
             <input className="dp-input" style={{ width: '100%' }} value={form.guardian_phone || ''} onChange={(e) => setForm({ ...form, guardian_phone: e.target.value })} />
           </Field>
         </div>
-        <Field label="보호자 이메일 (환영 메일 발송용)">
+        <Field label="Guardian Email (for the welcome email)">
           <input type="email" className="dp-input" style={{ width: '100%' }} value={form.guardian_email || ''} onChange={(e) => setForm({ ...form, guardian_email: e.target.value })} />
         </Field>
         <div style={styles.formRow}>
-          <Field label="급수(띠)">
+          <Field label="Belt">
             <select className="dp-select" style={{ width: '100%' }} value={form.belt} onChange={(e) => setForm({ ...form, belt: e.target.value })}>
               {BELTS.map((b) => (
                 <option key={b.value} value={b.value}>
@@ -124,7 +124,7 @@ export default function RegisterPage() {
               ))}
             </select>
           </Field>
-          <Field label="반">
+          <Field label="Class">
             <input className="dp-input" style={{ width: '100%' }} list="reg-class-options" value={form.class_name || ''} onChange={(e) => setForm({ ...form, class_name: e.target.value })} />
             <datalist id="reg-class-options">
               {classes.map((c) => (
@@ -134,34 +134,34 @@ export default function RegisterPage() {
           </Field>
         </div>
         <div style={styles.formRow}>
-          <Field label="등록일">
+          <Field label="Enrollment Date">
             <input type="date" className="dp-input" style={{ width: '100%' }} value={form.enroll_date} onChange={(e) => setForm({ ...form, enroll_date: e.target.value })} />
           </Field>
-          <Field label="월 수업비 (원)">
+          <Field label="Monthly Tuition (₩)">
             <input type="number" className="dp-input" style={{ width: '100%' }} value={form.tuition} onChange={(e) => setForm({ ...form, tuition: e.target.value })} />
           </Field>
         </div>
-        <Field label="특이사항">
+        <Field label="Notes">
           <textarea className="dp-input" style={{ width: '100%', minHeight: 50, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </Field>
         {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 12px' }}>{formError}</p>}
         <button className="dp-btn dp-btn-primary" style={{ marginTop: 8 }} onClick={submitRegistration}>
-          <Check size={15} /> 등록 완료
+          <Check size={15} /> Complete Registration
         </button>
       </div>
 
-      <h2 style={{ fontSize: 15, fontWeight: 500, margin: '0 0 8px' }}>환영 이메일 대기열 ({pending.length})</h2>
+      <h2 style={{ fontSize: 15, fontWeight: 500, margin: '0 0 8px' }}>Welcome Email Queue ({pending.length})</h2>
       <div style={styles.card}>
         {queue.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>대기 중인 환영 이메일이 없습니다.</p>
+          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No welcome emails pending.</p>
         ) : (
           <table className="dp-table">
             <thead>
               <tr>
-                <th>학생</th>
-                <th>보호자 이메일</th>
-                <th>등록일</th>
-                <th>상태</th>
+                <th>Student</th>
+                <th>Guardian Email</th>
+                <th>Registered</th>
+                <th>Status</th>
                 <th></th>
               </tr>
             </thead>
@@ -175,11 +175,11 @@ export default function RegisterPage() {
                   </td>
                   <td>{w.queued_date}</td>
                   <td>
-                    <span style={{ fontSize: 12.5, color: w.sent ? '#2A5A30' : '#5B5F56' }}>{w.sent ? '발송완료' : '대기중'}</span>
+                    <span style={{ fontSize: 12.5, color: w.sent ? '#2A5A30' : '#5B5F56' }}>{w.sent ? 'Sent' : 'Pending'}</span>
                   </td>
                   <td>
                     <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => setSent(w.id, !w.sent)}>
-                      {w.sent ? '대기로 되돌리기' : '발송완료 처리'}
+                      {w.sent ? 'Mark Pending' : 'Mark Sent'}
                     </button>
                   </td>
                 </tr>

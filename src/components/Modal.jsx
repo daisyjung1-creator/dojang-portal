@@ -8,7 +8,7 @@ export default function Modal({ title, onClose, children, footer, maxWidth }) {
       <div style={{ ...styles.modal, ...(maxWidth ? { maxWidth } : {}) }} onClick={(e) => e.stopPropagation()}>
         <div style={styles.modalHeader}>
           <h2 style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>{title}</h2>
-          <button className="dp-btn" style={{ padding: 6, border: 'none' }} onClick={onClose} aria-label="닫기">
+          <button className="dp-btn" style={{ padding: 6, border: 'none' }} onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
         </div>

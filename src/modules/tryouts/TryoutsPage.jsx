@@ -9,7 +9,7 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 function emptyForm() {
-  return { student_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time: '', status: '예정', notes: '' };
+  return { student_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time: '', status: 'Scheduled', notes: '' };
 }
 
 export default function TryoutsPage({ setActiveTab }) {
@@ -46,7 +46,7 @@ export default function TryoutsPage({ setActiveTab }) {
 
   async function submitForm() {
     if (!form.student_name.trim()) {
-      setFormError('학생 이름을 입력해 주세요.');
+      setFormError('Please enter a student name.');
       return;
     }
     let submitError;
@@ -65,7 +65,7 @@ export default function TryoutsPage({ setActiveTab }) {
       }
     }
     if (submitError) {
-      setFormError('저장하지 못했습니다: ' + submitError.message);
+      setFormError('Could not save: ' + submitError.message);
       return;
     }
     setModalOpen(false);
@@ -84,7 +84,7 @@ export default function TryoutsPage({ setActiveTab }) {
   }
 
   async function convertToRegistration(t) {
-    await setStatus(t.id, '등록전환');
+    await setStatus(t.id, 'Converted');
     sessionStorage.setItem('registerDraft', JSON.stringify({ name: t.student_name, guardian_phone: t.guardian_phone, guardian_email: t.guardian_email, class_name: t.class_name }));
     setActiveTab('register');
   }
@@ -96,17 +96,17 @@ export default function TryoutsPage({ setActiveTab }) {
     <>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>트라이아웃</h1>
-          <p style={styles.subtitle}>{tryouts.length}건의 체험 예약이 있습니다</p>
+          <h1 style={styles.title}>Trials</h1>
+          <p style={styles.subtitle}>{tryouts.length} trial bookings</p>
         </div>
         <button className="dp-btn dp-btn-primary" onClick={openAdd}>
-          <Plus size={15} /> 예약 추가
+          <Plus size={15} /> Add Booking
         </button>
       </div>
 
       <div style={styles.filterBar}>
         <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="all">전체 상태</option>
+          <option value="all">All Statuses</option>
           {TRYOUT_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
               {s.value}
@@ -117,18 +117,18 @@ export default function TryoutsPage({ setActiveTab }) {
 
       <div style={styles.card}>
         {filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>예약이 없습니다.</p>
+          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No bookings.</p>
         ) : (
           <table className="dp-table">
             <thead>
               <tr>
-                <th>학생</th>
-                <th>연락처</th>
-                <th>희망 반</th>
-                <th>날짜</th>
-                <th>시간</th>
-                <th>확인메일</th>
-                <th>상태</th>
+                <th>Student</th>
+                <th>Phone</th>
+                <th>Interested Class</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Confirmation</th>
+                <th>Status</th>
                 <th></th>
               </tr>
             </thead>
@@ -143,7 +143,7 @@ export default function TryoutsPage({ setActiveTab }) {
                     <td>{t.date || '—'}</td>
                     <td>{t.time || '—'}</td>
                     <td style={{ fontSize: 12.5, color: t.confirmation_sent ? '#2A5A30' : '#5B5F56' }}>
-                      {t.guardian_email ? (t.confirmation_sent ? '발송완료' : '대기중') : '—'}
+                      {t.guardian_email ? (t.confirmation_sent ? 'Sent' : 'Pending') : '—'}
                     </td>
                     <td>
                       <select
@@ -161,15 +161,15 @@ export default function TryoutsPage({ setActiveTab }) {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        {t.status !== '등록전환' && (
+                        {t.status !== 'Converted' && (
                           <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => convertToRegistration(t)}>
-                            신규등록으로
+                            To Enrollment
                           </button>
                         )}
-                        <button aria-label="수정" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(t)}>
+                        <button aria-label="Edit" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(t)}>
                           <Pencil size={14} />
                         </button>
-                        <button aria-label="삭제" className="dp-btn dp-btn-danger" style={{ padding: 6 }} onClick={() => setConfirmDeleteId(t.id)}>
+                        <button aria-label="Delete" className="dp-btn dp-btn-danger" style={{ padding: 6 }} onClick={() => setConfirmDeleteId(t.id)}>
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -184,33 +184,33 @@ export default function TryoutsPage({ setActiveTab }) {
 
       {modalOpen && (
         <Modal
-          title={editingId ? '트라이아웃 예약 수정' : '트라이아웃 예약 추가'}
+          title={editingId ? 'Edit Trial Booking' : 'Add Trial Booking'}
           onClose={() => setModalOpen(false)}
           footer={
             <>
               <button className="dp-btn" onClick={() => setModalOpen(false)}>
-                취소
+                Cancel
               </button>
               <button className="dp-btn dp-btn-primary" onClick={submitForm}>
-                <Check size={15} /> 저장
+                <Check size={15} /> Save
               </button>
             </>
           }
         >
-          <Field label="학생 이름" required>
+          <Field label="Student Name" required>
             <input className="dp-input" style={{ width: '100%' }} value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
           </Field>
-          <Field label="보호자 연락처">
+          <Field label="Guardian Phone">
             <input className="dp-input" style={{ width: '100%' }} value={form.guardian_phone || ''} onChange={(e) => setForm({ ...form, guardian_phone: e.target.value })} />
           </Field>
-          <Field label="보호자 이메일">
+          <Field label="Guardian Email">
             <input type="email" className="dp-input" style={{ width: '100%' }} value={form.guardian_email || ''} onChange={(e) => setForm({ ...form, guardian_email: e.target.value })} />
           </Field>
           <div style={styles.formRow}>
-            <Field label="희망 반">
+            <Field label="Interested Class">
               <input className="dp-input" style={{ width: '100%' }} value={form.class_name || ''} onChange={(e) => setForm({ ...form, class_name: e.target.value })} />
             </Field>
-            <Field label="상태">
+            <Field label="Status">
               <select className="dp-select" style={{ width: '100%' }} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 {TRYOUT_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -221,21 +221,21 @@ export default function TryoutsPage({ setActiveTab }) {
             </Field>
           </div>
           <div style={styles.formRow}>
-            <Field label="예약 날짜">
+            <Field label="Booking Date">
               <input type="date" className="dp-input" style={{ width: '100%' }} value={form.date || ''} onChange={(e) => setForm({ ...form, date: e.target.value })} />
             </Field>
-            <Field label="예약 시간">
+            <Field label="Booking Time">
               <input type="time" className="dp-input" style={{ width: '100%' }} value={form.time || ''} onChange={(e) => setForm({ ...form, time: e.target.value })} />
             </Field>
           </div>
-          <Field label="메모">
+          <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
 
-      {confirmDeleteId && <ConfirmDialog message="이 예약을 삭제하시겠습니까? 되돌릴 수 없습니다." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
+      {confirmDeleteId && <ConfirmDialog message="Delete this booking? This can't be undone." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
     </>
   );
 }

@@ -13,7 +13,7 @@ export default function LoginPage() {
     setSubmitting(true);
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     setSubmitting(false);
-    if (signInError) setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요.');
+    if (signInError) setError('Login failed. Please check your email and password.');
   }
 
   return (
@@ -21,10 +21,10 @@ export default function LoginPage() {
       <form style={styles.card} onSubmit={handleSubmit}>
         <div style={styles.brand}>
           <div style={styles.brandMark} />
-          <span style={styles.brandText}>도장 포털</span>
+          <span style={styles.brandText}>Dojang Portal</span>
         </div>
         <label style={styles.label}>
-          이메일
+          Email
           <input
             type="email"
             className="dp-input"
@@ -35,7 +35,7 @@ export default function LoginPage() {
           />
         </label>
         <label style={styles.label}>
-          비밀번호
+          Password
           <input
             type="password"
             className="dp-input"
@@ -47,10 +47,10 @@ export default function LoginPage() {
         </label>
         {error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{error}</p>}
         <button type="submit" className="dp-btn dp-btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} disabled={submitting}>
-          {submitting ? '로그인 중...' : '로그인'}
+          {submitting ? 'Signing in...' : 'Log In'}
         </button>
         <p style={{ fontSize: 12.5, color: '#5B5F56', marginTop: 14 }}>
-          계정은 Supabase 대시보드(Authentication → Users)에서 원장님이 직접 만들어 직원에게 전달하세요.
+          Accounts are created by the admin in the Supabase dashboard (Authentication → Users) and shared with staff.
         </p>
       </form>
     </div>

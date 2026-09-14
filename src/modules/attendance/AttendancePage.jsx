@@ -120,9 +120,14 @@ export default function AttendancePage() {
     if (data) setMakeupRecords((prev) => prev.map((m) => (m.id === makeupId ? data[0] : m)));
   }
 
+  async function setMakeupCompleted(makeupId) {
+    const { data } = await supabase.from('makeup_records').update({ status: 'completed' }).eq('id', makeupId).select();
+    if (data) setMakeupRecords((prev) => prev.map((m) => (m.id === makeupId ? data[0] : m)));
+  }
+
   // Guests attending a makeup session in a class that isn't their home class.
   // Present marks the makeup record completed; absent sends it back to
-  // "미예약" so the front desk knows to rebook it.
+  // "Not Scheduled" so the front desk knows to rebook it.
   async function setMakeupGuestStatus(makeupRecord, date, className, status) {
     const { data, error } = await supabase
       .from('attendance')
@@ -149,12 +154,7 @@ export default function AttendancePage() {
     }
   }
 
-  async function setMakeupCompleted(makeupId) {
-    const { data } = await supabase.from('makeup_records').update({ status: 'completed' }).eq('id', makeupId).select();
-    if (data) setMakeupRecords((prev) => prev.map((m) => (m.id === makeupId ? data[0] : m)));
-  }
-
-  const checkinList = students.filter((s) => checkinClass === 'all' || (s.class_name || '미배정') === checkinClass);
+  const checkinList = students.filter((s) => checkinClass === 'all' || (s.class_name || 'Unassigned') === checkinClass);
   const makeupGuests = makeupRecords.filter(
     (m) =>
       m.status === 'reserved' &&
@@ -178,16 +178,16 @@ export default function AttendancePage() {
     <>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>출석</h1>
-          <p style={styles.subtitle}>체크인, 출석 이력, 보강수업을 관리합니다</p>
+          <h1 style={styles.title}>Attendance</h1>
+          <p style={styles.subtitle}>Check-in, history, and makeup classes</p>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
         {[
-          { id: 'checkin', label: '체크인' },
-          { id: 'history', label: '출석 이력' },
-          { id: 'makeup', label: '보강수업' },
+          { id: 'checkin', label: 'Check-in' },
+          { id: 'history', label: 'History' },
+          { id: 'makeup', label: 'Makeup Classes' },
         ].map((v) => (
           <button
             key={v.id}
@@ -205,7 +205,7 @@ export default function AttendancePage() {
           <div style={styles.filterBar}>
             <input type="date" className="dp-input" value={checkinDate} onChange={(e) => setCheckinDate(e.target.value)} />
             <select className="dp-select" value={checkinClass} onChange={(e) => setCheckinClass(e.target.value)}>
-              <option value="all">전체 반</option>
+              <option value="all">All Classes</option>
               {classes.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -215,19 +215,19 @@ export default function AttendancePage() {
           </div>
           <div style={styles.card}>
             {checkinList.length === 0 && makeupGuests.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>해당하는 학생이 없습니다.</p>
+              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No matching students.</p>
             ) : (
               <table className="dp-table">
                 <thead>
                   <tr>
-                    <th>이름</th>
-                    <th>반</th>
-                    <th style={{ width: 200 }}>출결</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th style={{ width: 200 }}>Attendance</th>
                   </tr>
                 </thead>
                 <tbody>
                   {checkinList.map((s) => {
-                    const className = s.class_name || '미배정';
+                    const className = s.class_name || 'Unassigned';
                     const record = attendance.find((a) => a.student_id === s.id && a.date === checkinDate && a.class_name === className);
                     return (
                       <tr key={s.id} className="dp-row">
@@ -245,7 +245,7 @@ export default function AttendancePage() {
                               }}
                               onClick={() => setAttendanceStatus(s.id, checkinDate, className, 'present')}
                             >
-                              <CircleCheck size={14} /> 출석
+                              <CircleCheck size={14} /> Present
                             </button>
                             <button
                               className="dp-btn"
@@ -257,7 +257,7 @@ export default function AttendancePage() {
                               }}
                               onClick={() => setAttendanceStatus(s.id, checkinDate, className, 'absent')}
                             >
-                              <CircleX size={14} /> 결석
+                              <CircleX size={14} /> Absent
                             </button>
                           </div>
                         </td>
@@ -274,10 +274,10 @@ export default function AttendancePage() {
                         <td style={{ fontWeight: 500 }}>
                           {s.name}
                           <span style={{ marginLeft: 6, fontSize: 10.5, color: '#854F0B', border: '1px solid #F0D9A8', background: '#FAEEDA', borderRadius: 999, padding: '1px 6px' }}>
-                            보강
+                            Makeup
                           </span>
                         </td>
-                        <td>{className} (원래 반: {s.class_name || '미배정'})</td>
+                        <td>{className} (home class: {s.class_name || 'Unassigned'})</td>
                         <td>
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button
@@ -290,7 +290,7 @@ export default function AttendancePage() {
                               }}
                               onClick={() => setMakeupGuestStatus(m, checkinDate, className, 'present')}
                             >
-                              <CircleCheck size={14} /> 출석
+                              <CircleCheck size={14} /> Present
                             </button>
                             <button
                               className="dp-btn"
@@ -302,7 +302,7 @@ export default function AttendancePage() {
                               }}
                               onClick={() => setMakeupGuestStatus(m, checkinDate, className, 'absent')}
                             >
-                              <CircleX size={14} /> 결석
+                              <CircleX size={14} /> Absent
                             </button>
                           </div>
                         </td>
@@ -320,7 +320,7 @@ export default function AttendancePage() {
         <>
           <div style={styles.filterBar}>
             <select className="dp-select" value={historyStudentId} onChange={(e) => setHistoryStudentId(e.target.value)}>
-              <option value="">학생 선택</option>
+              <option value="">Select a student</option>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -330,16 +330,16 @@ export default function AttendancePage() {
           </div>
           <div style={styles.card}>
             {!historyStudentId ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>학생을 선택해 주세요.</p>
+              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Select a student.</p>
             ) : historyRecords.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>출석 기록이 없습니다.</p>
+              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No attendance records.</p>
             ) : (
               <table className="dp-table">
                 <thead>
                   <tr>
-                    <th>날짜</th>
-                    <th>반</th>
-                    <th>상태</th>
+                    <th>Date</th>
+                    <th>Class</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -347,7 +347,7 @@ export default function AttendancePage() {
                     <tr key={r.id} className="dp-row">
                       <td>{r.date}</td>
                       <td>{r.class_name}</td>
-                      <td style={{ color: r.status === 'absent' ? '#9A2B2B' : '#2A5A30' }}>{r.status === 'absent' ? '결석' : '출석'}</td>
+                      <td style={{ color: r.status === 'absent' ? '#9A2B2B' : '#2A5A30' }}>{r.status === 'absent' ? 'Absent' : 'Present'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -360,23 +360,24 @@ export default function AttendancePage() {
       {view === 'makeup' && (
         <>
           <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
-            만료일은 결석일 기준 30일로 임시 설정되며, 다음 결제일에 결제 여부가 확인되면 확정됩니다. 다음 달 결제가 안 되면 원래 결제했던 달의 마지막
-            날로 만료일이 조정됩니다.
+            The expiration date is tentatively set to the absence date + 30 days, and gets confirmed once the next payment is
+            recorded. If the next month isn't paid, the expiration date shrinks to the last day of the month that was actually
+            paid for.
           </p>
           <div style={styles.card}>
             {makeupRecords.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>보강수업 대상이 없습니다.</p>
+              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No makeup classes.</p>
             ) : (
               <table className="dp-table">
                 <thead>
                   <tr>
-                    <th>학생</th>
-                    <th>결석일</th>
-                    <th>만료일</th>
-                    <th>다음 결제일</th>
-                    {isAdmin && <th>결제 상태</th>}
-                    <th>예약일</th>
-                    <th>상태</th>
+                    <th>Student</th>
+                    <th>Absence Date</th>
+                    <th>Expires</th>
+                    <th>Next Due Date</th>
+                    {isAdmin && <th>Payment</th>}
+                    <th>Reservation</th>
+                    <th>Status</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -387,17 +388,17 @@ export default function AttendancePage() {
                     .map((m) => {
                       const student = studentMap[m.student_id];
                       const payment = payments.find((p) => p.student_id === m.student_id && p.cycle_start === m.next_billing_date);
-                      const paidLabel = payment ? (payment.paid ? '완료' : '미납') : '미확인';
+                      const paidLabel = payment ? (payment.paid ? 'Paid' : 'Unpaid') : 'Unconfirmed';
                       return (
                         <tr key={m.id} className="dp-row">
-                          <td style={{ fontWeight: 500 }}>{student ? student.name : '(삭제된 학생)'}</td>
+                          <td style={{ fontWeight: 500 }}>{student ? student.name : '(deleted student)'}</td>
                           <td>{m.absence_date}</td>
                           <td>
                             {m.expiration_date}
                             {m.conditional && (
                               <div style={{ fontSize: 11, color: '#8A7A00', marginTop: 2 }}>
                                 <CalendarClock size={11} style={{ verticalAlign: '-1px', marginRight: 3 }} />
-                                결제 확인 대기중
+                                Awaiting payment confirmation
                               </div>
                             )}
                           </td>
@@ -405,16 +406,16 @@ export default function AttendancePage() {
                           {isAdmin && (
                             <td>
                               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                                <span style={{ fontSize: 12.5, color: paidLabel === '미납' ? '#9A2B2B' : '#5B5F56' }}>{paidLabel}</span>
+                                <span style={{ fontSize: 12.5, color: paidLabel === 'Unpaid' ? '#9A2B2B' : '#5B5F56' }}>{paidLabel}</span>
                                 <button
                                   className="dp-btn"
                                   style={{ padding: '3px 8px', fontSize: 12 }}
                                   onClick={() => togglePayment(m.student_id, m.next_billing_date, true, Number(student && student.tuition) || 0)}
                                 >
-                                  결제완료
+                                  Mark Paid
                                 </button>
                                 <button className="dp-btn dp-btn-danger" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => togglePayment(m.student_id, m.next_billing_date, false)}>
-                                  미납
+                                  Mark Unpaid
                                 </button>
                               </div>
                             </td>
@@ -447,7 +448,7 @@ export default function AttendancePage() {
                           <td>
                             {m.status !== 'completed' && (
                               <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => setMakeupCompleted(m.id)}>
-                                완료 처리
+                                Mark Complete
                               </button>
                             )}
                           </td>

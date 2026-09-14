@@ -2,7 +2,7 @@ import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 
-export default function ConfirmDialog({ message, onCancel, onConfirm, confirmLabel = '삭제' }) {
+export default function ConfirmDialog({ message, onCancel, onConfirm, confirmLabel = 'Delete' }) {
   return (
     <div style={styles.overlay} onClick={onCancel}>
       <div style={{ ...styles.modal, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
@@ -12,7 +12,7 @@ export default function ConfirmDialog({ message, onCancel, onConfirm, confirmLab
         </div>
         <div style={styles.modalFooter}>
           <button className="dp-btn" onClick={onCancel}>
-            취소
+            Cancel
           </button>
           <button className="dp-btn dp-btn-danger" onClick={onConfirm}>
             {confirmLabel}

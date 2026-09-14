@@ -7,7 +7,7 @@
 //
 // Requires these environment variables (set in Supabase → Edge Functions → Secrets):
 //   RESEND_API_KEY       — from resend.com
-//   RESEND_FROM_ADDRESS   — e.g. "도장 이름 <noreply@yourdomain.com>"
+//   RESEND_FROM_ADDRESS   — e.g. "Dojang Name <noreply@yourdomain.com>"
 //   SUPABASE_URL          — auto-provided
 //   SUPABASE_SERVICE_ROLE_KEY — auto-provided (bypasses RLS to update rows)
 
@@ -20,25 +20,25 @@ const FROM_ADDRESS = Deno.env.get('RESEND_FROM_ADDRESS') || 'onboarding@resend.d
 function tryoutConfirmationEmail(payload: any) {
   const { student_name, date, time, class_name } = payload || {};
   return {
-    subject: `[체험 예약 확인] ${student_name} 님`,
+    subject: `[Trial Booking Confirmed] ${student_name}`,
     html: `
-      <p>안녕하세요, ${student_name} 님의 트라이아웃(체험) 예약이 확인되었습니다.</p>
+      <p>Hi, this confirms ${student_name}'s trial class booking.</p>
       <ul>
-        <li>날짜: ${date || '추후 안내'}</li>
-        <li>시간: ${time || '추후 안내'}</li>
-        <li>반: ${class_name || '추후 안내'}</li>
+        <li>Date: ${date || 'To be announced'}</li>
+        <li>Time: ${time || 'To be announced'}</li>
+        <li>Class: ${class_name || 'To be announced'}</li>
       </ul>
-      <p>당일 뵙겠습니다. 문의 사항이 있으시면 언제든 연락 주세요.</p>
+      <p>We look forward to seeing you. Feel free to reach out with any questions.</p>
     `,
   };
 }
 
 function welcomeEmail(studentName: string) {
   return {
-    subject: `${studentName} 님, 등록을 환영합니다`,
+    subject: `Welcome, ${studentName}!`,
     html: `
-      <p>${studentName} 님의 등록이 완료되었습니다. 저희 도장 가족이 되신 것을 환영합니다!</p>
-      <p>출석/일정 관련 안내는 추후 별도로 전달드리겠습니다.</p>
+      <p>${studentName}'s registration is complete. Welcome to our dojang family!</p>
+      <p>We'll follow up separately with schedule and attendance details.</p>
     `,
   };
 }

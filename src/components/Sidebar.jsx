@@ -4,14 +4,14 @@ import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 
 export const ALL_TABS = [
-  { id: 'students', label: '학생 관리', icon: Users, adminOnly: false },
-  { id: 'leads', label: '상담문의', icon: PhoneCall, adminOnly: true },
-  { id: 'tryouts', label: '트라이아웃', icon: CalendarPlus, adminOnly: true },
-  { id: 'register', label: '신규등록', icon: UserPlus, adminOnly: true },
-  { id: 'attendance', label: '출석', icon: ClipboardCheck, adminOnly: false },
-  { id: 'billing', label: '회계', icon: Wallet, adminOnly: true },
-  { id: 'invoice', label: '인보이스', icon: FileText, adminOnly: true },
-  { id: 'receipt', label: '영수증', icon: Receipt, adminOnly: true },
+  { id: 'students', label: 'Students', icon: Users, adminOnly: false },
+  { id: 'leads', label: 'Leads', icon: PhoneCall, adminOnly: true },
+  { id: 'tryouts', label: 'Trials', icon: CalendarPlus, adminOnly: true },
+  { id: 'register', label: 'Enrollment', icon: UserPlus, adminOnly: true },
+  { id: 'attendance', label: 'Attendance', icon: ClipboardCheck, adminOnly: false },
+  { id: 'billing', label: 'Billing', icon: Wallet, adminOnly: true },
+  { id: 'invoice', label: 'Invoices', icon: FileText, adminOnly: true },
+  { id: 'receipt', label: 'Receipts', icon: Receipt, adminOnly: true },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab }) {
@@ -22,7 +22,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     <div style={{ ...styles.sidebar, display: 'flex', flexDirection: 'column' }}>
       <div style={styles.brand}>
         <div style={styles.brandMark} />
-        <span style={styles.brandText}>도장 포털</span>
+        <span style={styles.brandText}>Dojang Portal</span>
       </div>
       <nav style={{ marginTop: 24, flex: 1 }}>
         {tabs.map((tab) => {
@@ -49,7 +49,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         style={{ ...styles.navItem, color: '#B9BCB4', border: '1px solid #43463F' }}
       >
         <LogOut size={16} strokeWidth={1.75} />
-        <span>로그아웃</span>
+        <span>Log Out</span>
       </button>
     </div>
   );

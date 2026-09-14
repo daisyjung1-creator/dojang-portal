@@ -16,7 +16,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('students');
 
   if (loading) {
-    return <div style={{ padding: 40, color: '#5B5F56' }}>불러오는 중...</div>;
+    return <div style={{ padding: 40, color: '#5B5F56' }}>Loading...</div>;
   }
 
   if (!session) {
@@ -40,7 +40,7 @@ export default function App() {
         {isAdmin && effectiveTab === 'billing' && <BillingPage />}
         {isAdmin && (effectiveTab === 'invoice' || effectiveTab === 'receipt') && (
           <div style={{ padding: '60px 0', textAlign: 'center' }}>
-            <p style={{ color: '#5B5F56', fontSize: 14 }}>이 모듈은 다음 단계에서 만들어질 예정입니다.</p>
+            <p style={{ color: '#5B5F56', fontSize: 14 }}>This module will be built in a later phase.</p>
           </div>
         )}
       </div>

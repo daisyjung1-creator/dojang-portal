@@ -9,7 +9,7 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 function emptyForm() {
-  return { student_name: '', guardian_name: '', phone: '', email: '', source: '전화', inquiry_date: todayISO(), consult_date: '', status: '신규문의', notes: '', linked_student_id: null };
+  return { student_name: '', guardian_name: '', phone: '', email: '', source: 'Phone', inquiry_date: todayISO(), consult_date: '', status: 'New Inquiry', notes: '', linked_student_id: null };
 }
 
 export default function LeadsPage({ setActiveTab }) {
@@ -28,6 +28,11 @@ export default function LeadsPage({ setActiveTab }) {
   useEffect(() => {
     fetchLeads();
   }, []);
+
+  async function fetchLeads() {
+    const { data } = await supabase.from('leads').select('*').order('inquiry_date', { ascending: false });
+    setLeads(data || []);
+  }
 
   async function searchPastStudents() {
     if (!pastSearch.trim()) {
@@ -52,11 +57,6 @@ export default function LeadsPage({ setActiveTab }) {
   function unlinkPastStudent() {
     setForm({ ...form, linked_student_id: null });
     setLinkedStudent(null);
-  }
-
-  async function fetchLeads() {
-    const { data } = await supabase.from('leads').select('*').order('inquiry_date', { ascending: false });
-    setLeads(data || []);
   }
 
   function openAdd() {
@@ -86,14 +86,14 @@ export default function LeadsPage({ setActiveTab }) {
 
   async function submitForm() {
     if (!form.student_name.trim()) {
-      setFormError('학생 이름을 입력해 주세요.');
+      setFormError('Please enter a student name.');
       return;
     }
     let submitError;
     if (editingId) ({ error: submitError } = await supabase.from('leads').update(form).eq('id', editingId));
     else ({ error: submitError } = await supabase.from('leads').insert(form));
     if (submitError) {
-      setFormError('저장하지 못했습니다: ' + submitError.message);
+      setFormError('Could not save: ' + submitError.message);
       return;
     }
     setModalOpen(false);
@@ -112,9 +112,8 @@ export default function LeadsPage({ setActiveTab }) {
   }
 
   async function convertToStudent(lead) {
-    await setStatus(lead.id, '등록완료');
+    await setStatus(lead.id, 'Enrolled');
     if (lead.linked_student_id) {
-      // Reactivate the existing record instead of creating a duplicate.
       await supabase.from('students').update({ status: 'active', withdrawn_date: null, enroll_date: todayISO() }).eq('id', lead.linked_student_id);
       setActiveTab('students');
       return;
@@ -128,10 +127,10 @@ export default function LeadsPage({ setActiveTab }) {
 
   const stats = useMemo(() => {
     const total = leads.length;
-    const consulted = leads.filter((l) => l.status !== '신규문의').length;
-    const registered = leads.filter((l) => l.status === '등록완료').length;
-    const rate = total === 0 ? 0 : Math.round((registered / total) * 1000) / 10;
-    return { total, consulted, registered, rate };
+    const consulted = leads.filter((l) => l.status !== 'New Inquiry').length;
+    const enrolled = leads.filter((l) => l.status === 'Enrolled').length;
+    const rate = total === 0 ? 0 : Math.round((enrolled / total) * 1000) / 10;
+    return { total, consulted, enrolled, rate };
   }, [leads]);
 
   const filtered = useMemo(() => {
@@ -152,30 +151,30 @@ export default function LeadsPage({ setActiveTab }) {
     <>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>상담문의</h1>
-          <p style={styles.subtitle}>{leads.length}건의 문의가 기록되어 있습니다</p>
+          <h1 style={styles.title}>Leads</h1>
+          <p style={styles.subtitle}>{leads.length} inquiries on record</p>
         </div>
         <button className="dp-btn dp-btn-primary" onClick={openAdd}>
-          <Plus size={15} /> 문의 추가
+          <Plus size={15} /> Add Inquiry
         </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
         <div style={styles.metricCard}>
-          <p style={styles.metricLabel}>총 문의</p>
-          <p style={styles.metricValue}>{stats.total}건</p>
+          <p style={styles.metricLabel}>Total Inquiries</p>
+          <p style={styles.metricValue}>{stats.total}</p>
         </div>
         <div style={styles.metricCard}>
-          <p style={styles.metricLabel}>상담 진행</p>
-          <p style={styles.metricValue}>{stats.consulted}건</p>
+          <p style={styles.metricLabel}>In Consultation</p>
+          <p style={styles.metricValue}>{stats.consulted}</p>
         </div>
         <div style={styles.metricCard}>
           <p style={styles.metricLabel}>
             <TrendingUp size={12} style={{ verticalAlign: '-1px', marginRight: 4 }} />
-            등록 전환율
+            Enrollment Rate
           </p>
           <p style={styles.metricValue}>
-            {stats.rate}% <span style={{ fontSize: 13, color: '#5B5F56', fontWeight: 400 }}>({stats.registered}/{stats.total})</span>
+            {stats.rate}% <span style={{ fontSize: 13, color: '#5B5F56', fontWeight: 400 }}>({stats.enrolled}/{stats.total})</span>
           </p>
         </div>
       </div>
@@ -183,10 +182,10 @@ export default function LeadsPage({ setActiveTab }) {
       <div style={styles.filterBar}>
         <div style={styles.searchBox}>
           <Search size={15} color="#5B5F56" />
-          <input className="dp-input" style={{ border: 'none', flex: 1, padding: '4px 6px' }} placeholder="학생, 보호자, 연락처로 검색" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="dp-input" style={{ border: 'none', flex: 1, padding: '4px 6px' }} placeholder="Search by student, guardian, or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="all">전체 상태</option>
+          <option value="all">All Statuses</option>
           {LEAD_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
               {s.value}
@@ -197,18 +196,18 @@ export default function LeadsPage({ setActiveTab }) {
 
       <div style={styles.card}>
         {filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>해당하는 문의 기록이 없습니다.</p>
+          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No matching inquiries.</p>
         ) : (
           <table className="dp-table">
             <thead>
               <tr>
-                <th>학생</th>
-                <th>보호자</th>
-                <th>연락처</th>
-                <th>경로</th>
-                <th>문의일</th>
-                <th>상담일</th>
-                <th>상태</th>
+                <th>Student</th>
+                <th>Guardian</th>
+                <th>Phone</th>
+                <th>Source</th>
+                <th>Inquiry Date</th>
+                <th>Consult Date</th>
+                <th>Status</th>
                 <th></th>
               </tr>
             </thead>
@@ -220,7 +219,7 @@ export default function LeadsPage({ setActiveTab }) {
                     <td style={{ fontWeight: 500 }}>
                       {l.student_name}
                       {l.linked_student_id && (
-                        <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>연결됨</span>
+                        <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Linked</span>
                       )}
                     </td>
                     <td>{l.guardian_name || '—'}</td>
@@ -244,15 +243,15 @@ export default function LeadsPage({ setActiveTab }) {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        {l.status !== '등록완료' && (
+                        {l.status !== 'Enrolled' && (
                           <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => convertToStudent(l)}>
-                            학생 등록
+                            Enroll
                           </button>
                         )}
-                        <button aria-label="수정" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(l)}>
+                        <button aria-label="Edit" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(l)}>
                           <Pencil size={14} />
                         </button>
-                        <button aria-label="삭제" className="dp-btn dp-btn-danger" style={{ padding: 6 }} onClick={() => setConfirmDeleteId(l.id)}>
+                        <button aria-label="Delete" className="dp-btn dp-btn-danger" style={{ padding: 6 }} onClick={() => setConfirmDeleteId(l.id)}>
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -267,15 +266,15 @@ export default function LeadsPage({ setActiveTab }) {
 
       {modalOpen && (
         <Modal
-          title={editingId ? '문의 정보 수정' : '상담 문의 추가'}
+          title={editingId ? 'Edit Inquiry' : 'Add Inquiry'}
           onClose={() => setModalOpen(false)}
           footer={
             <>
               <button className="dp-btn" onClick={() => setModalOpen(false)}>
-                취소
+                Cancel
               </button>
               <button className="dp-btn dp-btn-primary" onClick={submitForm}>
-                <Check size={15} /> 저장
+                <Check size={15} /> Save
               </button>
             </>
           }
@@ -284,26 +283,26 @@ export default function LeadsPage({ setActiveTab }) {
             {linkedStudent ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
                 <span>
-                  이전 학생 연결됨: <strong>{linkedStudent.name}</strong> ({linkedStudent.status === 'withdrawn' ? '퇴원' : '재원'}, 등록일 {linkedStudent.enroll_date})
+                  Linked to previous student: <strong>{linkedStudent.name}</strong> ({linkedStudent.status === 'withdrawn' ? 'Withdrawn' : 'Active'}, enrolled {linkedStudent.enroll_date})
                 </span>
                 <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={unlinkPastStudent}>
-                  연결 해제
+                  Unlink
                 </button>
               </div>
             ) : (
               <>
-                <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>이전에 입관했던 아이라면 이름/연락처로 찾아서 연결할 수 있어요.</p>
+                <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>If this child was previously enrolled, search by name or phone to link their record.</p>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input
                     className="dp-input"
                     style={{ flex: 1 }}
-                    placeholder="이름 또는 연락처"
+                    placeholder="Name or phone"
                     value={pastSearch}
                     onChange={(e) => setPastSearch(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && searchPastStudents()}
                   />
                   <button className="dp-btn" onClick={searchPastStudents}>
-                    검색
+                    Search
                   </button>
                 </div>
                 {pastMatches.length > 0 && (
@@ -311,10 +310,10 @@ export default function LeadsPage({ setActiveTab }) {
                     {pastMatches.map((s) => (
                       <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, background: '#FFFFFF', border: '1px solid #DEDACC', borderRadius: 6, padding: '5px 8px' }}>
                         <span>
-                          {s.name} · {s.status === 'withdrawn' ? '퇴원' : '재원'} · 등록일 {s.enroll_date || '—'}
+                          {s.name} · {s.status === 'withdrawn' ? 'Withdrawn' : 'Active'} · enrolled {s.enroll_date || '—'}
                         </span>
                         <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => linkPastStudent(s)}>
-                          연결
+                          Link
                         </button>
                       </div>
                     ))}
@@ -323,22 +322,22 @@ export default function LeadsPage({ setActiveTab }) {
               </>
             )}
           </div>
-          <Field label="학생 이름" required>
+          <Field label="Student Name" required>
             <input className="dp-input" style={{ width: '100%' }} value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
           </Field>
           <div style={styles.formRow}>
-            <Field label="보호자 이름">
+            <Field label="Guardian Name">
               <input className="dp-input" style={{ width: '100%' }} value={form.guardian_name || ''} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />
             </Field>
-            <Field label="연락처">
+            <Field label="Phone">
               <input className="dp-input" style={{ width: '100%' }} value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             </Field>
           </div>
-          <Field label="이메일">
+          <Field label="Email">
             <input type="email" className="dp-input" style={{ width: '100%' }} value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </Field>
           <div style={styles.formRow}>
-            <Field label="문의 경로">
+            <Field label="Source">
               <select className="dp-select" style={{ width: '100%' }} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
                 {LEAD_SOURCES.map((s) => (
                   <option key={s} value={s}>
@@ -347,15 +346,15 @@ export default function LeadsPage({ setActiveTab }) {
                 ))}
               </select>
             </Field>
-            <Field label="문의일">
+            <Field label="Inquiry Date">
               <input type="date" className="dp-input" style={{ width: '100%' }} value={form.inquiry_date || ''} onChange={(e) => setForm({ ...form, inquiry_date: e.target.value })} />
             </Field>
           </div>
           <div style={styles.formRow}>
-            <Field label="상담일">
+            <Field label="Consult Date">
               <input type="date" className="dp-input" style={{ width: '100%' }} value={form.consult_date || ''} onChange={(e) => setForm({ ...form, consult_date: e.target.value })} />
             </Field>
-            <Field label="상태">
+            <Field label="Status">
               <select className="dp-select" style={{ width: '100%' }} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 {LEAD_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -365,14 +364,14 @@ export default function LeadsPage({ setActiveTab }) {
               </select>
             </Field>
           </div>
-          <Field label="비고">
+          <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
 
-      {confirmDeleteId && <ConfirmDialog message="이 문의 기록을 삭제하시겠습니까? 되돌릴 수 없습니다." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
+      {confirmDeleteId && <ConfirmDialog message="Delete this inquiry? This can't be undone." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
     </>
   );
 }
