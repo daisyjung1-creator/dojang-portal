@@ -137,7 +137,7 @@ export default function RegisterPage() {
           <Field label="Enrollment Date">
             <input type="date" className="dp-input" style={{ width: '100%' }} value={form.enroll_date} onChange={(e) => setForm({ ...form, enroll_date: e.target.value })} />
           </Field>
-          <Field label="Monthly Tuition (₩)">
+          <Field label="Monthly Tuition ($)">
             <input type="number" className="dp-input" style={{ width: '100%' }} value={form.tuition} onChange={(e) => setForm({ ...form, tuition: e.target.value })} />
           </Field>
         </div>

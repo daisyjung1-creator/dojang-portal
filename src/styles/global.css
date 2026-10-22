@@ -81,3 +81,30 @@ table.dp-table td {
   border-bottom: 1px solid #EDEAE0;
   color: #20241F;
 }
+
+/* Invoice printing: only the invoice is printed, the app is hidden. */
+#print-root {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body {
+    background: #fff;
+  }
+  body > #root {
+    display: none !important;
+  }
+  #print-root {
+    display: block;
+  }
+  #print-root .invoice-doc {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}
+.invoice-doc {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}

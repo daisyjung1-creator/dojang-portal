@@ -374,7 +374,7 @@ export default function BillingPage() {
             </select>
           </Field>
           <div style={styles.formRow}>
-            <Field label="Amount (₩)">
+            <Field label="Amount ($)">
               <input type="number" className="dp-input" style={{ width: '100%' }} value={chargeForm.amount} onChange={(e) => setChargeForm({ ...chargeForm, amount: e.target.value })} />
             </Field>
             <Field label="Date">
@@ -412,7 +412,7 @@ export default function BillingPage() {
           <Field label="Item Name" required>
             <input className="dp-input" style={{ width: '100%' }} value={feeItemForm.name} onChange={(e) => setFeeItemForm({ ...feeItemForm, name: e.target.value })} />
           </Field>
-          <Field label="Default Amount (₩)">
+          <Field label="Default Amount ($)">
             <input type="number" className="dp-input" style={{ width: '100%' }} value={feeItemForm.default_amount} onChange={(e) => setFeeItemForm({ ...feeItemForm, default_amount: e.target.value })} />
           </Field>
         </Modal>

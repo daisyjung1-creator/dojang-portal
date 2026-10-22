@@ -10,6 +10,11 @@ import TryoutsPage from './modules/tryouts/TryoutsPage';
 import RegisterPage from './modules/register/RegisterPage';
 import AttendancePage from './modules/attendance/AttendancePage';
 import BillingPage from './modules/billing/BillingPage';
+import InvoicesPage from './modules/invoices/InvoicesPage';
+import PaymentsPage from './modules/invoices/PaymentsPage';
+import CustomersPage from './modules/invoices/CustomersPage';
+import ReportsPage from './modules/invoices/ReportsPage';
+import InvoiceSettingsPage from './modules/invoices/InvoiceSettingsPage';
 
 export default function App() {
   const { session, loading, isAdmin } = useAuth();
@@ -25,7 +30,7 @@ export default function App() {
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
-  const adminOnlyTabs = ['leads', 'tryouts', 'register', 'billing', 'invoice', 'receipt'];
+  const adminOnlyTabs = ['leads', 'tryouts', 'register', 'billing', 'invoices', 'payments', 'customers', 'reports', 'invoice-settings'];
   const effectiveTab = !isAdmin && adminOnlyTabs.includes(activeTab) ? 'students' : activeTab;
 
   return (
@@ -38,11 +43,11 @@ export default function App() {
         {isAdmin && effectiveTab === 'tryouts' && <TryoutsPage setActiveTab={setActiveTab} />}
         {isAdmin && effectiveTab === 'register' && <RegisterPage />}
         {isAdmin && effectiveTab === 'billing' && <BillingPage />}
-        {isAdmin && (effectiveTab === 'invoice' || effectiveTab === 'receipt') && (
-          <div style={{ padding: '60px 0', textAlign: 'center' }}>
-            <p style={{ color: '#5B5F56', fontSize: 14 }}>This module will be built in a later phase.</p>
-          </div>
-        )}
+        {isAdmin && effectiveTab === 'invoices' && <InvoicesPage />}
+        {isAdmin && effectiveTab === 'payments' && <PaymentsPage />}
+        {isAdmin && effectiveTab === 'customers' && <CustomersPage />}
+        {isAdmin && effectiveTab === 'reports' && <ReportsPage />}
+        {isAdmin && effectiveTab === 'invoice-settings' && <InvoiceSettingsPage />}
       </div>
     </div>
   );

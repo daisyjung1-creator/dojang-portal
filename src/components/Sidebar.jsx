@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut } from 'lucide-react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 
@@ -10,8 +10,11 @@ export const ALL_TABS = [
   { id: 'register', label: 'Enrollment', icon: UserPlus, adminOnly: true },
   { id: 'attendance', label: 'Attendance', icon: ClipboardCheck, adminOnly: false },
   { id: 'billing', label: 'Billing', icon: Wallet, adminOnly: true },
-  { id: 'invoice', label: 'Invoices', icon: FileText, adminOnly: true },
-  { id: 'receipt', label: 'Receipts', icon: Receipt, adminOnly: true },
+  { id: 'invoices', label: 'Invoices', icon: FileText, adminOnly: true, section: 'Invoicing' },
+  { id: 'payments', label: 'Payments', icon: Receipt, adminOnly: true },
+  { id: 'customers', label: 'Customers', icon: Contact, adminOnly: true },
+  { id: 'reports', label: 'Sales & GST', icon: BarChart3, adminOnly: true },
+  { id: 'invoice-settings', label: 'Invoice Settings', icon: Settings, adminOnly: true },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab }) {
@@ -29,8 +32,9 @@ export default function Sidebar({ activeTab, setActiveTab }) {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
           return (
+            <React.Fragment key={tab.id}>
+            {tab.section && <div style={{ fontSize: 11, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 10px 6px' }}>{tab.section}</div>}
             <button
-              key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
                 ...styles.navItem,
@@ -41,6 +45,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
               <Icon size={17} strokeWidth={1.75} />
               <span>{tab.label}</span>
             </button>
+            </React.Fragment>
           );
         })}
       </nav>

@@ -65,9 +65,28 @@ git push -u origin main
 - **관리자(admin)**: 모든 메뉴 접근 가능
 - **직원(staff)**: 출석·보강수업만 접근 가능 (상담문의/트라이아웃/신규등록/회계는 화면에서도 숨겨지고, 데이터베이스 권한(RLS)에서도 차단됨)
 
+## 6. 인보이스 모듈 (Express Invoice 대체)
+
+메뉴: **Invoices · Payments · Customers · Sales & GST · Invoice Settings** (관리자 전용)
+
+설치 순서:
+1. Supabase SQL Editor에서 `supabase/migrations/005_invoicing.sql` 실행 (여러 번 실행해도 안전)
+2. 포털 → **Invoice Settings**: 회사 정보·로고 확인, **Next invoice # / Next receipt #** 를 Express Invoice 마지막 번호 +1로 맞추기
+3. **Invoice Settings → Items → Import**: Express Invoice 품목 목록(Item, Description, Tax, Value 열) CSV/엑셀 가져오기 → Save Items
+4. **Customers → Import**: Express Invoice 고객 목록 CSV/엑셀 가져오기. Balance 열을 연결하면 남은 미수금이 번호 없는 "Opening balance"로 옮겨짐 (매출·GST 보고서에는 포함 안 됨)
+5. **Customers → From Students**: 학생의 보호자 정보로 고객을 만들고 연결 (형제는 같은 이메일이면 한 고객으로)
+6. 이메일 발송: `send-emails` 함수를 다시 배포 (`invoiceDocs.ts` 파일 포함). 인보이스는 PDF 첨부로 나가고, 영수증은 본문 메일로 나감. 위 5번(Resend + email_queue 웹훅) 설정이 되어 있어야 실제 발송됨
+
+기능:
+- 인보이스 작성 (품목 선택, 수량, GST 자동 5%, GST 없는 품목 지원, 연결된 학생 수업료 한 번에 추가, "Paid now"로 바로 결제 기록)
+- 인보이스 미리보기 / 인쇄 / PDF 저장 / 이메일 / 무효(Void) / 결제 적용
+- 결제 기록 (영수증 번호 자동, 결제 방법별 합계, 영수증 이메일)
+- 고객 목록 (잔액, 미납 기한, 마지막 인보이스, 거래 명세서)
+- 월별 매출, GST, 분기별 GST, 입금액, 미수금 보고서 + CSV 내보내기
+
 ## 아직 만들어지지 않은 부분
 
-- 인보이스, 영수증 모듈 (자리만 잡아둠)
+- 반복 인보이스(매달 자동 생성), 견적서, 크레딧 노트/환불
 - 자동 이메일 발송은 위 5번 설정을 마쳐야 실제로 나갑니다 (설정 전엔 대기열에만 쌓임)
 
 ## 이번에 추가된 것

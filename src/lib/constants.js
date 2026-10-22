@@ -47,7 +47,6 @@ export const MAKEUP_STATUSES = {
 };
 
 export function formatCurrency(n) {
-  const num = Number(n);
-  if (!num) return '₩0';
-  return '₩' + num.toLocaleString('en-US');
+  const num = Number(n) || 0;
+  return '$' + num.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

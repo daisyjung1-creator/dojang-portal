@@ -3,6 +3,11 @@ import { X } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 
 export default function Modal({ title, onClose, children, footer, maxWidth }) {
+  React.useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   return (
     <div style={styles.overlay} onClick={onClose}>
       <div style={{ ...styles.modal, ...(maxWidth ? { maxWidth } : {}) }} onClick={(e) => e.stopPropagation()}>
