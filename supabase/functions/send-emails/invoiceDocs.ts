@@ -154,11 +154,15 @@ export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Pay
   rule(y + 10, tx, W - M);
   row('Total', money(inv.total), true);
   if (paid > 0) row('Paid', '-' + money(paid));
-  y -= 4;
-  roundRect(tx - 12, y - 14, W - M - tx + 12, 32, 5, ink);
-  text('Amount due', tx, y - 2, { size: 10, f: bold, color: white });
-  text(money(balance), W - M - 12, y - 2, { size: 13, f: bold, color: white, right: true });
-  y -= 52;
+  // Black "Amount due" block: same width as the totals above, 12pt inner
+  // padding on both sides, labels optically centred on the block's midline.
+  const boxH = 34, pad = 12;
+  const boxTop = y + 17 - 12;            // 12pt below the last totals baseline
+  const mid = boxTop - boxH / 2;
+  roundRect(tx, boxTop - boxH, W - M - tx, boxH, 5, ink);
+  text('Amount due', tx + pad, mid - 10 * 0.36, { size: 10, f: bold, color: white });
+  text(money(balance), W - M - pad, mid - 13 * 0.36, { size: 13, f: bold, color: white, right: true });
+  y = boxTop - boxH - 34;
 
   // ── Payment, notes ─────────────────────────────────────────────────
   const blocks: [string, string][] = [];

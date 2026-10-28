@@ -101,7 +101,7 @@ export default function InvoiceDocument({ invoice, lines, payments = [], setting
         <div style={{ borderTop: `1px solid ${HAIR}`, margin: '4px 0' }} />
         <Row k="Total" v={money(invoice.total)} bold />
         {paid > 0 && <Row k="Paid" v={`-${money(paid)}`} />}
-        <div style={{ background: INK, color: '#fff', borderRadius: 6, padding: '12px 14px', marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div style={{ background: INK, color: '#fff', borderRadius: 6, height: 46, padding: '0 16px', marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontWeight: 700, fontSize: 13 }}>Amount due</span>
           <span style={{ fontWeight: 700, fontSize: 17, ...num }}>{money(balance)}</span>
         </div>
