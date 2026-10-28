@@ -175,7 +175,7 @@ export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Pay
   const fy = 40;
   rule(fy + 12);
   text([s.business_name, s.gst_number ? 'GST ' + s.gst_number : ''].filter(Boolean).join('  ·  '), M, fy, { size: 7.5, color: faint });
-  text('Thank you for training with us', W - M, fy, { size: 7.5, color: faint, right: true });
+  text([s.phone, s.email].filter(Boolean).join('  ·  '), W - M, fy, { size: 7.5, color: faint, right: true });
   return await pdf.save();
 }
 

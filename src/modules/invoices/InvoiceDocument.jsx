@@ -126,7 +126,7 @@ export default function InvoiceDocument({ invoice, lines, payments = [], setting
       <div style={{ marginTop: 'auto', paddingTop: 40 }}>
         <div style={{ borderTop: `1px solid ${HAIR}`, paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 10, color: FAINT }}>
           <span>{[s.business_name, s.gst_number ? `GST ${s.gst_number}` : ''].filter(Boolean).join('  ·  ')}</span>
-          <span>Thank you for training with us</span>
+          <span>{contact}</span>
         </div>
       </div>
     </div>
