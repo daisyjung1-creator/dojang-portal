@@ -88,6 +88,7 @@ table.dp-table td {
 }
 @media print {
   @page {
+    size: letter;
     margin: 12mm;
   }
   body {
@@ -102,6 +103,7 @@ table.dp-table td {
   #print-root .invoice-doc {
     padding: 0 !important;
     max-width: none !important;
+    min-height: 9.9in !important;
   }
 }
 .invoice-doc {

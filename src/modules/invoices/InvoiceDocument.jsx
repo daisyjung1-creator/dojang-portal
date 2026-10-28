@@ -1,105 +1,143 @@
 import React from 'react';
 import { money, formatDate, lineAmount, round2 } from '../../lib/invoiceUtils';
 
-// The printable invoice, laid out like the Express Invoice template the dojang
-// already uses: logo + company block, date/number top right, bill-to box, a
-// Qty / Item / Description / Unit Price / GST / Total table, totals, then the
-// payment notes. Used for on-screen preview and for "Print / Save as PDF".
+// The printable invoice (on-screen preview and "Print / Save as PDF"). Same
+// modern layout as the emailed PDF in supabase/functions/send-emails/invoiceDocs.ts:
+// black and white with one small red accent, hairline rules, and the amount
+// due called out in a black block.
+const INK = '#111111';
+const MUTE = '#737373';
+const FAINT = '#999999';
+const HAIR = '#E0E0E0';
+const RED = '#BF1C21';
+
+const labelStyle = { fontSize: 9, fontWeight: 700, color: FAINT, textTransform: 'uppercase', letterSpacing: '0.08em' };
+
 export default function InvoiceDocument({ invoice, lines, payments = [], settings }) {
   const s = settings || {};
-  const blue = '#1478B4';
   const paid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const balance = Math.max(Number(invoice.total || 0) - paid, 0);
   const rate = Number(invoice.gst_rate) || 0;
-  const th = { background: blue, color: '#fff', fontSize: 11, fontWeight: 700, padding: '6px 6px', textAlign: 'left', borderRight: '1px solid #fff' };
-  const td = { fontSize: 11.5, padding: '6px', verticalAlign: 'top', borderRight: '1px solid #20241F' };
-  const right = { textAlign: 'right' };
+  const num = { textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  const th = { ...labelStyle, padding: '0 0 8px', borderBottom: `1px solid ${INK}`, textAlign: 'left' };
+  const td = { padding: '11px 0', borderBottom: `1px solid ${HAIR}`, fontSize: 12.5, verticalAlign: 'top' };
+  const title = invoice.voided ? 'Void' : 'Invoice';
+  const contact = [s.phone, s.email].filter(Boolean).join('  ·  ');
 
   return (
-    <div className="invoice-doc" style={{ background: '#fff', color: '#111', padding: '28px 40px 36px', fontFamily: 'Helvetica, Arial, sans-serif', maxWidth: 780, margin: '0 auto' }}>
-      <div style={{ borderTop: `4px solid ${blue}`, textAlign: 'center', marginBottom: 18 }}>
-        <div style={{ display: 'inline-block', background: '#fff', padding: '0 14px', marginTop: -14, fontSize: 22, fontWeight: 700, fontStyle: 'italic' }}>{invoice.voided ? 'VOID' : 'Invoice'}</div>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}>
-        <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-          {s.logo_data && <img src={s.logo_data} alt="" style={{ maxWidth: 110, maxHeight: 80, objectFit: 'contain' }} />}
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, maxWidth: 260 }}>{s.business_name}</div>
-            <div style={{ fontSize: 12.5, lineHeight: 1.5, marginTop: 4, whiteSpace: 'pre-line' }}>{[s.address, s.phone, s.website].filter(Boolean).join('\n')}</div>
-            {s.gst_number && <div style={{ fontSize: 12, marginTop: 2 }}>GST No. {s.gst_number}</div>}
-          </div>
+    <div className="invoice-doc" style={{ background: '#fff', color: INK, padding: '44px 52px 28px', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif', maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 980 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24 }}>
+        <div style={{ fontSize: 11.5, lineHeight: 1.5, color: MUTE }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>{s.business_name}</div>
+          <div style={{ whiteSpace: 'pre-line' }}>{[s.address, contact, s.website].filter(Boolean).join('\n')}</div>
         </div>
-        <table style={{ fontSize: 12.5, borderCollapse: 'collapse', alignSelf: 'flex-start' }}>
-          <tbody>
-            <tr><td style={{ paddingRight: 40 }}>Date:</td><td>{formatDate(invoice.invoice_date)}</td></tr>
-            <tr><td style={{ paddingRight: 40 }}>Invoice No.:</td><td>{invoice.invoice_number ?? '(new)'}</td></tr>
-            {invoice.due_date && <tr><td style={{ paddingRight: 40 }}>Due Date:</td><td>{formatDate(invoice.due_date)}</td></tr>}
-          </tbody>
-        </table>
+        {s.logo_data && <img src={s.logo_data} alt="" style={{ maxWidth: 140, maxHeight: 60, objectFit: 'contain' }} />}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-        <div style={{ border: `2px solid ${blue}`, borderRadius: 2, width: '50%', minHeight: 56, padding: '10px 12px', fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-line' }}>
-          {[invoice.customer_name, invoice.customer_address].filter(Boolean).join('\n')}
+      <div style={{ marginTop: 44 }}>
+        <div style={{ width: 28, height: 4, background: RED, marginBottom: 10 }} />
+        <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1 }}>
+          {title} <span style={{ fontWeight: 400, color: FAINT }}>#{invoice.invoice_number ?? 'new'}</span>
         </div>
       </div>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 14, border: '1px solid #20241F' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 24, marginTop: 34 }}>
+        <div>
+          <div style={labelStyle}>Billed to</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6 }}>{invoice.customer_name}</div>
+          <div style={{ fontSize: 12, color: MUTE, whiteSpace: 'pre-line', lineHeight: 1.5, marginTop: 2 }}>{[invoice.customer_address, invoice.customer_email].filter(Boolean).join('\n')}</div>
+        </div>
+        <div style={{ fontSize: 13 }}>
+          <div style={labelStyle}>Issued</div>
+          <div style={{ marginTop: 6 }}>{formatDate(invoice.invoice_date)}</div>
+          {invoice.due_date && (
+            <>
+              <div style={{ ...labelStyle, marginTop: 14 }}>Due</div>
+              <div style={{ marginTop: 6 }}>{formatDate(invoice.due_date)}</div>
+            </>
+          )}
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={labelStyle}>Amount due</div>
+          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 4, ...num }}>{money(balance)}</div>
+          <div style={{ fontSize: 11, color: balance > 0 ? FAINT : RED, marginTop: 2 }}>{balance > 0 ? 'CAD' : 'Paid in full'}</div>
+        </div>
+      </div>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 36 }}>
         <thead>
           <tr>
-            <th style={{ ...th, ...right, width: 40 }}>Qty</th>
-            <th style={{ ...th, width: 110 }}>Item</th>
             <th style={th}>Description</th>
-            <th style={{ ...th, ...right, width: 90 }}>Unit Price</th>
-            <th style={{ ...th, ...right, width: 70 }}>GST</th>
-            <th style={{ ...th, ...right, width: 54 }}>Tax %</th>
-            <th style={{ ...th, ...right, width: 90, borderRight: 'none' }}>Total</th>
+            <th style={{ ...th, ...num, width: 50 }}>Qty</th>
+            <th style={{ ...th, ...num, width: 90 }}>Price</th>
+            <th style={{ ...th, ...num, width: 90 }}>GST {rate}%</th>
+            <th style={{ ...th, ...num, width: 100 }}>Amount</th>
           </tr>
         </thead>
         <tbody>
           {lines.map((l, i) => {
             const amt = lineAmount(l);
+            const name = l.item_name && l.item_name !== l.description ? l.item_name : l.description;
+            const sub = name === l.description ? '' : l.description;
             return (
               <tr key={l.id || i}>
-                <td style={{ ...td, ...right }}>{Number(l.quantity)}</td>
-                <td style={td}>{l.item_name || ''}</td>
-                <td style={td}>{l.description}</td>
-                <td style={{ ...td, ...right }}>{money(l.unit_price)}</td>
-                <td style={{ ...td, ...right }}>{l.taxable ? money(round2((amt * rate) / 100)) : '-'}</td>
-                <td style={{ ...td, ...right }}>{l.taxable ? `${rate}%` : '0%'}</td>
-                <td style={{ ...td, ...right, borderRight: 'none' }}>{money(amt)}</td>
+                <td style={td}>
+                  <div style={{ fontWeight: 700 }}>{name}</div>
+                  {sub && <div style={{ fontSize: 11.5, color: MUTE, marginTop: 2 }}>{sub}</div>}
+                </td>
+                <td style={{ ...td, ...num }}>{Number(l.quantity)}</td>
+                <td style={{ ...td, ...num }}>{money(l.unit_price)}</td>
+                <td style={{ ...td, ...num, color: l.taxable ? INK : FAINT }}>{l.taxable ? money(round2((amt * rate) / 100)) : '—'}</td>
+                <td style={{ ...td, ...num, fontWeight: 700 }}>{money(amt)}</td>
               </tr>
             );
           })}
-          <tr>
-            {[0, 1, 2, 3, 4, 5, 6].map((k) => <td key={k} style={{ ...td, height: Math.max(60, 260 - lines.length * 28), borderRight: k === 6 ? 'none' : td.borderRight }} />)}
-          </tr>
         </tbody>
       </table>
 
-      <table style={{ marginLeft: 'auto', marginTop: 8, fontSize: 12, borderCollapse: 'collapse' }}>
-        <tbody>
-          <tr><td style={{ padding: '3px 12px', ...right }}>Subtotal</td><td style={{ padding: '3px 6px', ...right, minWidth: 70 }}>{money(invoice.subtotal)}</td></tr>
-          <tr><td style={{ padding: '3px 12px', ...right }}>GST</td><td style={{ padding: '3px 6px', ...right }}>{money(invoice.gst_amount)}</td></tr>
-          <tr><td style={{ padding: '3px 12px', ...right, fontWeight: 700 }}>Total</td><td style={{ padding: '3px 6px', ...right, fontWeight: 700 }}>{money(invoice.total)}</td></tr>
-          {paid > 0 && <tr><td style={{ padding: '3px 12px', ...right }}>Paid</td><td style={{ padding: '3px 6px', ...right }}>-{money(paid)}</td></tr>}
-          <tr><td style={{ padding: '3px 12px', ...right, fontWeight: 700 }}>Balance Due</td><td style={{ padding: '3px 6px', ...right, fontWeight: 700 }}>{money(balance)}</td></tr>
-        </tbody>
-      </table>
-
-      <div style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.5, marginTop: 18 }}>
-        {invoice.notes && <p style={{ whiteSpace: 'pre-line', margin: '0 0 12px' }}>{invoice.notes}</p>}
-        {s.invoice_footer && <p style={{ whiteSpace: 'pre-line', margin: '0 0 12px' }}>{s.invoice_footer}</p>}
-        {s.payment_instructions && (
-          <p style={{ whiteSpace: 'pre-line', margin: 0 }}>
-            Payment option:
-            <br />
-            {s.payment_instructions}
-          </p>
-        )}
+      <div style={{ marginLeft: 'auto', width: 280, marginTop: 16, fontSize: 12.5 }}>
+        <Row k="Subtotal" v={money(invoice.subtotal)} />
+        <Row k={`GST (${rate}%)`} v={money(invoice.gst_amount)} />
+        <div style={{ borderTop: `1px solid ${HAIR}`, margin: '4px 0' }} />
+        <Row k="Total" v={money(invoice.total)} bold />
+        {paid > 0 && <Row k="Paid" v={`-${money(paid)}`} />}
+        <div style={{ background: INK, color: '#fff', borderRadius: 6, padding: '12px 14px', marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <span style={{ fontWeight: 700, fontSize: 13 }}>Amount due</span>
+          <span style={{ fontWeight: 700, fontSize: 17, ...num }}>{money(balance)}</span>
+        </div>
       </div>
-      <div style={{ borderTop: `4px solid ${blue}`, marginTop: 22 }} />
+
+      <div style={{ maxWidth: 440, marginTop: 30, fontSize: 12, lineHeight: 1.5 }}>
+        {s.payment_instructions && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={labelStyle}>How to pay</div>
+            <div style={{ whiteSpace: 'pre-line', marginTop: 4 }}>{s.payment_instructions}</div>
+          </div>
+        )}
+        {invoice.notes && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={labelStyle}>Notes</div>
+            <div style={{ whiteSpace: 'pre-line', marginTop: 4 }}>{invoice.notes}</div>
+          </div>
+        )}
+        {s.invoice_footer && <div style={{ whiteSpace: 'pre-line', color: MUTE }}>{s.invoice_footer}</div>}
+      </div>
+
+      <div style={{ marginTop: 'auto', paddingTop: 40 }}>
+        <div style={{ borderTop: `1px solid ${HAIR}`, paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 10, color: FAINT }}>
+          <span>{[s.business_name, s.gst_number ? `GST ${s.gst_number}` : ''].filter(Boolean).join('  ·  ')}</span>
+          <span>Thank you for training with us</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ k, v, bold }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontWeight: bold ? 700 : 400, color: bold ? INK : MUTE }}>
+      <span>{k}</span>
+      <span style={{ color: INK, fontVariantNumeric: 'tabular-nums' }}>{v}</span>
     </div>
   );
 }
