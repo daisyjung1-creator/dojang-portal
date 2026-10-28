@@ -1,21 +1,25 @@
 // Supabase Edge Function: send-emails
 //
-// Wire this up as a Database Webhook (Supabase dashboard → Database → Webhooks)
-// that fires on INSERT into `email_queue` and `welcome_queue`, pointing at this
-// function's URL. The webhook payload's shape is:
-//   { type: "INSERT", table: "email_queue" | "welcome_queue", record: {...} }
+// Called by database triggers (migration 006) whenever a row is inserted into
+// `email_queue` or `welcome_queue`, with a body of { table, record: { id } }.
+// Calling it with an empty body sends every queued email that hasn't gone out yet.
 //
-// Requires these environment variables (set in Supabase → Edge Functions → Secrets):
-//   RESEND_API_KEY       — from resend.com
-//   RESEND_FROM_ADDRESS   — e.g. "Dojang Name <noreply@yourdomain.com>"
-//   SUPABASE_URL          — auto-provided
-//   SUPABASE_SERVICE_ROLE_KEY — auto-provided (bypasses RLS to update rows)
+// The function never trusts what's in the request: it looks the queued row up
+// by id with the service role key and only sends rows still marked unsent, so
+// only something an admin queued in the portal can ever be emailed. Each row
+// is claimed (sent = true) before sending, so it can't go out twice; if the
+// send fails the claim is released so it can be retried.
+//
+// Secrets (Supabase → Edge Functions → Secrets):
+//   RESEND_API_KEY        — from resend.com
+//   RESEND_FROM_ADDRESS   — e.g. "Edmonton Champion Hankook Taekwondo <noreply@yourdomain.com>"
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — provided automatically
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { buildInvoicePdf, invoiceEmailHtml, receiptEmail, fillTemplate } from './invoiceDocs.ts';
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const FROM_ADDRESS = Deno.env.get('RESEND_FROM_ADDRESS') || 'onboarding@resend.dev';
 
 function tryoutConfirmationEmail(payload: any) {
@@ -45,6 +49,7 @@ function welcomeEmail(studentName: string) {
 }
 
 async function sendEmail(to: string, subject: string, html: string, extra: Record<string, unknown> = {}) {
+  if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY secret is not set');
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -85,7 +90,6 @@ async function sendInvoice(record: any) {
   if (inv.customers?.cc_email) extra.cc = inv.customers.cc_email;
   if (s.email) extra.reply_to = s.email;
   await sendEmail(record.recipient_email, subject, invoiceEmailHtml(inv, lines || [], s, message, balance), extra);
-  await supabase.from('email_queue').update({ sent: true }).eq('id', record.id);
   await supabase.from('invoices').update({ emailed_at: new Date().toISOString() }).eq('id', invoiceId);
 }
 
@@ -95,44 +99,75 @@ async function sendReceipt(record: any) {
   if (!p) throw new Error('Payment not found: ' + paymentId);
   const { subject, html } = receiptEmail(p, p.invoices, p.customers?.name || '', s);
   await sendEmail(record.recipient_email, subject, html, s.email ? { reply_to: s.email } : {});
-  await supabase.from('email_queue').update({ sent: true }).eq('id', record.id);
   await supabase.from('invoice_payments').update({ emailed_at: new Date().toISOString() }).eq('id', paymentId);
 }
 
-Deno.serve(async (req) => {
-  try {
-    const body = await req.json();
-    const table = body.table;
-    const record = body.record;
+async function claim(table: string, id: string) {
+  const { data } = await supabase.from(table).update({ sent: true }).eq('id', id).eq('sent', false).select().maybeSingle();
+  return data;
+}
 
-    if (table === 'email_queue') {
-      if (record.sent) return new Response('already sent', { status: 200 });
-      if (record.type === 'tryout_confirmation') {
-        const { subject, html } = tryoutConfirmationEmail(record.payload);
-        await sendEmail(record.recipient_email, subject, html);
-        await supabase.from('email_queue').update({ sent: true }).eq('id', record.id);
-        if (record.payload?.tryout_id) {
-          await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', record.payload.tryout_id);
-        }
-      }
-      if (record.type === 'invoice') {
-        await sendInvoice(record);
-      }
-      if (record.type === 'receipt') {
-        await sendReceipt(record);
-      }
+async function release(table: string, id: string) {
+  await supabase.from(table).update({ sent: false }).eq('id', id);
+}
+
+async function processEmailQueue(record: any) {
+  if (record.type === 'tryout_confirmation') {
+    const { subject, html } = tryoutConfirmationEmail(record.payload);
+    await sendEmail(record.recipient_email, subject, html);
+    if (record.payload?.tryout_id) {
+      await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', record.payload.tryout_id);
     }
-
-    if (table === 'welcome_queue') {
-      if (record.sent) return new Response('already sent', { status: 200 });
-      const { subject, html } = welcomeEmail(record.student_name);
-      await sendEmail(record.guardian_email, subject, html);
-      await supabase.from('welcome_queue').update({ sent: true }).eq('id', record.id);
-    }
-
-    return new Response('ok', { status: 200 });
-  } catch (err) {
-    console.error(err);
-    return new Response(String(err), { status: 500 });
+  } else if (record.type === 'invoice') {
+    await sendInvoice(record);
+  } else if (record.type === 'receipt') {
+    await sendReceipt(record);
   }
+}
+
+async function processWelcome(record: any) {
+  const { subject, html } = welcomeEmail(record.student_name);
+  await sendEmail(record.guardian_email, subject, html);
+}
+
+async function processOne(table: string, id: string) {
+  const row = await claim(table, id);
+  if (!row) return 'skipped';
+  try {
+    if (table === 'email_queue') await processEmailQueue(row);
+    else await processWelcome(row);
+    return 'sent';
+  } catch (err) {
+    await release(table, id);
+    throw err;
+  }
+}
+
+Deno.serve(async (req) => {
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch (_e) {
+    /* empty body = send everything pending */
+  }
+  const results: Record<string, string> = {};
+  const errors: string[] = [];
+  const jobs: [string, string][] = [];
+  if (body?.record?.id && (body.table === 'email_queue' || body.table === 'welcome_queue')) {
+    jobs.push([body.table, body.record.id]);
+  } else if (!body?.table) {
+    for (const table of ['email_queue', 'welcome_queue']) {
+      const { data } = await supabase.from(table).select('id').eq('sent', false).limit(50);
+      (data || []).forEach((r: any) => jobs.push([table, r.id]));
+    }
+  }
+  for (const [table, id] of jobs) {
+    try {
+      results[id] = await processOne(table, id);
+    } catch (err) {
+      console.error(table, id, err);
+      errors.push(`${table} ${id}: ${err}`);
+    }
+  }
+  return new Response(JSON.stringify({ results, errors }), { status: errors.length ? 500 : 200, headers: { 'Content-Type': 'application/json' } });
 });
