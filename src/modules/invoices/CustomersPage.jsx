@@ -363,12 +363,15 @@ function Statement({ customer, onClose }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     (async () => {
-      const [{ data: inv }, { data: pay }] = await Promise.all([
+      const [{ data: inv }, { data: pay }, { data: ref }] = await Promise.all([
         supabase.from('invoice_summary').select('*').eq('customer_id', customer.id).eq('voided', false),
         supabase.from('invoice_payments').select('*, invoices(invoice_number)').eq('customer_id', customer.id),
+        supabase.from('invoice_refunds').select('*, invoices(invoice_number)').eq('customer_id', customer.id),
       ]);
       const list = [
         ...(inv || []).map((i) => ({ date: i.invoice_date, kind: 'Invoice', ref: i.is_opening_balance ? 'Opening balance' : '#' + i.invoice_number, charge: Number(i.total), credit: 0, status: i.status, key: 'i' + i.id })),
+        // A refund credits the invoice and pays the money back, so it doesn't change what's owed.
+        ...(ref || []).map((r) => ({ date: r.refund_date, kind: 'Refund', ref: `Refund #${r.refund_number}${r.invoices ? ' → #' + r.invoices.invoice_number : ''}`, method: r.method, charge: -Number(r.amount), credit: -Number(r.amount), key: 'r' + r.id })),
         ...(pay || []).map((p) => ({ date: p.payment_date, kind: 'Payment', ref: `Receipt #${p.receipt_number}${p.invoices ? ' → #' + p.invoices.invoice_number : ''}`, method: p.method, charge: 0, credit: Number(p.amount), key: 'p' + p.id })),
       ].sort((a, b) => (a.date === b.date ? (a.kind === 'Invoice' ? -1 : 1) : a.date < b.date ? -1 : 1));
       let bal = 0;
@@ -392,10 +395,16 @@ function Statement({ customer, onClose }) {
             {rows.map((r) => (
               <tr key={r.key}>
                 <td>{formatDate(r.date)}</td>
-                <td>{r.kind === 'Invoice' ? <>Invoice <StatusPill status={r.status} /></> : <>Payment <span style={{ color: '#8A8D84' }}>· {r.method}</span></>}</td>
+                <td>{r.kind === 'Invoice' ? <>Invoice <StatusPill status={r.status} /></> : <>{r.kind} <span style={{ color: '#8A8D84' }}>· {r.method}</span></>}</td>
                 <td>{r.ref}</td>
-                <td style={{ textAlign: 'right' }}>{r.charge ? money(r.charge) : ''}</td>
-                <td style={{ textAlign: 'right' }}>{r.credit ? money(r.credit) : ''}</td>
+                {r.kind === 'Refund' ? (
+                  <td colSpan={2} style={{ textAlign: 'right', color: '#4B3A86' }}>{money(-r.charge)} paid back</td>
+                ) : (
+                  <>
+                    <td style={{ textAlign: 'right' }}>{r.charge ? money(r.charge) : ''}</td>
+                    <td style={{ textAlign: 'right' }}>{r.credit ? money(r.credit) : ''}</td>
+                  </>
+                )}
                 <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(r.balance)}</td>
               </tr>
             ))}

@@ -28,7 +28,7 @@ export function fillTemplate(tpl: string, inv: Invoice, s: Settings, balance: nu
 // Modern layout: mostly black and white with a single small red accent,
 // lots of white space, hairline rules instead of boxes, and the amount due
 // called out in a solid black block.
-export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Payment[], s: Settings): Promise<Uint8Array> {
+export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Payment[], s: Settings, refunds: Payment[] = []): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -70,6 +70,7 @@ export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Pay
   const rate = Number(inv.gst_rate) || 0;
   const paid = payments.reduce((t, p) => t + Number(p.amount || 0), 0);
   const balance = Math.max(Number(inv.total) - paid, 0);
+  const refunded = refunds.reduce((t, r) => t + Number(r.amount || 0), 0);
 
   // ── Header: business on the left, logo on the right ────────────────
   let y = H - M;
@@ -154,6 +155,7 @@ export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Pay
   rule(y + 10, tx, W - M);
   row('Total', money(inv.total), true);
   if (paid > 0) row('Paid', '-' + money(paid));
+  if (refunded > 0) row('Refunded to you', money(refunded));
   // Black "Amount due" block: same width as the totals above, 12pt inner
   // padding on both sides, labels optically centred on the block's midline.
   const boxH = 34, pad = 12;
@@ -219,6 +221,25 @@ export function receiptEmail(p: Payment, inv: Invoice | null, customerName: stri
     ${inv ? `<tr><td style="color:#5B5F56;padding:3px 16px 3px 0">For invoice</td><td>#${inv.invoice_number}</td></tr>` : ''}
   </table>
   <p style="font-size:12px;color:#8A8D84">${esc([s.business_name, s.gst_number ? 'GST No. ' + s.gst_number : '', s.phone, s.email].filter(Boolean).join(' · '))}</p>
+</div>`,
+  };
+}
+
+export function refundEmail(r: Payment, inv: Invoice | null, customerName: string, s: Settings) {
+  return {
+    subject: `Refund #${r.refund_number} — ${s.business_name}`,
+    html: `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:520px">
+  <p>Hi ${esc(customerName)},</p>
+  <p>This confirms we've sent you a refund.</p>
+  <table style="font-size:14px;border-collapse:collapse;margin:12px 0">
+    <tr><td style="color:#737373;padding:3px 16px 3px 0">Refund #</td><td><b>${r.refund_number}</b></td></tr>
+    <tr><td style="color:#737373;padding:3px 16px 3px 0">Date</td><td>${fdate(r.refund_date)}</td></tr>
+    <tr><td style="color:#737373;padding:3px 16px 3px 0">Amount</td><td><b>${money(r.amount)}</b>${Number(r.gst_amount) ? ` <span style="color:#737373">(incl. GST ${money(r.gst_amount)})</span>` : ''}</td></tr>
+    <tr><td style="color:#737373;padding:3px 16px 3px 0">Refunded by</td><td>${esc(r.method)}</td></tr>
+    ${inv ? `<tr><td style="color:#737373;padding:3px 16px 3px 0">For invoice</td><td>#${inv.invoice_number}</td></tr>` : ''}
+    ${r.reason ? `<tr><td style="color:#737373;padding:3px 16px 3px 0">Reason</td><td>${esc(r.reason)}</td></tr>` : ''}
+  </table>
+  <p style="font-size:12px;color:#999">${esc([s.business_name, s.gst_number ? 'GST No. ' + s.gst_number : '', s.phone, s.email].filter(Boolean).join(' · '))}</p>
 </div>`,
   };
 }

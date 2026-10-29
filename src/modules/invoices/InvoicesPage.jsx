@@ -7,6 +7,7 @@ import { loadSettings, loadCustomers, loadItems, fetchAll } from './api';
 import InvoiceEditor from './InvoiceEditor';
 import InvoicePreview from './InvoicePreview';
 import PaymentModal from './PaymentModal';
+import RefundModal from './RefundModal';
 
 export function StatusPill({ status }) {
   const st = INVOICE_STATUS_STYLES[status] || INVOICE_STATUS_STYLES['Not Paid'];
@@ -30,6 +31,7 @@ export default function InvoicesPage() {
   const [editor, setEditor] = useState(null); // { editing } | null
   const [previewId, setPreviewId] = useState(null);
   const [payFor, setPayFor] = useState(null);
+  const [refundFor, setRefundFor] = useState(null);
   const [flash, setFlash] = useState('');
 
   useEffect(() => {
@@ -75,6 +77,7 @@ export default function InvoicesPage() {
       if (statusFilter === 'unpaid' && (i.voided || Number(i.balance) <= 0)) return false;
       if (statusFilter === 'paid' && i.status !== 'Paid') return false;
       if (statusFilter === 'void' && !i.voided) return false;
+      if (statusFilter === 'refunded' && !(Number(i.amount_refunded) > 0)) return false;
       if (!k) return true;
       return String(i.invoice_number).includes(k) || (i.customer_name || '').toLowerCase().includes(k) || (i.notes || '').toLowerCase().includes(k);
     });
@@ -139,6 +142,7 @@ export default function InvoicesPage() {
           <option value="recorded">Recorded</option>
           <option value="unpaid">Unpaid</option>
           <option value="paid">Paid</option>
+          <option value="refunded">Refunded</option>
           <option value="void">Void</option>
           <option value="all">All</option>
         </select>
@@ -196,14 +200,28 @@ export default function InvoicesPage() {
         />
       )}
 
-      {previewId && !editor && !payFor && (
+      {previewId && !editor && !payFor && !refundFor && (
         <InvoicePreview
           invoiceId={previewId}
           settings={settings}
           onClose={() => setPreviewId(null)}
           onEdit={(data) => setEditor({ editing: data })}
           onPay={(inv) => setPayFor({ invoice_id: inv.id, customer_id: inv.customer_id, amount: Number(inv.balance) })}
+          onRefund={(inv) => setRefundFor({ invoice_id: inv.id, customer_id: inv.customer_id })}
           onChanged={loadInvoices}
+        />
+      )}
+
+      {refundFor && (
+        <RefundModal
+          customers={customers}
+          initial={refundFor}
+          onClose={() => setRefundFor(null)}
+          onSaved={async (r) => {
+            setRefundFor(null);
+            setFlash(`Refund #${r.refund_number} saved (${money(r.amount)}).`);
+            await loadInvoices();
+          }}
         />
       )}
 

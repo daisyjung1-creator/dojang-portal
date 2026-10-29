@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, Mail, Pencil, Wallet, Ban, Trash2 } from 'lucide-react';
+import { Printer, Mail, Pencil, Wallet, Ban, Trash2, RotateCcw } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -21,7 +21,7 @@ function PrintPortal({ children }) {
   return createPortal(children, el);
 }
 
-export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, onPay, onChanged }) {
+export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, onPay, onRefund, onChanged }) {
   const [data, setData] = useState(null);
   const [msg, setMsg] = useState('');
   const [confirm, setConfirm] = useState(null);
@@ -34,7 +34,8 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
   }, [invoiceId]);
 
   if (!data || !data.invoice) return null;
-  const { invoice, lines, payments } = data;
+  const { invoice, lines, payments, refunds } = data;
+  const refundable = Number(invoice.amount_paid) - Number(invoice.amount_refunded);
   const st = INVOICE_STATUS_STYLES[invoice.status] || INVOICE_STATUS_STYLES['Not Paid'];
 
   async function sendEmail() {
@@ -68,12 +69,15 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
         maxWidth={860}
         footer={
           <div style={{ display: 'flex', gap: 8, width: '100%', flexWrap: 'wrap' }}>
-            <button className="dp-btn dp-btn-danger" onClick={() => setConfirm(payments.length ? 'cantDelete' : 'delete')}><Trash2 size={14} /> Delete</button>
+            <button className="dp-btn dp-btn-danger" onClick={() => setConfirm(payments.length || refunds.length ? 'cantDelete' : 'delete')}><Trash2 size={14} /> Delete</button>
             <button className="dp-btn" onClick={() => setConfirm('void')}><Ban size={14} /> {invoice.voided ? 'Un-void' : 'Void'}</button>
             <div style={{ flex: 1 }} />
             <button className="dp-btn" onClick={() => onEdit(data)}><Pencil size={14} /> Edit</button>
             <button className="dp-btn" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
             <button className="dp-btn" onClick={sendEmail}><Mail size={14} /> Email</button>
+            {refundable > 0.005 && onRefund && (
+              <button className="dp-btn" onClick={() => onRefund(invoice, refundable)}><RotateCcw size={14} /> Refund</button>
+            )}
             {!invoice.voided && Number(invoice.balance) > 0 && (
               <button className="dp-btn dp-btn-primary" onClick={() => onPay(invoice)}><Wallet size={14} /> Apply Payment</button>
             )}
@@ -83,11 +87,12 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', fontSize: 13 }}>
           <span style={{ background: st.bg, color: st.text, border: `1px solid ${st.border}`, borderRadius: 999, padding: '2px 10px', fontSize: 12.5 }}>{invoice.status}</span>
           <span style={{ color: '#5B5F56' }}>Balance {money(invoice.balance)}</span>
+          {Number(invoice.amount_refunded) > 0 && <span style={{ color: '#4B3A86' }}>· Refunded {money(invoice.amount_refunded)}</span>}
           {invoice.emailed_at && <span style={{ color: '#5B5F56' }}>· Emailed {new Date(invoice.emailed_at).toLocaleString('en-CA')}</span>}
         </div>
         {msg && <p style={{ background: '#E6F0F6', color: '#1E4566', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
         <div style={{ border: '1px solid #EDEAE0', borderRadius: 8 }}>
-          <InvoiceDocument invoice={invoice} lines={lines} payments={payments} settings={settings} />
+          <InvoiceDocument invoice={invoice} lines={lines} payments={payments} refunds={refunds} settings={settings} />
         </div>
         {payments.length > 0 && (
           <div style={{ marginTop: 14 }}>
@@ -107,10 +112,29 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
             </table>
           </div>
         )}
+        {refunds.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>Refunds</p>
+            <table className="dp-table">
+              <tbody>
+                {refunds.map((r) => (
+                  <tr key={r.id}>
+                    <td>{formatDate(r.refund_date)}</td>
+                    <td>Refund #{r.refund_number}</td>
+                    <td>{r.method}</td>
+                    <td style={{ color: '#5B5F56' }}>{r.reason}</td>
+                    <td style={{ textAlign: 'right', color: '#5B5F56' }}>GST {money(r.gst_amount)}</td>
+                    <td style={{ textAlign: 'right' }}>-{money(r.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Modal>
 
       <PrintPortal>
-        <InvoiceDocument invoice={invoice} lines={lines} payments={payments} settings={settings} />
+        <InvoiceDocument invoice={invoice} lines={lines} payments={payments} refunds={refunds} settings={settings} />
       </PrintPortal>
 
       {confirm === 'delete' && <ConfirmDialog message={`Delete invoice #${invoice.invoice_number}? This can't be undone.`} onCancel={() => setConfirm(null)} onConfirm={del} />}

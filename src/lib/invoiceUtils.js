@@ -17,6 +17,8 @@ export const INVOICE_STATUS_STYLES = {
   'Partially Paid': { bg: '#FAEEDA', text: '#854F0B', border: '#F0D9A8' },
   'Not Paid': { bg: '#FBEAEA', text: '#9A2B2B', border: '#E4B8B8' },
   Void: { bg: '#F1EFE7', text: '#8A8D84', border: '#DEDACC' },
+  Refunded: { bg: '#EEEAF6', text: '#4B3A86', border: '#D2C9EA' },
+  'Partially Refunded': { bg: '#EEEAF6', text: '#4B3A86', border: '#D2C9EA' },
 };
 
 const moneyFmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });

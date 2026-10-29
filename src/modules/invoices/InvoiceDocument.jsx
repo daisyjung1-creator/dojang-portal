@@ -13,10 +13,11 @@ const RED = '#BF1C21';
 
 const labelStyle = { fontSize: 9, fontWeight: 700, color: FAINT, textTransform: 'uppercase', letterSpacing: '0.08em' };
 
-export default function InvoiceDocument({ invoice, lines, payments = [], settings }) {
+export default function InvoiceDocument({ invoice, lines, payments = [], refunds = [], settings }) {
   const s = settings || {};
   const paid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const balance = Math.max(Number(invoice.total || 0) - paid, 0);
+  const refunded = refunds.reduce((sum, r) => sum + Number(r.amount || 0), 0);
   const rate = Number(invoice.gst_rate) || 0;
   const num = { textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
   const th = { ...labelStyle, padding: '0 0 8px', borderBottom: `1px solid ${INK}`, textAlign: 'left' };
@@ -101,6 +102,7 @@ export default function InvoiceDocument({ invoice, lines, payments = [], setting
         <div style={{ borderTop: `1px solid ${HAIR}`, margin: '4px 0' }} />
         <Row k="Total" v={money(invoice.total)} bold />
         {paid > 0 && <Row k="Paid" v={`-${money(paid)}`} />}
+        {refunded > 0 && <Row k="Refunded to you" v={money(refunded)} />}
         <div style={{ background: INK, color: '#fff', borderRadius: 6, height: 46, padding: '0 16px', marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontWeight: 700, fontSize: 13 }}>Amount due</span>
           <span style={{ fontWeight: 700, fontSize: 17, ...num }}>{money(balance)}</span>

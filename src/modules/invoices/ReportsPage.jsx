@@ -12,17 +12,20 @@ export default function ReportsPage() {
   const [year, setYear] = useState(thisYear);
   const [sales, setSales] = useState([]);
   const [pays, setPays] = useState([]);
+  const [refs, setRefs] = useState([]);
   const [owing, setOwing] = useState([]);
   const [selMonth, setSelMonth] = useState(new Date().getMonth());
 
   useEffect(() => {
     (async () => {
-      const [{ data: s }, { data: p }] = await Promise.all([
+      const [{ data: s }, { data: p }, { data: r }] = await Promise.all([
         supabase.from('monthly_sales').select('*').like('month', `${year}-%`),
         supabase.from('monthly_payments').select('*').like('month', `${year}-%`),
+        supabase.from('monthly_refunds').select('*').like('month', `${year}-%`),
       ]);
       setSales(s || []);
       setPays(p || []);
+      setRefs(r || []);
     })();
   }, [year]);
 
@@ -42,15 +45,28 @@ export default function ReportsPage() {
       MONTHS.map((label, i) => {
         const key = `${year}-${String(i + 1).padStart(2, '0')}`;
         const s = sales.find((x) => x.month === key) || {};
-        const received = pays.filter((x) => x.month === key).reduce((t, x) => t + Number(x.amount), 0);
-        return { label, key, count: Number(s.invoice_count || 0), subtotal: Number(s.subtotal || 0), gst: Number(s.gst || 0), total: Number(s.total || 0), unpaid: Number(s.unpaid || 0), received };
+        const rf = refs.find((x) => x.month === key) || {};
+        const paidIn = pays.filter((x) => x.month === key).reduce((t, x) => t + Number(x.amount), 0);
+        const subtotal = Number(s.subtotal || 0);
+        const grossGst = Number(s.gst || 0);
+        const refundSales = Number(rf.sales_refund || 0);
+        const refundGst = Number(rf.gst_refund || 0);
+        const refunded = Number(rf.refunded || 0);
+        return {
+          label, key,
+          count: Number(s.invoice_count || 0),
+          subtotal, refundSales, netSales: subtotal - refundSales,
+          grossGst, refundGst, gst: grossGst - refundGst,          // gst = net GST collected
+          total: Number(s.total || 0), unpaid: Number(s.unpaid || 0),
+          paidIn, refunded, received: paidIn - refunded,           // received = net of refunds
+        };
       }),
-    [sales, pays, year]
+    [sales, pays, refs, year]
   );
   const sum = (k, list = rows) => list.reduce((t, r) => t + r[k], 0);
   const quarters = [0, 1, 2, 3].map((q) => {
     const part = rows.slice(q * 3, q * 3 + 3);
-    return { label: `Q${q + 1} (${MONTHS[q * 3]}–${MONTHS[q * 3 + 2]})`, subtotal: sum('subtotal', part), gst: sum('gst', part), total: sum('total', part) };
+    return { label: `Q${q + 1} (${MONTHS[q * 3]}–${MONTHS[q * 3 + 2]})`, grossGst: sum('grossGst', part), refundGst: sum('refundGst', part), gst: sum('gst', part) };
   });
   const maxTotal = Math.max(1, ...rows.map((r) => r.total));
   const sel = rows[selMonth];
@@ -59,9 +75,10 @@ export default function ReportsPage() {
 
   function exportCSV() {
     downloadCSV(`sales_${year}.csv`, [
-      ['Month', 'Invoices', 'Sales (before GST)', 'GST', 'Total Invoiced', 'Payments Received', 'Still Unpaid'],
-      ...rows.map((r) => [r.key, r.count, r.subtotal.toFixed(2), r.gst.toFixed(2), r.total.toFixed(2), r.received.toFixed(2), r.unpaid.toFixed(2)]),
-      ['Total', sum('count'), sum('subtotal').toFixed(2), sum('gst').toFixed(2), sum('total').toFixed(2), sum('received').toFixed(2), sum('unpaid').toFixed(2)],
+      ['Month', 'Invoices', 'Sales (before GST)', 'Refunds (before GST)', 'Net sales', 'GST on invoices', 'GST refunded', 'Net GST', 'Total invoiced', 'Payments received', 'Refunds paid out', 'Net received', 'Still unpaid'],
+      ...[...rows, { key: 'Total', ...Object.fromEntries(['count', 'subtotal', 'refundSales', 'netSales', 'grossGst', 'refundGst', 'gst', 'total', 'paidIn', 'refunded', 'received', 'unpaid'].map((k) => [k, sum(k)])) }].map((r) => [
+        r.key, r.count, ...['subtotal', 'refundSales', 'netSales', 'grossGst', 'refundGst', 'gst', 'total', 'paidIn', 'refunded', 'received', 'unpaid'].map((k) => r[k].toFixed(2)),
+      ]),
     ]);
   }
 
@@ -71,7 +88,7 @@ export default function ReportsPage() {
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Sales & GST</h1>
-          <p style={styles.subtitle}>Monthly sales, GST collected and money received (voided invoices excluded)</p>
+          <p style={styles.subtitle}>Monthly sales, GST and money received, after refunds (voided invoices excluded)</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <select className="dp-select" value={year} onChange={(e) => setYear(Number(e.target.value))}>
@@ -82,9 +99,9 @@ export default function ReportsPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
-        <div style={styles.metricCard}><p style={styles.metricLabel}>{MONTHS[selMonth]} sales (before GST)</p><p style={styles.metricValue}>{money(sel.subtotal)}</p></div>
-        <div style={styles.metricCard}><p style={styles.metricLabel}>{MONTHS[selMonth]} GST collected</p><p style={styles.metricValue}>{money(sel.gst)}</p></div>
-        <div style={styles.metricCard}><p style={styles.metricLabel}>{MONTHS[selMonth]} received</p><p style={styles.metricValue}>{money(sel.received)}</p></div>
+        <Metric label={`${MONTHS[selMonth]} net sales (before GST)`} value={money(sel.netSales)} note={sel.refundSales ? `${money(sel.subtotal)} sales − ${money(sel.refundSales)} refunds` : ''} />
+        <Metric label={`${MONTHS[selMonth]} net GST collected`} value={money(sel.gst)} note={sel.refundGst ? `${money(sel.grossGst)} − ${money(sel.refundGst)} refunded` : ''} />
+        <Metric label={`${MONTHS[selMonth]} received (net)`} value={money(sel.received)} note={sel.refunded ? `${money(sel.paidIn)} in − ${money(sel.refunded)} refunded` : ''} />
         <div style={styles.metricCard}><p style={styles.metricLabel}>Owing now (all customers)</p><p style={{ ...styles.metricValue, color: totalOwing > 0 ? '#9A2B2B' : '#20241F' }}>{money(totalOwing)}</p></div>
       </div>
 
@@ -105,7 +122,7 @@ export default function ReportsPage() {
         <div style={styles.card}>
           <table className="dp-table">
             <thead>
-              <tr><th>Month</th><th style={num}>Invoices</th><th style={num}>Sales</th><th style={num}>GST</th><th style={num}>Total</th><th style={num}>Received</th><th style={num}>Unpaid</th></tr>
+              <tr><th>Month</th><th style={num}>Invoices</th><th style={num}>Sales</th><th style={num}>Refunds</th><th style={num}>Net sales</th><th style={num}>Net GST</th><th style={num}>Received</th><th style={num}>Unpaid</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
@@ -113,8 +130,9 @@ export default function ReportsPage() {
                   <td style={{ fontWeight: 500 }}>{r.label}</td>
                   <td style={num}>{r.count || ''}</td>
                   <td style={num}>{r.subtotal ? money(r.subtotal) : ''}</td>
+                  <td style={{ ...num, color: '#4B3A86' }}>{r.refundSales ? '-' + money(r.refundSales) : ''}</td>
+                  <td style={num}>{r.netSales ? money(r.netSales) : ''}</td>
                   <td style={num}>{r.gst ? money(r.gst) : ''}</td>
-                  <td style={num}>{r.total ? money(r.total) : ''}</td>
                   <td style={num}>{r.received ? money(r.received) : ''}</td>
                   <td style={{ ...num, color: r.unpaid ? '#9A2B2B' : undefined }}>{r.unpaid ? money(r.unpaid) : ''}</td>
                 </tr>
@@ -123,8 +141,9 @@ export default function ReportsPage() {
                 <td>Total</td>
                 <td style={num}>{sum('count')}</td>
                 <td style={num}>{money(sum('subtotal'))}</td>
+                <td style={{ ...num, color: '#4B3A86' }}>{sum('refundSales') ? '-' + money(sum('refundSales')) : ''}</td>
+                <td style={num}>{money(sum('netSales'))}</td>
                 <td style={num}>{money(sum('gst'))}</td>
-                <td style={num}>{money(sum('total'))}</td>
                 <td style={num}>{money(sum('received'))}</td>
                 <td style={num}>{money(sum('unpaid'))}</td>
               </tr>
@@ -138,7 +157,13 @@ export default function ReportsPage() {
             <table className="dp-table">
               <tbody>
                 {quarters.map((q) => (
-                  <tr key={q.label}><td>{q.label}</td><td style={num}>{money(q.gst)}</td></tr>
+                  <tr key={q.label}>
+                    <td>
+                      {q.label}
+                      {q.refundGst > 0 && <div style={{ fontSize: 11.5, color: '#8A8D84' }}>{money(q.grossGst)} − {money(q.refundGst)} refunded</div>}
+                    </td>
+                    <td style={num}>{money(q.gst)}</td>
+                  </tr>
                 ))}
                 <tr style={{ fontWeight: 600 }}><td>{year} total</td><td style={num}>{money(sum('gst'))}</td></tr>
               </tbody>
@@ -154,6 +179,7 @@ export default function ReportsPage() {
                   {selMethods.map((m) => (
                     <tr key={m.method}><td>{m.method} <span style={{ color: '#8A8D84' }}>({m.payment_count})</span></td><td style={num}>{money(m.amount)}</td></tr>
                   ))}
+                  {sel.refunded > 0 && <tr><td style={{ color: '#4B3A86' }}>Refunds paid out</td><td style={{ ...num, color: '#4B3A86' }}>-{money(sel.refunded)}</td></tr>}
                 </tbody>
               </table>
             )}
@@ -183,5 +209,15 @@ export default function ReportsPage() {
         )}
       </div>
     </>
+  );
+}
+
+function Metric({ label, value, note }) {
+  return (
+    <div style={styles.metricCard}>
+      <p style={styles.metricLabel}>{label}</p>
+      <p style={styles.metricValue}>{value}</p>
+      {note && <p style={{ fontSize: 11.5, color: '#8A8D84', margin: '4px 0 0' }}>{note}</p>}
+    </div>
   );
 }

@@ -16,7 +16,7 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — provided automatically
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { buildInvoicePdf, invoiceEmailHtml, receiptEmail, fillTemplate } from './invoiceDocs.ts';
+import { buildInvoicePdf, invoiceEmailHtml, receiptEmail, refundEmail, fillTemplate } from './invoiceDocs.ts';
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
@@ -74,10 +74,11 @@ async function loadSettings() {
 
 async function sendInvoice(record: any) {
   const invoiceId = record.payload?.invoice_id;
-  const [{ data: inv }, { data: lines }, { data: payments }, s] = await Promise.all([
+  const [{ data: inv }, { data: lines }, { data: payments }, { data: refunds }, s] = await Promise.all([
     supabase.from('invoices').select('*, customers(cc_email)').eq('id', invoiceId).single(),
     supabase.from('invoice_lines').select('*').eq('invoice_id', invoiceId).order('position'),
     supabase.from('invoice_payments').select('*').eq('invoice_id', invoiceId),
+    supabase.from('invoice_refunds').select('*').eq('invoice_id', invoiceId),
     loadSettings(),
   ]);
   if (!inv) throw new Error('Invoice not found: ' + invoiceId);
@@ -85,7 +86,7 @@ async function sendInvoice(record: any) {
   const balance = Math.max(Number(inv.total) - paid, 0);
   const subject = fillTemplate(s.email_subject || 'Invoice #{number} from {business}', inv, s, balance);
   const message = fillTemplate(s.email_message || 'Please find your invoice attached.', inv, s, balance);
-  const pdf = await buildInvoicePdf(inv, lines || [], payments || [], s);
+  const pdf = await buildInvoicePdf(inv, lines || [], payments || [], s, refunds || []);
   const extra: Record<string, unknown> = { attachments: [{ filename: `Invoice-${inv.invoice_number}.pdf`, content: toBase64(pdf) }] };
   if (inv.customers?.cc_email) extra.cc = inv.customers.cc_email;
   if (s.email) extra.reply_to = s.email;
@@ -100,6 +101,15 @@ async function sendReceipt(record: any) {
   const { subject, html } = receiptEmail(p, p.invoices, p.customers?.name || '', s);
   await sendEmail(record.recipient_email, subject, html, s.email ? { reply_to: s.email } : {});
   await supabase.from('invoice_payments').update({ emailed_at: new Date().toISOString() }).eq('id', paymentId);
+}
+
+async function sendRefund(record: any) {
+  const refundId = record.payload?.refund_id;
+  const [{ data: r }, s] = await Promise.all([supabase.from('invoice_refunds').select('*, invoices(*), customers(name)').eq('id', refundId).single(), loadSettings()]);
+  if (!r) throw new Error('Refund not found: ' + refundId);
+  const { subject, html } = refundEmail(r, r.invoices, r.customers?.name || '', s);
+  await sendEmail(record.recipient_email, subject, html, s.email ? { reply_to: s.email } : {});
+  await supabase.from('invoice_refunds').update({ emailed_at: new Date().toISOString() }).eq('id', refundId);
 }
 
 async function claim(table: string, id: string) {
@@ -122,6 +132,8 @@ async function processEmailQueue(record: any) {
     await sendInvoice(record);
   } else if (record.type === 'receipt') {
     await sendReceipt(record);
+  } else if (record.type === 'refund') {
+    await sendRefund(record);
   }
 }
 

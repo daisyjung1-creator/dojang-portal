@@ -28,12 +28,13 @@ export async function loadItems() {
 }
 
 export async function loadInvoiceFull(id) {
-  const [{ data: invoice }, { data: lines }, { data: payments }] = await Promise.all([
+  const [{ data: invoice }, { data: lines }, { data: payments }, { data: refunds }] = await Promise.all([
     supabase.from('invoice_summary').select('*').eq('id', id).single(),
     supabase.from('invoice_lines').select('*').eq('invoice_id', id).order('position'),
     supabase.from('invoice_payments').select('*').eq('invoice_id', id).order('payment_date'),
+    supabase.from('invoice_refunds').select('*').eq('invoice_id', id).order('refund_date'),
   ]);
-  return { invoice, lines: lines || [], payments: payments || [] };
+  return { invoice, lines: lines || [], payments: payments || [], refunds: refunds || [] };
 }
 
 // Saves header + lines. Lines are replaced wholesale (simplest + safe: an
@@ -109,6 +110,23 @@ export async function savePayment(form) {
     return data;
   }
   const { data, error } = await supabase.from('invoice_payments').insert(row).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function saveRefund(form) {
+  const row = {
+    invoice_id: form.invoice_id || null,
+    payment_id: form.payment_id || null,
+    customer_id: form.customer_id || null,
+    refund_date: form.refund_date,
+    method: form.method,
+    amount: Number(form.amount) || 0,
+    gst_amount: Number(form.gst_amount) || 0,
+    reason: form.reason || null,
+  };
+  const q = form.id ? supabase.from('invoice_refunds').update(row).eq('id', form.id) : supabase.from('invoice_refunds').insert(row);
+  const { data, error } = await q.select().single();
   if (error) throw error;
   return data;
 }
