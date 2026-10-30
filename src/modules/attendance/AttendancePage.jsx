@@ -1,3 +1,4 @@
+import { splitClasses, allClassNames, inClass } from '../../lib/classes';
 import React, { useEffect, useMemo, useState } from 'react';
 import { CircleCheck, CircleX, CalendarClock } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
@@ -34,7 +35,7 @@ export default function AttendancePage() {
     setPayments(p || []);
   }
 
-  const classes = useMemo(() => Array.from(new Set(students.map((s) => s.class_name).filter(Boolean))), [students]);
+  const classes = useMemo(() => allClassNames(students).filter((c) => students.some((s) => inClass(s, c))), [students]);
   const studentMap = useMemo(() => Object.fromEntries(students.map((s) => [s.id, s])), [students]);
 
   async function setAttendanceStatus(studentId, date, className, status) {
@@ -154,7 +155,11 @@ export default function AttendancePage() {
     }
   }
 
-  const checkinList = students.filter((s) => checkinClass === 'all' || (s.class_name || 'Unassigned') === checkinClass);
+  // One row per student per class they're in (a student in 2 classes shows in both).
+  const checkinList = students.flatMap((s) => {
+    const list = splitClasses(s.class_name);
+    return (list.length ? list : ['Unassigned']).filter((c) => checkinClass === 'all' || c === checkinClass).map((c) => ({ ...s, _class: c }));
+  });
   const makeupGuests = makeupRecords.filter(
     (m) =>
       m.status === 'reserved' &&
@@ -227,10 +232,10 @@ export default function AttendancePage() {
                 </thead>
                 <tbody>
                   {checkinList.map((s) => {
-                    const className = s.class_name || 'Unassigned';
+                    const className = s._class;
                     const record = attendance.find((a) => a.student_id === s.id && a.date === checkinDate && a.class_name === className);
                     return (
-                      <tr key={s.id} className="dp-row">
+                      <tr key={s.id + '|' + className} className="dp-row">
                         <td style={{ fontWeight: 500 }}>{s.name}</td>
                         <td>{className}</td>
                         <td>

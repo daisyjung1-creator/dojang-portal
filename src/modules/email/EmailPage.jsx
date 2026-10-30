@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
+import { splitClasses, allClassNames } from '../../lib/classes';
 
 // Group email: write one message and send it to every family, or only to
 // families with a student in chosen classes (e.g. Comp Team). Each family gets
@@ -58,14 +59,14 @@ export default function EmailPage() {
 
   const classCounts = useMemo(() => {
     const m = {};
-    students.forEach((s) => s.class_name && (m[s.class_name] = (m[s.class_name] || 0) + 1));
-    return Object.entries(m).sort((a, b) => a[0].localeCompare(b[0]));
+    students.forEach((s) => splitClasses(s.class_name).forEach((c) => (m[c] = (m[c] || 0) + 1)));
+    return allClassNames(students).filter((c) => m[c]).map((c) => [c, m[c]]);
   }, [students]);
 
   const chosen = useMemo(
     () =>
       students.filter((s) => {
-        if (mode === 'classes') return classes.has(s.class_name);
+        if (mode === 'classes') return splitClasses(s.class_name).some((c) => classes.has(c));
         if (mode === 'subsidy') return s.subsidy;
         return true;
       }),

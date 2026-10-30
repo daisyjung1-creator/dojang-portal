@@ -7,6 +7,8 @@ import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
 import { PLANS, billingAnchor, currentCycleStart, nextDueDate, todayISO, daysUntil } from '../../lib/billingDates';
 import Field from '../../components/Field';
+import ClassPicker from '../../components/ClassPicker';
+import { allClassNames } from '../../lib/classes';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useAuth } from '../../auth/AuthContext';
@@ -203,7 +205,7 @@ export default function StudentsPage() {
     [students]
   );
 
-  const classes = useMemo(() => Array.from(new Set(students.map((s) => s.class_name).filter(Boolean))), [students]);
+  const classes = useMemo(() => allClassNames(students), [students]);
 
   const filtered = useMemo(() => {
     return students.filter((s) => {
@@ -471,14 +473,10 @@ export default function StudentsPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Class">
-              <input className="dp-input" style={{ width: '100%' }} list="class-options" value={form.class_name || ''} onChange={(e) => setForm({ ...form, class_name: e.target.value })} />
-              <datalist id="class-options">
-                {classes.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </Field>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
+            <ClassPicker value={form.class_name || ''} onChange={(v) => setForm({ ...form, class_name: v })} options={classes} />
           </div>
           <div style={styles.formRow}>
             <Field label="Guardian Name">

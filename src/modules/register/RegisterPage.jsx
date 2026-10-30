@@ -5,9 +5,11 @@ import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
 import { todayISO } from '../../lib/billingDates';
 import Field from '../../components/Field';
+import ClassPicker from '../../components/ClassPicker';
+import { allClassNames } from '../../lib/classes';
 
 function emptyForm() {
-  return { name: '', guardian_name: '', guardian_phone: '', guardian_email: '', belt: 'White Belt', class_name: '', tuition: '', enroll_date: todayISO(), notes: '' };
+  return { name: '', guardian_name: '', guardian_phone: '', guardian_email: '', belt: 'White', class_name: '', tuition: '', enroll_date: todayISO(), notes: '' };
 }
 
 export default function RegisterPage() {
@@ -30,7 +32,7 @@ export default function RegisterPage() {
 
   async function loadClasses() {
     const { data } = await supabase.from('students').select('class_name');
-    setClasses(Array.from(new Set((data || []).map((s) => s.class_name).filter(Boolean))));
+    setClasses(allClassNames(data || []));
   }
 
   async function loadQueue() {
@@ -124,15 +126,11 @@ export default function RegisterPage() {
               ))}
             </select>
           </Field>
-          <Field label="Class">
-            <input className="dp-input" style={{ width: '100%' }} list="reg-class-options" value={form.class_name || ''} onChange={(e) => setForm({ ...form, class_name: e.target.value })} />
-            <datalist id="reg-class-options">
-              {classes.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </Field>
         </div>
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
+            <ClassPicker value={form.class_name || ''} onChange={(v) => setForm({ ...form, class_name: v })} options={classes} />
+          </div>
         <div style={styles.formRow}>
           <Field label="Enrollment Date">
             <input type="date" className="dp-input" style={{ width: '100%' }} value={form.enroll_date} onChange={(e) => setForm({ ...form, enroll_date: e.target.value })} />
