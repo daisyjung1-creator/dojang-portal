@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
+import { PAYMENT_METHODS } from '../../lib/invoiceUtils';
 import { calcTotals, lineAmount } from '../../lib/invoiceUtils';
 
 // Supabase returns at most 1000 rows per request; page through to get them all.
@@ -129,4 +131,27 @@ export async function saveRefund(form) {
   const { data, error } = await q.select().single();
   if (error) throw error;
   return data;
+}
+
+// Payment methods as set in Invoice Settings (falls back to the defaults).
+let methodsCache = null;
+export function usePaymentMethods() {
+  const [methods, setMethods] = useState(methodsCache || PAYMENT_METHODS);
+  useEffect(() => {
+    supabase
+      .from('invoice_settings')
+      .select('payment_methods')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.payment_methods?.length) {
+          methodsCache = data.payment_methods;
+          setMethods(data.payment_methods);
+        }
+      });
+  }, []);
+  return methods;
+}
+export function clearPaymentMethodsCache() {
+  methodsCache = null;
 }

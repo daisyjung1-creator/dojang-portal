@@ -4,13 +4,14 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
-import { money, round2, localISO, formatDate, PAYMENT_METHODS } from '../../lib/invoiceUtils';
-import { saveRefund, queueEmail } from './api';
+import { money, round2, localISO, formatDate } from '../../lib/invoiceUtils';
+import { saveRefund, queueEmail, usePaymentMethods } from './api';
 
 // Record money paid back to a customer. Usually against an invoice: the GST
 // portion is worked out from that invoice (refund × invoice GST ÷ invoice
 // total) and can be adjusted. Can't refund more than was paid.
 export default function RefundModal({ customers, initial, onClose, onSaved }) {
+  const PAYMENT_METHODS = usePaymentMethods();
   const isEdit = !!initial?.id;
   const [form, setForm] = useState({
     id: initial?.id,

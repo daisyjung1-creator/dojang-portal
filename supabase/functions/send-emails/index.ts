@@ -156,7 +156,7 @@ async function processEmailQueue(record: any) {
     await sendReceipt(record);
   } else if (record.type === 'refund') {
     await sendRefund(record);
-  } else if (record.type === 'subsidy_reminder' || record.type === 'broadcast') {
+  } else if (record.type === 'subsidy_reminder' || record.type === 'broadcast' || record.type === 'welcome') {
     // Subject and message were written (and reviewed) by an admin in the portal.
     const s = await loadSettings();
     const subject = String(record.payload?.subject || 'Sports grant reminder');

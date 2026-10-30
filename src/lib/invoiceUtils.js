@@ -1,7 +1,9 @@
 // Shared helpers for the invoicing module (money, dates, totals, periods).
 
+// Default list; the dojang's own list is edited in Invoice Settings
+// (invoice_settings.payment_methods) and loaded with usePaymentMethods().
 export const PAYMENT_METHODS = [
-  'Pre-Authorized Debit',
+  'Pre-Authorized Credit Card',
   'Interac e-Transfer',
   'Debit',
   'Cash',

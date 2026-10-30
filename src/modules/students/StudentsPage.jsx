@@ -8,6 +8,7 @@ import { BELTS } from '../../lib/constants';
 import { PLANS, billingAnchor, currentCycleStart, nextDueDate, todayISO, daysUntil } from '../../lib/billingDates';
 import Field from '../../components/Field';
 import ClassPicker from '../../components/ClassPicker';
+import WelcomeEmailModal from '../../components/WelcomeEmailModal';
 import { allClassNames } from '../../lib/classes';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -67,7 +68,8 @@ export default function StudentsPage() {
   const [formError, setFormError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [importState, setImportState] = useState(null);
-  const [reminder, setReminder] = useState(null); // { student, subject, message, to, error, sending }
+  const [reminder, setReminder] = useState(null);
+  const [welcomeFor, setWelcomeFor] = useState(null); // { student, subject, message, to, error, sending }
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -448,6 +450,21 @@ export default function StudentsPage() {
           onClose={() => setModalOpen(false)}
           footer={
             <>
+              {editingId && isAdmin && (
+                <button
+                  className="dp-btn"
+                  style={{ marginRight: 'auto' }}
+                  disabled={!form.guardian_email}
+                  title={form.guardian_email ? 'Uses the saved student details' : 'No guardian email'}
+                  onClick={() => {
+                    const st = students.find((x) => x.id === editingId);
+                    setModalOpen(false);
+                    setWelcomeFor(st);
+                  }}
+                >
+                  <Mail size={14} /> Welcome email{students.find((x) => x.id === editingId)?.welcome_sent_at ? ' ✓' : ''}
+                </button>
+              )}
               <button className="dp-btn" onClick={() => setModalOpen(false)}>
                 Cancel
               </button>
@@ -559,6 +576,17 @@ export default function StudentsPage() {
           </Field>
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
+      )}
+
+      {welcomeFor && (
+        <WelcomeEmailModal
+          student={welcomeFor}
+          onClose={() => setWelcomeFor(null)}
+          onSent={(at) => {
+            setStudents((prev) => prev.map((x) => (x.id === welcomeFor.id ? { ...x, welcome_sent_at: at } : x)));
+            setWelcomeFor(null);
+          }}
+        />
       )}
 
       {reminder && (

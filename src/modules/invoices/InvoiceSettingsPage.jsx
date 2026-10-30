@@ -5,7 +5,9 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import { money } from '../../lib/invoiceUtils';
-import { loadSettings } from './api';
+import { loadSettings, clearPaymentMethodsCache } from './api';
+import { WELCOME_PLACEHOLDERS } from '../../lib/welcomeEmail';
+import { PAYMENT_METHODS } from '../../lib/invoiceUtils';
 
 const TEXT_FIELDS = [
   ['business_name', 'Business Name'],
@@ -21,6 +23,7 @@ export default function InvoiceSettingsPage() {
   const [items, setItems] = useState([]);
   const [itemsDirty, setItemsDirty] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
+  const [methodsText, setMethodsText] = useState(null); // null = untouched
   const itemFileRef = useRef(null);
   const logoRef = useRef(null);
 
@@ -82,6 +85,12 @@ export default function InvoiceSettingsPage() {
     rest.next_invoice_number = Number(rest.next_invoice_number) || 1;
     rest.next_receipt_number = Number(rest.next_receipt_number) || 1;
     rest.default_due_days = Number(rest.default_due_days) || 0;
+    if (methodsText !== null) {
+      const list = methodsText.split('\n').map((m) => m.trim()).filter(Boolean);
+      if (!list.length) return setSaved('Add at least one payment method.');
+      rest.payment_methods = list;
+      clearPaymentMethodsCache();
+    }
     const { error } = await supabase.from('invoice_settings').upsert({ id: 1, ...rest, updated_at: new Date().toISOString() });
     setSaved(error ? 'Could not save: ' + error.message : 'Settings saved.');
   }
@@ -156,6 +165,32 @@ export default function InvoiceSettingsPage() {
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.subsidy_reminder_subject || ''} onChange={set('subsidy_reminder_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={9} style={{ width: '100%' }} value={s.subsidy_reminder_message || ''} onChange={set('subsidy_reminder_message')} /></Field>
           <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>You can use {'{student}'} (first name), {'{student_full}'}, {'{guardian}'}, {'{subsidy}'}, {'{end_month}'} (e.g. October 2026), {'{end_date}'}, {'{business}'}. Sent from the yellow alert on the Students page.</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start', marginTop: 18 }}>
+        <div style={{ ...styles.card, padding: 18 }}>
+          <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Payment methods</p>
+          <Field label="One per line — the first one is the default when recording a payment">
+            <textarea
+              className="dp-input"
+              rows={9}
+              style={{ width: '100%', fontSize: 13 }}
+              value={methodsText ?? (s.payment_methods?.length ? s.payment_methods : PAYMENT_METHODS).join('\n')}
+              onChange={(e) => setMethodsText(e.target.value)}
+            />
+          </Field>
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>Payments already recorded keep the name they were saved with. Click Save Settings at the top after changing.</p>
+          <p style={{ ...styles.metricLabel, margin: '18px 0 8px' }}>Refund policy</p>
+          <Field label="Inserted into the welcome email as {refund_policy}">
+            <textarea className="dp-input" rows={7} style={{ width: '100%', fontSize: 13 }} value={s.refund_policy || ''} onChange={set('refund_policy')} />
+          </Field>
+        </div>
+        <div style={{ ...styles.card, padding: 18 }}>
+          <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Welcome email (sent when a student enrolls)</p>
+          <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.welcome_subject || ''} onChange={set('welcome_subject')} /></Field>
+          <Field label="Message"><textarea className="dp-input" rows={18} style={{ width: '100%', fontSize: 13 }} value={s.welcome_message || ''} onChange={set('welcome_message')} /></Field>
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>Filled in from the student's details: {WELCOME_PLACEHOLDERS}</p>
         </div>
       </div>
 

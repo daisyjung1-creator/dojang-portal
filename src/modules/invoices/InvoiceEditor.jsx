@@ -4,8 +4,8 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
-import { money, localISO, addDays, calcTotals, lineAmount, PAYMENT_METHODS } from '../../lib/invoiceUtils';
-import { saveInvoice, savePayment, queueEmail } from './api';
+import { money, localISO, addDays, calcTotals, lineAmount } from '../../lib/invoiceUtils';
+import { saveInvoice, savePayment, queueEmail, usePaymentMethods } from './api';
 
 function blankLine() {
   return { fee_item_id: '', description: '', quantity: 1, unit_price: '', taxable: true };
@@ -31,7 +31,9 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
   );
   const [lines, setLines] = useState(() => (isEdit && editing.lines.length ? editing.lines.map((l) => ({ ...l })) : [blankLine()]));
   const [payNow, setPayNow] = useState(false);
-  const [payMethod, setPayMethod] = useState(PAYMENT_METHODS[0]);
+  const PAYMENT_METHODS = usePaymentMethods();
+  const [payMethodChoice, setPayMethod] = useState('');
+  const payMethod = payMethodChoice || PAYMENT_METHODS[0];
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [quickAdd, setQuickAdd] = useState(null);

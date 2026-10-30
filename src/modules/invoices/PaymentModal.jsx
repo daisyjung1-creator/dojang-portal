@@ -4,19 +4,20 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
-import { money, localISO, formatDate, PAYMENT_METHODS } from '../../lib/invoiceUtils';
-import { savePayment, queueEmail } from './api';
+import { money, localISO, formatDate } from '../../lib/invoiceUtils';
+import { savePayment, queueEmail, usePaymentMethods } from './api';
 
 // "Apply Payment" — pick a customer, pick one of their open invoices, record
 // how they paid. Each payment gets the next receipt number automatically.
 export default function PaymentModal({ customers, initial, onClose, onSaved }) {
+  const PAYMENT_METHODS = usePaymentMethods();
   const isEdit = !!initial?.id;
   const [form, setForm] = useState({
     id: initial?.id,
     customer_id: initial?.customer_id || '',
     invoice_id: initial?.invoice_id || '',
     payment_date: initial?.payment_date || localISO(),
-    method: initial?.method || PAYMENT_METHODS[0],
+    method: initial?.method || '',
     amount: initial?.amount ?? '',
     reference: initial?.reference || '',
     notes: initial?.notes || '',
@@ -50,7 +51,7 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
     if (!(Number(form.amount) > 0)) return setError('Enter the amount received.');
     setSaving(true);
     try {
-      const p = await savePayment(form);
+      const p = await savePayment({ ...form, method: form.method || PAYMENT_METHODS[0] });
       if (emailReceipt && customer?.email) await queueEmail('receipt', customer.email, { payment_id: p.id });
       onSaved(p);
     } catch (e) {
@@ -97,9 +98,9 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
       </div>
       <div style={styles.formRow}>
         <Field label="Method">
-          <select className="dp-select" style={{ width: '100%' }} value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
+          <select className="dp-select" style={{ width: '100%' }} value={form.method || PAYMENT_METHODS[0]} onChange={(e) => setForm({ ...form, method: e.target.value })}>
             {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
-            {!PAYMENT_METHODS.includes(form.method) && <option>{form.method}</option>}
+            {form.method && !PAYMENT_METHODS.includes(form.method) && <option>{form.method}</option>}
           </select>
         </Field>
         <Field label="Payment Ref">
