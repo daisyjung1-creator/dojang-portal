@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Check, Mail, UserPlus } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
@@ -35,6 +35,15 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [quickAdd, setQuickAdd] = useState(null);
+  const [stock, setStock] = useState({});
+
+  // Stock on hand for tracked items, to warn before overselling.
+  useEffect(() => {
+    supabase
+      .from('inventory_levels')
+      .select('fee_item_id, on_hand')
+      .then(({ data }) => setStock(Object.fromEntries((data || []).filter((r) => r.on_hand !== null).map((r) => [r.fee_item_id, Number(r.on_hand)]))));
+  }, []);
 
   const totals = useMemo(() => calcTotals(lines, form.gst_rate), [lines, form.gst_rate]);
   const linkedStudents = useMemo(() => students.filter((s) => form.customer_id && s.customer_id === form.customer_id && s.status !== 'withdrawn'), [students, form.customer_id]);
@@ -178,7 +187,16 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
                   </select>
                 </td>
                 <td style={td}><input className="dp-input" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} /></td>
-                <td style={td}><input type="number" className="dp-input" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} /></td>
+                <td style={td}>
+                  <input type="number" className="dp-input" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} />
+                  {l.fee_item_id && stock[l.fee_item_id] !== undefined && (() => {
+                    // When editing, this invoice's own original qty is already taken out of stock.
+                    const orig = isEdit ? Number(editing.lines.find((x) => x.id === l.id && x.fee_item_id === l.fee_item_id)?.quantity || 0) : 0;
+                    const left = stock[l.fee_item_id] + orig;
+                    const short = Number(l.quantity) > left;
+                    return <div style={{ fontSize: 10.5, color: short ? '#9A2B2B' : '#8A8D84', marginTop: 2, whiteSpace: 'nowrap' }}>{short ? `only ${left} in stock` : `${left} in stock`}</div>;
+                  })()}
+                </td>
                 <td style={td}><input type="number" step="0.01" className="dp-input" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.unit_price} onChange={(e) => updateLine(i, { unit_price: e.target.value })} /></td>
                 <td style={{ ...td, textAlign: 'center' }}><input type="checkbox" checked={!!l.taxable} onChange={(e) => updateLine(i, { taxable: e.target.checked })} /></td>
                 <td style={{ ...td, textAlign: 'right', fontSize: 13 }}>{money(lineAmount(l))}</td>

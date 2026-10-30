@@ -243,3 +243,12 @@ export function refundEmail(r: Payment, inv: Invoice | null, customerName: strin
 </div>`,
   };
 }
+
+// Plain-text message (as typed in the portal) → simple HTML email, with links clickable.
+export function plainTextEmailHtml(message: string, s: Settings) {
+  const body = esc(message).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#111">$1</a>');
+  return `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:560px;font-size:14px;line-height:1.55">
+  <div style="white-space:pre-line">${body}</div>
+  <p style="font-size:12px;color:#999;margin-top:24px">${esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
+</div>`;
+}

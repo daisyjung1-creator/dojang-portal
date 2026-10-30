@@ -16,7 +16,7 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — provided automatically
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { buildInvoicePdf, invoiceEmailHtml, receiptEmail, refundEmail, fillTemplate } from './invoiceDocs.ts';
+import { buildInvoicePdf, invoiceEmailHtml, receiptEmail, refundEmail, plainTextEmailHtml, fillTemplate } from './invoiceDocs.ts';
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
@@ -146,6 +146,11 @@ async function processEmailQueue(record: any) {
     await sendReceipt(record);
   } else if (record.type === 'refund') {
     await sendRefund(record);
+  } else if (record.type === 'subsidy_reminder') {
+    // Subject and message were written (and reviewed) by an admin in the portal.
+    const s = await loadSettings();
+    const subject = String(record.payload?.subject || 'Sports grant reminder');
+    await sendEmail(record.recipient_email, subject, plainTextEmailHtml(String(record.payload?.message || ''), s), s.email ? { reply_to: s.email } : {});
   }
 }
 

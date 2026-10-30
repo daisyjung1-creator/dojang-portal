@@ -15,6 +15,7 @@ import PaymentsPage from './modules/invoices/PaymentsPage';
 import CustomersPage from './modules/invoices/CustomersPage';
 import ReportsPage from './modules/invoices/ReportsPage';
 import InvoiceSettingsPage from './modules/invoices/InvoiceSettingsPage';
+import InventoryPage from './modules/invoices/InventoryPage';
 
 export default function App() {
   const { session, loading, isAdmin } = useAuth();
@@ -30,7 +31,7 @@ export default function App() {
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
-  const adminOnlyTabs = ['leads', 'tryouts', 'register', 'billing', 'invoices', 'payments', 'customers', 'reports', 'invoice-settings'];
+  const adminOnlyTabs = ['leads', 'tryouts', 'register', 'billing', 'invoices', 'payments', 'customers', 'reports', 'inventory', 'invoice-settings'];
   const effectiveTab = !isAdmin && adminOnlyTabs.includes(activeTab) ? 'students' : activeTab;
 
   return (
@@ -47,6 +48,7 @@ export default function App() {
         {isAdmin && effectiveTab === 'payments' && <PaymentsPage />}
         {isAdmin && effectiveTab === 'customers' && <CustomersPage />}
         {isAdmin && effectiveTab === 'reports' && <ReportsPage />}
+        {isAdmin && effectiveTab === 'inventory' && <InventoryPage />}
         {isAdmin && effectiveTab === 'invoice-settings' && <InvoiceSettingsPage />}
       </div>
     </div>

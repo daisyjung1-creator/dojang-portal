@@ -152,6 +152,10 @@ export default function InvoiceSettingsPage() {
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.email_subject || ''} onChange={set('email_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={5} style={{ width: '100%' }} value={s.email_message || ''} onChange={set('email_message')} /></Field>
           <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>You can use {'{customer}'}, {'{number}'}, {'{total}'}, {'{balance}'}, {'{due_date}'}, {'{business}'}.</p>
+          <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Sports grant (subsidy) reminder email</p>
+          <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.subsidy_reminder_subject || ''} onChange={set('subsidy_reminder_subject')} /></Field>
+          <Field label="Message"><textarea className="dp-input" rows={9} style={{ width: '100%' }} value={s.subsidy_reminder_message || ''} onChange={set('subsidy_reminder_message')} /></Field>
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>You can use {'{student}'} (first name), {'{student_full}'}, {'{guardian}'}, {'{subsidy}'}, {'{end_month}'} (e.g. October 2026), {'{end_date}'}, {'{business}'}. Sent from the yellow alert on the Students page.</p>
         </div>
       </div>
 

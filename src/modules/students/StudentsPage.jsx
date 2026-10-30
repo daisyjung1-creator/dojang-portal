@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail } from 'lucide-react';
+import { fillSubsidyTemplate, DEFAULT_SUBSIDY_SUBJECT } from '../../lib/subsidyReminder';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
@@ -64,6 +65,7 @@ export default function StudentsPage() {
   const [formError, setFormError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [importState, setImportState] = useState(null);
+  const [reminder, setReminder] = useState(null); // { student, subject, message, to, error, sending }
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -155,6 +157,35 @@ export default function StudentsPage() {
     const payload = status === 'withdrawn' ? { status, withdrawn_date: new Date().toISOString().slice(0, 10) } : { status, withdrawn_date: null };
     const { data } = await supabase.from('students').update(payload).eq('id', id).select();
     if (data) setStudents((prev) => prev.map((s) => (s.id === id ? data[0] : s)));
+  }
+
+  async function openReminder(s) {
+    const { data: st } = await supabase.from('invoice_settings').select('business_name, subsidy_reminder_subject, subsidy_reminder_message').eq('id', 1).maybeSingle();
+    setReminder({
+      student: s,
+      to: s.guardian_email || '',
+      subject: fillSubsidyTemplate(st?.subsidy_reminder_subject || DEFAULT_SUBSIDY_SUBJECT, s, st || {}),
+      message: fillSubsidyTemplate(st?.subsidy_reminder_message || '', s, st || {}),
+      error: '',
+    });
+  }
+
+  async function sendReminder() {
+    const emails = splitEmails(reminder.to);
+    if (!emails.length || emails.some((e) => !EMAIL_RE.test(e))) return setReminder({ ...reminder, error: 'Enter a valid email address.' });
+    if (!reminder.message.trim()) return setReminder({ ...reminder, error: 'The message is empty — set the template in Invoice Settings.' });
+    setReminder({ ...reminder, sending: true, error: '' });
+    const { error: e1 } = await supabase.from('email_queue').insert({
+      type: 'subsidy_reminder',
+      student_id: reminder.student.id,
+      recipient_email: emails.join(', '),
+      payload: { student_id: reminder.student.id, subject: reminder.subject, message: reminder.message },
+    });
+    if (e1) return setReminder({ ...reminder, sending: false, error: 'Could not send: ' + e1.message });
+    const at = new Date().toISOString();
+    await supabase.from('students').update({ subsidy_reminded_at: at }).eq('id', reminder.student.id);
+    setStudents((prev) => prev.map((x) => (x.id === reminder.student.id ? { ...x, subsidy_reminded_at: at } : x)));
+    setReminder(null);
   }
 
   const subsidyAlerts = useMemo(
@@ -308,6 +339,10 @@ export default function StudentsPage() {
                 {s.subsidy_amount ? ` ($${Number(s.subsidy_amount).toFixed(2)}/mo)` : ''}{' '}
                 {s.days < 0 ? <b>ended {-s.days} days ago ({s.subsidy_end_date})</b> : s.days === 0 ? <b>ends today</b> : <>ends in <b>{s.days} days</b> ({s.subsidy_end_date})</>}
               </span>
+              <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12, marginLeft: 'auto' }} disabled={!s.guardian_email} title={s.guardian_email ? '' : 'No guardian email'} onClick={() => openReminder(s)}>
+                <Mail size={12} /> Email reminder
+              </button>
+              {s.subsidy_reminded_at && <span style={{ fontSize: 12, color: '#2A5A30', whiteSpace: 'nowrap' }}>✓ sent {new Date(s.subsidy_reminded_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</span>}
             </div>
           ))}
         </div>
@@ -519,6 +554,30 @@ export default function StudentsPage() {
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
+        </Modal>
+      )}
+
+      {reminder && (
+        <Modal
+          title={`Grant reminder — ${reminder.student.name}`}
+          maxWidth={600}
+          onClose={() => setReminder(null)}
+          footer={
+            <>
+              <button className="dp-btn" onClick={() => setReminder(null)}>Cancel</button>
+              <button className="dp-btn dp-btn-primary" disabled={reminder.sending} onClick={sendReminder}><Mail size={15} /> Send</button>
+            </>
+          }
+        >
+          {reminder.student.subsidy_reminded_at && (
+            <p style={{ fontSize: 12.5, color: '#854F0B', margin: '0 0 10px' }}>Already sent on {new Date(reminder.student.subsidy_reminded_at).toLocaleDateString('en-CA')}.</p>
+          )}
+          <Field label="To (comma-separated)"><input className="dp-input" style={{ width: '100%' }} value={reminder.to} onChange={(e) => setReminder({ ...reminder, to: e.target.value })} /></Field>
+          <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={reminder.subject} onChange={(e) => setReminder({ ...reminder, subject: e.target.value })} /></Field>
+          <Field label="Message (you can edit it for this family)">
+            <textarea className="dp-input" rows={12} style={{ width: '100%', resize: 'vertical', fontSize: 13, lineHeight: 1.5 }} value={reminder.message} onChange={(e) => setReminder({ ...reminder, message: e.target.value })} />
+          </Field>
+          {reminder.error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: 0 }}>{reminder.error}</p>}
         </Modal>
       )}
 
