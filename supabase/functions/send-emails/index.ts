@@ -48,8 +48,20 @@ function welcomeEmail(studentName: string) {
   };
 }
 
-async function sendEmail(to: string, subject: string, html: string, extra: Record<string, unknown> = {}) {
+// A stored address can hold several emails separated by commas/semicolons
+// (e.g. both parents); every one of them gets the email.
+function splitEmails(v: unknown): string[] {
+  return String(v || '').split(/[,;\s]+/).map((e) => e.trim()).filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+}
+
+async function sendEmail(toRaw: string, subject: string, html: string, extra: Record<string, unknown> = {}) {
   if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY secret is not set');
+  const to = splitEmails(toRaw);
+  if (!to.length) throw new Error('No valid recipient email: ' + toRaw);
+  if (extra.cc) {
+    const cc = splitEmails(extra.cc).filter((e) => !to.includes(e));
+    if (cc.length) extra.cc = cc; else delete extra.cc;
+  }
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Search, Plus, Upload, Pencil, Trash2, Check } from 'lucide-react';
+import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
+import { PLANS, billingAnchor, currentCycleStart, nextDueDate, todayISO, daysUntil } from '../../lib/billingDates';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -14,7 +15,10 @@ const FIELD_DEFS = [
   { key: 'dob', label: 'Date of Birth', aliases: ['dob', 'birth', 'birthday'] },
   { key: 'guardian_name', label: 'Guardian Name', aliases: ['guardian', 'guardian name', 'parent'] },
   { key: 'guardian_phone', label: 'Guardian Phone', aliases: ['phone', 'guardian phone', 'contact'] },
-  { key: 'guardian_email', label: 'Guardian Email', aliases: ['email', 'guardian email'] },
+  { key: 'guardian_email', label: 'Guardian Email(s)', aliases: ['email', 'guardian email'] },
+  { key: 'address', label: 'Address', aliases: ['address', 'street'] },
+  { key: 'emergency_name', label: 'Emergency Contact', aliases: ['emergency contact', 'emergency name'] },
+  { key: 'emergency_phone', label: 'Emergency Phone', aliases: ['emergency phone', 'emergency'] },
   { key: 'belt', label: 'Belt', aliases: ['belt', 'rank'] },
   { key: 'class_name', label: 'Class', aliases: ['class', 'class name'] },
   { key: 'tuition', label: 'Monthly Tuition', aliases: ['tuition', 'monthly tuition', 'fee'] },
@@ -23,8 +27,19 @@ const FIELD_DEFS = [
 ];
 
 function emptyForm() {
-  return { name: '', dob: '', guardian_name: '', guardian_phone: '', guardian_email: '', belt: 'White Belt', class_name: '', tuition: '', enroll_date: '', notes: '' };
+  return { name: '', dob: '', guardian_name: '', guardian_phone: '', guardian_email: '', address: '', emergency_name: '', emergency_phone: '', belt: 'White', class_name: '', tuition: '', enroll_date: '', billing_start_date: '', plan: '1 Month', subsidy: false, subsidy_name: '', subsidy_amount: '', subsidy_end_date: '', notes: '' };
 }
+
+// Several guardian emails can be stored together, separated by commas.
+export function splitEmails(v) {
+  return String(v || '')
+    .split(/[,;\s]+/)
+    .map((e) => e.trim())
+    .filter(Boolean);
+}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Subsidies ending within this many days get flagged.
+const SUBSIDY_WARN_DAYS = 60;
 
 function guessMapping(headers) {
   const mapping = {};
@@ -80,7 +95,9 @@ export default function StudentsPage() {
 
   function openEdit(student) {
     setEditingId(student.id);
-    setForm({ ...emptyForm(), ...student });
+    const f = { ...emptyForm(), ...student };
+    Object.keys(f).forEach((k) => f[k] === null && (f[k] = ''));
+    setForm(f);
     setFormError('');
     setModalOpen(true);
   }
@@ -90,7 +107,30 @@ export default function StudentsPage() {
       setFormError('Please enter a name.');
       return;
     }
-    const payload = { ...form, tuition: form.tuition === '' ? null : Number(form.tuition) };
+    const emails = splitEmails(form.guardian_email);
+    const bad = emails.filter((e) => !EMAIL_RE.test(e));
+    if (bad.length) {
+      setFormError('These emails don’t look right: ' + bad.join(', '));
+      return;
+    }
+    if (form.subsidy && !form.subsidy_end_date) {
+      setFormError('Please enter when the subsidy ends.');
+      return;
+    }
+    const blank = (v) => (v === '' || v === undefined ? null : v);
+    const payload = {
+      ...form,
+      guardian_email: emails.join(', ') || null,
+      dob: blank(form.dob),
+      enroll_date: blank(form.enroll_date),
+      // Same as the enrollment date unless set differently.
+      billing_start_date: form.billing_start_date && form.billing_start_date !== form.enroll_date ? form.billing_start_date : null,
+      tuition: form.tuition === '' ? null : Number(form.tuition),
+      subsidy: !!form.subsidy,
+      subsidy_name: form.subsidy ? blank(form.subsidy_name) : null,
+      subsidy_amount: form.subsidy && form.subsidy_amount !== '' ? Number(form.subsidy_amount) : null,
+      subsidy_end_date: form.subsidy ? blank(form.subsidy_end_date) : null,
+    };
     let submitError;
     if (editingId) {
       ({ error: submitError } = await supabase.from('students').update(payload).eq('id', editingId));
@@ -116,6 +156,15 @@ export default function StudentsPage() {
     const { data } = await supabase.from('students').update(payload).eq('id', id).select();
     if (data) setStudents((prev) => prev.map((s) => (s.id === id ? data[0] : s)));
   }
+
+  const subsidyAlerts = useMemo(
+    () =>
+      students
+        .filter((s) => s.status !== 'withdrawn' && s.subsidy && s.subsidy_end_date && daysUntil(s.subsidy_end_date) <= SUBSIDY_WARN_DAYS)
+        .map((s) => ({ ...s, days: daysUntil(s.subsidy_end_date) }))
+        .sort((a, b) => a.days - b.days),
+    [students]
+  );
 
   const classes = useMemo(() => Array.from(new Set(students.map((s) => s.class_name).filter(Boolean))), [students]);
 
@@ -182,7 +231,9 @@ export default function StudentsPage() {
             rec[f.key] = String(row[idx]).trim();
           }
         });
-        if (!BELTS.some((b) => b.value === rec.belt)) rec.belt = 'White Belt';
+        if (!BELTS.some((b) => b.value === rec.belt)) rec.belt = 'White';
+        rec.guardian_email = splitEmails(rec.guardian_email).join(', ') || null;
+        ['dob', 'enroll_date', 'billing_start_date', 'subsidy_end_date', 'subsidy_amount', 'subsidy_name'].forEach((k) => rec[k] === '' && (rec[k] = null));
         rec.tuition = rec.tuition === '' ? null : Number(rec.tuition);
         return rec;
       })
@@ -244,6 +295,24 @@ export default function StudentsPage() {
 
       {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}
 
+      {isAdmin && subsidyAlerts.length > 0 && (
+        <div style={{ background: '#FAEEDA', border: '1px solid #F0D9A8', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#5C3A07' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 4 }}>
+            <AlertTriangle size={14} /> Subsidies ending soon ({subsidyAlerts.length})
+          </div>
+          {subsidyAlerts.map((s) => (
+            <div key={s.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '2px 0' }}>
+              <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12 }} onClick={() => openEdit(s)}>{s.name}</button>
+              <span>
+                {s.subsidy_name || 'Subsidy'}
+                {s.subsidy_amount ? ` ($${Number(s.subsidy_amount).toFixed(2)}/mo)` : ''}{' '}
+                {s.days < 0 ? <b>ended {-s.days} days ago ({s.subsidy_end_date})</b> : s.days === 0 ? <b>ends today</b> : <>ends in <b>{s.days} days</b> ({s.subsidy_end_date})</>}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={styles.card}>
         {loading ? (
           <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Loading...</p>
@@ -262,7 +331,8 @@ export default function StudentsPage() {
                 <th>Class</th>
                 <th>Guardian</th>
                 <th>Phone</th>
-                <th>Enrolled</th>
+                <th>Plan</th>
+                <th>Next billing</th>
                 {isAdmin && <th style={{ width: 160 }}></th>}
               </tr>
             </thead>
@@ -297,7 +367,11 @@ export default function StudentsPage() {
                     <td>{s.class_name || '—'}</td>
                     <td>{s.guardian_name || '—'}</td>
                     <td>{s.guardian_phone || '—'}</td>
-                    <td>{s.enroll_date || '—'}</td>
+                    <td>
+                      {s.plan || '1 Month'}
+                      {s.subsidy && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
+                    </td>
+                    <td>{billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}</td>
                     {isAdmin && (
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
@@ -373,17 +447,74 @@ export default function StudentsPage() {
               <input className="dp-input" style={{ width: '100%' }} value={form.guardian_phone || ''} onChange={(e) => setForm({ ...form, guardian_phone: e.target.value })} />
             </Field>
           </div>
-          <Field label="Guardian Email">
-            <input type="email" className="dp-input" style={{ width: '100%' }} value={form.guardian_email || ''} onChange={(e) => setForm({ ...form, guardian_email: e.target.value })} />
+          <Field label="Guardian Email(s) — separate with commas; invoices go to all">
+            <input className="dp-input" style={{ width: '100%' }} placeholder="mom@example.com, dad@example.com" value={form.guardian_email || ''} onChange={(e) => setForm({ ...form, guardian_email: e.target.value })} />
+          </Field>
+          <Field label="Address">
+            <textarea className="dp-input" rows={2} style={{ width: '100%', resize: 'vertical' }} value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </Field>
           <div style={styles.formRow}>
-            <Field label="Enrollment Date">
-              <input type="date" className="dp-input" style={{ width: '100%' }} value={form.enroll_date || ''} onChange={(e) => setForm({ ...form, enroll_date: e.target.value })} />
+            <Field label="Emergency Contact Name">
+              <input className="dp-input" style={{ width: '100%' }} value={form.emergency_name || ''} onChange={(e) => setForm({ ...form, emergency_name: e.target.value })} />
             </Field>
-            <Field label="Monthly Tuition ($)">
+            <Field label="Emergency Phone">
+              <input className="dp-input" style={{ width: '100%' }} value={form.emergency_phone || ''} onChange={(e) => setForm({ ...form, emergency_phone: e.target.value })} />
+            </Field>
+          </div>
+
+          <SectionLabel>Billing</SectionLabel>
+          <div style={styles.formRow}>
+            <Field label="Enrollment Date">
+              <input
+                type="date"
+                className="dp-input"
+                style={{ width: '100%' }}
+                value={form.enroll_date || ''}
+                onChange={(e) => setForm({ ...form, enroll_date: e.target.value, billing_start_date: form.billing_start_date && form.billing_start_date !== form.enroll_date ? form.billing_start_date : '' })}
+              />
+            </Field>
+            <Field label="Billing Starts (default: enrollment date)">
+              <input type="date" className="dp-input" style={{ width: '100%' }} value={form.billing_start_date || form.enroll_date || ''} onChange={(e) => setForm({ ...form, billing_start_date: e.target.value })} />
+            </Field>
+          </div>
+          <div style={styles.formRow}>
+            <Field label="Plan">
+              <select className="dp-select" style={{ width: '100%' }} value={form.plan || '1 Month'} onChange={(e) => setForm({ ...form, plan: e.target.value })}>
+                {PLANS.map((p) => <option key={p.value}>{p.value}</option>)}
+              </select>
+            </Field>
+            <Field label={form.plan === '3 Months' ? 'Tuition per 3 months ($)' : 'Monthly Tuition ($)'}>
               <input type="number" className="dp-input" style={{ width: '100%' }} value={form.tuition ?? ''} onChange={(e) => setForm({ ...form, tuition: e.target.value })} />
             </Field>
           </div>
+          {(form.billing_start_date || form.enroll_date) && (
+            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '-4px 0 12px' }}>
+              Bills every {form.plan === '3 Months' ? '3 months' : 'month'} · current cycle started {currentCycleStart(form, todayISO())} · next billing {nextDueDate(form, todayISO())}
+            </p>
+          )}
+
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 10 }}>
+            <input type="checkbox" checked={!!form.subsidy} onChange={(e) => setForm({ ...form, subsidy: e.target.checked })} />
+            Receives a subsidy (KidSport etc.)
+          </label>
+          {form.subsidy && (
+            <div style={{ background: '#FAF8F2', border: '1px solid #EDEAE0', borderRadius: 8, padding: '12px 12px 0', marginBottom: 12 }}>
+              <div style={styles.formRow}>
+                <Field label="Subsidy">
+                  <input className="dp-input" style={{ width: '100%' }} list="subsidy-options" placeholder="KidSport" value={form.subsidy_name || ''} onChange={(e) => setForm({ ...form, subsidy_name: e.target.value })} />
+                  <datalist id="subsidy-options">
+                    {Array.from(new Set(['KidSport', ...students.map((s) => s.subsidy_name).filter(Boolean)])).map((n) => <option key={n} value={n} />)}
+                  </datalist>
+                </Field>
+                <Field label="Amount / month ($)">
+                  <input type="number" className="dp-input" style={{ width: '100%' }} value={form.subsidy_amount ?? ''} onChange={(e) => setForm({ ...form, subsidy_amount: e.target.value })} />
+                </Field>
+              </div>
+              <Field label="Subsidy ends" required>
+                <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_end_date || ''} onChange={(e) => setForm({ ...form, subsidy_end_date: e.target.value })} />
+              </Field>
+            </div>
+          )}
           <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
@@ -446,4 +577,8 @@ export default function StudentsPage() {
       )}
     </>
   );
+}
+
+function SectionLabel({ children }) {
+  return <div style={{ fontSize: 11, fontWeight: 600, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '6px 0 8px', paddingTop: 10, borderTop: '1px solid #EDEAE0' }}>{children}</div>;
 }

@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2, Check } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { formatCurrency } from '../../lib/constants';
-import { todayISO, getBillingDay, nextBillingDateAfter, currentCycleStart } from '../../lib/billingDates';
+import { todayISO, nextDueDate, currentCycleStart } from '../../lib/billingDates';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -64,9 +64,9 @@ export default function BillingPage() {
 
   const tuitionRows = useMemo(() => {
     const today = todayISO();
-    return students.map((s) => {
+    return students.filter((s) => s.status !== 'withdrawn').map((s) => {
       const cycleStart = currentCycleStart(s, today);
-      const nextDue = nextBillingDateAfter(cycleStart, getBillingDay(s));
+      const nextDue = nextDueDate(s, today);
       const payment = payments.find((p) => p.student_id === s.id && p.cycle_start === cycleStart);
       return { student: s, cycleStart, nextDue, payment };
     });
@@ -196,7 +196,7 @@ export default function BillingPage() {
               <thead>
                 <tr>
                   <th>Student</th>
-                  <th>Monthly Tuition</th>
+                  <th>Plan · Tuition</th>
                   <th>Current Cycle</th>
                   <th>Next Due Date</th>
                   <th>Status</th>
@@ -209,7 +209,7 @@ export default function BillingPage() {
                   return (
                     <tr key={r.student.id} className="dp-row">
                       <td style={{ fontWeight: 500 }}>{r.student.name}</td>
-                      <td>{r.student.tuition ? formatCurrency(r.student.tuition) : 'Not set'}</td>
+                      <td>{r.student.plan || '1 Month'} · {r.student.tuition ? formatCurrency(r.student.tuition) : 'Not set'}</td>
                       <td>{r.cycleStart}</td>
                       <td>{r.nextDue}</td>
                       <td>

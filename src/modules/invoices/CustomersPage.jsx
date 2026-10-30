@@ -48,7 +48,7 @@ export default function CustomersPage() {
     const [c, { data: b }, { data: s }] = await Promise.all([
       loadCustomers(),
       fetchAll(() => supabase.from('customer_balances').select('*')),
-      supabase.from('students').select('id, name, guardian_name, guardian_email, guardian_phone, customer_id, status').order('name'),
+      supabase.from('students').select('id, name, guardian_name, guardian_email, guardian_phone, address, customer_id, status').order('name'),
     ]);
     setCustomers(c);
     setBalances(Object.fromEntries((b || []).map((r) => [r.customer_id, r])));
@@ -112,10 +112,13 @@ export default function CustomersPage() {
   async function createFromStudents() {
     const unlinked = students.filter((s) => !s.customer_id && s.status !== 'withdrawn');
     if (!unlinked.length) return setFlash('Every active student is already linked to a customer.');
-    const byEmail = Object.fromEntries(customers.filter((c) => c.email).map((c) => [c.email.toLowerCase(), c]));
+    // Match on the first guardian email (several can be stored, comma-separated).
+    const firstEmail = (v) => (String(v || '').split(/[,;\s]+/).find(Boolean) || '').toLowerCase();
+    const byEmail = {};
+    customers.forEach((c) => String(c.email || '').split(/[,;\s]+/).filter(Boolean).forEach((e) => (byEmail[e.toLowerCase()] = c)));
     const groups = {};
     unlinked.forEach((s) => {
-      const key = (s.guardian_email || '').toLowerCase() || 'name:' + (s.guardian_name || s.name).toLowerCase();
+      const key = firstEmail(s.guardian_email) || 'name:' + (s.guardian_name || s.name).toLowerCase();
       (groups[key] = groups[key] || []).push(s);
     });
     let created = 0;
@@ -126,7 +129,7 @@ export default function CustomersPage() {
         const first = kids[0];
         const { data, error } = await supabase
           .from('customers')
-          .insert({ name: first.guardian_name || first.name, email: first.guardian_email || null, phone: first.guardian_phone || null })
+          .insert({ name: first.guardian_name || first.name, email: first.guardian_email || null, phone: first.guardian_phone || null, address: first.address || null })
           .select()
           .single();
         if (error) continue;
@@ -296,7 +299,7 @@ export default function CustomersPage() {
                   <Field label="Contact"><input className="dp-input" style={{ width: '100%' }} value={f.contact_name || ''} onChange={(e) => set({ contact_name: e.target.value })} /></Field>
                 </div>
                 <div style={styles.formRow}>
-                  <Field label="Email (invoices go here)"><input className="dp-input" style={{ width: '100%' }} value={f.email || ''} onChange={(e) => set({ email: e.target.value })} /></Field>
+                  <Field label="Email(s) — separate with commas; invoices go to all"><input className="dp-input" style={{ width: '100%' }} value={f.email || ''} onChange={(e) => set({ email: e.target.value })} /></Field>
                   <Field label="CC Email"><input className="dp-input" style={{ width: '100%' }} value={f.cc_email || ''} onChange={(e) => set({ cc_email: e.target.value })} /></Field>
                 </div>
                 <div style={styles.formRow}>
