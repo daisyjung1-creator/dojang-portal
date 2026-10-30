@@ -62,15 +62,25 @@ async function sendEmail(toRaw: string, subject: string, html: string, extra: Re
     const cc = splitEmails(extra.cc).filter((e) => !to.includes(e));
     if (cc.length) extra.cc = cc; else delete extra.cc;
   }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from: FROM_ADDRESS, to, subject, html, ...extra }),
-  });
-  if (!res.ok) throw new Error(`Resend API error: ${res.status} ${await res.text()}`);
+  // Resend allows only a few requests per second; a group email starts many
+  // sends at once, so wait and retry (with jitter) when rate-limited.
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: FROM_ADDRESS, to, subject, html, ...extra }),
+    });
+    if (res.ok) return;
+    const text = await res.text();
+    if ((res.status === 429 || res.status >= 500) && attempt < 8) {
+      await new Promise((r) => setTimeout(r, 800 + Math.random() * 1500 * (attempt + 1)));
+      continue;
+    }
+    throw new Error(`Resend API error: ${res.status} ${text}`);
+  }
 }
 
 function toBase64(bytes: Uint8Array) {
@@ -146,7 +156,7 @@ async function processEmailQueue(record: any) {
     await sendReceipt(record);
   } else if (record.type === 'refund') {
     await sendRefund(record);
-  } else if (record.type === 'subsidy_reminder') {
+  } else if (record.type === 'subsidy_reminder' || record.type === 'broadcast') {
     // Subject and message were written (and reviewed) by an admin in the portal.
     const s = await loadSettings();
     const subject = String(record.payload?.subject || 'Sports grant reminder');
@@ -165,9 +175,11 @@ async function processOne(table: string, id: string) {
   try {
     if (table === 'email_queue') await processEmailQueue(row);
     else await processWelcome(row);
+    if (table === 'email_queue' && row.error) await supabase.from('email_queue').update({ error: null }).eq('id', id);
     return 'sent';
   } catch (err) {
     await release(table, id);
+    if (table === 'email_queue') await supabase.from('email_queue').update({ error: String(err).slice(0, 500) }).eq('id', id);
     throw err;
   }
 }
@@ -186,7 +198,9 @@ Deno.serve(async (req) => {
     jobs.push([body.table, body.record.id]);
   } else if (!body?.table) {
     for (const table of ['email_queue', 'welcome_queue']) {
-      const { data } = await supabase.from(table).select('id').eq('sent', false).limit(50);
+      let q = supabase.from(table).select('id').eq('sent', false);
+      if (table === 'email_queue') q = q.order('created_at');
+      const { data } = await q.limit(50);
       (data || []).forEach((r: any) => jobs.push([table, r.id]));
     }
   }

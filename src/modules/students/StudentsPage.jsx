@@ -120,8 +120,14 @@ export default function StudentsPage() {
       return;
     }
     const blank = (v) => (v === '' || v === undefined ? null : v);
+    // Empty form fields are saved as "nothing" (null), not as an empty string —
+    // the database rejects "" for ids, dates and numbers.
+    const cleaned = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v === '' ? null : v]));
+    delete cleaned.id;
+    delete cleaned.created_at;
     const payload = {
-      ...form,
+      ...cleaned,
+      name: form.name.trim(),
       guardian_email: emails.join(', ') || null,
       dob: blank(form.dob),
       enroll_date: blank(form.enroll_date),
