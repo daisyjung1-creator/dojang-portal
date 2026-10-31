@@ -2,7 +2,10 @@
 //
 // Each student bills on their own cycle (see billingDates.js). Cycles that
 // start within `leadDays` (default 7) and haven't been invoiced yet are offered
-// on the Billing page. Siblings (same family = same customer) with the same
+// on the Billing page. Families who pay by pre-authorized credit card don't
+// get anything in advance: their invoice is made (and paid) on the billing
+// date. Families who pay manually (debit / cash) get the invoice `leadDays`
+// ahead. Siblings (same family = same customer) with the same
 // billing date share one invoice, unless the family is set to "separate
 // invoices". Big-family discount and subsidy lines are added automatically.
 
@@ -84,15 +87,17 @@ export function tuitionLines(student, cycleStart, settings = {}) {
 
 // invoicedCycles: Set of `${student_id}|${cycle_start}` already on a live invoice.
 // Returns proposed invoices: [{ key, customer, students, due_date, lines, totals, past }]
+export const isManual = (cust) => !!cust && cust.payment_type === 'manual';
+
 export function proposeInvoices({ students, customers, invoicedCycles, today, settings = {} }) {
-  const lead = Number(settings.invoice_lead_days ?? 7);
+  const manualLead = Number(settings.invoice_lead_days ?? 7);
   const custById = Object.fromEntries((customers || []).map((c) => [c.id, c]));
   const groups = {};
   for (const s of students) {
     if (!isBillable(s)) continue;
-    for (const d of cyclesInWindow(s, today, lead)) {
+    const cust = custById[s.customer_id] || null;
+    for (const d of cyclesInWindow(s, today, isManual(cust) ? manualLead : 0)) {
       if (invoicedCycles.has(`${s.id}|${d}`)) continue;
-      const cust = custById[s.customer_id] || null;
       const key = (cust && !cust.separate_invoices ? 'c:' + cust.id : 's:' + s.id) + '|' + d;
       (groups[key] = groups[key] || { key, customer: cust, students: [], due_date: d, lines: [] }).students.push(s);
     }
@@ -103,6 +108,7 @@ export function proposeInvoices({ students, customers, invoicedCycles, today, se
       g.lines = g.students.flatMap((s) => tuitionLines(s, g.due_date, settings));
       g.totals = calcTotals(g.lines, settings.gst_rate ?? 5);
       g.past = g.due_date < today;
+      g.manual = isManual(g.customer);
       return g;
     })
     .sort((a, b) => (a.due_date === b.due_date ? familyName(a).localeCompare(familyName(b)) : a.due_date < b.due_date ? -1 : 1));

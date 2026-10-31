@@ -4,7 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { todayISO, currentCycleStart, nextDueDate, billingAnchor, addDaysISO } from '../../lib/billingDates';
 import { money, formatDate, calcTotals } from '../../lib/invoiceUtils';
-import { proposeInvoices, invoiceHeader, familyName, isBillable, tuitionLines } from '../../lib/tuitionBilling';
+import { proposeInvoices, invoiceHeader, familyName, isBillable, tuitionLines, isManual } from '../../lib/tuitionBilling';
 import { loadSettings, loadCustomers, saveInvoice, queueEmail, fetchAll, payInvoicesInFull, usePaymentMethods } from '../invoices/api';
 import { StatusPill } from '../invoices/InvoicesPage';
 import InvoicePreview from '../invoices/InvoicePreview';
@@ -84,8 +84,9 @@ export default function BillingPage() {
   }, [proposals]);
 
   const reminderLead = Number(settings?.reminder_lead_days ?? 3);
+  // Reminders are only for families who pay manually (debit / cash).
   const reminders = tuitionInvoices.filter(
-    (i) => Number(i.balance) > 0 && !i.reminded_at && i.customer_email && i.due_date && i.due_date > today && i.due_date <= addDaysISO(today, reminderLead)
+    (i) => isManual(custById[i.customer_id]) && Number(i.balance) > 0 && !i.reminded_at && i.customer_email && i.due_date && i.due_date > today && i.due_date <= addDaysISO(today, reminderLead)
   );
   const dueUnpaid = tuitionInvoices.filter((i) => Number(i.balance) > 0 && (i.due_date || i.invoice_date) <= today).sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
   useEffect(() => {
@@ -128,21 +129,28 @@ export default function BillingPage() {
     return { billable: billable.length, monthly, unpaidCount: unpaid.length, unpaidAmount: unpaid.reduce((n, i) => n + Number(i.balance), 0) };
   }, [students, tuitionInvoices]);
 
-  async function createInvoices(list) {
+  // mode 'manual': create (+ email if ticked). mode 'preauth': create and
+  // record the pre-authorized card charge on the billing date (no invoice email).
+  async function createInvoices(list, mode) {
     setBusy('create');
     let made = 0;
     let mailed = 0;
+    let paid = 0;
     try {
       for (const p of list) {
         const header = invoiceHeader(p, settings, today);
         const inv = await saveInvoice(header, p.lines, null);
         made++;
-        if (emailNow && header.customer_email) {
+        if (mode === 'preauth') {
+          const card = methods.find((m) => /pre-?auth/i.test(m)) || methods[0];
+          await payInvoicesInFull([{ ...inv, balance: inv.total }], card, p.due_date < today ? p.due_date : today, emailReceipts);
+          paid++;
+        } else if (emailNow && p.manual !== false && header.customer_email && isManual(p.customer)) {
           await queueEmail('invoice', header.customer_email, { invoice_id: inv.id });
           mailed++;
         }
       }
-      setFlash(`Created ${made} invoice${made === 1 ? '' : 's'}${emailNow ? `, ${mailed} emailed` : ''}.`);
+      setFlash(mode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`);
     } catch (e) {
       setFlash(`Stopped after ${made} invoices: ${e.message}`);
     }
@@ -192,19 +200,22 @@ export default function BillingPage() {
         (currentCycleStart(x, due) === due)
     );
     const lines = kids.sort((a, b) => a.name.localeCompare(b.name)).flatMap((x) => tuitionLines(x, due, settings));
-    setConfirm({ list: [{ key: 'one', customer: r.family || null, students: kids, due_date: due, lines, totals: calcTotals(lines, settings.gst_rate ?? 5) }] });
+    setConfirm({ mode: 'manual', list: [{ key: 'one', customer: r.family || null, students: kids, due_date: due, lines, totals: calcTotals(lines, settings.gst_rate ?? 5) }] });
   }
 
   if (loading || !settings) return <p style={{ color: '#5B5F56' }}>Loading…</p>;
-  const selectedList = proposals.filter((p) => selected[p.key]);
   const lead = Number(settings.invoice_lead_days ?? 7);
+  const manualProps = proposals.filter((p) => p.manual);
+  const preauthProps = proposals.filter((p) => !p.manual);
+  const manualSel = manualProps.filter((p) => selected[p.key]);
+  const preauthSel = preauthProps.filter((p) => selected[p.key]);
 
   return (
     <>
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Billing</h1>
-          <p style={styles.subtitle}>Tuition invoices from each student's billing date · invoices {lead} days before, reminders {reminderLead} days before</p>
+          <p style={styles.subtitle}>Pre-authorized card families: invoiced and paid on the billing date · Manual payers: invoice {lead} days before, reminder {reminderLead} days before (sent when you approve)</p>
         </div>
         <button className="dp-btn" onClick={loadAll}><RefreshCw size={14} /> Refresh</button>
       </div>
@@ -215,57 +226,30 @@ export default function BillingPage() {
         <Metric label="Students billed" value={stats.billable} />
         <Metric label="Tuition per month (before GST)" value={money(stats.monthly)} />
         <Metric label="Unpaid tuition invoices" value={`${stats.unpaidCount} · ${money(stats.unpaidAmount)}`} />
-        <Metric label={`To invoice (next ${Number(settings.invoice_lead_days ?? 7)} days)`} value={proposals.length} />
+        <Metric label="Waiting for approval" value={proposals.length + reminders.length} />
       </div>
 
-      {/* 1 ── Ready to invoice */}
-      <Panel icon={<FileText size={15} />} title={`Ready to invoice — billing in the next ${lead} days (${proposals.length})`}>
-        {proposals.length === 0 ? (
-          <Empty>Nothing to invoice right now.</Empty>
+      {/* 1 ── Manual payers: invoice ahead */}
+      <Panel icon={<FileText size={15} />} title={`Manual payers — invoices for billing in the next ${lead} days (${manualProps.length})`}>
+        {manualProps.length === 0 ? (
+          <Empty>No manual-pay invoices to send right now.</Empty>
         ) : (
           <>
-            <table className="dp-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 30 }}><input type="checkbox" checked={proposals.every((p) => selected[p.key])} onChange={(e) => setSelected(Object.fromEntries(proposals.map((p) => [p.key, e.target.checked])))} /></th>
-                  <th>Billing date</th>
-                  <th>Family</th>
-                  <th>Students</th>
-                  <th style={{ textAlign: 'right' }}>Total (incl. GST)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {proposals.map((p) => (
-                  <tr key={p.key} className="dp-row" style={{ opacity: selected[p.key] ? 1 : 0.6 }}>
-                    <td><input type="checkbox" checked={!!selected[p.key]} onChange={(e) => setSelected({ ...selected, [p.key]: e.target.checked })} /></td>
-                    <td>
-                      {formatDate(p.due_date)}
-                      {p.past && tag('already passed', GREY)}
-                    </td>
-                    <td>{familyName(p)}{!p.customer?.email && tag('no email', GREY)}</td>
-                    <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{p.lines.map((l) => (l.line_kind === 'tuition' ? l.description.split(' — ')[0] : null)).filter(Boolean).join(', ')}
-                      {p.lines.some((l) => l.line_kind === 'discount') && tag(`-${settings.family_discount_pct ?? 20}%`, PURPLE)}
-                      {p.lines.some((l) => l.line_kind === 'subsidy') && tag('subsidy', GREEN)}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>{money(p.totals.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ProposalTable list={manualProps} selected={selected} setSelected={setSelected} settings={settings} />
             <ActionBar>
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
-                <input type="checkbox" checked={emailNow} onChange={(e) => setEmailNow(e.target.checked)} /> Email them to families now
+                <input type="checkbox" checked={emailNow} onChange={(e) => setEmailNow(e.target.checked)} /> Email them to families
               </label>
-              <button className="dp-btn dp-btn-primary" disabled={!selectedList.length || !!busy} onClick={() => setConfirm({ list: selectedList })}>
-                <FileText size={14} /> {busy === 'create' ? 'Creating…' : `Create ${selectedList.length} invoice${selectedList.length === 1 ? '' : 's'}`}
+              <button className="dp-btn dp-btn-primary" disabled={!manualSel.length || !!busy} onClick={() => setConfirm({ mode: 'manual', list: manualSel })}>
+                <FileText size={14} /> {busy === 'create' ? 'Creating…' : `Approve ${manualSel.length} invoice${manualSel.length === 1 ? '' : 's'}`}
               </button>
             </ActionBar>
           </>
         )}
       </Panel>
 
-      {/* 2 ── Reminders */}
-      <Panel icon={<Bell size={15} />} title={`Payment reminders — billing in the next ${reminderLead} days (${reminders.length})`}>
+      {/* 2 ── Reminders (manual payers) */}
+      <Panel icon={<Bell size={15} />} title={`Manual payers — reminders for billing in the next ${reminderLead} days (${reminders.length})`}>
         {reminders.length === 0 ? (
           <Empty>No reminders to send.</Empty>
         ) : (
@@ -273,14 +257,34 @@ export default function BillingPage() {
             <InvoiceList list={reminders} onOpen={setPreviewId} />
             <ActionBar>
               <span style={{ fontSize: 12.5, color: '#5B5F56' }}>Re-sends the invoice with the reminder wording (Invoice Settings → Email templates).</span>
-              <button className="dp-btn dp-btn-primary" disabled={!!busy} onClick={sendReminders}><Mail size={14} /> {busy === 'remind' ? 'Sending…' : `Send ${reminders.length} reminder${reminders.length === 1 ? '' : 's'}`}</button>
+              <button className="dp-btn dp-btn-primary" disabled={!!busy} onClick={sendReminders}><Mail size={14} /> {busy === 'remind' ? 'Sending…' : `Approve ${reminders.length} reminder${reminders.length === 1 ? '' : 's'}`}</button>
             </ActionBar>
           </>
         )}
       </Panel>
 
-      {/* 3 ── Due: record the card charges */}
-      <Panel icon={<Wallet size={15} />} title={`Due — record payments (${dueUnpaid.length})`}>
+      {/* 3 ── Pre-authorized card: charge on the billing date */}
+      <Panel icon={<Wallet size={15} />} title={`Pre-authorized credit card — billing today (${preauthProps.length})`}>
+        {preauthProps.length === 0 ? (
+          <Empty>No card charges due today.</Empty>
+        ) : (
+          <>
+            <ProposalTable list={preauthProps} selected={selected} setSelected={setSelected} settings={settings} />
+            <ActionBar>
+              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>After charging the cards: creates each invoice and records it as paid. No invoice email is sent.</span>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+                <input type="checkbox" checked={emailReceipts} onChange={(e) => setEmailReceipts(e.target.checked)} /> Email receipts
+              </label>
+              <button className="dp-btn dp-btn-primary" disabled={!preauthSel.length || !!busy} onClick={() => setConfirm({ mode: 'preauth', list: preauthSel })}>
+                <Wallet size={14} /> {busy === 'create' ? 'Saving…' : `Record ${preauthSel.length} card payment${preauthSel.length === 1 ? '' : 's'}`}
+              </button>
+            </ActionBar>
+          </>
+        )}
+      </Panel>
+
+      {/* 4 ── Unpaid invoices that are due */}
+      <Panel icon={<Wallet size={15} />} title={`Unpaid — record payments (${dueUnpaid.length})`}>
         {dueUnpaid.length === 0 ? (
           <Empty>No unpaid tuition invoices that are due.</Empty>
         ) : (
@@ -328,7 +332,11 @@ export default function BillingPage() {
               return (
                 <tr key={s.id} className="dp-row" style={{ opacity: s.billing_exempt ? 0.6 : 1 }}>
                   <td style={{ fontWeight: 500 }}>{s.name}</td>
-                  <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{r.family?.name || '—'}{r.family?.separate_invoices && tag('separate', GREY)}</td>
+                  <td style={{ fontSize: 12.5, color: '#5B5F56' }}>
+                    {r.family?.name || '—'}
+                    {isManual(r.family) && tag('pays manually', BLUE)}
+                    {r.family?.separate_invoices && tag('separate', GREY)}
+                  </td>
                   <td>
                     {s.billing_exempt ? (
                       tag('Staff — no invoice', BLUE)
@@ -377,13 +385,17 @@ export default function BillingPage() {
 
       {confirm && (
         <ConfirmDialog
-          message={`Create ${confirm.list.length} invoice${confirm.list.length === 1 ? '' : 's'} (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))} total)${emailNow ? ' and email them' : ''}?`}
+          message={
+            confirm.mode === 'preauth'
+              ? `Record ${confirm.list.length} pre-authorized card payment${confirm.list.length === 1 ? '' : 's'} (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))})? Each gets a paid invoice.`
+              : `Create ${confirm.list.length} invoice${confirm.list.length === 1 ? '' : 's'} (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))} total)${emailNow && confirm.list.some((p) => isManual(p.customer)) ? ' and email them' : ''}?`
+          }
           confirmLabel="Create"
           onCancel={() => setConfirm(null)}
           onConfirm={() => {
-            const list = confirm.list;
+            const { list, mode } = confirm;
             setConfirm(null);
-            createInvoices(list);
+            createInvoices(list, mode);
           }}
         />
       )}
@@ -445,6 +457,40 @@ function InvoiceList({ list, onOpen, sel, setSel }) {
             <td>{i.customer_name}{!i.customer_email && tag('no email', GREY)}</td>
             <td style={{ textAlign: 'right' }}>{money(i.balance)}</td>
             <td><StatusPill status={i.status} /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ProposalTable({ list, selected, setSelected, settings }) {
+  return (
+    <table className="dp-table">
+      <thead>
+        <tr>
+          <th style={{ width: 30 }}><input type="checkbox" checked={list.every((p) => selected[p.key])} onChange={(e) => setSelected((prev) => ({ ...prev, ...Object.fromEntries(list.map((p) => [p.key, e.target.checked])) }))} /></th>
+          <th>Billing date</th>
+          <th>Family</th>
+          <th>Students</th>
+          <th style={{ textAlign: 'right' }}>Total (incl. GST)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {list.map((p) => (
+          <tr key={p.key} className="dp-row" style={{ opacity: selected[p.key] ? 1 : 0.6 }}>
+            <td><input type="checkbox" checked={!!selected[p.key]} onChange={(e) => setSelected((prev) => ({ ...prev, [p.key]: e.target.checked }))} /></td>
+            <td>
+              {formatDate(p.due_date)}
+              {p.past && tag('already passed', GREY)}
+            </td>
+            <td>{familyName(p)}{p.manual && !p.customer?.email && tag('no email', GREY)}</td>
+            <td style={{ fontSize: 12.5, color: '#5B5F56' }}>
+              {p.lines.map((l) => (l.line_kind === 'tuition' ? l.description.split(' — ')[0] : null)).filter(Boolean).join(', ')}
+              {p.lines.some((l) => l.line_kind === 'discount') && tag(`-${settings.family_discount_pct ?? 20}%`, PURPLE)}
+              {p.lines.some((l) => l.line_kind === 'subsidy') && tag('subsidy', GREEN)}
+            </td>
+            <td style={{ textAlign: 'right' }}>{money(p.totals.total)}</td>
           </tr>
         ))}
       </tbody>

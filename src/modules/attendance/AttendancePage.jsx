@@ -88,7 +88,9 @@ export default function AttendancePage() {
       .select();
     if (error) return;
     upsertLocal(data[0]);
-    if (status === 'absent') {
+    // Comp Team is unlimited classes, so a missed class needs no makeup.
+    const unlimited = inClass(studentMap[studentId] || {}, 'Comp Team');
+    if (status === 'absent' && !unlimited) {
       await createOrUpdateMakeupRecord(studentId, date, className);
     } else {
       // Present / double / private / vacation: no makeup owed for this class.
@@ -439,7 +441,7 @@ export default function AttendancePage() {
             )}
           </div>
           <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>
-            Double = took two classes that day (counts as 2). Private = private lesson (counted in minutes, not as a class). Vacation = away, no makeup owed.
+            Double = took two classes that day (counts as 2). Private = private lesson (counted in minutes, not as a class). Vacation = away, no makeup owed. Comp Team students are unlimited, so absences don't create makeups.
           </p>
         </>
       )}
@@ -791,7 +793,7 @@ function StudentAttendance({ student, records, packages, compact, onClear }) {
         )}
       </div>
       <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>
-        {student.classes_per_week ? `${student.classes_per_week} classes per week` : 'Classes per week not set (Students → Edit)'} · last class {sum.lastAttended ? formatDate(sum.lastAttended) : '—'}
+        {inClass(student, 'Comp Team') ? 'Comp Team — unlimited classes (no makeups needed)' : student.classes_per_week ? `${student.classes_per_week} classes per week` : 'Classes per week not set (Students → Edit)'} · last class {sum.lastAttended ? formatDate(sum.lastAttended) : '—'}
       </p>
       <div style={styles.card}>
         {sorted.length === 0 ? (

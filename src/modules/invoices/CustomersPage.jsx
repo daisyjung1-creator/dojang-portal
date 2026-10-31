@@ -23,7 +23,7 @@ const IMPORT_FIELDS = [
 ];
 
 function emptyForm() {
-  return { name: '', contact_name: '', email: '', cc_email: '', phone: '', phone2: '', address: '', printed_info: '', notes: '', active: true, separate_invoices: false };
+  return { name: '', contact_name: '', email: '', cc_email: '', phone: '', phone2: '', address: '', printed_info: '', notes: '', active: true, separate_invoices: false, payment_type: 'preauth' };
 }
 
 export default function CustomersPage() {
@@ -84,7 +84,7 @@ export default function CustomersPage() {
   async function saveModal() {
     const { form, id, studentIds } = modal;
     if (!form.name.trim()) return setModal({ ...modal, error: 'Name is required.' });
-    const payload = { name: form.name.trim(), contact_name: form.contact_name || null, email: form.email?.trim() || null, cc_email: form.cc_email?.trim() || null, phone: form.phone || null, phone2: form.phone2 || null, address: form.address || null, printed_info: form.printed_info || null, notes: form.notes || null, active: form.active !== false, separate_invoices: !!form.separate_invoices };
+    const payload = { name: form.name.trim(), contact_name: form.contact_name || null, email: form.email?.trim() || null, cc_email: form.cc_email?.trim() || null, phone: form.phone || null, phone2: form.phone2 || null, address: form.address || null, printed_info: form.printed_info || null, notes: form.notes || null, active: form.active !== false, separate_invoices: !!form.separate_invoices, payment_type: form.payment_type || 'preauth' };
     const res = id ? await supabase.from('customers').update(payload).eq('id', id).select().single() : await supabase.from('customers').insert(payload).select().single();
     if (res.error) return setModal({ ...modal, error: res.error.message });
     const cid = res.data.id;
@@ -326,6 +326,12 @@ export default function CustomersPage() {
                         );
                       })}
                   </div>
+                </Field>
+                <Field label="How they pay tuition">
+                  <select className="dp-select" style={{ width: '100%' }} value={f.payment_type || 'preauth'} onChange={(e) => set({ payment_type: e.target.value })}>
+                    <option value="preauth">Pre-authorized credit card (charged on the billing date, no advance emails)</option>
+                    <option value="manual">Pays manually — debit / cash (invoice 7 days before + reminder 3 days before)</option>
+                  </select>
                 </Field>
                 <label style={{ fontSize: 13, display: 'flex', gap: 6, marginBottom: 6 }}>
                   <input type="checkbox" checked={!!f.separate_invoices} onChange={(e) => set({ separate_invoices: e.target.checked })} />

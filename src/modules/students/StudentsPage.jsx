@@ -69,7 +69,8 @@ export default function StudentsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [importState, setImportState] = useState(null);
   const [reminder, setReminder] = useState(null);
-  const [welcomeFor, setWelcomeFor] = useState(null); // { student, subject, message, to, error, sending }
+  const [welcomeFor, setWelcomeFor] = useState(null);
+  const [families, setFamilies] = useState({}); // customer id → { name, payment_type } // { student, subject, message, to, error, sending }
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -86,9 +87,13 @@ export default function StudentsPage() {
 
   async function fetchStudents() {
     setLoading(true);
-    const { data, error: fetchError } = await supabase.from('students').select('*').order('name');
+    const [{ data, error: fetchError }, { data: fams }] = await Promise.all([
+      supabase.from('students').select('*').order('name'),
+      supabase.from('customers').select('id, name, payment_type'),
+    ]);
     if (fetchError) setError('Could not load the student list.');
     else setStudents(data || []);
+    setFamilies(Object.fromEntries((fams || []).map((c) => [c.id, c])));
     setLoading(false);
   }
 
@@ -101,7 +106,7 @@ export default function StudentsPage() {
 
   function openEdit(student) {
     setEditingId(student.id);
-    const f = { ...emptyForm(), ...student };
+    const f = { ...emptyForm(), ...student, payment_type: families[student.customer_id]?.payment_type || 'preauth' };
     Object.keys(f).forEach((k) => f[k] === null && (f[k] = ''));
     setForm(f);
     setFormError('');
@@ -130,6 +135,7 @@ export default function StudentsPage() {
     delete cleaned.id;
     delete cleaned.created_at;
     delete cleaned.customer_id; // the family link is managed by the database
+    delete cleaned.payment_type; // stored on the family (customer)
     const payload = {
       ...cleaned,
       name: form.name.trim(),
@@ -150,6 +156,10 @@ export default function StudentsPage() {
     let submitError;
     if (editingId) {
       ({ error: submitError } = await supabase.from('students').update(payload).eq('id', editingId));
+      const fam = form.customer_id && families[form.customer_id];
+      if (!submitError && fam && fam.payment_type !== form.payment_type) {
+        await supabase.from('customers').update({ payment_type: form.payment_type }).eq('id', form.customer_id);
+      }
     } else {
       ({ error: submitError } = await supabase.from('students').insert(payload));
     }
@@ -418,6 +428,7 @@ export default function StudentsPage() {
                     <td>{s.guardian_phone || '—'}</td>
                     <td>
                       {s.billing_exempt ? <Badge c={['#1E4566', '#E6F0F6', '#B9D3E4']}>Staff · no invoice</Badge> : s.plan || '1 Month'}
+                      {families[s.customer_id]?.payment_type === 'manual' && !s.billing_exempt && <Badge c={['#1E4566', '#E6F0F6', '#B9D3E4']} title="Pays manually (debit / cash)">Manual pay</Badge>}
                       {s.classes_per_week ? <Badge c={['#5B5F56', '#F1EFE7', '#DEDACC']}>{s.classes_per_week}x/wk</Badge> : null}
                       {s.family_discount && <Badge c={['#4B3A86', '#EEEAF6', '#D2C9EA']} title="Big family discount">Family -20%</Badge>}
                       {s.subsidy && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
@@ -572,6 +583,14 @@ export default function StudentsPage() {
             </p>
           )}
 
+          {editingId && form.customer_id && (
+            <Field label={`How the family pays (${families[form.customer_id]?.name || 'family'})`}>
+              <select className="dp-select" style={{ width: '100%' }} value={form.payment_type || 'preauth'} onChange={(e) => setForm({ ...form, payment_type: e.target.value })}>
+                <option value="preauth">Pre-authorized credit card</option>
+                <option value="manual">Pays manually — debit / cash (gets invoice + reminder)</option>
+              </select>
+            </Field>
+          )}
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 8 }}>
             <input type="checkbox" checked={!!form.family_discount} onChange={(e) => setForm({ ...form, family_discount: e.target.checked })} />
             Big family discount (20% off tuition — taken off automatically on Billing invoices)
