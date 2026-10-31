@@ -106,14 +106,17 @@ async function sendInvoice(record: any) {
   if (!inv) throw new Error('Invoice not found: ' + invoiceId);
   const paid = (payments || []).reduce((t: number, p: any) => t + Number(p.amount || 0), 0);
   const balance = Math.max(Number(inv.total) - paid, 0);
-  const subject = fillTemplate(s.email_subject || 'Invoice #{number} from {business}', inv, s, balance);
-  const message = fillTemplate(s.email_message || 'Please find your invoice attached.', inv, s, balance);
+  // A reminder (sent a few days before the billing date) re-sends the invoice
+  // with the reminder wording instead of the usual invoice email.
+  const isReminder = !!record.payload?.reminder;
+  const subject = fillTemplate((isReminder ? s.reminder_subject : s.email_subject) || 'Invoice #{number} from {business}', inv, s, balance);
+  const message = fillTemplate((isReminder ? s.reminder_message : s.email_message) || 'Please find your invoice attached.', inv, s, balance);
   const pdf = await buildInvoicePdf(inv, lines || [], payments || [], s, refunds || []);
   const extra: Record<string, unknown> = { attachments: [{ filename: `Invoice-${inv.invoice_number}.pdf`, content: toBase64(pdf) }] };
   if (inv.customers?.cc_email) extra.cc = inv.customers.cc_email;
   if (s.email) extra.reply_to = s.email;
   await sendEmail(record.recipient_email, subject, invoiceEmailHtml(inv, lines || [], s, message, balance), extra);
-  await supabase.from('invoices').update({ emailed_at: new Date().toISOString() }).eq('id', invoiceId);
+  await supabase.from('invoices').update(isReminder ? { reminded_at: new Date().toISOString() } : { emailed_at: new Date().toISOString() }).eq('id', invoiceId);
 }
 
 async function sendReceipt(record: any) {
@@ -144,7 +147,7 @@ async function release(table: string, id: string) {
 }
 
 async function processEmailQueue(record: any) {
-  if (record.type === 'tryout_confirmation') {
+  if (record.type === 'tryout_confirmation' && !record.payload?.message) {
     const { subject, html } = tryoutConfirmationEmail(record.payload);
     await sendEmail(record.recipient_email, subject, html);
     if (record.payload?.tryout_id) {
@@ -156,11 +159,14 @@ async function processEmailQueue(record: any) {
     await sendReceipt(record);
   } else if (record.type === 'refund') {
     await sendRefund(record);
-  } else if (record.type === 'subsidy_reminder' || record.type === 'broadcast' || record.type === 'welcome') {
-    // Subject and message were written (and reviewed) by an admin in the portal.
+  } else if (['subsidy_reminder', 'broadcast', 'welcome', 'makeup', 'absence_check', 'tryout_confirmation'].includes(record.type)) {
+    // Subject and message were written (and reviewed) in the portal.
     const s = await loadSettings();
-    const subject = String(record.payload?.subject || 'Sports grant reminder');
+    const subject = String(record.payload?.subject || s.business_name || 'Message');
     await sendEmail(record.recipient_email, subject, plainTextEmailHtml(String(record.payload?.message || ''), s), s.email ? { reply_to: s.email } : {});
+    if (record.type === 'tryout_confirmation' && record.payload?.tryout_id) {
+      await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', record.payload.tryout_id);
+    }
   }
 }
 

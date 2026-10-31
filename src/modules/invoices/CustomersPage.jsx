@@ -23,7 +23,7 @@ const IMPORT_FIELDS = [
 ];
 
 function emptyForm() {
-  return { name: '', contact_name: '', email: '', cc_email: '', phone: '', phone2: '', address: '', printed_info: '', notes: '', active: true };
+  return { name: '', contact_name: '', email: '', cc_email: '', phone: '', phone2: '', address: '', printed_info: '', notes: '', active: true, separate_invoices: false };
 }
 
 export default function CustomersPage() {
@@ -84,7 +84,7 @@ export default function CustomersPage() {
   async function saveModal() {
     const { form, id, studentIds } = modal;
     if (!form.name.trim()) return setModal({ ...modal, error: 'Name is required.' });
-    const payload = { name: form.name.trim(), contact_name: form.contact_name || null, email: form.email?.trim() || null, cc_email: form.cc_email?.trim() || null, phone: form.phone || null, phone2: form.phone2 || null, address: form.address || null, printed_info: form.printed_info || null, notes: form.notes || null, active: form.active !== false };
+    const payload = { name: form.name.trim(), contact_name: form.contact_name || null, email: form.email?.trim() || null, cc_email: form.cc_email?.trim() || null, phone: form.phone || null, phone2: form.phone2 || null, address: form.address || null, printed_info: form.printed_info || null, notes: form.notes || null, active: form.active !== false, separate_invoices: !!form.separate_invoices };
     const res = id ? await supabase.from('customers').update(payload).eq('id', id).select().single() : await supabase.from('customers').insert(payload).select().single();
     if (res.error) return setModal({ ...modal, error: res.error.message });
     const cid = res.data.id;
@@ -314,16 +314,25 @@ export default function CustomersPage() {
                     {students.filter((s) => s.status !== 'withdrawn' || modal.studentIds.includes(s.id)).length === 0 && <span style={{ fontSize: 13, color: '#8A8D84' }}>No students yet.</span>}
                     {students
                       .filter((s) => s.status !== 'withdrawn' || modal.studentIds.includes(s.id))
-                      .filter((s) => !s.customer_id || s.customer_id === modal.id || modal.studentIds.includes(s.id))
-                      .map((s) => (
-                        <label key={s.id} style={{ display: 'flex', gap: 6, fontSize: 13, padding: '2px 0' }}>
-                          <input type="checkbox" checked={modal.studentIds.includes(s.id)} onChange={(e) => setModal({ ...modal, studentIds: e.target.checked ? [...modal.studentIds, s.id] : modal.studentIds.filter((x) => x !== s.id) })} />
-                          {s.name} {s.guardian_name ? <span style={{ color: '#8A8D84' }}>· {s.guardian_name}</span> : null}
-                        </label>
-                      ))}
+                      .slice()
+                      .sort((a, b) => (modal.studentIds.includes(b.id) ? 1 : 0) - (modal.studentIds.includes(a.id) ? 1 : 0) || a.name.localeCompare(b.name))
+                      .map((s) => {
+                        const other = s.customer_id && s.customer_id !== modal.id ? customers.find((c) => c.id === s.customer_id) : null;
+                        return (
+                          <label key={s.id} style={{ display: 'flex', gap: 6, fontSize: 13, padding: '2px 0' }}>
+                            <input type="checkbox" checked={modal.studentIds.includes(s.id)} onChange={(e) => setModal({ ...modal, studentIds: e.target.checked ? [...modal.studentIds, s.id] : modal.studentIds.filter((x) => x !== s.id) })} />
+                            {s.name} {other ? <span style={{ color: '#8A8D84' }}>· now in {other.name}</span> : null}
+                          </label>
+                        );
+                      })}
                   </div>
                 </Field>
+                <label style={{ fontSize: 13, display: 'flex', gap: 6, marginBottom: 6 }}>
+                  <input type="checkbox" checked={!!f.separate_invoices} onChange={(e) => set({ separate_invoices: e.target.checked })} />
+                  Separate invoice for each student (otherwise siblings with the same billing date share one invoice)
+                </label>
                 <label style={{ fontSize: 13, display: 'flex', gap: 6 }}><input type="checkbox" checked={f.active !== false} onChange={(e) => set({ active: e.target.checked })} /> Active</label>
+                <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 0 0' }}>Email, address and contact name are shared with the students in this family — changing them here updates the students, and the other way round.</p>
                 {modal.error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{modal.error}</p>}
               </>
             );

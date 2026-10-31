@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Mail } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { TRYOUT_STATUSES } from '../../lib/constants';
@@ -7,9 +7,12 @@ import { todayISO } from '../../lib/billingDates';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import EmailComposeModal from '../../components/EmailComposeModal';
+import { fillTemplate, tryoutVars, timeLabel } from '../../lib/emailTemplates';
 
-function emptyForm() {
-  return { student_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time: '', status: 'Scheduled', notes: '' };
+// Trials are usually at 4:30 pm (changeable in Invoice Settings).
+function emptyForm(time = '16:30') {
+  return { student_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time, status: 'Scheduled', notes: '' };
 }
 
 export default function TryoutsPage({ setActiveTab }) {
@@ -20,10 +23,29 @@ export default function TryoutsPage({ setActiveTab }) {
   const [form, setForm] = useState(emptyForm());
   const [formError, setFormError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [settings, setSettings] = useState({});
+  const [email, setEmail] = useState(null);
 
   useEffect(() => {
     fetchTryouts();
+    supabase.from('invoice_settings').select('*').eq('id', 1).maybeSingle().then(({ data }) => setSettings(data || {}));
   }, []);
+
+  const defaultTime = (settings.default_tryout_time || '16:30').slice(0, 5);
+
+  function openEmail(t) {
+    const vars = tryoutVars(t, settings);
+    setEmail({
+      title: `Trial confirmation — ${t.student_name}`,
+      type: 'tryout_confirmation',
+      to: t.guardian_email || '',
+      subject: fillTemplate(settings.tryout_subject || 'Trial class confirmed for {student}', vars),
+      message: fillTemplate(settings.tryout_message || '', vars),
+      payload: { tryout_id: t.id },
+      note: t.confirmation_sent ? 'A confirmation was already sent for this booking.' : '',
+      tryoutId: t.id,
+    });
+  }
 
   async function fetchTryouts() {
     const { data } = await supabase.from('tryouts').select('*').order('date', { ascending: false });
@@ -32,7 +54,7 @@ export default function TryoutsPage({ setActiveTab }) {
 
   function openAdd() {
     setEditingId(null);
-    setForm(emptyForm());
+    setForm(emptyForm(defaultTime));
     setFormError('');
     setModalOpen(true);
   }
@@ -55,13 +77,12 @@ export default function TryoutsPage({ setActiveTab }) {
     } else {
       const { data, error } = await supabase.from('tryouts').insert(form).select().single();
       submitError = error;
-      if (!error && data && form.guardian_email && form.guardian_email.trim()) {
-        await supabase.from('email_queue').insert({
-          type: 'tryout_confirmation',
-          recipient_email: form.guardian_email.trim(),
-          payload: { tryout_id: data.id, student_name: data.student_name, date: data.date, time: data.time, class_name: data.class_name },
-          sent: false,
-        });
+      // New booking with an email: show the confirmation to review and send.
+      if (!error && data && (data.guardian_email || '').trim()) {
+        setModalOpen(false);
+        fetchTryouts();
+        openEmail(data);
+        return;
       }
     }
     if (submitError) {
@@ -141,9 +162,15 @@ export default function TryoutsPage({ setActiveTab }) {
                     <td>{t.guardian_phone || '—'}</td>
                     <td>{t.class_name || '—'}</td>
                     <td>{t.date || '—'}</td>
-                    <td>{t.time || '—'}</td>
-                    <td style={{ fontSize: 12.5, color: t.confirmation_sent ? '#2A5A30' : '#5B5F56' }}>
-                      {t.guardian_email ? (t.confirmation_sent ? 'Sent' : 'Pending') : '—'}
+                    <td>{timeLabel(t.time) || '—'}</td>
+                    <td>
+                      {t.guardian_email ? (
+                        <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => openEmail(t)}>
+                          <Mail size={12} /> {t.confirmation_sent ? 'Sent ✓' : 'Send'}
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 12.5, color: '#8A8D84' }}>No email</span>
+                      )}
                     </td>
                     <td>
                       <select
@@ -233,6 +260,18 @@ export default function TryoutsPage({ setActiveTab }) {
           </Field>
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
+      )}
+
+      {email && (
+        <EmailComposeModal
+          draft={email}
+          onClose={() => setEmail(null)}
+          onSent={async () => {
+            await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', email.tryoutId);
+            setEmail(null);
+            fetchTryouts();
+          }}
+        />
       )}
 
       {confirmDeleteId && <ConfirmDialog message="Delete this booking? This can't be undone." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}

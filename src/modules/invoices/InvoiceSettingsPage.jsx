@@ -8,6 +8,7 @@ import { money } from '../../lib/invoiceUtils';
 import { loadSettings, clearPaymentMethodsCache } from './api';
 import { WELCOME_PLACEHOLDERS } from '../../lib/welcomeEmail';
 import { PAYMENT_METHODS } from '../../lib/invoiceUtils';
+import { TEMPLATE_HELP } from '../../lib/emailTemplates';
 
 const TEXT_FIELDS = [
   ['business_name', 'Business Name'],
@@ -85,6 +86,10 @@ export default function InvoiceSettingsPage() {
     rest.next_invoice_number = Number(rest.next_invoice_number) || 1;
     rest.next_receipt_number = Number(rest.next_receipt_number) || 1;
     rest.default_due_days = Number(rest.default_due_days) || 0;
+    rest.invoice_lead_days = Math.max(0, Number(rest.invoice_lead_days) || 0);
+    rest.reminder_lead_days = Math.max(0, Number(rest.reminder_lead_days) || 0);
+    rest.family_discount_pct = Number(rest.family_discount_pct) || 0;
+    rest.default_tryout_time = rest.default_tryout_time || '16:30';
     if (methodsText !== null) {
       const list = methodsText.split('\n').map((m) => m.trim()).filter(Boolean);
       if (!list.length) return setSaved('Add at least one payment method.');
@@ -191,6 +196,39 @@ export default function InvoiceSettingsPage() {
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.welcome_subject || ''} onChange={set('welcome_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={18} style={{ width: '100%', fontSize: 13 }} value={s.welcome_message || ''} onChange={set('welcome_message')} /></Field>
           <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>Filled in from the student's details: {WELCOME_PLACEHOLDERS}</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start', marginTop: 18 }}>
+        <div style={{ ...styles.card, padding: 18 }}>
+          <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Tuition billing</p>
+          <div style={styles.formRow}>
+            <Field label="Create invoices (days before billing date)"><input type="number" className="dp-input" style={{ width: '100%' }} value={s.invoice_lead_days ?? 7} onChange={set('invoice_lead_days')} /></Field>
+            <Field label="Send reminder (days before billing date)"><input type="number" className="dp-input" style={{ width: '100%' }} value={s.reminder_lead_days ?? 3} onChange={set('reminder_lead_days')} /></Field>
+          </div>
+          <div style={styles.formRow}>
+            <Field label="Big family discount (%)"><input type="number" className="dp-input" style={{ width: '100%' }} value={s.family_discount_pct ?? 20} onChange={set('family_discount_pct')} /></Field>
+            <Field label="Usual trial class time"><input type="time" className="dp-input" style={{ width: '100%' }} value={(s.default_tryout_time || '16:30').slice(0, 5)} onChange={set('default_tryout_time')} /></Field>
+          </div>
+          <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Tuition reminder email (re-sends the invoice)</p>
+          <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.reminder_subject || ''} onChange={set('reminder_subject')} /></Field>
+          <Field label="Message"><textarea className="dp-input" rows={7} style={{ width: '100%', fontSize: 13 }} value={s.reminder_message || ''} onChange={set('reminder_message')} /></Field>
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>{TEMPLATE_HELP.reminder}</p>
+          <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Trial booking confirmation</p>
+          <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.tryout_subject || ''} onChange={set('tryout_subject')} /></Field>
+          <Field label="Message"><textarea className="dp-input" rows={10} style={{ width: '100%', fontSize: 13 }} value={s.tryout_message || ''} onChange={set('tryout_message')} /></Field>
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>{TEMPLATE_HELP.tryout}</p>
+        </div>
+        <div style={{ ...styles.card, padding: 18 }}>
+          <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Makeup class email</p>
+          <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.makeup_subject || ''} onChange={set('makeup_subject')} /></Field>
+          <Field label="Message — not booked yet (gives the expiry date)"><textarea className="dp-input" rows={7} style={{ width: '100%', fontSize: 13 }} value={s.makeup_message || ''} onChange={set('makeup_message')} /></Field>
+          <Field label="Message — booked (confirms the makeup date)"><textarea className="dp-input" rows={6} style={{ width: '100%', fontSize: 13 }} value={s.makeup_reserved_message || ''} onChange={set('makeup_reserved_message')} /></Field>
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>{TEMPLATE_HELP.makeup}</p>
+          <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Absence check email (no class for a week)</p>
+          <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.absence_subject || ''} onChange={set('absence_subject')} /></Field>
+          <Field label="Message"><textarea className="dp-input" rows={9} style={{ width: '100%', fontSize: 13 }} value={s.absence_message || ''} onChange={set('absence_message')} /></Field>
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>{TEMPLATE_HELP.absence}</p>
         </div>
       </div>
 

@@ -9,9 +9,10 @@ import ClassPicker from '../../components/ClassPicker';
 import WelcomeEmailModal from '../../components/WelcomeEmailModal';
 import { PLANS } from '../../lib/billingDates';
 import { allClassNames } from '../../lib/classes';
+import { suggestedTuition } from '../students/StudentsPage';
 
 function emptyForm() {
-  return { name: '', guardian_name: '', guardian_phone: '', guardian_email: '', belt: 'White', class_name: '', tuition: '', enroll_date: todayISO(), billing_start_date: '', plan: '1 Month', notes: '' };
+  return { name: '', guardian_name: '', guardian_phone: '', guardian_email: '', belt: 'White', class_name: '', tuition: '', enroll_date: todayISO(), billing_start_date: '', plan: '1 Month', classes_per_week: '', family_discount: false, notes: '' };
 }
 
 export default function RegisterPage() {
@@ -51,6 +52,7 @@ export default function RegisterPage() {
     const payload = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v === '' ? null : v]));
     payload.name = form.name.trim();
     payload.tuition = form.tuition === '' ? null : Number(form.tuition);
+    payload.family_discount = !!form.family_discount;
     const { data, error } = await supabase.from('students').insert(payload).select();
     if (error) {
       setFormError('Could not register: ' + error.message);
@@ -144,6 +146,27 @@ export default function RegisterPage() {
             <input type="number" className="dp-input" style={{ width: '100%' }} value={form.tuition} onChange={(e) => setForm({ ...form, tuition: e.target.value })} />
           </Field>
         </div>
+        <div style={styles.formRow}>
+          <Field label="Classes per week">
+            <select
+              className="dp-select"
+              style={{ width: '100%' }}
+              value={form.classes_per_week}
+              onChange={(e) => {
+                const n = e.target.value === '' ? '' : Number(e.target.value);
+                setForm({ ...form, classes_per_week: n, tuition: form.tuition === '' ? suggestedTuition(n, form.plan) : form.tuition });
+              }}
+            >
+              <option value="">—</option>
+              {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} × per week</option>)}
+            </select>
+          </Field>
+          <div style={{ flex: 1 }} />
+        </div>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 12 }}>
+          <input type="checkbox" checked={!!form.family_discount} onChange={(e) => setForm({ ...form, family_discount: e.target.checked })} />
+          Big family discount (20% off tuition)
+        </label>
         <Field label="Notes">
           <textarea className="dp-input" style={{ width: '100%', minHeight: 50, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </Field>

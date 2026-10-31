@@ -78,6 +78,9 @@ export async function saveInvoice(form, lines, existingId) {
       position: i,
       fee_item_id: l.fee_item_id || null,
       student_id: l.student_id || null,
+      // Tuition lines made from Billing remember which billing cycle they cover.
+      cycle_start: l.cycle_start || null,
+      line_kind: l.line_kind || null,
       item_name: l.item_name || null,
       description: l.description || '',
       quantity: Number(l.quantity) || 0,
@@ -89,6 +92,25 @@ export async function saveInvoice(form, lines, existingId) {
     if (error) throw error;
   }
   return invoice;
+}
+
+// Records a payment for the whole balance of each invoice (e.g. the
+// pre-authorized credit card charge), optionally emailing receipts.
+export async function payInvoicesInFull(invoices, method, paymentDate, emailReceipts) {
+  const done = [];
+  for (const inv of invoices) {
+    const amount = Number(inv.balance);
+    if (!(amount > 0)) continue;
+    const { data, error } = await supabase
+      .from('invoice_payments')
+      .insert({ invoice_id: inv.id, customer_id: inv.customer_id || null, payment_date: paymentDate, method, amount })
+      .select()
+      .single();
+    if (error) throw error;
+    if (emailReceipts && inv.customer_email) await queueEmail('receipt', inv.customer_email, { payment_id: data.id });
+    done.push(data);
+  }
+  return done;
 }
 
 export async function queueEmail(type, recipient, payload) {

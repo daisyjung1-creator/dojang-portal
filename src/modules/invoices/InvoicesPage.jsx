@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Download } from 'lucide-react';
+import { Plus, Search, Download, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { money, PERIODS, periodRange, INVOICE_STATUS_STYLES, downloadCSV } from '../../lib/invoiceUtils';
-import { loadSettings, loadCustomers, loadItems, fetchAll } from './api';
+import { loadSettings, loadCustomers, loadItems, fetchAll, loadInvoiceFull } from './api';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import InvoiceEditor from './InvoiceEditor';
 import InvoicePreview from './InvoicePreview';
 import PaymentModal from './PaymentModal';
@@ -33,6 +34,30 @@ export default function InvoicesPage() {
   const [payFor, setPayFor] = useState(null);
   const [refundFor, setRefundFor] = useState(null);
   const [flash, setFlash] = useState('');
+  const [confirm, setConfirm] = useState(null);
+
+  async function editInvoice(i) {
+    setEditor({ editing: await loadInvoiceFull(i.id) });
+  }
+
+  // Invoices with payments or refunds can't be deleted (the money trail
+  // would break) — they're voided instead.
+  function askDelete(i) {
+    const hasMoney = Number(i.amount_paid) > 0 || Number(i.amount_refunded) > 0;
+    const label = i.is_opening_balance ? 'this opening balance' : `invoice #${i.invoice_number}`;
+    if (hasMoney) {
+      if (i.voided) return setFlash(`${label} has payments recorded, so it can't be deleted.`);
+      return setConfirm({ msg: `${label} has payments recorded, so it can't be deleted. Void it instead?`, label: 'Void', run: async () => { await supabase.from('invoices').update({ voided: true }).eq('id', i.id); setFlash(`Invoice #${i.invoice_number} voided.`); } });
+    }
+    setConfirm({
+      msg: `Delete ${label} (${i.customer_name}, ${money(i.total)})? This can't be undone.`,
+      label: 'Delete',
+      run: async () => {
+        const { error } = await supabase.from('invoices').delete().eq('id', i.id);
+        setFlash(error ? 'Could not delete: ' + error.message : `Invoice #${i.invoice_number} deleted.`);
+      },
+    });
+  }
 
   useEffect(() => {
     (async () => {
@@ -163,6 +188,7 @@ export default function InvoicesPage() {
                 <th style={{ textAlign: 'right' }}>Amount</th>
                 <th style={{ textAlign: 'right' }}>Due</th>
                 <th>Status</th>
+                <th style={{ width: 76 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -174,6 +200,12 @@ export default function InvoicesPage() {
                   <td style={{ textAlign: 'right' }}>{money(i.total)}</td>
                   <td style={{ textAlign: 'right', color: Number(i.balance) > 0 && !i.voided ? '#9A2B2B' : '#8A8D84' }}>{Number(i.balance) > 0 && !i.voided ? money(i.balance) : ''}</td>
                   <td><StatusPill status={i.status} /></td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button aria-label="Edit" title="Edit" className="dp-btn" style={{ padding: 5 }} onClick={() => editInvoice(i)}><Pencil size={13} /></button>
+                      <button aria-label="Delete" title="Delete" className="dp-btn dp-btn-danger" style={{ padding: 5 }} onClick={() => askDelete(i)}><Trash2 size={13} /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -209,6 +241,20 @@ export default function InvoicesPage() {
           onPay={(inv) => setPayFor({ invoice_id: inv.id, customer_id: inv.customer_id, amount: Number(inv.balance) })}
           onRefund={(inv) => setRefundFor({ invoice_id: inv.id, customer_id: inv.customer_id })}
           onChanged={loadInvoices}
+        />
+      )}
+
+      {confirm && (
+        <ConfirmDialog
+          message={confirm.msg}
+          confirmLabel={confirm.label}
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => {
+            const run = confirm.run;
+            setConfirm(null);
+            await run();
+            loadInvoices();
+          }}
         />
       )}
 

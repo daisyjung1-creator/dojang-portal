@@ -31,7 +31,7 @@ const FIELD_DEFS = [
 ];
 
 function emptyForm() {
-  return { name: '', dob: '', guardian_name: '', guardian_phone: '', guardian_email: '', address: '', emergency_name: '', emergency_phone: '', belt: 'White', class_name: '', tuition: '', enroll_date: '', billing_start_date: '', plan: '1 Month', subsidy: false, subsidy_name: '', subsidy_amount: '', subsidy_end_date: '', notes: '' };
+  return { name: '', dob: '', guardian_name: '', guardian_phone: '', guardian_email: '', address: '', emergency_name: '', emergency_phone: '', belt: 'White', class_name: '', tuition: '', enroll_date: '', billing_start_date: '', plan: '1 Month', subsidy: false, subsidy_name: '', subsidy_amount: '', subsidy_end_date: '', classes_per_week: '', family_discount: false, billing_exempt: false, notes: '' };
 }
 
 // Several guardian emails can be stored together, separated by commas.
@@ -129,6 +129,7 @@ export default function StudentsPage() {
     const cleaned = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v === '' ? null : v]));
     delete cleaned.id;
     delete cleaned.created_at;
+    delete cleaned.customer_id; // the family link is managed by the database
     const payload = {
       ...cleaned,
       name: form.name.trim(),
@@ -139,6 +140,9 @@ export default function StudentsPage() {
       billing_start_date: form.billing_start_date && form.billing_start_date !== form.enroll_date ? form.billing_start_date : null,
       tuition: form.tuition === '' ? null : Number(form.tuition),
       subsidy: !!form.subsidy,
+      classes_per_week: form.classes_per_week === '' || form.classes_per_week == null ? null : Number(form.classes_per_week),
+      family_discount: !!form.family_discount,
+      billing_exempt: !!form.billing_exempt,
       subsidy_name: form.subsidy ? blank(form.subsidy_name) : null,
       subsidy_amount: form.subsidy && form.subsidy_amount !== '' ? Number(form.subsidy_amount) : null,
       subsidy_end_date: form.subsidy ? blank(form.subsidy_end_date) : null,
@@ -413,7 +417,9 @@ export default function StudentsPage() {
                     <td>{s.guardian_name || '—'}</td>
                     <td>{s.guardian_phone || '—'}</td>
                     <td>
-                      {s.plan || '1 Month'}
+                      {s.billing_exempt ? <Badge c={['#1E4566', '#E6F0F6', '#B9D3E4']}>Staff · no invoice</Badge> : s.plan || '1 Month'}
+                      {s.classes_per_week ? <Badge c={['#5B5F56', '#F1EFE7', '#DEDACC']}>{s.classes_per_week}x/wk</Badge> : null}
+                      {s.family_discount && <Badge c={['#4B3A86', '#EEEAF6', '#D2C9EA']} title="Big family discount">Family -20%</Badge>}
                       {s.subsidy && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
                     </td>
                     <td>{billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}</td>
@@ -543,12 +549,37 @@ export default function StudentsPage() {
               <input type="number" className="dp-input" style={{ width: '100%' }} value={form.tuition ?? ''} onChange={(e) => setForm({ ...form, tuition: e.target.value })} />
             </Field>
           </div>
+          <div style={styles.formRow}>
+            <Field label="Classes per week">
+              <select
+                className="dp-select"
+                style={{ width: '100%' }}
+                value={form.classes_per_week ?? ''}
+                onChange={(e) => {
+                  const n = e.target.value === '' ? '' : Number(e.target.value);
+                  setForm({ ...form, classes_per_week: n, tuition: form.tuition === '' || form.tuition == null ? suggestedTuition(n, form.plan) : form.tuition });
+                }}
+              >
+                <option value="">—</option>
+                {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} × per week</option>)}
+              </select>
+            </Field>
+            <div style={{ flex: 1 }} />
+          </div>
           {(form.billing_start_date || form.enroll_date) && (
             <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '-4px 0 12px' }}>
               Bills every {form.plan === '3 Months' ? '3 months' : 'month'} · current cycle started {currentCycleStart(form, todayISO())} · next billing {nextDueDate(form, todayISO())}
             </p>
           )}
 
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 8 }}>
+            <input type="checkbox" checked={!!form.family_discount} onChange={(e) => setForm({ ...form, family_discount: e.target.checked })} />
+            Big family discount (20% off tuition — taken off automatically on Billing invoices)
+          </label>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 8 }}>
+            <input type="checkbox" checked={!!form.billing_exempt} onChange={(e) => setForm({ ...form, billing_exempt: e.target.checked })} />
+            Coach / instructor — doesn't pay, never invoiced
+          </label>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 10 }}>
             <input type="checkbox" checked={!!form.subsidy} onChange={(e) => setForm({ ...form, subsidy: e.target.checked })} />
             Receives a subsidy (KidSport etc.)
@@ -672,4 +703,15 @@ export default function StudentsPage() {
 
 function SectionLabel({ children }) {
   return <div style={{ fontSize: 11, fontWeight: 600, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '6px 0 8px', paddingTop: 10, borderTop: '1px solid #EDEAE0' }}>{children}</div>;
+}
+
+function Badge({ c, title, children }) {
+  return <span title={title} style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{children}</span>;
+}
+
+// Standard tuition (before GST) for a number of classes a week.
+export function suggestedTuition(perWeek, plan) {
+  if (!perWeek) return '';
+  if (plan === '3 Months') return perWeek === 2 ? 435 : '';
+  return perWeek === 1 ? 135 : perWeek === 2 ? 150 : 200;
 }
