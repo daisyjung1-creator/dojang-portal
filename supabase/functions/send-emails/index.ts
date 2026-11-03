@@ -109,8 +109,9 @@ async function sendInvoice(record: any) {
   // A reminder (sent a few days before the billing date) re-sends the invoice
   // with the reminder wording instead of the usual invoice email.
   const isReminder = !!record.payload?.reminder;
-  const subject = fillTemplate((isReminder ? s.reminder_subject : s.email_subject) || 'Invoice #{number} from {business}', inv, s, balance);
-  const message = fillTemplate((isReminder ? s.reminder_message : s.email_message) || 'Please find your invoice attached.', inv, s, balance);
+  // A one-off subject/message written in the portal wins over the templates.
+  const subject = fillTemplate(record.payload?.subject || (isReminder ? s.reminder_subject : s.email_subject) || 'Invoice #{number} from {business}', inv, s, balance);
+  const message = fillTemplate(record.payload?.message || (isReminder ? s.reminder_message : s.email_message) || 'Please find your invoice attached.', inv, s, balance);
   const pdf = await buildInvoicePdf(inv, lines || [], payments || [], s, refunds || []);
   const extra: Record<string, unknown> = { attachments: [{ filename: `Invoice-${inv.invoice_number}.pdf`, content: toBase64(pdf) }] };
   if (inv.customers?.cc_email) extra.cc = inv.customers.cc_email;
