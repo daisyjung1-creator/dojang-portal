@@ -34,3 +34,6 @@ begin
   return n;
 end $$;
 revoke all on function auto_mark_absences(timestamptz) from public, anon, authenticated;
+
+-- Note on an attendance record (e.g. reason for an absence reported ahead).
+alter table attendance add column if not exists note text;

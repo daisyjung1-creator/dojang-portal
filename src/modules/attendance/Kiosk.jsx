@@ -198,7 +198,7 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
                 .filter((x) => !x.billing_exempt && !roster.some((r) => r.s.id === x.id) && x.name.toLowerCase().includes(search.trim().toLowerCase()))
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map((x) => {
-                  const open = makeupRecords.filter((m) => m.student_id === x.id && ['pending', 'reserved'].includes(m.status) && m.absence_date < now.date && m.expiration_date >= now.date).length;
+                  const open = makeupRecords.filter((m) => m.student_id === x.id && ['pending', 'reserved'].includes(m.status) && m.absence_date !== now.date && m.expiration_date >= now.date).length;
                   return (
                     <button
                       key={x.id}

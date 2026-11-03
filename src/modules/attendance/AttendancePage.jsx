@@ -45,6 +45,7 @@ export default function AttendancePage() {
   const [schedDraft, setSchedDraft] = useState(null);
   const [schedMsg, setSchedMsg] = useState('');
   const [walkInModal, setWalkInModal] = useState(null);
+  const [absenceModal, setAbsenceModal] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -189,7 +190,7 @@ export default function AttendancePage() {
   // Uses their oldest open makeup if they have one; otherwise it's an extra class.
   async function walkIn(studentId, date, className) {
     const open = makeupRecords
-      .filter((m) => m.student_id === studentId && ['pending', 'reserved'].includes(m.status) && m.absence_date < date && m.expiration_date >= date)
+      .filter((m) => m.student_id === studentId && ['pending', 'reserved'].includes(m.status) && m.absence_date !== date && m.expiration_date >= date)
       .sort((a, b) => (a.absence_date < b.absence_date ? -1 : 1))[0];
     const { data, error } = await supabase
       .from('attendance')
@@ -202,6 +203,33 @@ export default function AttendancePage() {
       if (done) setMakeupRecords((prev) => prev.map((m) => (m.id === open.id ? done[0] : m)));
     }
     return open || 'extra';
+  }
+
+  // The student's scheduled classes between two dates (for reporting an absence ahead).
+  function scheduledClasses(student, from, to) {
+    const mine = splitClasses(student?.class_name);
+    const out = [];
+    for (let d = from; d && to && d <= to && out.length < 60; d = addDaysISO(d, 1)) {
+      const dow = new Date(d + 'T00:00:00').getDay();
+      schedule
+        .filter((c) => c.active !== false && c.weekday === dow && mine.includes(c.class_name))
+        .forEach((c) => out.push({ date: d, class_name: c.class_name, start: c.start_time }));
+    }
+    return out;
+  }
+
+  // Family told us ahead: mark each class Excused now (so it gets a makeup,
+  // which can even be used before the absence date).
+  async function reportAbsence() {
+    const f = absenceModal;
+    const st = studentMap[f.student_id];
+    const picks = scheduledClasses(st, f.from, f.to).filter((x) => f.skip[`${x.date}|${x.class_name}`] !== true);
+    if (!st || !picks.length) return setAbsenceModal({ ...f, msg: 'Choose a student and at least one class.' });
+    for (const x of picks) {
+      await setAttendanceStatus(st.id, x.date, x.class_name, f.kind);
+      if (f.note) await supabase.from('attendance').update({ note: f.note }).eq('student_id', st.id).eq('date', x.date).eq('class_name', x.class_name);
+    }
+    setAbsenceModal(null);
   }
 
   // Undo a makeup / drop-in check-in: the makeup goes back to "not scheduled".
@@ -444,6 +472,9 @@ export default function AttendancePage() {
               <option value="name">Name</option>
             </select>
             <div style={{ flex: 1 }} />
+            <button className="dp-btn" onClick={() => setAbsenceModal({ student_id: '', from: checkinDate, to: checkinDate, kind: 'excused', note: '', skip: {}, msg: '' })}>
+              <CalendarClock size={14} /> Report absence ahead
+            </button>
             <button className="dp-btn" onClick={() => setWalkInModal({ student_id: '', class_name: checkinClass !== 'all' ? checkinClass : classes[0] || '', msg: '' })}>
               <Plus size={14} /> Makeup / drop-in
             </button>
@@ -586,9 +617,14 @@ export default function AttendancePage() {
 
       {view === 'makeup' && (
         <>
-          <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
-            The expiration date is tentatively the absence date + 30 days, and is confirmed once the next tuition invoice is paid. If the next month isn't paid, it shrinks to the last day of the month that was paid for.
-          </p>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+            <p style={{ fontSize: 13, color: '#5B5F56', margin: 0, flex: 1 }}>
+              Makeups come only from <b>Excused</b> absences. A makeup can be taken before or after the missed class, up to 30 days after it (confirmed once the next tuition is paid; if it isn't, it ends with the last paid day).
+            </p>
+            <button className="dp-btn dp-btn-primary" onClick={() => setAbsenceModal({ student_id: '', from: todayISO(), to: todayISO(), kind: 'excused', note: '', skip: {}, msg: '' })}>
+              <CalendarClock size={14} /> Report absence ahead
+            </button>
+          </div>
           <div style={styles.card}>
             {makeupRecords.length === 0 ? (
               <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No makeup classes.</p>
@@ -875,6 +911,64 @@ export default function AttendancePage() {
         />
       )}
 
+      {absenceModal && (() => {
+        const st = studentMap[absenceModal.student_id];
+        const list = st ? scheduledClasses(st, absenceModal.from, absenceModal.to) : [];
+        const chosen = list.filter((x) => absenceModal.skip[`${x.date}|${x.class_name}`] !== true);
+        return (
+          <Modal
+            title="Report an absence ahead"
+            maxWidth={520}
+            onClose={() => setAbsenceModal(null)}
+            footer={
+              <>
+                <button className="dp-btn" onClick={() => setAbsenceModal(null)}>Cancel</button>
+                <button className="dp-btn dp-btn-primary" disabled={!chosen.length} onClick={reportAbsence}>
+                  <Check size={15} /> Mark {chosen.length} class{chosen.length === 1 ? '' : 'es'} {absenceModal.kind === 'excused' ? 'Excused' : 'Vacation'}
+                </button>
+              </>
+            }
+          >
+            <Field label="Student" required>
+              <select className="dp-select" style={{ width: '100%' }} value={absenceModal.student_id} onChange={(e) => setAbsenceModal({ ...absenceModal, student_id: e.target.value, skip: {} })}>
+                <option value="">Select</option>
+                {students.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+            </Field>
+            <div style={styles.formRow}>
+              <Field label="From"><input type="date" className="dp-input" style={{ width: '100%' }} value={absenceModal.from} onChange={(e) => setAbsenceModal({ ...absenceModal, from: e.target.value, to: absenceModal.to < e.target.value ? e.target.value : absenceModal.to })} /></Field>
+              <Field label="To"><input type="date" className="dp-input" style={{ width: '100%' }} value={absenceModal.to} min={absenceModal.from} onChange={(e) => setAbsenceModal({ ...absenceModal, to: e.target.value })} /></Field>
+            </div>
+            <Field label="Mark as">
+              <select className="dp-select" style={{ width: '100%' }} value={absenceModal.kind} onChange={(e) => setAbsenceModal({ ...absenceModal, kind: e.target.value })}>
+                <option value="excused">Excused — gets a makeup class</option>
+                <option value="vacation">Vacation — no makeup</option>
+              </select>
+            </Field>
+            <Field label="Note (optional)"><input className="dp-input" style={{ width: '100%' }} placeholder="e.g. Family trip, sick" value={absenceModal.note} onChange={(e) => setAbsenceModal({ ...absenceModal, note: e.target.value })} /></Field>
+            {st && (
+              <div style={{ border: '1px solid #EDEAE0', borderRadius: 8, padding: 8, maxHeight: 200, overflowY: 'auto' }}>
+                {list.length === 0 ? (
+                  <span style={{ fontSize: 13, color: '#8A8D84' }}>No classes for {st.name} on those days.</span>
+                ) : (
+                  list.map((x) => {
+                    const key = `${x.date}|${x.class_name}`;
+                    return (
+                      <label key={key} style={{ display: 'flex', gap: 8, fontSize: 13, padding: '3px 0' }}>
+                        <input type="checkbox" checked={absenceModal.skip[key] !== true} onChange={(e) => setAbsenceModal({ ...absenceModal, skip: { ...absenceModal.skip, [key]: !e.target.checked } })} />
+                        {new Date(x.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })} · {x.class_name}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            )}
+            {st && inClass(st, 'Comp Team') && absenceModal.kind === 'excused' && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '8px 0 0' }}>Comp Team is unlimited, so no makeup is created.</p>}
+            {absenceModal.msg && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{absenceModal.msg}</p>}
+          </Modal>
+        );
+      })()}
+
       {walkInModal && (
         <Modal
           title="Makeup / drop-in (no booking)"
@@ -908,7 +1002,7 @@ export default function AttendancePage() {
             </select>
           </Field>
           {walkInModal.student_id && (() => {
-            const open = makeupRecords.filter((m) => m.student_id === walkInModal.student_id && ['pending', 'reserved'].includes(m.status) && m.absence_date < checkinDate && m.expiration_date >= checkinDate).sort((a, b) => (a.absence_date < b.absence_date ? -1 : 1));
+            const open = makeupRecords.filter((m) => m.student_id === walkInModal.student_id && ['pending', 'reserved'].includes(m.status) && m.absence_date !== checkinDate && m.expiration_date >= checkinDate).sort((a, b) => (a.absence_date < b.absence_date ? -1 : 1));
             return (
               <p style={{ fontSize: 13, color: '#5B5F56', margin: 0 }}>
                 {open.length ? `Uses the makeup for the class missed on ${formatDate(open[0].absence_date)} (${open.length} open).` : 'No open makeup — recorded as an extra class.'}
@@ -1064,7 +1158,7 @@ function StudentAttendance({ student, records, packages, compact, onClear }) {
                 return (
                   <tr key={r.id} className="dp-row">
                     <td>{r.date}</td>
-                    <td>{r.class_name}{r.is_makeup ? ' (makeup)' : ''}</td>
+                    <td>{r.class_name}{r.is_makeup ? ' (makeup)' : ''}{r.auto ? ' · auto' : ''}{r.note ? <span style={{ color: '#8A8D84' }}> · {r.note}</span> : null}</td>
                     <td style={{ color: k.color }}>{k.label}{r.status === 'private' ? ` · ${r.minutes || 30} min` : ''}</td>
                     {onClear && (
                       <td style={{ width: 40 }}>
