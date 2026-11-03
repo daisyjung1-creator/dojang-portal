@@ -29,6 +29,8 @@ export const timeLabel = (t) => {
 // staff tap each student who's here. Anyone not tapped is marked absent
 // automatically 10 minutes after the class ends.
 export default function Kiosk({ students, attendance, makeupRecords, schedule, cancellations, onMark, onUnmark, onGuest, onCancelClass, onWalkIn, onUndoGuest, autoAbsentTime, onClose }) {
+  // Tiles: tap = here. The small "Excused" button marks an absence with notice
+  // (gets a makeup); anyone left unmarked becomes a plain Absent at the end of the day.
   const [now, setNow] = useState(dojangNow());
   const [picked, setPicked] = useState(null);
   const [confirm, setConfirm] = useState(false);
@@ -121,8 +123,8 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
                     position: 'relative',
                     minHeight: 96,
                     borderRadius: 12,
-                    border: `2px solid ${on ? '#3C7A43' : st === 'absent' ? '#E4B8B8' : st === 'vacation' ? '#F0D9A8' : '#DEDACC'}`,
-                    background: on ? '#E8F1E9' : st === 'absent' ? '#FBEAEA' : '#fff',
+                    border: `2px solid ${on ? '#3C7A43' : st === 'absent' ? '#E4B8B8' : st === 'vacation' || st === 'excused' ? '#F0D9A8' : '#DEDACC'}`,
+                    background: on ? '#E8F1E9' : st === 'absent' ? '#FBEAEA' : st === 'excused' ? '#FAEEDA' : '#fff',
                     padding: '14px 12px 12px',
                     textAlign: 'left',
                     cursor: 'pointer',
@@ -133,8 +135,20 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
                   <div style={{ height: 6, borderRadius: 3, background: belt.bg, border: `1px solid ${belt.border}`, marginBottom: 10 }} />
                   <div style={{ fontSize: 17, fontWeight: 600, color: '#20241F', lineHeight: 1.25 }}>{r.s.name}</div>
                   <div style={{ fontSize: 12.5, color: '#5B5F56', marginTop: 4 }}>
-                    {r.m ? (on ? 'Makeup · here' : 'Makeup booked') : r.drop ? 'Drop-in · here' : st === 'absent' ? (r.rec.auto ? 'Marked absent' : 'Absent') : st === 'vacation' ? 'Vacation' : st === 'double' ? 'Double class' : st === 'private' ? 'Private' : on ? 'Here' : 'Tap when here'}
+                    {r.m ? (on ? 'Makeup · here' : 'Makeup booked') : r.drop ? 'Drop-in · here' : st === 'absent' ? (r.rec.auto ? 'Marked absent' : 'Absent') : st === 'excused' ? 'Excused (makeup)' : st === 'vacation' ? 'Vacation' : st === 'double' ? 'Double class' : st === 'private' ? 'Private' : on ? 'Here' : 'Tap when here'}
                   </div>
+                  {!on && !r.m && !r.drop && (
+                    <span
+                      role="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        st === 'excused' ? onUnmark(r.rec) : onMark(r.s.id, now.date, cls.class_name, 'excused');
+                      }}
+                      style={{ position: 'absolute', right: 8, bottom: 8, fontSize: 11.5, padding: '3px 8px', borderRadius: 999, border: '1px solid #F0D9A8', background: st === 'excused' ? '#854F0B' : '#FAEEDA', color: st === 'excused' ? '#fff' : '#854F0B' }}
+                    >
+                      Excused
+                    </span>
+                  )}
                   {on && (
                     <div style={{ position: 'absolute', top: 10, right: 10, width: 26, height: 26, borderRadius: 13, background: '#3C7A43', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Check size={16} />

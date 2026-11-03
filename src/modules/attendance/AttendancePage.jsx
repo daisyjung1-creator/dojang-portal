@@ -104,7 +104,8 @@ export default function AttendancePage() {
     upsertLocal(data[0]);
     // Comp Team is unlimited classes, so a missed class needs no makeup.
     const unlimited = inClass(studentMap[studentId] || {}, 'Comp Team');
-    if (status === 'absent' && !unlimited) {
+    // Only an excused absence gets a makeup class.
+    if (status === 'excused' && !unlimited) {
       await createOrUpdateMakeupRecord(studentId, date, className);
     } else {
       // Present / double / private / vacation: no makeup owed for this class.
@@ -116,7 +117,7 @@ export default function AttendancePage() {
   async function clearAttendance(rec) {
     await supabase.from('attendance').delete().eq('id', rec.id);
     setAttendance((prev) => prev.filter((a) => a.id !== rec.id));
-    if (rec.status === 'absent') {
+    if (rec.status === 'excused' || rec.status === 'absent') {
       await supabase.from('makeup_records').delete().eq('student_id', rec.student_id).eq('absence_date', rec.date).eq('class_name', rec.class_name);
       setMakeupRecords((prev) => prev.filter((m) => !(m.student_id === rec.student_id && m.absence_date === rec.date && m.class_name === rec.class_name)));
     }
@@ -314,7 +315,8 @@ export default function AttendancePage() {
       .map((s) => {
         const recs = recordsBy[s.id] || [];
         const last = lastAttended(recs);
-        const onVacation = recs.some((r) => r.status === 'vacation' && r.date >= since);
+        // Vacation or an excused absence means the family told us.
+        const onVacation = recs.some((r) => (r.status === 'vacation' || r.status === 'excused') && r.date >= since);
         const started = s.enroll_date || s.created_at?.slice(0, 10);
         return { s, last, days: last ? Math.round((new Date(today) - new Date(last)) / 86400000) : null, onVacation, started };
       })
@@ -492,6 +494,7 @@ export default function AttendancePage() {
                             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
                               {kindButton('present', st === 'present', () => setAttendanceStatus(s.id, checkinDate, className, 'present'), <CircleCheck size={13} />)}
                               {kindButton('absent', st === 'absent', () => setAttendanceStatus(s.id, checkinDate, className, 'absent'), <CircleX size={13} />)}
+                              {kindButton('excused', st === 'excused', () => setAttendanceStatus(s.id, checkinDate, className, 'excused'), <CalendarClock size={13} />)}
                               {kindButton('double', st === 'double', () => setAttendanceStatus(s.id, checkinDate, className, 'double'), <Copy size={13} />)}
                               {kindButton('private', st === 'private', () => setAttendanceStatus(s.id, checkinDate, className, 'private', record?.minutes || 30), <User size={13} />)}
                               {st === 'private' && (
@@ -560,7 +563,7 @@ export default function AttendancePage() {
             )}
           </div>
           <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>
-            Double = took two classes that day (counts as 2). Private = private lesson (counted in minutes, not as a class). Vacation = away, no makeup owed. Comp Team students are unlimited, so absences don't create makeups.
+            Absent = no-show, no makeup. Excused = absent with notice — gets a makeup class (not Comp Team, which is unlimited). Double = took two classes that day (counts as 2). Private = private lesson (counted in minutes). Vacation = away. Students not marked by the end of the day are recorded as Absent.
           </p>
         </>
       )}
@@ -1018,7 +1021,7 @@ function StudentAttendance({ student, records, packages, compact, onClear }) {
           <p style={{ fontSize: 12, color: '#5B5F56', margin: '4px 0 0' }}>
             {formatDate(p.from)} – {formatDate(p.to)}
             <br />
-            {p.absent} absent · {p.vacation} vacation{p.privateMinutes ? ` · private ${minutesLabel(p.privateMinutes)}` : ''}
+            {p.absent} absent · {p.excused} excused · {p.vacation} vacation{p.privateMinutes ? ` · private ${minutesLabel(p.privateMinutes)}` : ''}
           </p>
         </>
       ) : (

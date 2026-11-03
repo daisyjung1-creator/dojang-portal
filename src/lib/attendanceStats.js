@@ -1,7 +1,7 @@
 // Attendance counting.
 //   present = 1 class, double = 2 classes (two classes the same day),
 //   private = a private lesson (counted separately, in minutes),
-//   vacation / absent = 0.
+//   vacation / absent / excused = 0. Only an excused absence earns a makeup.
 import { billingAnchor, currentCycleStart, nextDueDate, addDaysISO, todayISO } from './billingDates';
 
 export const ATTENDANCE_KINDS = {
@@ -10,6 +10,7 @@ export const ATTENDANCE_KINDS = {
   private: { label: 'Private', short: 'Pr', color: '#4B3A86', bg: '#EEEAF6', border: '#D2C9EA', classes: 0 },
   vacation: { label: 'Vacation', short: 'V', color: '#854F0B', bg: '#FAEEDA', border: '#F0D9A8', classes: 0 },
   absent: { label: 'Absent', short: 'A', color: '#9A2B2B', bg: '#FBEAEA', border: '#E4B8B8', classes: 0 },
+  excused: { label: 'Excused', short: 'E', color: '#854F0B', bg: '#FAEEDA', border: '#F0D9A8', classes: 0 },
 };
 
 export function classCount(records) {
@@ -45,6 +46,7 @@ export function studentSummary(student, records, packages = [], today = todayISO
       to,
       classes: classCount(rs),
       absent: rs.filter((r) => r.status === 'absent').length,
+      excused: rs.filter((r) => r.status === 'excused').length,
       vacation: rs.filter((r) => r.status === 'vacation').length,
       privateMinutes: rs.filter((r) => r.status === 'private').reduce((n, r) => n + (Number(r.minutes) || 30), 0),
       expected: student.classes_per_week ? Math.round(student.classes_per_week * weeksBetween(from, to)) : null,
