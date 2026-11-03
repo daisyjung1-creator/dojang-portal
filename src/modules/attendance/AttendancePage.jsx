@@ -44,6 +44,7 @@ export default function AttendancePage() {
   const [kiosk, setKiosk] = useState(false);
   const [schedDraft, setSchedDraft] = useState(null);
   const [schedMsg, setSchedMsg] = useState('');
+  const [walkInModal, setWalkInModal] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -183,6 +184,34 @@ export default function AttendancePage() {
     }
   }
 
+  // A student who turns up for a makeup without booking (or just drops in).
+  // Uses their oldest open makeup if they have one; otherwise it's an extra class.
+  async function walkIn(studentId, date, className) {
+    const open = makeupRecords
+      .filter((m) => m.student_id === studentId && ['pending', 'reserved'].includes(m.status) && m.absence_date < date && m.expiration_date >= date)
+      .sort((a, b) => (a.absence_date < b.absence_date ? -1 : 1))[0];
+    const { data, error } = await supabase
+      .from('attendance')
+      .upsert({ student_id: studentId, date, class_name: className, status: 'present', minutes: null, auto: false, is_makeup: !!open, makeup_record_id: open ? open.id : null }, { onConflict: 'student_id,date,class_name' })
+      .select();
+    if (error) return null;
+    upsertLocal(data[0]);
+    if (open) {
+      const { data: done } = await supabase.from('makeup_records').update({ status: 'completed', reservation_date: date, reservation_class_name: className }).eq('id', open.id).select();
+      if (done) setMakeupRecords((prev) => prev.map((m) => (m.id === open.id ? done[0] : m)));
+    }
+    return open || 'extra';
+  }
+
+  // Undo a makeup / drop-in check-in: the makeup goes back to "not scheduled".
+  async function undoGuest(rec, m) {
+    if (rec) await clearAttendance(rec);
+    if (m) {
+      const { data } = await supabase.from('makeup_records').update({ status: 'pending', reservation_date: null, reservation_class_name: null }).eq('id', m.id).select();
+      if (data) setMakeupRecords((prev) => prev.map((x) => (x.id === m.id ? data[0] : x)));
+    }
+  }
+
   // ── Emails ─────────────────────────────────────────────────────────────
   function openMakeupEmail(m) {
     const s = studentMap[m.student_id];
@@ -260,10 +289,20 @@ export default function AttendancePage() {
 
   const makeupGuests = makeupRecords.filter(
     (m) =>
-      m.status === 'reserved' &&
+      (m.status === 'reserved' || m.status === 'completed') &&
       m.reservation_date === checkinDate &&
       (checkinClass === 'all' || m.reservation_class_name === checkinClass) &&
       !checkinList.some((s) => s.id === m.student_id && s._class === m.reservation_class_name)
+  );
+
+  // Checked in to a class that isn't theirs, without a makeup record (drop-ins).
+  const dropIns = attendance.filter(
+    (a) =>
+      a.date === checkinDate &&
+      a.class_name !== 'Private' &&
+      (checkinClass === 'all' || a.class_name === checkinClass) &&
+      !checkinList.some((s) => s.id === a.student_id && s._class === a.class_name) &&
+      !makeupGuests.some((m) => m.student_id === a.student_id && m.reservation_class_name === a.class_name)
   );
 
   // Students with no class in the last 7 days and no vacation marked.
@@ -366,6 +405,9 @@ export default function AttendancePage() {
           onUnmark={clearAttendance}
           onGuest={setMakeupGuestStatus}
           onCancelClass={cancelClass}
+          onWalkIn={walkIn}
+          onUndoGuest={undoGuest}
+          autoAbsentTime={settings.auto_absent_time}
           onClose={() => {
             setKiosk(false);
             loadAll();
@@ -399,6 +441,10 @@ export default function AttendancePage() {
               <option value="class">Class</option>
               <option value="name">Name</option>
             </select>
+            <div style={{ flex: 1 }} />
+            <button className="dp-btn" onClick={() => setWalkInModal({ student_id: '', class_name: checkinClass !== 'all' ? checkinClass : classes[0] || '', msg: '' })}>
+              <Plus size={14} /> Makeup / drop-in
+            </button>
           </div>
           <div style={styles.card}>
             {checkinList.length === 0 && makeupGuests.length === 0 ? (
@@ -465,6 +511,22 @@ export default function AttendancePage() {
                           </td>
                         </tr>
                       </React.Fragment>
+                    );
+                  })}
+                  {dropIns.map((a) => {
+                    const st = studentMap[a.student_id];
+                    if (!st) return null;
+                    return (
+                      <tr key={'drop_' + a.id} className="dp-row" style={{ background: '#FCFAF3' }}>
+                        <td style={{ fontWeight: 500 }}>
+                          {st.name}
+                          <span style={{ marginLeft: 6, fontSize: 10.5, color: '#1E4566', border: '1px solid #B9D3E4', background: '#E6F0F6', borderRadius: 999, padding: '1px 6px' }}>Drop-in</span>
+                        </td>
+                        <td>{a.class_name} (home class: {st.class_name || 'Unassigned'})</td>
+                        <td>
+                          <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => clearAttendance(a)}>Remove</button>
+                        </td>
+                      </tr>
                     );
                   })}
                   {makeupGuests.length > 0 && (
@@ -716,9 +778,28 @@ export default function AttendancePage() {
         return (
           <>
             <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
-              The kiosk opens the class that's on now. 10 minutes after a class ends, students in it who weren't checked in are marked absent (with a makeup, except Comp Team). Use "Class cancelled today" in the kiosk for holidays.
+              The kiosk opens the class that's on now. At the end of the day, students who weren't checked in are marked absent (with a makeup, except Comp Team) — so you can still enter attendance after classes. Use "Class cancelled today" in the kiosk for holidays.
             </p>
             {schedMsg && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{schedMsg}</p>}
+            <div style={{ ...styles.card, padding: 14, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 13.5 }}>
+              Mark students who weren't checked in as absent at
+              <input
+                type="time"
+                className="dp-input"
+                value={String(settings.auto_absent_time || '23:30').slice(0, 5)}
+                onChange={(e) => setSettings({ ...settings, auto_absent_time: e.target.value })}
+              />
+              (Edmonton time, every day)
+              <button
+                className="dp-btn"
+                onClick={async () => {
+                  const { error } = await supabase.from('invoice_settings').update({ auto_absent_time: settings.auto_absent_time || '23:30' }).eq('id', 1);
+                  setSchedMsg(error ? 'Could not save: ' + error.message : 'Saved.');
+                }}
+              >
+                <Check size={14} /> Save time
+              </button>
+            </div>
             <div style={styles.card}>
               <table className="dp-table">
                 <thead>
@@ -789,6 +870,50 @@ export default function AttendancePage() {
             setEmail(null);
           }}
         />
+      )}
+
+      {walkInModal && (
+        <Modal
+          title="Makeup / drop-in (no booking)"
+          maxWidth={440}
+          onClose={() => setWalkInModal(null)}
+          footer={
+            <>
+              <button className="dp-btn" onClick={() => setWalkInModal(null)}>Cancel</button>
+              <button
+                className="dp-btn dp-btn-primary"
+                onClick={async () => {
+                  if (!walkInModal.student_id || !walkInModal.class_name) return setWalkInModal({ ...walkInModal, msg: 'Choose the student and the class.' });
+                  await walkIn(walkInModal.student_id, checkinDate, walkInModal.class_name);
+                  setWalkInModal(null);
+                }}
+              >
+                <Check size={15} /> Check in
+              </button>
+            </>
+          }
+        >
+          <Field label="Student" required>
+            <select className="dp-select" style={{ width: '100%' }} value={walkInModal.student_id} onChange={(e) => setWalkInModal({ ...walkInModal, student_id: e.target.value })}>
+              <option value="">Select</option>
+              {students.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Class they came to">
+            <select className="dp-select" style={{ width: '100%' }} value={walkInModal.class_name} onChange={(e) => setWalkInModal({ ...walkInModal, class_name: e.target.value })}>
+              {allClassNames(students).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+          {walkInModal.student_id && (() => {
+            const open = makeupRecords.filter((m) => m.student_id === walkInModal.student_id && ['pending', 'reserved'].includes(m.status) && m.absence_date < checkinDate && m.expiration_date >= checkinDate).sort((a, b) => (a.absence_date < b.absence_date ? -1 : 1));
+            return (
+              <p style={{ fontSize: 13, color: '#5B5F56', margin: 0 }}>
+                {open.length ? `Uses the makeup for the class missed on ${formatDate(open[0].absence_date)} (${open.length} open).` : 'No open makeup — recorded as an extra class.'}
+              </p>
+            );
+          })()}
+          {walkInModal.msg && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{walkInModal.msg}</p>}
+        </Modal>
       )}
 
       {pkgModal && (

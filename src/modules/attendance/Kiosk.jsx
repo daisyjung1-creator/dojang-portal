@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Check, Ban } from 'lucide-react';
+import { X, Check, Ban, Plus } from 'lucide-react';
 import { splitClasses } from '../../lib/classes';
 import { BELTS } from '../../lib/constants';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -28,10 +28,12 @@ export const timeLabel = (t) => {
 // Full-screen check-in for the iPad: the class that's on now opens by itself,
 // staff tap each student who's here. Anyone not tapped is marked absent
 // automatically 10 minutes after the class ends.
-export default function Kiosk({ students, attendance, makeupRecords, schedule, cancellations, onMark, onUnmark, onGuest, onCancelClass, onClose }) {
+export default function Kiosk({ students, attendance, makeupRecords, schedule, cancellations, onMark, onUnmark, onGuest, onCancelClass, onWalkIn, onUndoGuest, autoAbsentTime, onClose }) {
   const [now, setNow] = useState(dojangNow());
   const [picked, setPicked] = useState(null);
   const [confirm, setConfirm] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [search, setSearch] = useState('');
   useEffect(() => {
     const t = setInterval(() => setNow(dojangNow()), 30000);
     return () => clearInterval(t);
@@ -52,17 +54,22 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
       .filter((s) => !s.billing_exempt && splitClasses(s.class_name).includes(cls.class_name) && (!s.enroll_date || s.enroll_date <= now.date))
       .map((s) => ({ s, rec: attendance.find((a) => a.student_id === s.id && a.date === now.date && a.class_name === cls.class_name) }));
     const guests = makeupRecords
-      .filter((m) => m.status !== 'expired' && m.reservation_date === now.date && (m.reservation_class_name || m.class_name) === cls.class_name)
+      .filter((m) => (m.status === 'reserved' || m.status === 'completed') && m.reservation_date === now.date && (m.reservation_class_name || m.class_name) === cls.class_name)
       .map((m) => ({ s: students.find((x) => x.id === m.student_id), m, rec: attendance.find((a) => a.student_id === m.student_id && a.date === now.date && a.class_name === cls.class_name) }))
       .filter((g) => g.s && !list.some((r) => r.s.id === g.s.id));
-    return [...list.sort((a, b) => a.s.name.localeCompare(b.s.name)), ...guests];
+    // Checked in here without a makeup record (drop-in / extra class).
+    const extras = attendance
+      .filter((a) => a.date === now.date && a.class_name === cls.class_name && !list.some((r) => r.s.id === a.student_id) && !guests.some((g) => g.s.id === a.student_id))
+      .map((a) => ({ s: students.find((x) => x.id === a.student_id), rec: a, drop: true }))
+      .filter((g) => g.s);
+    return [...list.sort((a, b) => a.s.name.localeCompare(b.s.name)), ...guests, ...extras];
   }, [cls, students, attendance, makeupRecords, now.date]);
 
   const here = roster.filter((r) => r.rec && ['present', 'double', 'private'].includes(r.rec.status)).length;
   const ended = cls && now.minutes >= toMin(cls.end_time);
 
   function tap(r) {
-    if (r.rec && r.rec.status === 'present') return r.m ? onGuest(r.m, now.date, cls.class_name, 'absent') : onUnmark(r.rec);
+    if (r.rec && r.rec.status === 'present') return r.m || r.drop ? onUndoGuest(r.rec, r.m) : onUnmark(r.rec);
     if (r.m) return onGuest(r.m, now.date, cls.class_name, 'present');
     onMark(r.s.id, now.date, cls.class_name, 'present');
   }
@@ -126,7 +133,7 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
                   <div style={{ height: 6, borderRadius: 3, background: belt.bg, border: `1px solid ${belt.border}`, marginBottom: 10 }} />
                   <div style={{ fontSize: 17, fontWeight: 600, color: '#20241F', lineHeight: 1.25 }}>{r.s.name}</div>
                   <div style={{ fontSize: 12.5, color: '#5B5F56', marginTop: 4 }}>
-                    {r.m ? 'Makeup' : st === 'absent' ? (r.rec.auto ? 'Marked absent' : 'Absent') : st === 'vacation' ? 'Vacation' : st === 'double' ? 'Double class' : st === 'private' ? 'Private' : on ? 'Here' : 'Tap when here'}
+                    {r.m ? (on ? 'Makeup · here' : 'Makeup booked') : r.drop ? 'Drop-in · here' : st === 'absent' ? (r.rec.auto ? 'Marked absent' : 'Absent') : st === 'vacation' ? 'Vacation' : st === 'double' ? 'Double class' : st === 'private' ? 'Private' : on ? 'Here' : 'Tap when here'}
                   </div>
                   {on && (
                     <div style={{ position: 'absolute', top: 10, right: 10, width: 26, height: 26, borderRadius: 13, background: '#3C7A43', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -146,13 +153,55 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
             {cancelled
               ? 'Cancelled today.'
               : ended
-                ? 'Class finished — anyone not tapped is marked absent within 10 minutes (you can still tap late arrivals).'
-                : `Anyone not tapped is marked absent automatically 10 minutes after ${timeLabel(cls.end_time)}.`}
+                ? `Class finished — you can still tap students until ${timeLabel(autoAbsentTime || '23:30')}, then the rest are marked absent.`
+                : `Anyone not tapped is marked absent automatically at ${timeLabel(autoAbsentTime || '23:30')} — you can also fill it in later.`}
           </span>
           <div style={{ flex: 1 }} />
           {!cancelled && (
-            <button className="dp-btn" onClick={() => setConfirm(true)}><Ban size={14} /> Class cancelled today</button>
+            <>
+              <button className="dp-btn dp-btn-primary" style={{ fontSize: 14, padding: '8px 14px' }} onClick={() => { setSearch(''); setAdding(true); }}>
+                <Plus size={15} /> Makeup / drop-in
+              </button>
+              <button className="dp-btn" onClick={() => setConfirm(true)}><Ban size={14} /> Class cancelled today</button>
+            </>
           )}
+        </div>
+      )}
+
+      {adding && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(32,36,31,0.45)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: 'min(640px, 100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 16, borderBottom: '1px solid #EDEAE0' }}>
+              <div style={{ fontSize: 17, fontWeight: 600, flex: 1 }}>Who came to {cls.class_name}?</div>
+              <button className="dp-btn" onClick={() => setAdding(false)}><X size={15} /> Close</button>
+            </div>
+            <div style={{ padding: '12px 16px 0' }}>
+              <input autoFocus className="dp-input" style={{ width: '100%', fontSize: 16, padding: 10 }} placeholder="Type a name…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '8px 0 0' }}>Uses their oldest open makeup; if they don't have one it's recorded as an extra class.</p>
+            </div>
+            <div style={{ overflowY: 'auto', padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 8 }}>
+              {students
+                .filter((x) => !x.billing_exempt && !roster.some((r) => r.s.id === x.id) && x.name.toLowerCase().includes(search.trim().toLowerCase()))
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((x) => {
+                  const open = makeupRecords.filter((m) => m.student_id === x.id && ['pending', 'reserved'].includes(m.status) && m.absence_date < now.date && m.expiration_date >= now.date).length;
+                  return (
+                    <button
+                      key={x.id}
+                      className="dp-btn"
+                      style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px', fontSize: 14.5, display: 'block' }}
+                      onClick={async () => {
+                        setAdding(false);
+                        await onWalkIn(x.id, now.date, cls.class_name);
+                      }}
+                    >
+                      <div style={{ fontWeight: 600 }}>{x.name}</div>
+                      <div style={{ fontSize: 12, color: open ? '#854F0B' : '#8A8D84' }}>{open ? `${open} makeup${open > 1 ? 's' : ''} open` : 'No open makeup'}</div>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
         </div>
       )}
 
