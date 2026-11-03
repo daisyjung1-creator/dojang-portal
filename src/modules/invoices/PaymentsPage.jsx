@@ -3,7 +3,7 @@ import { Plus, Search, Download, Trash2, Mail, RotateCcw } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { money, PERIODS, periodRange, downloadCSV } from '../../lib/invoiceUtils';
+import { money, PERIODS, periodRange, useRememberedPeriod, downloadCSV } from '../../lib/invoiceUtils';
 import { loadCustomers, queueEmail, fetchAll } from './api';
 import PaymentModal from './PaymentModal';
 import RefundModal from './RefundModal';
@@ -15,8 +15,7 @@ export default function PaymentsPage() {
   const [customers, setCustomers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [refunds, setRefunds] = useState([]);
-  const [period, setPeriod] = useState('this_month');
-  const [range, setRange] = useState(periodRange('this_month'));
+  const [period, setPeriod, range, setRange] = useRememberedPeriod('payments');
   const [keyword, setKeyword] = useState('');
   const [method, setMethod] = useState('all');
   const [modal, setModal] = useState(null);

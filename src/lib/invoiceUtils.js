@@ -1,3 +1,4 @@
+import { useEffect as _useEffect, useState as _useState } from 'react';
 // Shared helpers for the invoicing module (money, dates, totals, periods).
 
 // Default list; the dojang's own list is edited in Invoice Settings
@@ -99,6 +100,30 @@ export function periodRange(id, today = new Date()) {
     default:
       return { start: '2000-01-01', end: '2099-12-31' };
   }
+}
+
+// Period picker that remembers the last choice on this device (e.g. "All" or
+// "Last Month"). Relative periods are worked out fresh each time; a custom
+// range keeps its dates.
+export function useRememberedPeriod(key, fallback = 'this_month') {
+  const read = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem('period:' + key) || 'null');
+      if (v && v.period) return v.period === 'custom' && v.range ? v : { period: v.period, range: periodRange(v.period) };
+    } catch (e) {
+      /* storage unavailable */
+    }
+    return { period: fallback, range: periodRange(fallback) };
+  };
+  const [state, setState] = _useState(read);
+  _useEffect(() => {
+    try {
+      localStorage.setItem('period:' + key, JSON.stringify(state));
+    } catch (e) {
+      /* storage unavailable */
+    }
+  }, [key, state]);
+  return [state.period, (p) => setState((st) => ({ ...st, period: p })), state.range, (r) => setState((st) => ({ ...st, range: r }))];
 }
 
 export function downloadCSV(filename, rows) {

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Download, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
-import { money, PERIODS, periodRange, INVOICE_STATUS_STYLES, downloadCSV } from '../../lib/invoiceUtils';
+import { money, PERIODS, periodRange, useRememberedPeriod, INVOICE_STATUS_STYLES, downloadCSV } from '../../lib/invoiceUtils';
 import { loadSettings, loadCustomers, loadItems, fetchAll, loadInvoiceFull } from './api';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import InvoiceEditor from './InvoiceEditor';
@@ -24,8 +24,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
-  const [period, setPeriod] = useState('this_month');
-  const [range, setRange] = useState(periodRange('this_month'));
+  const [period, setPeriod, range, setRange] = useRememberedPeriod('invoices');
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState('recorded');
 

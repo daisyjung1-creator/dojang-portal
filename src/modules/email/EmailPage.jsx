@@ -5,6 +5,7 @@ import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import { splitClasses, allClassNames } from '../../lib/classes';
+import EmailLog from './EmailLog';
 
 // Group email: write one message and send it to every family, or only to
 // families with a student in chosen classes (e.g. Comp Team). Each family gets
@@ -35,6 +36,7 @@ export default function EmailPage() {
   const [sending, setSending] = useState(false);
   const [flash, setFlash] = useState({ text: '', error: false });
   const [history, setHistory] = useState([]);
+  const [page, setPage] = useState('compose'); // compose | log
 
   useEffect(() => {
     supabase
@@ -171,9 +173,17 @@ export default function EmailPage() {
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Email</h1>
-          <p style={styles.subtitle}>Send a message to all families or to a class group</p>
+          <p style={styles.subtitle}>{page === 'log' ? 'Every email the portal has sent — invoices, reminders, receipts, makeup, absence and more' : 'Send a message to all families or to a class group'}</p>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[['compose', 'Group email'], ['log', 'Sent emails']].map(([id, label]) => (
+            <button key={id} className="dp-btn" style={{ background: page === id ? '#20241F' : '#fff', color: page === id ? '#fff' : '#20241F' }} onClick={() => setPage(id)}>
+              {label}
+            </button>
+          ))}
         </div>
       </div>
+      {page === 'log' ? <EmailLog /> : (<>
       {flash.text && <p style={{ background: flash.error ? '#FBEAEA' : '#E8F1E9', color: flash.error ? '#9A2B2B' : '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
@@ -315,6 +325,7 @@ export default function EmailPage() {
           </div>
         </Modal>
       )}
+      </>)}
     </>
   );
 }
