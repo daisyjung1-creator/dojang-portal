@@ -13,6 +13,7 @@ import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmailComposeModal from '../../components/EmailComposeModal';
+import Kiosk from './Kiosk';
 
 const ABSENCE_DAYS = 7;
 const classOrder = (c) => {
@@ -38,12 +39,24 @@ export default function AttendancePage() {
   const [pkgModal, setPkgModal] = useState(null);
   const [sessionModal, setSessionModal] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [schedule, setSchedule] = useState([]);
+  const [cancellations, setCancellations] = useState([]);
+  const [kiosk, setKiosk] = useState(false);
+  const [schedDraft, setSchedDraft] = useState(null);
+  const [schedMsg, setSchedMsg] = useState('');
 
   useEffect(() => {
     loadAll();
   }, []);
 
   async function loadAll() {
+    const since = addDaysISO(todayISO(), -30);
+    const [{ data: sch }, { data: cx }] = await Promise.all([
+      supabase.from('class_schedule').select('*').order('weekday').order('start_time'),
+      supabase.from('class_cancellations').select('*').gte('date', since),
+    ]);
+    setSchedule(sch || []);
+    setCancellations(cx || []);
     const [{ data: s }, { data: a }, { data: m }, { data: p }, { data: pk }, { data: st }] = await Promise.all([
       supabase.from('students').select('*').order('name'),
       supabase.from('attendance').select('*'),
@@ -303,7 +316,30 @@ export default function AttendancePage() {
     { id: 'makeup', label: 'Makeup Classes' },
     { id: 'private', label: 'Private Lessons' },
     { id: 'absence', label: `Absence Check${absentees.length ? ` (${absentees.length})` : ''}` },
+    ...(isAdmin ? [{ id: 'schedule', label: 'Class Schedule' }] : []),
   ];
+
+  async function cancelClass(date, className) {
+    const { data } = await supabase.from('class_cancellations').insert({ date, class_name: className }).select().single();
+    if (data) setCancellations((prev) => [...prev, data]);
+  }
+
+  async function saveSchedule() {
+    const rows = schedDraft.filter((r) => r.class_name.trim() && r.start_time && r.end_time);
+    if (rows.some((r) => r.end_time <= r.start_time)) return setSchedMsg('An end time is before its start time.');
+    const keep = rows.filter((r) => r.id).map((r) => r.id);
+    const gone = schedule.filter((r) => !keep.includes(r.id)).map((r) => r.id);
+    if (gone.length) await supabase.from('class_schedule').delete().in('id', gone);
+    for (const r of rows) {
+      const row = { class_name: r.class_name.trim(), weekday: Number(r.weekday), start_time: r.start_time, end_time: r.end_time, active: r.active !== false };
+      if (r.id) await supabase.from('class_schedule').update(row).eq('id', r.id);
+      else await supabase.from('class_schedule').insert(row);
+    }
+    const { data } = await supabase.from('class_schedule').select('*').order('weekday').order('start_time');
+    setSchedule(data || []);
+    setSchedDraft(null);
+    setSchedMsg('Schedule saved.');
+  }
 
   let lastClass = null;
 
@@ -314,7 +350,28 @@ export default function AttendancePage() {
           <h1 style={styles.title}>Attendance</h1>
           <p style={styles.subtitle}>Check-in, history, makeup classes, private lessons</p>
         </div>
+        <button className="dp-btn dp-btn-primary" style={{ fontSize: 15, padding: '10px 18px' }} onClick={() => setKiosk(true)}>
+          <CircleCheck size={16} /> Open Kiosk
+        </button>
       </div>
+
+      {kiosk && (
+        <Kiosk
+          students={students}
+          attendance={attendance}
+          makeupRecords={makeupRecords}
+          schedule={schedule}
+          cancellations={cancellations}
+          onMark={setAttendanceStatus}
+          onUnmark={clearAttendance}
+          onGuest={setMakeupGuestStatus}
+          onCancelClass={cancelClass}
+          onClose={() => {
+            setKiosk(false);
+            loadAll();
+          }}
+        />
+      )}
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {tabs.map((v) => (
@@ -651,6 +708,71 @@ export default function AttendancePage() {
           </div>
         </>
       )}
+
+      {view === 'schedule' && (() => {
+        const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const rows = schedDraft || schedule;
+        const edit = (i, patch) => setSchedDraft(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+        return (
+          <>
+            <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
+              The kiosk opens the class that's on now. 10 minutes after a class ends, students in it who weren't checked in are marked absent (with a makeup, except Comp Team). Use "Class cancelled today" in the kiosk for holidays.
+            </p>
+            {schedMsg && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{schedMsg}</p>}
+            <div style={styles.card}>
+              <table className="dp-table">
+                <thead>
+                  <tr><th>Day</th><th>Class</th><th>Start</th><th>End</th><th>Active</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={r.id || 'n' + i}>
+                      <td>
+                        <select className="dp-select" value={r.weekday} onChange={(e) => edit(i, { weekday: Number(e.target.value) })}>
+                          {DAYS.map((d, k) => <option key={d} value={k}>{d}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <input className="dp-input" list="sched-classes" style={{ width: '100%' }} value={r.class_name} onChange={(e) => edit(i, { class_name: e.target.value })} />
+                      </td>
+                      <td><input type="time" className="dp-input" value={String(r.start_time).slice(0, 5)} onChange={(e) => edit(i, { start_time: e.target.value })} /></td>
+                      <td><input type="time" className="dp-input" value={String(r.end_time).slice(0, 5)} onChange={(e) => edit(i, { end_time: e.target.value })} /></td>
+                      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={r.active !== false} onChange={(e) => edit(i, { active: e.target.checked })} /></td>
+                      <td style={{ width: 40 }}>
+                        <button className="dp-btn dp-btn-danger" style={{ padding: 4 }} aria-label="Remove" onClick={() => setSchedDraft(rows.filter((_, j) => j !== i))}><Trash2 size={13} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <datalist id="sched-classes">{DOJANG_CLASSES.map((c) => <option key={c} value={c} />)}</datalist>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', padding: 12, borderTop: '1px solid #EDEAE0' }}>
+                <button className="dp-btn" onClick={() => setSchedDraft([...rows, { class_name: '', weekday: 1, start_time: '16:30', end_time: '17:20', active: true }])}><Plus size={14} /> Add class time</button>
+                {schedDraft && <button className="dp-btn" onClick={() => setSchedDraft(null)}>Discard</button>}
+                <button className="dp-btn dp-btn-primary" disabled={!schedDraft} onClick={saveSchedule}><Check size={14} /> Save schedule</button>
+              </div>
+            </div>
+            {cancellations.length > 0 && (
+              <div style={{ ...styles.card, marginTop: 14 }}>
+                <p style={{ ...styles.metricLabel, padding: '12px 12px 0', margin: 0 }}>Cancelled classes (last 30 days)</p>
+                <table className="dp-table">
+                  <tbody>
+                    {cancellations.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).map((c) => (
+                      <tr key={c.id}>
+                        <td>{formatDate(c.date)}</td>
+                        <td>{c.class_name || 'All classes'}</td>
+                        <td style={{ width: 40 }}>
+                          <button className="dp-btn dp-btn-danger" style={{ padding: 4 }} aria-label="Undo" title="Undo cancellation" onClick={async () => { await supabase.from('class_cancellations').delete().eq('id', c.id); setCancellations((prev) => prev.filter((x) => x.id !== c.id)); }}><Trash2 size={13} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {statsFor && (
         <Modal title={`Attendance — ${statsFor.name}`} maxWidth={640} onClose={() => setStatsFor(null)} footer={<button className="dp-btn" onClick={() => setStatsFor(null)}>Close</button>}>
