@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Plus, ClipboardCheck, Check } from 'lucide-react';
+import { matchScore } from '../../components/SearchSelect';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
@@ -49,7 +50,7 @@ export default function InventoryPage() {
     const k = search.trim().toLowerCase();
     return levels.filter((r) => {
       if (filter !== 'all' && status(r) !== filter) return false;
-      return !k || (r.name + ' ' + (r.description || '')).toLowerCase().includes(k);
+      return !k || matchScore(k, r.name + ' ' + (r.description || '')) !== null;
     });
   }, [levels, search, filter]);
 

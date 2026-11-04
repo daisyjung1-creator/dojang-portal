@@ -9,6 +9,7 @@ import { loadSettings, clearPaymentMethodsCache } from './api';
 import { WELCOME_PLACEHOLDERS } from '../../lib/welcomeEmail';
 import { PAYMENT_METHODS } from '../../lib/invoiceUtils';
 import { TEMPLATE_HELP } from '../../lib/emailTemplates';
+import { matchScore } from '../../components/SearchSelect';
 
 const TEXT_FIELDS = [
   ['business_name', 'Business Name'],
@@ -246,7 +247,7 @@ export default function InvoiceSettingsPage() {
         <table className="dp-table">
           <thead><tr><th style={{ width: 200 }}>Item</th><th>Description</th><th style={{ width: 110 }}>Value</th><th style={{ width: 90 }}>Tax</th><th style={{ width: 70 }}>Active</th><th style={{ width: 84 }}>Order</th><th style={{ width: 40 }}></th></tr></thead>
           <tbody>
-            {items.map((it, i) => (!itemSearch || (it.name + ' ' + (it.description || '')).toLowerCase().includes(itemSearch.toLowerCase())) && (
+            {items.map((it, i) => (!itemSearch.trim() || matchScore(itemSearch, it.name + ' ' + (it.description || '')) !== null) && (
               <tr key={it.id || 'new' + i}>
                 <td><input className="dp-input" style={{ width: '100%', padding: 6, fontSize: 13 }} value={it.name} onChange={(e) => setItem(i, { name: e.target.value })} /></td>
                 <td><input className="dp-input" style={{ width: '100%', padding: 6, fontSize: 13 }} value={it.description || ''} placeholder="(same as name)" onChange={(e) => setItem(i, { description: e.target.value })} /></td>
