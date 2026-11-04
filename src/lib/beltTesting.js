@@ -58,44 +58,52 @@ export function classesSince(student, records) {
 }
 
 // Match test-fee invoice lines to the students on a test list.
-// lines: [{ id, invoice_id, student_id, item_name, description }]
+// lines: [{ id, invoice_id, student_id, item_name, description, quantity }]
 // invoices: { [id]: { invoice_number, invoice_date, customer_id, voided, balance } }
-// Lines made from the testing page carry the student; for lines typed by hand
-// the family is used, preferring a line that mentions the student's name.
-export function matchFees(entries, students, lines, invoices, testDate) {
-  const from = addDays(testDate, -100);
-  const to = addDays(testDate, 60);
-  const usable = lines.filter((l) => {
-    const inv = invoices[l.invoice_id];
-    return inv && !inv.voided && inv.invoice_date >= from && inv.invoice_date <= to;
-  });
-  const taken = new Set();
-  const out = {};
+// Only invoices dated after the previous test (or the student's last test)
+// and before the next test count. Lines made from the testing page carry the
+// student; for lines typed by hand the family is used, preferring a line that
+// mentions the student's name. A line with quantity 2 covers two students.
+export function matchFees(entries, students, lines, invoices, testDate, prevTestDate, nextTestDate) {
   const sById = Object.fromEntries(students.map((s) => [s.id, s]));
+  const fallbackFrom = addDays(testDate, -100);
+  const to = nextTestDate ? addDays(nextTestDate, -1) : addDays(testDate, 60);
+  const windowFrom = (s) => {
+    const starts = [prevTestDate, s?.last_test_date && s.last_test_date < testDate ? s.last_test_date : null].filter(Boolean).sort();
+    return starts.length ? addDays(starts[starts.length - 1], 1) : fallbackFrom;
+  };
+  const used = {};
+  const left = (l) => Math.max(1, Math.round(Number(l.quantity) || 1)) - (used[l.id] || 0);
+  const ok = (l, s) => {
+    const inv = invoices[l.invoice_id];
+    return inv && !inv.voided && inv.invoice_date >= windowFrom(s) && inv.invoice_date <= to && left(l) > 0;
+  };
+  const out = {};
   const pick = (entry, line) => {
-    taken.add(line.id);
+    used[line.id] = (used[line.id] || 0) + 1;
     out[entry.id] = { line, invoice: invoices[line.invoice_id] };
   };
   // 1. lines tagged with the student
   entries.forEach((e) => {
-    const l = usable.find((x) => !taken.has(x.id) && x.student_id === e.student_id);
+    const s = sById[e.student_id];
+    const l = lines.find((x) => x.student_id === e.student_id && ok(x, s));
     if (l) pick(e, l);
   });
-  // 2. family lines that mention the student's first name
+  // 2. family lines for the same test fee that mention the student's first name
   entries.forEach((e) => {
     if (out[e.id]) return;
     const s = sById[e.student_id];
     if (!s?.customer_id) return;
     const first = s.name.split(' ')[0].toLowerCase();
-    const l = usable.find((x) => !taken.has(x.id) && !x.student_id && invoices[x.invoice_id].customer_id === s.customer_id && (x.description || '').toLowerCase().includes(first));
+    const l = lines.find((x) => !x.student_id && x.item_name === e.fee_item && invoices[x.invoice_id]?.customer_id === s.customer_id && (x.description || '').toLowerCase().includes(first) && ok(x, s));
     if (l) pick(e, l);
   });
-  // 3. any remaining family line
+  // 3. any remaining family line for the same test fee
   entries.forEach((e) => {
     if (out[e.id]) return;
     const s = sById[e.student_id];
     if (!s?.customer_id) return;
-    const l = usable.find((x) => !taken.has(x.id) && !x.student_id && invoices[x.invoice_id].customer_id === s.customer_id);
+    const l = lines.find((x) => !x.student_id && x.item_name === e.fee_item && invoices[x.invoice_id]?.customer_id === s.customer_id && ok(x, s));
     if (l) pick(e, l);
   });
   return out;

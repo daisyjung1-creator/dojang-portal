@@ -90,7 +90,7 @@ export default function TestingPage() {
   }
 
   async function loadFees() {
-    const { data: lines } = await fetchAll(() => supabase.from('invoice_lines').select('id, invoice_id, student_id, item_name, description, amount').in('item_name', TEST_FEE_ITEMS));
+    const { data: lines } = await fetchAll(() => supabase.from('invoice_lines').select('id, invoice_id, student_id, item_name, description, amount, quantity').in('item_name', TEST_FEE_ITEMS));
     const ids = [...new Set((lines || []).map((l) => l.invoice_id))];
     const map = {};
     for (let i = 0; i < ids.length; i += 100) {
@@ -111,7 +111,12 @@ export default function TestingPage() {
   }, [attendance]);
   const countFor = (s) => classesSince(s, attBy[s.id] || []);
 
-  const fees = useMemo(() => (test ? matchFees(entries, students, feeLines, invoiceMap, test.test_date) : {}), [entries, students, feeLines, invoiceMap, test]);
+  const fees = useMemo(() => {
+    if (!test) return {};
+    const prev = tests.filter((t) => t.test_date < test.test_date).map((t) => t.test_date).sort().pop() || null;
+    const next = tests.filter((t) => t.test_date > test.test_date).map((t) => t.test_date).sort()[0] || null;
+    return matchFees(entries, students, feeLines, invoiceMap, test.test_date, prev, next);
+  }, [entries, students, feeLines, invoiceMap, test, tests]);
   const feeState = (e) => {
     const f = fees[e.id];
     if (!f) return 'none';
