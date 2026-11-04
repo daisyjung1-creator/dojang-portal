@@ -195,7 +195,7 @@ export default function TestingPage() {
             item_name: e.fee_item,
             description: `${item?.description || e.fee_item} - ${s.name} (${e.current_belt} → ${e.target_belt})`,
             quantity: 1,
-            unit_price: Number(e.fee_amount) || 0,
+            unit_price: priceOf(e, itemByName),
             taxable: item ? item.taxable !== false : true,
             student_id: s.id,
           };
@@ -369,7 +369,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
                                 >
                                   {TEST_FEE_ITEMS.map((x) => <option key={x}>{x}</option>)}
                                 </select>
-                                <span style={{ fontSize: 12.5, color: '#5B5F56' }}>{money(e.fee_amount || 0)}</span>
+                                <span style={{ fontSize: 12.5, color: '#5B5F56' }}>{money(priceOf(e, itemByName))}</span>
                               </>
                             )}
                           </div>
@@ -556,8 +556,14 @@ function AddStudentsModal({ students, already, countFor, partial, onClose, onAdd
   );
 }
 
+// The price comes from the item in Invoice Settings, so a price change there
+// shows up here straight away (until the invoice is made).
+function priceOf(e, itemByName) {
+  return Number(itemByName[e.fee_item]?.default_amount ?? e.fee_amount) || 0;
+}
+
 function feeWithTax(e, itemByName, gstRate) {
-  const amt = Number(e.fee_amount) || 0;
+  const amt = priceOf(e, itemByName);
   const taxable = itemByName[e.fee_item] ? itemByName[e.fee_item].taxable !== false : true;
   return round2(amt * (1 + (taxable ? Number(gstRate) / 100 : 0)));
 }

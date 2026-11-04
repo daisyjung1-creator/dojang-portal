@@ -72,6 +72,12 @@ export default function InvoicesPage() {
     loadInvoices();
   }, [range.start, range.end]);
 
+  // Fresh item list each time the editor opens, so price changes made in
+  // Invoice Settings show up straight away.
+  useEffect(() => {
+    if (editor) loadItems().then(setItems);
+  }, [!!editor]);
+
   async function loadInvoices() {
     setLoading(true);
     const { data, error } = await fetchAll(() =>

@@ -5,7 +5,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import { money } from '../../lib/invoiceUtils';
-import { loadSettings, clearPaymentMethodsCache } from './api';
+import { loadSettings, clearPaymentMethodsCache, loadInvoiceFull, saveInvoice } from './api';
 import { WELCOME_PLACEHOLDERS } from '../../lib/welcomeEmail';
 import { PAYMENT_METHODS } from '../../lib/invoiceUtils';
 import { TEMPLATE_HELP } from '../../lib/emailTemplates';
@@ -25,6 +25,7 @@ export default function InvoiceSettingsPage() {
   const [items, setItems] = useState([]);
   const [itemsDirty, setItemsDirty] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
+  const origItems = useRef([]);
   const [methodsText, setMethodsText] = useState(null); // null = untouched
   const itemFileRef = useRef(null);
   const logoRef = useRef(null);
@@ -78,6 +79,7 @@ export default function InvoiceSettingsPage() {
   async function loadItemList() {
     const { data } = await supabase.from('fee_items').select('*').order('sort_order').order('name');
     setItems(data || []);
+    origItems.current = data || [];
     setItemsDirty(false);
   }
 
@@ -106,14 +108,62 @@ export default function InvoiceSettingsPage() {
     setItemsDirty(true);
   }
   async function saveItems() {
+    const before = Object.fromEntries((origItems.current || []).map((it) => [it.id, it]));
+    const changed = [];
     for (const it of items) {
       const row = { name: it.name, description: it.description || null, default_amount: Number(it.default_amount) || 0, taxable: !!it.taxable, active: it.active !== false, sort_order: Number(it.sort_order) || 100 };
       if (!row.name.trim()) continue;
-      if (it.id) await supabase.from('fee_items').update(row).eq('id', it.id);
-      else await supabase.from('fee_items').insert(row);
+      if (it.id) {
+        await supabase.from('fee_items').update(row).eq('id', it.id);
+        const old = before[it.id];
+        if (old && (Number(old.default_amount) !== row.default_amount || !!old.taxable !== row.taxable || (old.description || null) !== row.description || old.name !== row.name)) changed.push({ old, row, id: it.id });
+      } else await supabase.from('fee_items').insert(row);
     }
-    setSaved('Items saved.');
+    let note = '';
+    if (changed.length) {
+      try {
+        const n = await updateOpenInvoices(changed);
+        if (n) note = ` ${n} unpaid invoice${n === 1 ? '' : 's'} updated to the new item details.`;
+      } catch (e) {
+        note = ' Could not update unpaid invoices: ' + (e.message || e);
+      }
+    }
+    setSaved('Items saved.' + note);
     loadItemList();
+  }
+
+  // Unpaid invoices (nothing paid yet) that use a changed item pick up the new
+  // price / tax / description. Paid or part-paid invoices are left as they were.
+  async function updateOpenInvoices(changed) {
+    const byId = Object.fromEntries(changed.map((c) => [c.id, c]));
+    const { data: lines } = await supabase.from('invoice_lines').select('invoice_id, fee_item_id').in('fee_item_id', Object.keys(byId));
+    const ids = [...new Set((lines || []).map((l) => l.invoice_id))];
+    let n = 0;
+    for (const id of ids) {
+      const full = await loadInvoiceFull(id);
+      const inv = full.invoice;
+      if (!inv || inv.voided || Number(inv.amount_paid) > 0 || Number(inv.amount_refunded) > 0) continue;
+      let touched = false;
+      const newLines = full.lines.map((l) => {
+        const c = byId[l.fee_item_id];
+        if (!c) return l;
+        const patch = {};
+        if (Number(l.unit_price) === Number(c.old.default_amount) && Number(c.old.default_amount) !== c.row.default_amount) patch.unit_price = c.row.default_amount;
+        if (!!l.taxable === !!c.old.taxable && !!c.old.taxable !== c.row.taxable) patch.taxable = c.row.taxable;
+        if (l.item_name === c.old.name && c.old.name !== c.row.name) patch.item_name = c.row.name;
+        // Description: swap the old item description for the new one, keeping anything added after it (e.g. " - student name").
+        const oldDesc = c.old.description || c.old.name;
+        const newDesc = c.row.description || c.row.name;
+        if (oldDesc !== newDesc && (l.description || '').startsWith(oldDesc)) patch.description = newDesc + l.description.slice(oldDesc.length);
+        if (!Object.keys(patch).length) return l;
+        touched = true;
+        return { ...l, ...patch };
+      });
+      if (!touched) continue;
+      await saveInvoice(inv, newLines, inv.id);
+      n++;
+    }
+    return n;
   }
   async function deleteItem(it, i) {
     if (it.id) await supabase.from('fee_items').delete().eq('id', it.id);
