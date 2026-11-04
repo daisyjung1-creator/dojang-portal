@@ -6,6 +6,7 @@ import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import { money, localISO, formatDate } from '../../lib/invoiceUtils';
 import { savePayment, queueEmail, usePaymentMethods } from './api';
+import CustomerPicker from './CustomerPicker';
 
 // "Apply Payment" — pick a customer, pick one of their open invoices, record
 // how they paid. Each payment gets the next receipt number automatically.
@@ -73,10 +74,7 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
       }
     >
       <Field label="Customer" required>
-        <select className="dp-select" style={{ width: '100%' }} value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value, invoice_id: '' })}>
-          <option value="">Select customer</option>
-          {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <CustomerPicker customers={customers} value={form.customer_id} onChange={(id) => setForm((f) => ({ ...f, customer_id: id, invoice_id: '' }))} />
       </Field>
       <Field label="Invoice">
         <select className="dp-select" style={{ width: '100%' }} value={form.invoice_id} onChange={(e) => pickInvoice(e.target.value)} disabled={!form.customer_id}>

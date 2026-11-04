@@ -6,6 +6,8 @@ import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import { money, localISO, addDays, calcTotals, lineAmount } from '../../lib/invoiceUtils';
 import { saveInvoice, savePayment, queueEmail, usePaymentMethods } from './api';
+import CustomerPicker from './CustomerPicker';
+import SearchSelect from '../../components/SearchSelect';
 
 function blankLine() {
   return { fee_item_id: '', description: '', quantity: 1, unit_price: '', taxable: true };
@@ -48,6 +50,10 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
   }, []);
 
   const totals = useMemo(() => calcTotals(lines, form.gst_rate), [lines, form.gst_rate]);
+  const itemOptions = useMemo(
+    () => items.map((it) => ({ value: it.id, label: it.name, hint: it.description && it.description !== it.name ? it.description : '', keywords: it.description || '' })),
+    [items]
+  );
   const linkedStudents = useMemo(() => students.filter((s) => form.customer_id && s.customer_id === form.customer_id && s.status !== 'withdrawn'), [students, form.customer_id]);
 
   function pickCustomer(id) {
@@ -121,12 +127,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 12 }}>
         <Field label="Customer" required>
           <div style={{ display: 'flex', gap: 6 }}>
-            <select className="dp-select" style={{ flex: 1, minWidth: 0 }} value={form.customer_id || ''} onChange={(e) => pickCustomer(e.target.value)}>
-              <option value="">Select customer</option>
-              {customers.filter((c) => c.active !== false || c.id === form.customer_id).map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <CustomerPicker customers={customers} value={form.customer_id} onChange={pickCustomer} includeInactive={false} />
             <button className="dp-btn" style={{ padding: '6px 8px' }} title="New customer" onClick={() => setQuickAdd({ name: '', email: '', phone: '' })}>
               <UserPlus size={15} />
             </button>
@@ -183,10 +184,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
             {lines.map((l, i) => (
               <tr key={i}>
                 <td style={td}>
-                  <select className="dp-select" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.fee_item_id || ''} onChange={(e) => pickItem(i, e.target.value)}>
-                    <option value="">Custom</option>
-                    {items.map((it) => <option key={it.id} value={it.id}>{it.name}{it.description && it.description !== it.name ? ' — ' + it.description : ''}</option>)}
-                  </select>
+                  <SearchSelect options={itemOptions} value={l.fee_item_id || ''} onChange={(v) => pickItem(i, v)} placeholder="Custom" inputStyle={{ fontSize: 13, padding: '6px', paddingRight: 40 }} />
                 </td>
                 <td style={td}><input className="dp-input" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} /></td>
                 <td style={td}>
