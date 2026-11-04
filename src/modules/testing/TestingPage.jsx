@@ -118,6 +118,31 @@ export default function TestingPage() {
     return Number(f.invoice.balance) <= 0.005 ? 'paid' : 'unpaid';
   };
 
+  // A belt fixed on the student's record carries over to the test list (until
+  // they're promoted): current belt, and the "testing for" belt and fee if
+  // those were still the automatic picks. Fees already invoiced stay as they are.
+  useEffect(() => {
+    if (!entries.length || !students.length) return;
+    const fixes = [];
+    entries.forEach((e) => {
+      const s = sById[e.student_id];
+      if (!s || e.promoted_at || !s.belt || s.belt === e.current_belt) return;
+      const patch = { current_belt: s.belt };
+      if (!e.target_belt || e.target_belt === nextBelt(e.current_belt)) patch.target_belt = nextBelt(s.belt);
+      if (!fees[e.id] && (!e.fee_item || e.fee_item === feeItemFor(e.current_belt))) {
+        patch.fee_item = feeItemFor(s.belt);
+        patch.fee_amount = itemByName[patch.fee_item]?.default_amount ?? e.fee_amount;
+      }
+      fixes.push([e, patch]);
+    });
+    if (!fixes.length) return;
+    setEntries((list) => list.map((x) => {
+      const f = fixes.find(([e]) => e.id === x.id);
+      return f ? { ...x, ...f[1] } : x;
+    }));
+    fixes.forEach(([e, patch]) => supabase.from('belt_test_entries').update(patch).eq('id', e.id).then(() => {}));
+  }, [entries, students, fees, itemByName]);
+
   const rows = useMemo(
     () =>
       entries
