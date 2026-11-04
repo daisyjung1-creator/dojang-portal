@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Download, Trash2, Mail, RotateCcw } from 'lucide-react';
+import { Plus, Search, Download, Trash2, Mail, RotateCcw, Printer } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -7,6 +7,7 @@ import { money, PERIODS, periodRange, useRememberedPeriod, downloadCSV } from '.
 import { loadCustomers, queueEmail, fetchAll } from './api';
 import PaymentModal from './PaymentModal';
 import RefundModal from './RefundModal';
+import ReceiptPreview from './ReceiptPreview';
 
 // Money in (payments, with receipt numbers) and money out (refunds), like
 // Express Invoice's "View Payments" and "View Refunds".
@@ -21,6 +22,7 @@ export default function PaymentsPage() {
   const [modal, setModal] = useState(null);
   const [refundModal, setRefundModal] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [receiptId, setReceiptId] = useState(null);
   const [flash, setFlash] = useState({ text: '', error: false });
 
   useEffect(() => {
@@ -129,6 +131,7 @@ export default function PaymentsPage() {
 
   return (
     <>
+      {receiptId && <ReceiptPreview paymentId={receiptId} onClose={() => setReceiptId(null)} />}
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Payments</h1>
@@ -208,7 +211,8 @@ export default function PaymentsPage() {
                   <td style={{ color: '#5B5F56' }}>{view === 'payments' ? p.reference : p.reason}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="dp-btn" style={{ padding: 5 }} aria-label="Email" title={view === 'payments' ? 'Email receipt' : 'Email refund confirmation'} onClick={() => emailIt(p)}><Mail size={13} /></button>
+                      {view === 'payments' && <button className="dp-btn" style={{ padding: 5 }} aria-label="Receipt" title="View / print receipt" onClick={() => setReceiptId(p.id)}><Printer size={13} /></button>}
+                      <button className="dp-btn" style={{ padding: 5 }} aria-label="Email" title={view === 'payments' ? 'Email receipt (PDF)' : 'Email refund confirmation'} onClick={() => emailIt(p)}><Mail size={13} /></button>
                       <button className="dp-btn dp-btn-danger" style={{ padding: 5 }} aria-label="Delete" onClick={() => setConfirmDel(p)}><Trash2 size={13} /></button>
                     </div>
                   </td>

@@ -16,7 +16,7 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — provided automatically
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { buildInvoicePdf, invoiceEmailHtml, receiptEmail, refundEmail, plainTextEmailHtml, fillTemplate } from './invoiceDocs.ts';
+import { buildInvoicePdf, buildReceiptPdf, invoiceEmailHtml, receiptEmail, refundEmail, plainTextEmailHtml, fillTemplate } from './invoiceDocs.ts';
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
@@ -122,10 +122,27 @@ async function sendInvoice(record: any) {
 
 async function sendReceipt(record: any) {
   const paymentId = record.payload?.payment_id;
-  const [{ data: p }, s] = await Promise.all([supabase.from('invoice_payments').select('*, invoices(*), customers(name)').eq('id', paymentId).single(), loadSettings()]);
+  const [{ data: p }, s] = await Promise.all([supabase.from('invoice_payments').select('*, invoices(*), customers(name, email, address, printed_info, cc_email)').eq('id', paymentId).single(), loadSettings()]);
   if (!p) throw new Error('Payment not found: ' + paymentId);
+  let lines: any[] = [];
+  let earlier = 0;
+  if (p.invoice_id) {
+    const [{ data: l }, { data: others }] = await Promise.all([
+      supabase.from('invoice_lines').select('*').eq('invoice_id', p.invoice_id).order('position'),
+      supabase.from('invoice_payments').select('id, amount, payment_date, receipt_number').eq('invoice_id', p.invoice_id),
+    ]);
+    lines = l || [];
+    // Payments on the same invoice made before this one.
+    earlier = (others || [])
+      .filter((o: any) => o.id !== p.id && (o.payment_date < p.payment_date || (o.payment_date === p.payment_date && Number(o.receipt_number) < Number(p.receipt_number))))
+      .reduce((t: number, o: any) => t + Number(o.amount || 0), 0);
+  }
   const { subject, html } = receiptEmail(p, p.invoices, p.customers?.name || '', s);
-  await sendEmail(record.recipient_email, subject, html, s.email ? { reply_to: s.email } : {});
+  const pdf = await buildReceiptPdf(p, p.invoices, lines, earlier, p.customers || {}, s);
+  const extra: Record<string, unknown> = { attachments: [{ filename: `Receipt-${p.receipt_number}.pdf`, content: toBase64(pdf) }] };
+  if (p.customers?.cc_email) extra.cc = p.customers.cc_email;
+  if (s.email) extra.reply_to = s.email;
+  await sendEmail(record.recipient_email, subject, html, extra);
   await supabase.from('invoice_payments').update({ emailed_at: new Date().toISOString() }).eq('id', paymentId);
 }
 

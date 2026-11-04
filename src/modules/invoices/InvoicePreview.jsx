@@ -5,10 +5,11 @@ import { supabase } from '../../supabaseClient';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import InvoiceDocument from './InvoiceDocument';
+import ReceiptPreview from './ReceiptPreview';
 import { loadInvoiceFull, queueEmail } from './api';
 import { money, formatDate, INVOICE_STATUS_STYLES } from '../../lib/invoiceUtils';
 
-function PrintPortal({ children }) {
+export function PrintPortal({ children }) {
   const [el] = useState(() => {
     let node = document.getElementById('print-root');
     if (!node) {
@@ -25,6 +26,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
   const [data, setData] = useState(null);
   const [msg, setMsg] = useState('');
   const [confirm, setConfirm] = useState(null);
+  const [receiptId, setReceiptId] = useState(null);
 
   async function reload() {
     setData(await loadInvoiceFull(invoiceId));
@@ -106,6 +108,9 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                     <td>{p.method}</td>
                     <td>{p.reference}</td>
                     <td style={{ textAlign: 'right' }}>{money(p.amount)}</td>
+                    <td style={{ width: 90 }}>
+                      <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setReceiptId(p.id)}><Printer size={12} /> Receipt</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -133,9 +138,13 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
         )}
       </Modal>
 
-      <PrintPortal>
-        <InvoiceDocument invoice={invoice} lines={lines} payments={payments} refunds={refunds} settings={settings} />
-      </PrintPortal>
+      {receiptId ? (
+        <ReceiptPreview paymentId={receiptId} onClose={() => setReceiptId(null)} />
+      ) : (
+        <PrintPortal>
+          <InvoiceDocument invoice={invoice} lines={lines} payments={payments} refunds={refunds} settings={settings} />
+        </PrintPortal>
+      )}
 
       {confirm === 'delete' && <ConfirmDialog message={`Delete invoice #${invoice.invoice_number}? This can't be undone.`} onCancel={() => setConfirm(null)} onConfirm={del} />}
       {confirm === 'cantDelete' && (

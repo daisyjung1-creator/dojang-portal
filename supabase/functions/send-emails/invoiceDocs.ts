@@ -185,6 +185,145 @@ export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Pay
   return await pdf.save();
 }
 
+// Receipt PDF: same look as the invoice — what was paid, how, and what is
+// left on the invoice afterwards.
+export async function buildReceiptPdf(p: Payment, inv: Invoice | null, lines: Line[], earlier: number, customer: Record<string, any>, s: Settings): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const W = 612, H = 792, M = 54;
+  let page = pdf.addPage([W, H]);
+  const ink = rgb(0.067, 0.067, 0.067);
+  const mute = rgb(0.45, 0.45, 0.45);
+  const faint = rgb(0.6, 0.6, 0.6);
+  const hair = rgb(0.88, 0.88, 0.88);
+  const red = rgb(0.75, 0.11, 0.13);
+  const white = rgb(1, 1, 1);
+  const text = (t: any, x: number, y: number, o: { size?: number; f?: any; color?: any; right?: boolean } = {}) => {
+    const size = o.size ?? 9.5, f = o.f ?? font;
+    const str = pdfSafe(t);
+    const w = f.widthOfTextAtSize(str, size);
+    page.drawText(str, { x: o.right ? x - w : x, y, size, font: f, color: o.color ?? ink });
+    return w;
+  };
+  const label = (t: string, x: number, y: number, right = false) => text(t.toUpperCase(), x, y, { size: 7, f: bold, color: faint, right });
+  const rule = (y: number, x1 = M, x2 = W - M, color = hair, th = 0.6) => page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness: th, color });
+  const wrap = (t: string, maxW: number, size = 9.5, f = font) => {
+    const out: string[] = [];
+    for (const para of String(t || '').split('\n')) {
+      let cur = '';
+      for (const word of para.split(' ')) {
+        const next = cur ? cur + ' ' + word : word;
+        if (f.widthOfTextAtSize(pdfSafe(next), size) > maxW && cur) { out.push(cur); cur = word; } else cur = next;
+      }
+      out.push(cur);
+    }
+    return out;
+  };
+  const roundRect = (x: number, y: number, w: number, h: number, r: number, color: any) => {
+    const d = `M ${r} 0 H ${w - r} Q ${w} 0 ${w} ${r} V ${h - r} Q ${w} ${h} ${w - r} ${h} H ${r} Q 0 ${h} 0 ${h - r} V ${r} Q 0 0 ${r} 0 Z`;
+    page.drawSvgPath(d, { x, y: y + h, color });
+  };
+
+  // Header
+  let y = H - M;
+  let logoH = 0;
+  if (s.logo_data && String(s.logo_data).startsWith('data:image/')) {
+    try {
+      const b64 = String(s.logo_data).split(',')[1];
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const img = String(s.logo_data).startsWith('data:image/png') ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+      const sc = Math.min(110 / img.width, 48 / img.height);
+      logoH = img.height * sc;
+      page.drawImage(img, { x: W - M - img.width * sc, y: y - logoH + 8, width: img.width * sc, height: logoH });
+    } catch (_e) { /* bad logo: skip it */ }
+  }
+  text(s.business_name || '', M, y, { size: 10, f: bold });
+  let yb = y - 13;
+  for (const l of [...String(s.address || '').split('\n'), [s.phone, s.email].filter(Boolean).join('  ·  '), s.website].filter(Boolean)) {
+    text(l, M, yb, { size: 8.5, color: mute }); yb -= 11.5;
+  }
+  y = Math.min(yb, y - logoH) - 34;
+
+  page.drawRectangle({ x: M, y: y + 30, width: 22, height: 3, color: red });
+  text('Receipt', M, y, { size: 30, f: bold });
+  text(`#${p.receipt_number ?? ''}`, M + bold.widthOfTextAtSize('Receipt', 30) + 10, y, { size: 30, color: faint });
+  y -= 40;
+
+  // Received from · date/method · amount paid
+  const c2 = M + 230, c3 = W - M;
+  label('Received from', M, y);
+  label('Payment date', c2, y);
+  label('Amount paid', c3, y, true);
+  const yt = y - 15;
+  const name = customer?.name || inv?.customer_name || '';
+  const addr = [customer?.address || '', customer?.printed_info || ''].filter(Boolean).join('\n') || inv?.customer_address || '';
+  text(name, M, yt, { size: 10.5, f: bold });
+  let yc = yt - 13;
+  for (const l of [...String(addr).split('\n'), customer?.email || inv?.customer_email].filter(Boolean)) { text(l, M, yc, { size: 9, color: mute }); yc -= 12; }
+  text(fdate(p.payment_date), c2, yt, { size: 10 });
+  label('Method', c2, yt - 22);
+  text(p.method || '', c2, yt - 36, { size: 10 });
+  let yr = yt - 36;
+  if (p.reference) { yr -= 13; text(`Ref. ${p.reference}`, c2, yr, { size: 8.5, color: mute }); }
+  text(money(p.amount), c3, yt - 8, { size: 22, f: bold, right: true });
+  text('Thank you', c3, yt - 22, { size: 8, color: red, right: true });
+  y = Math.min(yc, yr) - 30;
+
+  if (inv) {
+    const xAmt = W - M;
+    label(`For invoice #${inv.invoice_number}  ·  ${fdate(inv.invoice_date)}`, M, y);
+    label('Amount', xAmt, y, true);
+    y -= 9;
+    rule(y, M, W - M, ink, 0.8);
+    y -= 17;
+    for (const l of lines) {
+      const title = l.item_name && l.item_name !== l.description ? l.item_name : l.description;
+      const sub = title === l.description ? [] : wrap(l.description, 360, 8.5);
+      const h = 14 + sub.length * 11 + 8;
+      if (y - h < 200) { page = pdf.addPage([W, H]); y = H - M; }
+      text(Number(l.quantity) !== 1 ? `${title}  x${Number(l.quantity)}` : title, M, y, { size: 9.5, f: bold });
+      sub.forEach((t, i) => text(t, M, y - 13 - i * 11, { size: 8.5, color: mute }));
+      text(money(l.amount), xAmt, y, { right: true });
+      y -= h;
+      rule(y + 10);
+    }
+    y -= 10;
+    const tx = W - M - 200;
+    const row = (k: string, v: string, b = false) => {
+      text(k, tx, y, { size: 9.5, color: b ? ink : mute, f: b ? bold : font });
+      text(v, W - M, y, { size: 9.5, f: b ? bold : font, right: true });
+      y -= 17;
+    };
+    const rate = Number(inv.gst_rate) || 0;
+    row('Subtotal', money(inv.subtotal));
+    row(`GST (${rate}%)`, money(inv.gst_amount));
+    rule(y + 10, tx, W - M);
+    row('Invoice total', money(inv.total), true);
+    if (earlier > 0.005) row('Paid before', '-' + money(earlier));
+    row('This payment', '-' + money(p.amount));
+    const remaining = Math.max(Number(inv.total) - earlier - Number(p.amount), 0);
+    const boxH = 34, pad = 12;
+    const boxTop = y + 17 - 12;
+    const mid = boxTop - boxH / 2;
+    roundRect(tx, boxTop - boxH, W - M - tx, boxH, 5, ink);
+    text(remaining > 0.005 ? 'Balance remaining' : 'Paid in full', tx + pad, mid - 10 * 0.36, { size: 10, f: bold, color: white });
+    text(money(remaining), W - M - pad, mid - 13 * 0.36, { size: 13, f: bold, color: white, right: true });
+    y = boxTop - boxH - 34;
+  }
+
+  if (p.notes && !String(p.notes).startsWith('Imported from Express')) {
+    label('Notes', M, y); y -= 13;
+    for (const l of wrap(p.notes, 330, 9)) { text(l, M, y, { size: 9 }); y -= 12; }
+  }
+
+  const fy = 40;
+  rule(fy + 12);
+  text([s.business_name, s.gst_number ? 'GST ' + s.gst_number : ''].filter(Boolean).join('  ·  '), M, fy, { size: 7.5, color: faint });
+  text([s.phone, s.email].filter(Boolean).join('  ·  '), W - M, fy, { size: 7.5, color: faint, right: true });
+  return await pdf.save();
+}
+
 export function invoiceEmailHtml(inv: Invoice, lines: Line[], s: Settings, message: string, balance: number) {
   const rows = lines
     .map((l) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #eee">${l.item_name ? '<b>' + esc(l.item_name) + '</b> ' : ''}${esc(l.description)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${Number(l.quantity)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${money(l.amount)}</td></tr>`)
@@ -212,7 +351,7 @@ export function receiptEmail(p: Payment, inv: Invoice | null, customerName: stri
     subject: `Payment receipt #${p.receipt_number} — ${s.business_name}`,
     html: `<div style="font-family:Helvetica,Arial,sans-serif;color:#20241F;max-width:520px">
   <p>Hi ${esc(customerName)},</p>
-  <p>Thank you — we've received your payment.</p>
+  <p>Thank you — we've received your payment. Your receipt is attached as a PDF.</p>
   <table style="font-size:14px;border-collapse:collapse;margin:12px 0">
     <tr><td style="color:#5B5F56;padding:3px 16px 3px 0">Receipt #</td><td><b>${p.receipt_number}</b></td></tr>
     <tr><td style="color:#5B5F56;padding:3px 16px 3px 0">Date</td><td>${fdate(p.payment_date)}</td></tr>
