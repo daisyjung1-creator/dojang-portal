@@ -5,7 +5,7 @@ import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import { money, localISO, formatDate } from '../../lib/invoiceUtils';
-import { savePayment, queueEmail, usePaymentMethods } from './api';
+import { savePayment, queueEmail, usePaymentMethods, loadCredit, applyCredit } from './api';
 import CustomerPicker from './CustomerPicker';
 
 // "Apply Payment" — pick a customer, pick one of their open invoices, record
@@ -28,18 +28,51 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [credit, setCredit] = useState(0);
+  const [creditMsg, setCreditMsg] = useState('');
   useEffect(() => {
-    if (!form.customer_id) return setOpenInvoices([]);
-    supabase
+    setCreditMsg('');
+    if (!form.customer_id) return setCredit(0);
+    loadCredit(form.customer_id).then(setCredit);
+  }, [form.customer_id]);
+
+  useEffect(() => {
+    loadOpen();
+  }, [form.customer_id]);
+
+  function loadOpen() {
+    if (!form.customer_id) return Promise.resolve(setOpenInvoices([]));
+    return supabase
       .from('invoice_summary')
       .select('id, invoice_number, invoice_date, total, balance, status, is_opening_balance')
       .eq('customer_id', form.customer_id)
       .eq('voided', false)
       .order('invoice_date', { ascending: false })
-      .then(({ data }) => setOpenInvoices((data || []).filter((i) => Number(i.balance) > 0 || i.id === form.invoice_id)));
-  }, [form.customer_id]);
+      .then(({ data }) => {
+        const list = (data || []).filter((i) => Number(i.balance) > 0 || i.id === form.invoice_id);
+        setOpenInvoices(list);
+        return list;
+      });
+  }
 
   const customer = customers.find((c) => c.id === form.customer_id);
+  const selected = openInvoices.find((i) => i.id === form.invoice_id);
+  // When editing, this payment's own amount is already counted on the invoice.
+  const owing = selected ? Number(selected.balance) + (isEdit && initial?.invoice_id === selected.id ? Number(initial.amount) - Number(initial.credit_amount || 0) : 0) : 0;
+  const extra = Number(form.amount) > 0 ? (form.invoice_id ? Math.max(Number(form.amount) - owing, 0) : Number(form.amount)) : 0;
+
+  async function useCredit() {
+    try {
+      const used = await applyCredit(form.invoice_id);
+      const list = await loadOpen();
+      const inv = (list || []).find((i) => i.id === form.invoice_id);
+      setCredit(await loadCredit(form.customer_id));
+      setForm((f) => ({ ...f, amount: inv ? Number(inv.balance) : 0 }));
+      setCreditMsg(used ? `Used ${money(used)} of the family's credit on this invoice.` : 'No credit could be used.');
+    } catch (e) {
+      setCreditMsg('Could not use credit: ' + (e.message || e));
+    }
+  }
 
   function pickInvoice(id) {
     const inv = openInvoices.find((i) => i.id === id);
@@ -86,6 +119,15 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
           ))}
         </select>
       </Field>
+      {credit > 0.004 && (
+        <div style={{ background: '#E8F1E9', color: '#2A5A30', border: '1px solid #BFDCC3', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px', display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Family credit available: <b>{money(credit)}</b></span>
+          {selected && owing > 0.004 && !isEdit && (
+            <button type="button" className="dp-btn" style={{ padding: '3px 10px', fontSize: 12.5 }} onClick={useCredit}>Use on this invoice</button>
+          )}
+        </div>
+      )}
+      {creditMsg && <p style={{ fontSize: 13, color: '#2A5A30', margin: '-6px 0 10px' }}>{creditMsg}</p>}
       <div style={styles.formRow}>
         <Field label="Date" required>
           <input type="date" className="dp-input" style={{ width: '100%' }} value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
@@ -94,6 +136,11 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
           <input type="number" step="0.01" className="dp-input" style={{ width: '100%' }} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
         </Field>
       </div>
+      {extra > 0.004 && form.customer_id && (
+        <p style={{ background: '#E6F0F6', color: '#1E4566', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '-4px 0 12px' }}>
+          {form.invoice_id ? `${money(extra)} is more than this invoice owes — it will be saved as family credit` : `No invoice picked — the whole ${money(extra)} will be saved as family credit`} and taken off the next invoice.
+        </p>
+      )}
       <div style={styles.formRow}>
         <Field label="Method">
           <select className="dp-select" style={{ width: '100%' }} value={form.method || PAYMENT_METHODS[0]} onChange={(e) => setForm({ ...form, method: e.target.value })}>

@@ -6,7 +6,7 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import InvoiceDocument from './InvoiceDocument';
 import ReceiptPreview from './ReceiptPreview';
-import { loadInvoiceFull, queueEmail } from './api';
+import { loadInvoiceFull, queueEmail, loadCredit, applyCredit } from './api';
 import { money, formatDate, INVOICE_STATUS_STYLES } from '../../lib/invoiceUtils';
 
 export function PrintPortal({ children }) {
@@ -28,16 +28,30 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
   const [confirm, setConfirm] = useState(null);
   const [receiptId, setReceiptId] = useState(null);
 
+  const [credit, setCredit] = useState(0);
   async function reload() {
-    setData(await loadInvoiceFull(invoiceId));
+    const d = await loadInvoiceFull(invoiceId);
+    setData(d);
+    setCredit(d.invoice?.customer_id ? await loadCredit(d.invoice.customer_id) : 0);
+  }
+
+  async function useCredit() {
+    try {
+      const used = await applyCredit(invoiceId);
+      setMsg(used ? `Used ${money(used)} of the family's credit on this invoice.` : 'No credit could be used.');
+      await reload();
+      onChanged && onChanged();
+    } catch (e) {
+      setMsg('Could not use credit: ' + (e.message || e));
+    }
   }
   useEffect(() => {
     reload();
   }, [invoiceId]);
 
   if (!data || !data.invoice) return null;
-  const { invoice, lines, payments, refunds } = data;
-  const refundable = Number(invoice.amount_paid) - Number(invoice.amount_refunded);
+  const { invoice, lines, payments, refunds, credits = [] } = data;
+  const refundable = Number(invoice.amount_paid) - Number(invoice.credit_used || 0) - Number(invoice.amount_refunded);
   const st = INVOICE_STATUS_STYLES[invoice.status] || INVOICE_STATUS_STYLES['Not Paid'];
 
   async function sendEmail() {
@@ -80,6 +94,9 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
             {refundable > 0.005 && onRefund && (
               <button className="dp-btn" onClick={() => onRefund(invoice, refundable)}><RotateCcw size={14} /> Refund</button>
             )}
+            {!invoice.voided && Number(invoice.balance) > 0 && credit > 0.004 && (
+              <button className="dp-btn" onClick={useCredit} title="Family account credit from overpayments">Use credit ({money(Math.min(credit, Number(invoice.balance)))})</button>
+            )}
             {!invoice.voided && Number(invoice.balance) > 0 && (
               <button className="dp-btn dp-btn-primary" onClick={() => onPay(invoice)}><Wallet size={14} /> Apply Payment</button>
             )}
@@ -107,9 +124,43 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                     <td>Receipt #{p.receipt_number}</td>
                     <td>{p.method}</td>
                     <td>{p.reference}</td>
-                    <td style={{ textAlign: 'right' }}>{money(p.amount)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {money(p.amount)}
+                      {Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }}>{money(p.credit_amount)} to family credit</div>}
+                    </td>
                     <td style={{ width: 90 }}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setReceiptId(p.id)}><Printer size={12} /> Receipt</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {credits.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>Account credit used</p>
+            <table className="dp-table">
+              <tbody>
+                {credits.map((c) => (
+                  <tr key={c.id}>
+                    <td>{formatDate(c.applied_date)}</td>
+                    <td>Family credit</td>
+                    <td style={{ textAlign: 'right' }}>{money(c.amount)}</td>
+                    <td style={{ width: 90 }}>
+                      <button
+                        className="dp-btn"
+                        style={{ padding: '3px 8px', fontSize: 12 }}
+                        title="Put this back on the family's credit"
+                        onClick={async () => {
+                          await supabase.from('credit_applications').delete().eq('id', c.id);
+                          setMsg('Credit returned to the family.');
+                          await reload();
+                          onChanged && onChanged();
+                        }}
+                      >
+                        Undo
+                      </button>
                     </td>
                   </tr>
                 ))}

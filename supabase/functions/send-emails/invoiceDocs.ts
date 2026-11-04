@@ -270,6 +270,17 @@ export async function buildReceiptPdf(p: Payment, inv: Invoice | null, lines: Li
   text('Thank you', c3, yt - 22, { size: 8, color: red, right: true });
   y = Math.min(yc, yr) - 30;
 
+  const toCredit = Number(p.credit_amount || 0);
+  const applied = Number(p.amount || 0) - toCredit;
+  const creditNote = () => {
+    if (toCredit <= 0.004) return;
+    const bx = inv ? W - M - 200 : M, bw = 200, bh = 26;
+    page.drawRectangle({ x: bx, y: y - bh + 8, width: bw, height: bh, color: rgb(0.95, 0.97, 0.95), borderColor: rgb(0.75, 0.86, 0.76), borderWidth: 0.8 });
+    text('Saved as account credit', bx + 10, y - 9, { size: 9.5 });
+    text(money(toCredit), bx + bw - 10, y - 9, { size: 9.5, f: bold, right: true });
+    y -= bh + 20;
+  };
+
   if (inv) {
     const xAmt = W - M;
     label(`For invoice #${inv.invoice_number}  ·  ${fdate(inv.invoice_date)}`, M, y);
@@ -301,16 +312,18 @@ export async function buildReceiptPdf(p: Payment, inv: Invoice | null, lines: Li
     rule(y + 10, tx, W - M);
     row('Invoice total', money(inv.total), true);
     if (earlier > 0.005) row('Paid before', '-' + money(earlier));
-    row('This payment', '-' + money(p.amount));
-    const remaining = Math.max(Number(inv.total) - earlier - Number(p.amount), 0);
+    row('This payment', '-' + money(applied));
+    const remaining = Math.max(Number(inv.total) - earlier - applied, 0);
     const boxH = 34, pad = 12;
     const boxTop = y + 17 - 12;
     const mid = boxTop - boxH / 2;
     roundRect(tx, boxTop - boxH, W - M - tx, boxH, 5, ink);
     text(remaining > 0.005 ? 'Balance remaining' : 'Paid in full', tx + pad, mid - 10 * 0.36, { size: 10, f: bold, color: white });
     text(money(remaining), W - M - pad, mid - 13 * 0.36, { size: 13, f: bold, color: white, right: true });
-    y = boxTop - boxH - 34;
+    y = boxTop - boxH - 20;
   }
+  creditNote();
+  y -= 14;
 
   if (p.notes && !String(p.notes).startsWith('Imported from Express')) {
     label('Notes', M, y); y -= 13;

@@ -5,7 +5,7 @@ import { styles } from '../../lib/uiStyles';
 import { todayISO, currentCycleStart, nextDueDate, billingAnchor, addDaysISO } from '../../lib/billingDates';
 import { money, formatDate, calcTotals } from '../../lib/invoiceUtils';
 import { proposeInvoices, invoiceHeader, familyName, isBillable, tuitionLines, isManual } from '../../lib/tuitionBilling';
-import { loadSettings, loadCustomers, saveInvoice, queueEmail, fetchAll, payInvoicesInFull, usePaymentMethods } from '../invoices/api';
+import { loadSettings, loadCustomers, saveInvoice, queueEmail, fetchAll, payInvoicesInFull, usePaymentMethods, applyCredit } from '../invoices/api';
 import { StatusPill } from '../invoices/InvoicesPage';
 import InvoicePreview from '../invoices/InvoicePreview';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -136,21 +136,34 @@ export default function BillingPage() {
     let made = 0;
     let mailed = 0;
     let paid = 0;
+    let creditUsed = 0;
     try {
       for (const p of list) {
         const header = invoiceHeader(p, settings, today);
         const inv = await saveInvoice(header, p.lines, null);
         made++;
+        // Family credit (from an earlier overpayment) comes off first.
+        let used = 0;
+        try {
+          used = await applyCredit(inv.id);
+        } catch (e) {
+          /* no credit table yet / no credit: carry on */
+        }
+        if (used) creditUsed += used;
+        const left = Math.round((Number(inv.total) - used) * 100) / 100;
         if (mode === 'preauth') {
-          const card = methods.find((m) => /pre-?auth/i.test(m)) || methods[0];
-          await payInvoicesInFull([{ ...inv, balance: inv.total }], card, p.due_date < today ? p.due_date : today, emailReceipts);
+          if (left > 0.004) {
+            const card = methods.find((m) => /pre-?auth/i.test(m)) || methods[0];
+            await payInvoicesInFull([{ ...inv, balance: left }], card, p.due_date < today ? p.due_date : today, emailReceipts);
+          }
           paid++;
         } else if (emailNow && p.manual !== false && header.customer_email && isManual(p.customer)) {
           await queueEmail('invoice', header.customer_email, { invoice_id: inv.id });
           mailed++;
         }
       }
-      setFlash(mode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`);
+      const creditNote = creditUsed > 0.004 ? ` ${money(creditUsed)} of family credit used.` : '';
+      setFlash((mode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`) + creditNote);
     } catch (e) {
       setFlash(`Stopped after ${made} invoices: ${e.message}`);
     }

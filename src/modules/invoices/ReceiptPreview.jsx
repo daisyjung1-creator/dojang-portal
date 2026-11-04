@@ -16,16 +16,18 @@ export default function ReceiptPreview({ paymentId, onClose }) {
     (async () => {
       const { data: p } = await supabase.from('invoice_payments').select('*').eq('id', paymentId).single();
       if (!p) return;
-      const [settings, cust, inv, lines, others] = await Promise.all([
+      const [settings, cust, inv, lines, others, used] = await Promise.all([
         loadSettings(),
         p.customer_id ? supabase.from('customers').select('name, email, address, printed_info').eq('id', p.customer_id).single() : { data: null },
         p.invoice_id ? supabase.from('invoice_summary').select('*').eq('id', p.invoice_id).single() : { data: null },
         p.invoice_id ? supabase.from('invoice_lines').select('*').eq('invoice_id', p.invoice_id).order('position') : { data: [] },
-        p.invoice_id ? supabase.from('invoice_payments').select('id, amount, payment_date, receipt_number').eq('invoice_id', p.invoice_id) : { data: [] },
+        p.invoice_id ? supabase.from('invoice_payments').select('id, amount, credit_amount, payment_date, receipt_number').eq('invoice_id', p.invoice_id) : { data: [] },
+        p.invoice_id ? supabase.from('credit_applications').select('amount, applied_date, created_at').eq('invoice_id', p.invoice_id) : { data: [] },
       ]);
       const earlier = (others.data || [])
         .filter((o) => o.id !== p.id && (o.payment_date < p.payment_date || (o.payment_date === p.payment_date && Number(o.receipt_number) < Number(p.receipt_number))))
-        .reduce((t, o) => t + Number(o.amount || 0), 0);
+        .reduce((t, o) => t + Number(o.amount || 0) - Number(o.credit_amount || 0), 0)
+        + (used.data || []).filter((c) => c.applied_date <= p.payment_date).reduce((t, c) => t + Number(c.amount || 0), 0);
       setData({ p, settings, customer: cust.data, invoice: inv.data, lines: lines.data || [], earlier });
     })();
   }, [paymentId]);

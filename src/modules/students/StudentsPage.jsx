@@ -87,13 +87,15 @@ export default function StudentsPage() {
 
   async function fetchStudents() {
     setLoading(true);
-    const [{ data, error: fetchError }, { data: fams }] = await Promise.all([
+    const [{ data, error: fetchError }, { data: fams }, { data: credits }] = await Promise.all([
       supabase.from('students').select('*').order('name'),
       supabase.from('customers').select('id, name, payment_type'),
+      supabase.from('customer_credit').select('customer_id, credit').neq('credit', 0),
     ]);
     if (fetchError) setError('Could not load the student list.');
     else setStudents(data || []);
-    setFamilies(Object.fromEntries((fams || []).map((c) => [c.id, c])));
+    const creditBy = Object.fromEntries((credits || []).map((r) => [r.customer_id, Number(r.credit)]));
+    setFamilies(Object.fromEntries((fams || []).map((c) => [c.id, { ...c, credit: creditBy[c.id] || 0 }])));
     setLoading(false);
   }
 
@@ -431,6 +433,7 @@ export default function StudentsPage() {
                       {families[s.customer_id]?.payment_type === 'manual' && !s.billing_exempt && <Badge c={['#1E4566', '#E6F0F6', '#B9D3E4']} title="Pays manually (debit / cash)">Manual pay</Badge>}
                       {s.classes_per_week ? <Badge c={['#5B5F56', '#F1EFE7', '#DEDACC']}>{s.classes_per_week}x/wk</Badge> : null}
                       {s.family_discount && <Badge c={['#4B3A86', '#EEEAF6', '#D2C9EA']} title="Big family discount">Family -20%</Badge>}
+                      {families[s.customer_id]?.credit > 0.004 && <Badge c={['#2A5A30', '#E8F1E9', '#BFDCC3']} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
                       {s.subsidy && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
                     </td>
                     <td>{billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}</td>
@@ -590,6 +593,11 @@ export default function StudentsPage() {
                 <option value="manual">Pays manually — debit / cash (gets invoice + reminder)</option>
               </select>
             </Field>
+          )}
+          {form.customer_id && families[form.customer_id]?.credit > 0.004 && (
+            <p style={{ background: '#E8F1E9', color: '#2A5A30', border: '1px solid #BFDCC3', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px' }}>
+              Family credit: <b>${Number(families[form.customer_id].credit).toFixed(2)}</b> — taken off the family’s next invoice automatically (from overpayments).
+            </p>
           )}
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 8 }}>
             <input type="checkbox" checked={!!form.family_discount} onChange={(e) => setForm({ ...form, family_discount: e.target.checked })} />

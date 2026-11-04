@@ -96,14 +96,21 @@ async function loadSettings() {
 
 async function sendInvoice(record: any) {
   const invoiceId = record.payload?.invoice_id;
-  const [{ data: inv }, { data: lines }, { data: payments }, { data: refunds }, s] = await Promise.all([
+  const [{ data: inv }, { data: lines }, { data: rawPayments }, { data: refunds }, { data: credits }, s] = await Promise.all([
     supabase.from('invoices').select('*, customers(cc_email)').eq('id', invoiceId).single(),
     supabase.from('invoice_lines').select('*').eq('invoice_id', invoiceId).order('position'),
     supabase.from('invoice_payments').select('*').eq('invoice_id', invoiceId),
     supabase.from('invoice_refunds').select('*').eq('invoice_id', invoiceId),
+    supabase.from('credit_applications').select('amount').eq('invoice_id', invoiceId),
     loadSettings(),
   ]);
   if (!inv) throw new Error('Invoice not found: ' + invoiceId);
+  // Paid toward this invoice: payments minus any part kept as family credit,
+  // plus family credit used on it.
+  const payments = [
+    ...(rawPayments || []).map((p: any) => ({ ...p, amount: Number(p.amount || 0) - Number(p.credit_amount || 0) })),
+    ...(credits || []).map((c: any) => ({ amount: Number(c.amount || 0) })),
+  ];
   const paid = (payments || []).reduce((t: number, p: any) => t + Number(p.amount || 0), 0);
   const balance = Math.max(Number(inv.total) - paid, 0);
   // A reminder (sent a few days before the billing date) re-sends the invoice
@@ -127,15 +134,17 @@ async function sendReceipt(record: any) {
   let lines: any[] = [];
   let earlier = 0;
   if (p.invoice_id) {
-    const [{ data: l }, { data: others }] = await Promise.all([
+    const [{ data: l }, { data: others }, { data: used }] = await Promise.all([
       supabase.from('invoice_lines').select('*').eq('invoice_id', p.invoice_id).order('position'),
-      supabase.from('invoice_payments').select('id, amount, payment_date, receipt_number').eq('invoice_id', p.invoice_id),
+      supabase.from('invoice_payments').select('id, amount, credit_amount, payment_date, receipt_number').eq('invoice_id', p.invoice_id),
+      supabase.from('credit_applications').select('amount, applied_date').eq('invoice_id', p.invoice_id),
     ]);
     lines = l || [];
-    // Payments on the same invoice made before this one.
+    // Paid on the same invoice before this payment (payments and family credit used).
     earlier = (others || [])
       .filter((o: any) => o.id !== p.id && (o.payment_date < p.payment_date || (o.payment_date === p.payment_date && Number(o.receipt_number) < Number(p.receipt_number))))
-      .reduce((t: number, o: any) => t + Number(o.amount || 0), 0);
+      .reduce((t: number, o: any) => t + Number(o.amount || 0) - Number(o.credit_amount || 0), 0)
+      + (used || []).filter((c: any) => c.applied_date <= p.payment_date).reduce((t: number, c: any) => t + Number(c.amount || 0), 0);
   }
   const { subject, html } = receiptEmail(p, p.invoices, p.customers?.name || '', s);
   const pdf = await buildReceiptPdf(p, p.invoices, lines, earlier, p.customers || {}, s);

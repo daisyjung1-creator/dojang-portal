@@ -18,7 +18,9 @@ export default function ReceiptDocument({ payment: p, invoice, lines = [], earli
   const name = customer?.name || invoice?.customer_name || '';
   const addr = [customer?.address, customer?.printed_info].filter(Boolean).join('\n') || invoice?.customer_address || '';
   const email = customer?.email || invoice?.customer_email || '';
-  const remaining = invoice ? Math.max(Number(invoice.total) - earlier - Number(p.amount), 0) : 0;
+  const toCredit = Number(p.credit_amount || 0);
+  const applied = Number(p.amount) - toCredit;
+  const remaining = invoice ? Math.max(Number(invoice.total) - earlier - applied, 0) : 0;
   const rate = Number(invoice?.gst_rate) || 0;
   const showNotes = p.notes && !String(p.notes).startsWith('Imported from Express');
 
@@ -93,13 +95,20 @@ export default function ReceiptDocument({ payment: p, invoice, lines = [], earli
             <div style={{ borderTop: `1px solid ${HAIR}`, margin: '4px 0' }} />
             <Row k="Invoice total" v={money(invoice.total)} bold />
             {earlier > 0.005 && <Row k="Paid before" v={`-${money(earlier)}`} />}
-            <Row k="This payment" v={`-${money(p.amount)}`} />
+            <Row k="This payment" v={`-${money(applied)}`} />
             <div style={{ background: INK, color: '#fff', borderRadius: 6, height: 46, padding: '0 16px', marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 700, fontSize: 13 }}>{remaining > 0.005 ? 'Balance remaining' : 'Paid in full'}</span>
               <span style={{ fontWeight: 700, fontSize: 17, ...num }}>{money(remaining)}</span>
             </div>
           </div>
         </>
+      )}
+
+      {toCredit > 0.004 && (
+        <div style={{ marginLeft: invoice ? 'auto' : 0, width: 280, marginTop: 14, border: '1px solid #BFDCC3', background: '#F2F8F3', borderRadius: 6, padding: '10px 14px', fontSize: 12.5, display: 'flex', justifyContent: 'space-between' }}>
+          <span>Saved as account credit</span>
+          <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(toCredit)}</b>
+        </div>
       )}
 
       {showNotes && (

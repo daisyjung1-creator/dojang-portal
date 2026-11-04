@@ -28,6 +28,7 @@ function emptyForm() {
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
+  const [credits, setCredits] = useState({});
   const [balances, setBalances] = useState({});
   const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
@@ -45,11 +46,13 @@ export default function CustomersPage() {
   }, []);
 
   async function loadAll() {
-    const [c, { data: b }, { data: s }] = await Promise.all([
+    const [c, { data: b }, { data: s }, { data: cr }] = await Promise.all([
       loadCustomers(),
       fetchAll(() => supabase.from('customer_balances').select('*')),
       supabase.from('students').select('id, name, guardian_name, guardian_email, guardian_phone, address, customer_id, status').order('name'),
+      supabase.from('customer_credit').select('customer_id, credit').neq('credit', 0),
     ]);
+    setCredits(Object.fromEntries((cr || []).map((r) => [r.customer_id, Number(r.credit)])));
     setCustomers(c);
     setBalances(Object.fromEntries((b || []).map((r) => [r.customer_id, r])));
     setStudents(s || []);
@@ -259,7 +262,10 @@ export default function CustomersPage() {
                 return (
                   <tr key={c.id} className="dp-row" style={{ cursor: 'pointer', opacity: c.active === false ? 0.55 : 1 }} onClick={() => openEdit(c)}>
                     <td style={{ fontWeight: 500 }}>{c.name}</td>
-                    <td style={{ textAlign: 'right', color: bal > 0 ? '#9A2B2B' : '#8A8D84' }}>{money(bal)}</td>
+                    <td style={{ textAlign: 'right', color: bal > 0 ? '#9A2B2B' : '#8A8D84' }}>
+                      {money(bal)}
+                      {credits[c.id] > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
+                    </td>
                     <td>{bal > 0 ? balances[c.id]?.oldest_due_date : ''}</td>
                     <td>{balances[c.id]?.last_invoice_number || ''}</td>
                     <td>{c.phone}</td>

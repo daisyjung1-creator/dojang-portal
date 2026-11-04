@@ -15,8 +15,10 @@ const labelStyle = { fontSize: 9, fontWeight: 700, color: FAINT, textTransform: 
 
 export default function InvoiceDocument({ invoice, lines, payments = [], refunds = [], settings }) {
   const s = settings || {};
-  const paid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const balance = Math.max(Number(invoice.total || 0) - paid, 0);
+  // Part of a payment kept as family credit doesn't count here; credit used does.
+  const creditUsed = Number(invoice.credit_used || 0);
+  const paid = invoice.amount_paid != null ? Number(invoice.amount_paid) - creditUsed : payments.reduce((sum, p) => sum + Number(p.amount || 0) - Number(p.credit_amount || 0), 0);
+  const balance = Math.max(Number(invoice.total || 0) - paid - creditUsed, 0);
   const refunded = refunds.reduce((sum, r) => sum + Number(r.amount || 0), 0);
   const rate = Number(invoice.gst_rate) || 0;
   const num = { textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
@@ -101,7 +103,8 @@ export default function InvoiceDocument({ invoice, lines, payments = [], refunds
         <Row k={`GST (${rate}%)`} v={money(invoice.gst_amount)} />
         <div style={{ borderTop: `1px solid ${HAIR}`, margin: '4px 0' }} />
         <Row k="Total" v={money(invoice.total)} bold />
-        {paid > 0 && <Row k="Paid" v={`-${money(paid)}`} />}
+        {paid > 0.004 && <Row k="Paid" v={`-${money(paid)}`} />}
+        {creditUsed > 0.004 && <Row k="Account credit used" v={`-${money(creditUsed)}`} />}
         {refunded > 0 && <Row k="Refunded to you" v={money(refunded)} />}
         <div style={{ background: INK, color: '#fff', borderRadius: 6, height: 46, padding: '0 16px', marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontWeight: 700, fontSize: 13 }}>Amount due</span>

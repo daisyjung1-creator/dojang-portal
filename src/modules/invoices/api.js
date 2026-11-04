@@ -30,13 +30,14 @@ export async function loadItems() {
 }
 
 export async function loadInvoiceFull(id) {
-  const [{ data: invoice }, { data: lines }, { data: payments }, { data: refunds }] = await Promise.all([
+  const [{ data: invoice }, { data: lines }, { data: payments }, { data: refunds }, { data: credits }] = await Promise.all([
     supabase.from('invoice_summary').select('*').eq('id', id).single(),
     supabase.from('invoice_lines').select('*').eq('invoice_id', id).order('position'),
     supabase.from('invoice_payments').select('*').eq('invoice_id', id).order('payment_date'),
     supabase.from('invoice_refunds').select('*').eq('invoice_id', id).order('refund_date'),
+    supabase.from('credit_applications').select('*').eq('invoice_id', id).order('applied_date'),
   ]);
-  return { invoice, lines: lines || [], payments: payments || [], refunds: refunds || [] };
+  return { invoice, lines: lines || [], payments: payments || [], refunds: refunds || [], credits: credits || [] };
 }
 
 // Saves header + lines. Lines are replaced wholesale (simplest + safe: an
@@ -176,4 +177,18 @@ export function usePaymentMethods() {
 }
 export function clearPaymentMethodsCache() {
   methodsCache = null;
+}
+
+// Family account credit (from overpayments) available now.
+export async function loadCredit(customerId) {
+  if (!customerId) return 0;
+  const { data } = await supabase.from('customer_credit').select('credit').eq('customer_id', customerId).maybeSingle();
+  return Number(data?.credit || 0);
+}
+
+// Use the family's credit on an invoice (up to what's owed). Returns the amount used.
+export async function applyCredit(invoiceId, amount = null) {
+  const { data, error } = await supabase.rpc('apply_customer_credit', { p_invoice: invoiceId, p_amount: amount });
+  if (error) throw error;
+  return Number(data || 0);
 }
