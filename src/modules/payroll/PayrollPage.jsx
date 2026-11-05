@@ -129,7 +129,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
           bonus: 0,
           sick_pay: 0,
           expenses: 0,
-          tax: 0,
+          tax: '',
           other_deductions: 0,
           notes: '',
         };
@@ -185,7 +185,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
         <Field label="to"><input type="date" className="dp-input" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
         <Field label="Pay date"><input type="date" className="dp-input" value={payDate} onChange={(e) => setPayDate(e.target.value)} /></Field>
         <span style={{ fontSize: 12, color: '#8A8D84', marginBottom: 14, marginLeft: 'auto' }}>
-          {String(payDate).slice(0, 4)}: CPP {rates.cppRate}% over ${rates.cppExemption.toLocaleString()}/yr · EI {rates.eiRate}% · vacation pay 4%
+          {String(payDate).slice(0, 4)}: CPP {rates.cppRate}% over ${rates.cppExemption.toLocaleString()}/yr · EI {rates.eiRate}% · vacation pay 4% · income tax federal + Alberta (basic TD1)
         </span>
       </div>
 
@@ -232,7 +232,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                       <td style={{ textAlign: 'right' }}>{c ? money(c.gross) : ''}</td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.cpp) : ''}</td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.ei) : ''}</td>
-                      <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" value={r?.tax ?? ''} onChange={(ev) => set(e.id, 'tax', ev.target.value)} /></td>
+                      <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" title="Worked out automatically (federal + Alberta). Type an amount to use your own." placeholder={c ? c.tax.toFixed(2) : 'auto'} value={r?.tax ?? ''} onChange={(ev) => set(e.id, 'tax', ev.target.value)} /></td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{c ? money(c.net) : ''}</td>
                     </tr>
                     {open[e.id] && r && (
