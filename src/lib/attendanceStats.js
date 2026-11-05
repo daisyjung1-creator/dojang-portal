@@ -82,3 +82,39 @@ export function minutesLabel(min) {
   const m = min % 60;
   return h && m ? `${h} h ${m} min` : h ? `${h} h` : `${m} min`;
 }
+
+// ── Absence alerts (Attendance → Absence Check, and the Home page) ──────────
+// "Not in class": no class for NOT_SEEN_DAYS days and no vacation / excused
+//   absence marked in that time.
+// "Absent a lot": in the last FREQUENT_WINDOW days, at least FREQUENT_MIN
+//   unexcused absences and missed at least half of their classes.
+export const NOT_SEEN_DAYS = 7;
+export const FREQUENT_WINDOW = 30;
+export const FREQUENT_MIN = 3;
+
+export function absenceAlerts(students, recordsBy, today = todayISO()) {
+  const since = addDaysISO(today, -NOT_SEEN_DAYS);
+  const from = addDaysISO(today, -FREQUENT_WINDOW);
+  const notSeen = [];
+  const frequent = [];
+  students
+    .filter((s) => !s.billing_exempt && (s.status || 'active') !== 'withdrawn')
+    .forEach((s) => {
+      const recs = recordsBy[s.id] || [];
+      const last = lastAttended(recs);
+      const told = recs.some((r) => (r.status === 'vacation' || r.status === 'excused') && r.date >= since);
+      const started = s.enroll_date || s.created_at?.slice(0, 10);
+      if (!told && (!last || last < since) && (!started || started <= since)) {
+        notSeen.push({ s, last, days: last ? Math.round((new Date(today) - new Date(last)) / 86400000) : null });
+      }
+      const recent = recs.filter((r) => r.date >= from && r.date <= today && r.class_name !== 'Private');
+      const absent = recent.filter((r) => r.status === 'absent');
+      const came = recent.filter((r) => r.status === 'present' || r.status === 'double').length;
+      if (absent.length >= FREQUENT_MIN && absent.length >= came) {
+        frequent.push({ s, absent: absent.length, came, last, lastAbsent: absent.map((r) => r.date).sort().pop() });
+      }
+    });
+  notSeen.sort((a, b) => (b.days ?? 9999) - (a.days ?? 9999) || a.s.name.localeCompare(b.s.name));
+  frequent.sort((a, b) => b.absent - a.absent || a.came - b.came || a.s.name.localeCompare(b.s.name));
+  return { notSeen, frequent };
+}

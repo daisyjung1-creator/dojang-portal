@@ -7,6 +7,7 @@ import { isBillable, isManual } from '../../lib/tuitionBilling';
 import { inClass } from '../../lib/classes';
 import { money, formatDate } from '../../lib/invoiceUtils';
 import { fetchAll, loadSettings } from '../invoices/api';
+import { absenceAlerts, NOT_SEEN_DAYS } from '../../lib/attendanceStats';
 import InvoicePreview from '../invoices/InvoicePreview';
 
 // Home: what matters today at a glance — today's classes, who is billed
@@ -84,6 +85,7 @@ export default function HomePage({ setActiveTab }) {
       { data: emps },
       { data: n },
       s,
+      { data: recent },
     ] = await Promise.all([
       supabase.from('students').select('*').order('name'),
       supabase.from('customers').select('id, name, payment_type'),
@@ -100,6 +102,7 @@ export default function HomePage({ setActiveTab }) {
       supabase.from('payroll_employees').select('id, name, email'),
       supabase.from('dashboard_notes').select('*').order('created_at'),
       loadSettings(),
+      fetchAll(() => supabase.from('attendance').select('student_id, date, class_name, status').gte('date', addDaysISO(today, -90))),
     ]);
     // Status of the tuition invoices for nearby billing dates.
     const tl = (lines || []).filter((l) => l.line_kind === 'tuition');
@@ -137,6 +140,7 @@ export default function HomePage({ setActiveTab }) {
       makeups: makeups || [],
       slips: slips || [],
       empById: Object.fromEntries((emps || []).map((e) => [e.id, e])),
+      recordsBy: (recent || []).reduce((m, r) => ((m[r.student_id] = m[r.student_id] || []).push(r), m), {}),
     });
   }
 
@@ -206,6 +210,18 @@ export default function HomePage({ setActiveTab }) {
         tone: trials.some((t) => t.date === today) ? 'warn' : 'info',
         title: `${trials.length} trial class${trials.length === 1 ? '' : 'es'} this week`,
         detail: trials.map((t) => `${t.student_name} (${t.date === today ? 'today' : shortDay(t.date)}${t.time ? ' ' + t.time.slice(0, 5) : ''})`).join(', '),
+      });
+    // Absent a lot / not in class for a week
+    const { frequent, notSeen } = absenceAlerts(d.students, d.recordsBy, today);
+    if (frequent.length || notSeen.length)
+      out.push({
+        icon: AlertTriangle,
+        tab: 'attendance',
+        tone: 'warn',
+        title: [frequent.length && `${frequent.length} absent a lot`, notSeen.length && `${notSeen.length} not in class for ${NOT_SEEN_DAYS}+ days`].filter(Boolean).join(' · '),
+        detail: frequent.length
+          ? frequent.slice(0, 6).map((x) => `${x.s.name} (${x.absent} absent)`).join(', ') + (frequent.length > 6 ? '…' : '')
+          : notSeen.slice(0, 6).map((x) => x.s.name).join(', ') + (notSeen.length > 6 ? '…' : ''),
       });
     // New leads to call back
     if (d.leads.length)
