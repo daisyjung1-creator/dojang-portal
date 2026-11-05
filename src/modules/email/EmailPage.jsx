@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Send, Users, RefreshCw } from 'lucide-react';
+import { Send, Users, RefreshCw, Copy } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import { splitClasses, allClassNames } from '../../lib/classes';
 import EmailLog from './EmailLog';
+import { matchScore } from '../../components/SearchSelect';
 
 // Group email: write one message and send it to every family, or only to
 // families with a student in chosen classes (e.g. Comp Team). Each family gets
@@ -37,6 +38,7 @@ export default function EmailPage() {
   const [flash, setFlash] = useState({ text: '', error: false });
   const [history, setHistory] = useState([]);
   const [page, setPage] = useState('compose'); // compose | log
+  const [find, setFind] = useState('');
 
   useEffect(() => {
     supabase
@@ -99,6 +101,23 @@ export default function EmailPage() {
   const noEmail = chosen.filter((s) => !splitEmails(s.guardian_email).length);
   const recipients = families.filter((f) => !excluded.has(f.key));
   const audienceLabel = mode === 'all' ? 'All active students' : mode === 'subsidy' ? 'Students with a subsidy' : [...classes].join(', ') || '(no class chosen)';
+
+  // Checked families' emails, ready to paste into Gmail / Outlook (use BCC).
+  async function copyEmails() {
+    const list = [...new Set(recipients.flatMap((f) => f.emails))];
+    const text = list.join(', ');
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_e) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    say(`Copied ${list.length} email${list.length === 1 ? '' : 's'} — paste them into the BCC line of your own email.`);
+  }
 
   function check() {
     if (!subject.trim()) return say('Please enter a subject.', true);
@@ -239,10 +258,19 @@ export default function EmailPage() {
               <span style={{ ...styles.metricLabel, margin: 0 }}>
                 <Users size={13} style={{ verticalAlign: -2 }} /> {recipients.length} families · {chosen.length} students
               </span>
-              {excluded.size > 0 && <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => setExcluded(new Set())}>Include all</button>}
+              <span style={{ display: 'flex', gap: 4 }}>
+                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} disabled={!excluded.size} onClick={() => setExcluded(new Set())}>Select all</button>
+                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} disabled={!recipients.length} onClick={() => setExcluded(new Set(families.map((f) => f.key)))}>Clear all</button>
+                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} disabled={!recipients.length} title="Copy the checked families' emails, to paste into your own email (BCC)" onClick={copyEmails}>
+                  <Copy size={12} /> Copy {recipients.length ? recipients.reduce((t, f) => t + f.emails.length, 0) : ''} emails
+                </button>
+              </span>
+            </div>
+            <div style={{ padding: '0 12px 6px' }}>
+              <input className="dp-input" style={{ width: '100%', padding: '5px 8px', fontSize: 13 }} placeholder="Find a student…" value={find} onChange={(e) => setFind(e.target.value)} />
             </div>
             <div style={{ maxHeight: 340, overflowY: 'auto', padding: '0 12px 10px' }}>
-              {families.map((f) => (
+              {families.filter((f) => !find.trim() || matchScore(find, f.students.map((x) => x.name).join(' ') + ' ' + f.emails.join(' ')) !== null).map((f) => (
                 <label key={f.key} style={{ display: 'flex', gap: 8, fontSize: 13, padding: '5px 0', borderBottom: '1px solid #F1EFE7', alignItems: 'flex-start' }}>
                   <input
                     type="checkbox"
