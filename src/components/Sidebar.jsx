@@ -1,9 +1,10 @@
 import React from 'react';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote } from 'lucide-react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 
 export const ALL_TABS = [
+  { id: 'home', label: 'Home', icon: LayoutDashboard, adminOnly: true },
   { id: 'students', label: 'Students', icon: Users, adminOnly: false },
   { id: 'leads', label: 'Leads', icon: PhoneCall, adminOnly: true },
   { id: 'tryouts', label: 'Trials', icon: CalendarPlus, adminOnly: true },

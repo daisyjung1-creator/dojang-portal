@@ -20,10 +20,11 @@ import EmailPage from './modules/email/EmailPage';
 import TestingPage from './modules/testing/TestingPage';
 import PayrollPage from './modules/payroll/PayrollPage';
 import ConfirmSendHost from './components/ConfirmSend';
+import HomePage from './modules/home/HomePage';
 
 export default function App() {
   const { session, loading, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState('students');
+  const [activeTab, setActiveTab] = useState(null); // null = start page (Home for admins)
 
   if (loading) {
     return <div style={{ padding: 40, color: '#5B5F56' }}>Loading...</div>;
@@ -35,14 +36,16 @@ export default function App() {
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
-  const adminOnlyTabs = ['email', 'leads', 'tryouts', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings'];
-  const effectiveTab = !isAdmin && adminOnlyTabs.includes(activeTab) ? 'students' : activeTab;
+  const adminOnlyTabs = ['home', 'email', 'leads', 'tryouts', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings'];
+  const startTab = activeTab || (isAdmin ? 'home' : 'students');
+  const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'students' : startTab;
 
   return (
     <div style={styles.shell}>
       <Sidebar activeTab={effectiveTab} setActiveTab={setActiveTab} />
       <ConfirmSendHost />
       <div style={styles.main}>
+        {isAdmin && effectiveTab === 'home' && <HomePage setActiveTab={setActiveTab} />}
         {effectiveTab === 'students' && <StudentsPage />}
         {effectiveTab === 'attendance' && <AttendancePage />}
         {isAdmin && effectiveTab === 'leads' && <LeadsPage setActiveTab={setActiveTab} />}
