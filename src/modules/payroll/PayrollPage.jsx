@@ -540,7 +540,7 @@ function EmployeeModal({ employee, staff, onClose, onSaved }) {
         </Field>
         <Field label="Payment method">
           <select className="dp-select" style={{ width: '100%' }} value={f.payment_method || 'Cheque'} onChange={(e) => set('payment_method', e.target.value)}>
-            {['Cheque', 'Direct deposit', 'e-Transfer', 'Cash'].map((p) => <option key={p}>{p}</option>)}
+            {['Cheque', 'EFT', 'Direct deposit', 'e-Transfer', 'Cash'].map((p) => <option key={p}>{p}</option>)}
           </select>
         </Field>
       </div>
