@@ -225,6 +225,12 @@ export default function StudentsPage() {
 
   const classes = useMemo(() => allClassNames(students), [students]);
 
+  // Students in the same family (customer), for the "Siblings" line.
+  const siblingsBy = useMemo(() => {
+    const m = {};
+    students.forEach((x) => x.customer_id && x.status !== 'withdrawn' && (m[x.customer_id] ||= []).push(x));
+    return m;
+  }, [students]);
   const filtered = useMemo(() => {
     return students.filter((s) => {
       const matchesSearch =
@@ -400,12 +406,18 @@ export default function StudentsPage() {
             <tbody>
               {filtered.map((s) => {
                 const belt = beltMeta(s.belt);
+                const sibs = s.customer_id ? (siblingsBy[s.customer_id] || []).filter((x) => x.id !== s.id) : [];
                 return (
                   <tr key={s.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
                       {s.name}
                       {s.status === 'withdrawn' && (
                         <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Withdrawn</span>
+                      )}
+                      {sibs.length > 0 && (
+                        <div style={{ fontSize: 11.5, fontWeight: 400, color: '#8A8D84' }} title={`Same family: ${families[s.customer_id]?.name || ''}`}>
+                          Sibling{sibs.length > 1 ? 's' : ''}: {sibs.map((x) => x.name.split(' ')[0]).join(', ')}
+                        </div>
                       )}
                     </td>
                     <td>
@@ -497,6 +509,18 @@ export default function StudentsPage() {
           <Field label="Name" required>
             <input className="dp-input" style={{ width: '100%' }} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
+          {editingId && form.customer_id && (siblingsBy[form.customer_id] || []).some((x) => x.id !== editingId) && (
+            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '-6px 0 12px' }}>
+              Family <b>{families[form.customer_id]?.name}</b> · siblings:{' '}
+              {(siblingsBy[form.customer_id] || []).filter((x) => x.id !== editingId).map((x, i) => (
+                <React.Fragment key={x.id}>
+                  {i > 0 && ', '}
+                  <button type="button" style={{ border: 'none', background: 'none', padding: 0, color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5 }} onClick={() => openEdit(x)}>{x.name}</button>
+                </React.Fragment>
+              ))}
+              <span style={{ color: '#8A8D84' }}> (change in Customers)</span>
+            </p>
+          )}
           <Field label="Date of Birth">
             <input type="date" className="dp-input" style={{ width: '100%' }} value={form.dob || ''} onChange={(e) => setForm({ ...form, dob: e.target.value })} />
           </Field>
