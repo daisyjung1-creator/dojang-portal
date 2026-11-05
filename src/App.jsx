@@ -19,6 +19,7 @@ import InventoryPage from './modules/invoices/InventoryPage';
 import EmailPage from './modules/email/EmailPage';
 import TestingPage from './modules/testing/TestingPage';
 import PayrollPage from './modules/payroll/PayrollPage';
+import ConfirmSendHost from './components/ConfirmSend';
 
 export default function App() {
   const { session, loading, isAdmin } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
   return (
     <div style={styles.shell}>
       <Sidebar activeTab={effectiveTab} setActiveTab={setActiveTab} />
+      <ConfirmSendHost />
       <div style={styles.main}>
         {effectiveTab === 'students' && <StudentsPage />}
         {effectiveTab === 'attendance' && <AttendancePage />}

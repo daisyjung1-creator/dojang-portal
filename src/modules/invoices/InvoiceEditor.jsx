@@ -8,6 +8,7 @@ import { money, localISO, addDays, calcTotals, lineAmount } from '../../lib/invo
 import { saveInvoice, savePayment, queueEmail, usePaymentMethods } from './api';
 import CustomerPicker from './CustomerPicker';
 import SearchSelect from '../../components/SearchSelect';
+import { confirmSend } from '../../components/ConfirmSend';
 
 function blankLine() {
   return { fee_item_id: '', description: '', quantity: 1, unit_price: '', taxable: true };
@@ -92,6 +93,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     if (!form.invoice_date) return setError('Please set the invoice date.');
     if (!lines.some((l) => (l.description || '').trim() || Number(l.unit_price))) return setError('Add at least one line.');
     if (action === 'email' && !form.customer_email) return setError('This customer has no email address.');
+    if (action === 'email' && !(await confirmSend({ what: `Invoice (PDF) — ${form.customer_name || ''}`, to: form.customer_email, note: 'The invoice is saved and emailed.' }))) return;
     setSaving(true);
     try {
       const invoice = await saveInvoice(form, lines, isEdit ? editing.invoice.id : null);

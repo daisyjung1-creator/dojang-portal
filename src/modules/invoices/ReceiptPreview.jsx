@@ -5,6 +5,7 @@ import Modal from '../../components/Modal';
 import ReceiptDocument from './ReceiptDocument';
 import { PrintPortal } from './InvoicePreview';
 import { loadSettings, queueEmail } from './api';
+import { confirmSend } from '../../components/ConfirmSend';
 
 // Receipt on screen, with Print / Save as PDF and Email (the email carries the
 // same receipt as a PDF attachment).
@@ -38,6 +39,7 @@ export default function ReceiptPreview({ paymentId, onClose }) {
 
   async function email() {
     if (!to) return setMsg('No email on file for this customer.');
+    if (!(await confirmSend({ what: `Receipt #${p.receipt_number} (PDF)`, to }))) return;
     try {
       await queueEmail('receipt', to, { payment_id: p.id });
       setMsg(`Receipt #${p.receipt_number} (PDF) queued to ${to}.`);

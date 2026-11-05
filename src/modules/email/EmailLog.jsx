@@ -3,6 +3,7 @@ import { RefreshCw, Search, RotateCcw } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import MessagePreview from './MessagePreview';
+import { confirmSend } from '../../components/ConfirmSend';
 
 // Every email the portal has sent (or tried to): invoices, reminders,
 // receipts, welcome, makeup, absence check, trial, grant reminders, group emails.
@@ -93,6 +94,7 @@ export default function EmailLog({ onReuse }) {
   const counts = useMemo(() => ({ sent: rows.filter((r) => r.sent).length, failed: rows.filter((r) => !r.sent && r.error).length, waiting: rows.filter((r) => !r.sent && !r.error).length }), [rows]);
 
   async function resend(r) {
+    if (!(await confirmSend({ what: `Send again: ${subjectOf(r) || TYPES[kindOf(r)] || r.type}`, to: r.recipient_email }))) return;
     const { error } = await supabase.from('email_queue').insert({ type: r.type, student_id: r.student_id, recipient_email: r.recipient_email, payload: r.payload, broadcast_id: r.broadcast_id || null });
     setFlash(error ? 'Could not resend: ' + error.message : `Sent again to ${r.recipient_email}.`);
     setTimeout(load, 2500);

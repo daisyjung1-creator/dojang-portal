@@ -11,6 +11,7 @@ import { PrintPortal } from '../invoices/InvoicePreview';
 import { calcPayslip, ytdTotals, ratesFor, PAY_TYPES, PAYROLL_RATES, parseHours } from '../../lib/payroll';
 import PayslipDocument from './PayslipDocument';
 import { queueEmail } from '../invoices/api';
+import { confirmSend } from '../../components/ConfirmSend';
 
 // Queue payslip emails (the PDF is made and attached by the email function).
 async function emailPayslips(list, empById) {
@@ -482,6 +483,9 @@ function SlipList({ slips, empById, onView, onDeleted, onEmailed }) {
   const latest = list.map((s) => s.pay_date).sort().pop();
   const unsent = list.filter((s) => s.pay_date === latest && !s.emailed_at);
   async function send(items) {
+    const to = [...new Set(items.map((s) => empById[s.employee_id]?.email).filter(Boolean))].join(', ');
+    const what = items.length === 1 ? `Payslip ${formatDate(items[0].pay_date)} — ${empById[items[0].employee_id]?.name || ''}` : `${items.length} payslips for ${formatDate(items[0].pay_date)}`;
+    if (!(await confirmSend({ what, to }))) return;
     try {
       onEmailed(emailNote(await emailPayslips(items, empById)));
     } catch (err) {
@@ -593,6 +597,7 @@ function PayslipView({ slip, employee, ytd, settings, onClose, onEmailed }) {
               disabled={!employee?.email}
               title={employee?.email ? `Email PDF to ${employee.email}` : 'No email on file'}
               onClick={async () => {
+                if (!(await confirmSend({ what: `Payslip ${formatDate(slip.pay_date)} — ${employee.name || ''}`, to: employee.email }))) return;
                 try {
                   await queueEmail('payslip', employee.email, { payslip_id: slip.id });
                   setMsg(`Payslip (PDF) emailed to ${employee.email}.`);

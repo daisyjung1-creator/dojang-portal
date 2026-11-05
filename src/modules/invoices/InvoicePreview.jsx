@@ -8,6 +8,7 @@ import InvoiceDocument from './InvoiceDocument';
 import ReceiptPreview from './ReceiptPreview';
 import { loadInvoiceFull, queueEmail, loadCredit, applyCredit } from './api';
 import { money, formatDate, INVOICE_STATUS_STYLES } from '../../lib/invoiceUtils';
+import { confirmSend } from '../../components/ConfirmSend';
 
 export function PrintPortal({ children }) {
   const [el] = useState(() => {
@@ -56,6 +57,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
 
   async function sendEmail() {
     if (!invoice.customer_email) return setMsg('This customer has no email address. Add one in Customers, then edit the invoice to pick it up.');
+    if (!(await confirmSend({ what: `Invoice #${invoice.invoice_number} (PDF) — ${invoice.customer_name || ''}`, to: invoice.customer_email }))) return;
     try {
       await queueEmail('invoice', invoice.customer_email, { invoice_id: invoice.id });
       setMsg(`Invoice queued to send to ${invoice.customer_email}.`);
