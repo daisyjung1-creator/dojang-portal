@@ -69,6 +69,7 @@ export default function StudentsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [importState, setImportState] = useState(null);
   const [reminder, setReminder] = useState(null);
+  const [endingId, setEndingId] = useState(null); // subsidy waiting for "Confirm"
   const [welcomeFor, setWelcomeFor] = useState(null);
   const [families, setFamilies] = useState({}); // customer id → { name, payment_type } // { student, subject, message, to, error, sending }
   const fileInputRef = useRef(null);
@@ -183,6 +184,15 @@ export default function StudentsPage() {
     const payload = status === 'withdrawn' ? { status, withdrawn_date: new Date().toISOString().slice(0, 10) } : { status, withdrawn_date: null };
     const { data } = await supabase.from('students').update(payload).eq('id', id).select();
     if (data) setStudents((prev) => prev.map((s) => (s.id === id ? data[0] : s)));
+  }
+
+  // Subsidy is over: untick it so the alert goes away and billing stops
+  // taking it off. The grant name / amount / end date are kept for reference.
+  async function endSubsidy(s) {
+    const { error: e } = await supabase.from('students').update({ subsidy: false }).eq('id', s.id);
+    setEndingId(null);
+    if (e) return setError('Could not update: ' + e.message);
+    setStudents((prev) => prev.map((x) => (x.id === s.id ? { ...x, subsidy: false } : x)));
   }
 
   async function openReminder(s) {
@@ -375,6 +385,16 @@ export default function StudentsPage() {
                 <Mail size={12} /> Email reminder
               </button>
               {s.subsidy_reminded_at && <span style={{ fontSize: 12, color: '#2A5A30', whiteSpace: 'nowrap' }}>✓ sent {new Date(s.subsidy_reminded_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</span>}
+              {endingId === s.id ? (
+                <span style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap' }}>
+                  <button className="dp-btn dp-btn-primary" style={{ padding: '1px 8px', fontSize: 12 }} onClick={() => endSubsidy(s)}>Confirm — stop subsidy</button>
+                  <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12 }} onClick={() => setEndingId(null)}>Cancel</button>
+                </span>
+              ) : (
+                <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12, whiteSpace: 'nowrap' }} title="The subsidy is over: untick Subsidy for this student and remove this alert" onClick={() => setEndingId(s.id)}>
+                  <Check size={12} /> Subsidy ended
+                </button>
+              )}
             </div>
           ))}
         </div>
