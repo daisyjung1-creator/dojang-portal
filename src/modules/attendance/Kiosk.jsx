@@ -161,8 +161,9 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
         )}
       </div>
 
+      {/* Right padding keeps the buttons clear of Netlify's "Powered by Netlify" badge (bottom right). */}
       {cls && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderTop: '1px solid #E4E0D4', fontSize: 13, color: '#5B5F56', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 210px 10px 20px', borderTop: '1px solid #E4E0D4', fontSize: 13, color: '#5B5F56', flexWrap: 'wrap' }}>
           <span>
             {cancelled
               ? 'Cancelled today.'
