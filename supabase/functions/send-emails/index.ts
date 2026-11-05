@@ -17,6 +17,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { buildInvoicePdf, buildReceiptPdf, invoiceEmailHtml, receiptEmail, refundEmail, plainTextEmailHtml, fillTemplate } from './invoiceDocs.ts';
+import { buildPayslipPdf, payslipEmail } from './payslipDocs.ts';
 
 const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
@@ -164,6 +165,28 @@ async function sendRefund(record: any) {
   await supabase.from('invoice_refunds').update({ emailed_at: new Date().toISOString() }).eq('id', refundId);
 }
 
+async function sendPayslip(record: any) {
+  const slipId = record.payload?.payslip_id;
+  const { data: slip } = await supabase.from('payslips').select('*').eq('id', slipId).single();
+  if (!slip) throw new Error('Payslip not found: ' + slipId);
+  const year = String(slip.pay_date).slice(0, 4);
+  const [{ data: emp }, { data: settings }, { data: yearSlips }] = await Promise.all([
+    supabase.from('payroll_employees').select('*').eq('id', slip.employee_id).single(),
+    supabase.from('payroll_settings').select('*').eq('id', 1).maybeSingle(),
+    supabase.from('payslips').select('*').eq('employee_id', slip.employee_id).gte('pay_date', `${year}-01-01`).lte('pay_date', slip.pay_date),
+  ]);
+  const fields = ['hours', 'standard_pay', 'overtime_hours', 'overtime_pay', 'vacation_pay', 'bonus', 'sick_pay', 'expenses', 'gross', 'tax', 'cpp', 'ei', 'other_deductions', 'total_deductions', 'net'];
+  const ytd: Record<string, number> = {};
+  for (const f of fields) ytd[f] = Math.round((yearSlips || []).reduce((t: number, x: any) => t + Number(x[f] || 0), 0) * 100) / 100;
+  const s = settings || {};
+  const pdf = await buildPayslipPdf(slip, emp || {}, ytd, s);
+  const { subject, html } = payslipEmail(slip, emp || {}, s);
+  const extra: Record<string, unknown> = { attachments: [{ filename: `Payslip-${slip.pay_date}.pdf`, content: toBase64(pdf) }] };
+  if (s.email) extra.reply_to = s.email;
+  await sendEmail(record.recipient_email, subject, html, extra);
+  await supabase.from('payslips').update({ emailed_at: new Date().toISOString() }).eq('id', slipId);
+}
+
 async function claim(table: string, id: string) {
   const { data } = await supabase.from(table).update({ sent: true }).eq('id', id).eq('sent', false).select().maybeSingle();
   return data;
@@ -186,6 +209,8 @@ async function processEmailQueue(record: any) {
     await sendReceipt(record);
   } else if (record.type === 'refund') {
     await sendRefund(record);
+  } else if (record.type === 'payslip') {
+    await sendPayslip(record);
   } else if (['subsidy_reminder', 'broadcast', 'welcome', 'makeup', 'absence_check', 'tryout_confirmation'].includes(record.type)) {
     // Subject and message were written (and reviewed) in the portal.
     const s = await loadSettings();

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Printer, Trash2, Pencil, Check, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Plus, Printer, Trash2, Pencil, Check, ChevronDown, ChevronRight, AlertTriangle, Mail } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Modal from '../../components/Modal';
@@ -9,6 +9,24 @@ import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { PrintPortal } from '../invoices/InvoicePreview';
 import { calcPayslip, ytdTotals, ratesFor, PAY_TYPES, PAYROLL_RATES } from '../../lib/payroll';
 import PayslipDocument from './PayslipDocument';
+import { queueEmail } from '../invoices/api';
+
+// Queue payslip emails (the PDF is made and attached by the email function).
+async function emailPayslips(list, empById) {
+  let sent = 0;
+  const skipped = [];
+  for (const s of list) {
+    const e = empById[s.employee_id];
+    if (!e?.email) {
+      skipped.push(e?.name || '?');
+      continue;
+    }
+    await queueEmail('payslip', e.email, { payslip_id: s.id });
+    sent++;
+  }
+  return { sent, skipped };
+}
+const emailNote = ({ sent, skipped }) => `${sent} payslip${sent === 1 ? '' : 's'} emailed (PDF attached).${skipped.length ? ' No email on file: ' + skipped.join(', ') + '.' : ''}`;
 
 const pad = (n) => String(n).padStart(2, '0');
 function monthRange(offset = -1) {
@@ -71,8 +89,8 @@ export default function PayrollPage() {
 
       {flash.text && <p style={{ background: flash.error ? '#FBEAEA' : '#E8F1E9', color: flash.error ? '#9A2B2B' : '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
 
-      {tab === 'run' && <RunPayroll employees={employees} slips={slips} onSaved={async (ids) => { await loadAll(); say(`${ids.length} payslip${ids.length === 1 ? '' : 's'} saved.`); setTab('slips'); }} onError={(m) => say(m, true)} />}
-      {tab === 'slips' && <SlipList slips={slips} empById={empById} onView={setView} onDeleted={() => { loadAll(); say('Payslip deleted.'); }} />}
+      {tab === 'run' && <RunPayroll employees={employees} slips={slips} onSaved={async (ids, note = '') => { await loadAll(); say(`${ids.length} payslip${ids.length === 1 ? '' : 's'} saved.${note}`); setTab('slips'); }} onError={(m) => say(m, true)} />}
+      {tab === 'slips' && <SlipList slips={slips} empById={empById} onView={setView} onDeleted={() => { loadAll(); say('Payslip deleted.'); }} onEmailed={(m) => { loadAll(); say(m); }} />}
       {tab === 'staff' && (
         <StaffTab
           employees={employees}
@@ -89,6 +107,7 @@ export default function PayrollPage() {
           ytd={ytdTotals(slips, view.employee_id, view.pay_date)}
           settings={settings}
           onClose={() => setView(null)}
+          onEmailed={loadAll}
         />
       )}
       {editEmp && (
@@ -111,6 +130,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
   const [rows, setRows] = useState({});
   const [open, setOpen] = useState({});
   const [saving, setSaving] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
   const active = employees.filter((e) => e.active !== false);
 
   // Hours are typed in (the clock-in app's times include late log-outs that
@@ -169,10 +189,21 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
         ...c,
       };
     });
-    const { error } = await supabase.from('payslips').upsert(out, { onConflict: 'employee_id,pay_date' });
+    const { data: saved, error } = await supabase.from('payslips').upsert(out, { onConflict: 'employee_id,pay_date' }).select();
+    if (error) {
+      setSaving(false);
+      return onError('Could not save: ' + error.message);
+    }
+    let note = '';
+    if (sendEmail) {
+      try {
+        note = ' ' + emailNote(await emailPayslips(saved || [], Object.fromEntries(employees.map((e) => [e.id, e]))));
+      } catch (err) {
+        note = ' Could not email: ' + (err.message || err);
+      }
+    }
     setSaving(false);
-    if (error) return onError('Could not save: ' + error.message);
-    onSaved(out.map((o) => o.employee_id));
+    onSaved(out.map((o) => o.employee_id), note);
   }
 
   const rates = ratesFor(payDate);
@@ -269,7 +300,10 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                 <AlertTriangle size={14} /> {existing.map((e) => e.name.split(' ')[0]).join(', ')} already {existing.length === 1 ? 'has a payslip' : 'have payslips'} for {formatDate(payDate)} — saving replaces {existing.length === 1 ? 'it' : 'them'}.
               </span>
             )}
-            <button className="dp-btn dp-btn-primary" style={{ marginLeft: 'auto' }} disabled={!chosen.length || saving} onClick={save}>
+            <label style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+              <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} /> Email each payslip (PDF) to the staff member
+            </label>
+            <button className="dp-btn dp-btn-primary" disabled={!chosen.length || saving} onClick={save}>
               <Check size={15} /> {saving ? 'Saving…' : `Save ${chosen.length} payslip${chosen.length === 1 ? '' : 's'}`}
             </button>
           </div>
@@ -280,16 +314,25 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
 }
 
 // ── Payslip list ─────────────────────────────────────────────────────────────
-function SlipList({ slips, empById, onView, onDeleted }) {
+function SlipList({ slips, empById, onView, onDeleted, onEmailed }) {
   const [emp, setEmp] = useState('');
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [confirm, setConfirm] = useState(null);
   const years = [...new Set(slips.map((s) => String(s.pay_date).slice(0, 4)))].sort().reverse();
   const list = slips.filter((s) => (!emp || s.employee_id === emp) && (!year || String(s.pay_date).startsWith(year)));
   const tot = (k) => list.reduce((t, s) => t + Number(s[k] || 0), 0);
+  const latest = list.map((s) => s.pay_date).sort().pop();
+  const unsent = list.filter((s) => s.pay_date === latest && !s.emailed_at);
+  async function send(items) {
+    try {
+      onEmailed(emailNote(await emailPayslips(items, empById)));
+    } catch (err) {
+      onEmailed('Could not email: ' + (err.message || err));
+    }
+  }
   return (
     <>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
         <select className="dp-select" value={emp} onChange={(e) => setEmp(e.target.value)}>
           <option value="">All staff</option>
           {Object.values(empById).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -298,6 +341,11 @@ function SlipList({ slips, empById, onView, onDeleted }) {
           <option value="">All years</option>
           {(years.includes(year) || !year ? years : [year, ...years]).map((y) => <option key={y}>{y}</option>)}
         </select>
+        {unsent.length > 0 && (
+          <button className="dp-btn dp-btn-primary" style={{ marginLeft: 'auto' }} onClick={() => send(unsent)}>
+            <Mail size={14} /> Email {unsent.length} unsent payslip{unsent.length === 1 ? '' : 's'} for {formatDate(latest)}
+          </button>
+        )}
       </div>
       <div style={styles.card}>
         {list.length === 0 ? (
@@ -315,7 +363,7 @@ function SlipList({ slips, empById, onView, onDeleted }) {
                 <th style={{ textAlign: 'right' }}>EI</th>
                 <th style={{ textAlign: 'right' }}>Tax</th>
                 <th style={{ textAlign: 'right' }}>Net</th>
-                <th style={{ width: 80 }}></th>
+                <th style={{ width: 110 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -329,9 +377,13 @@ function SlipList({ slips, empById, onView, onDeleted }) {
                   <td style={{ textAlign: 'right' }}>{money(s.cpp)}</td>
                   <td style={{ textAlign: 'right' }}>{money(s.ei)}</td>
                   <td style={{ textAlign: 'right' }}>{money(s.tax)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(s.net)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                    {money(s.net)}
+                    {s.emailed_at && <div style={{ fontSize: 11, color: '#2A5A30', fontWeight: 400 }}>Emailed</div>}
+                  </td>
                   <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                     <button className="dp-btn" style={{ padding: 5, marginRight: 4 }} aria-label="Payslip" title="View / print payslip" onClick={() => onView(s)}><Printer size={13} /></button>
+                    <button className="dp-btn" style={{ padding: 5, marginRight: 4 }} aria-label="Email" title={empById[s.employee_id]?.email ? `Email PDF to ${empById[s.employee_id].email}` : 'No email on file'} disabled={!empById[s.employee_id]?.email} onClick={() => send([s])}><Mail size={13} /></button>
                     <button className="dp-btn" style={{ padding: 5 }} aria-label="Delete" title="Delete payslip" onClick={() => setConfirm(s)}><Trash2 size={13} /></button>
                   </td>
                 </tr>
@@ -365,7 +417,8 @@ function SlipList({ slips, empById, onView, onDeleted }) {
   );
 }
 
-function PayslipView({ slip, employee, ytd, settings, onClose }) {
+function PayslipView({ slip, employee, ytd, settings, onClose, onEmailed }) {
+  const [msg, setMsg] = useState('');
   const doc = <PayslipDocument slip={slip} employee={employee} ytd={ytd} settings={settings} />;
   return (
     <>
@@ -376,10 +429,27 @@ function PayslipView({ slip, employee, ytd, settings, onClose }) {
         footer={
           <>
             <button className="dp-btn" onClick={onClose}>Close</button>
-            <button className="dp-btn dp-btn-primary" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
+            <button className="dp-btn" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
+            <button
+              className="dp-btn dp-btn-primary"
+              disabled={!employee?.email}
+              title={employee?.email ? `Email PDF to ${employee.email}` : 'No email on file'}
+              onClick={async () => {
+                try {
+                  await queueEmail('payslip', employee.email, { payslip_id: slip.id });
+                  setMsg(`Payslip (PDF) emailed to ${employee.email}.`);
+                  onEmailed && onEmailed();
+                } catch (err) {
+                  setMsg('Could not email: ' + (err.message || err));
+                }
+              }}
+            >
+              <Mail size={14} /> Email
+            </button>
           </>
         }
       >
+        {msg && <p style={{ background: '#E6F0F6', color: '#1E4566', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
         <div style={{ border: '1px solid #EDEAE0', borderRadius: 8 }}>{doc}</div>
       </Modal>
       <PrintPortal>{doc}</PrintPortal>
