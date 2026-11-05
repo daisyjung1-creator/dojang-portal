@@ -7,7 +7,7 @@ import Field from '../../components/Field';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { PrintPortal } from '../invoices/InvoicePreview';
-import { calcPayslip, ytdTotals, ratesFor, PAY_TYPES } from '../../lib/payroll';
+import { calcPayslip, ytdTotals, ratesFor, PAY_TYPES, PAYROLL_RATES } from '../../lib/payroll';
 import PayslipDocument from './PayslipDocument';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -189,6 +189,11 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
         </span>
       </div>
 
+      {!PAYROLL_RATES[Number(String(payDate).slice(0, 4))] && (
+        <p style={{ background: '#FAEEDA', color: '#854F0B', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <AlertTriangle size={15} /> {String(payDate).slice(0, 4)} CPP / EI / tax rates haven’t been added yet — this uses {Math.max(...Object.keys(PAYROLL_RATES).map(Number))} rates. Check the amounts against CRA’s calculator.
+        </p>
+      )}
       {active.length === 0 ? (
         <div style={{ ...styles.card, padding: 20, fontSize: 14, color: '#5B5F56' }}>Add staff in “Staff & settings” first.</div>
       ) : (
