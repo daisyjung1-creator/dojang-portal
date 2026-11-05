@@ -253,7 +253,7 @@ export default function EmailPage() {
             <textarea className="dp-input" rows={14} style={{ width: '100%', resize: 'vertical', fontSize: 13.5, lineHeight: 1.5 }} value={message} onChange={(e) => setMessage(e.target.value)} />
           </Field>
           <p style={{ fontSize: 12, color: '#8A8D84', margin: '-4px 0 14px' }}>
-            {'{guardian}'} = parent's name · {'{student}'} = their child's first name (siblings: "Adam & Lily"). Links become clickable.
+            {'{guardian}'} = parent's name · {'{student}'} = their child's first name (siblings: "Adam & Lily"). Links become clickable. One copy also goes to the dojang's own email so you can find it later.
           </p>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button className="dp-btn dp-btn-primary" onClick={check} disabled={sending}>

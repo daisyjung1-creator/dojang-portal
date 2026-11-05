@@ -215,10 +215,36 @@ async function processEmailQueue(record: any) {
     // Subject and message were written (and reviewed) in the portal.
     const s = await loadSettings();
     const subject = String(record.payload?.subject || s.business_name || 'Message');
-    await sendEmail(record.recipient_email, subject, plainTextEmailHtml(String(record.payload?.message || ''), s), s.email ? { reply_to: s.email } : {});
+    const extra: Record<string, unknown> = s.email ? { reply_to: s.email } : {};
+    // Keep a copy in the dojang's own inbox: one-to-one messages get a hidden
+    // copy (BCC); a group email sends one copy of the original once, below.
+    const ownCopy = s.email && !splitEmails(record.recipient_email).includes(String(s.email).toLowerCase());
+    if (ownCopy && record.type !== 'broadcast') extra.bcc = [s.email];
+    await sendEmail(record.recipient_email, subject, plainTextEmailHtml(String(record.payload?.message || ''), s), extra);
+    if (ownCopy && record.type === 'broadcast' && record.broadcast_id) await sendBroadcastCopy(record.broadcast_id, s);
     if (record.type === 'tryout_confirmation' && record.payload?.tryout_id) {
       await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', record.payload.tryout_id);
     }
+  }
+}
+
+// One copy of a group email to the dojang, the first time any of its emails
+// goes out (the update only succeeds once, so parallel sends can't double it).
+async function sendBroadcastCopy(broadcastId: string, s: Record<string, any>) {
+  const { data: b } = await supabase
+    .from('email_broadcasts')
+    .update({ copy_sent_at: new Date().toISOString() })
+    .eq('id', broadcastId)
+    .is('copy_sent_at', null)
+    .select()
+    .maybeSingle();
+  if (!b) return;
+  const when = new Date(b.created_at).toLocaleString('en-CA', { timeZone: 'America/Edmonton', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const head = `[Your copy — sent to ${b.audience || 'families'}, ${b.recipient_count} ${b.recipient_count === 1 ? 'family' : 'families'}, ${when} — each parent's copy has their own name in place of {guardian} / {student}.]\n\n`;
+  try {
+    await sendEmail(s.email, `[Copy] ${b.subject}`, plainTextEmailHtml(head + String(b.message || ''), s));
+  } catch (e) {
+    console.error('broadcast copy failed', e);
   }
 }
 

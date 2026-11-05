@@ -3,7 +3,7 @@ import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 import { money, fdate } from './invoiceDocs.ts';
 
 const pdfSafe = (s: any) =>
-  String(s ?? '').replace(/–/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, '...').replace(/[^\x20-\x7E -ÿ—]/g, '');
+  String(s ?? '').replace(/\u2013/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u2026/g, '...').replace(/[^\x20-\x7E\u00A0-\u00FF\u2014]/g, '');
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 export async function buildPayslipPdf(slip: Record<string, any>, e: Record<string, any>, ytd: Record<string, number>, s: Record<string, any>): Promise<Uint8Array> {
