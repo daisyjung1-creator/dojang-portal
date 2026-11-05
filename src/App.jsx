@@ -18,6 +18,7 @@ import InvoiceSettingsPage from './modules/invoices/InvoiceSettingsPage';
 import InventoryPage from './modules/invoices/InventoryPage';
 import EmailPage from './modules/email/EmailPage';
 import TestingPage from './modules/testing/TestingPage';
+import PayrollPage from './modules/payroll/PayrollPage';
 
 export default function App() {
   const { session, loading, isAdmin } = useAuth();
@@ -33,7 +34,7 @@ export default function App() {
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
-  const adminOnlyTabs = ['email', 'leads', 'tryouts', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'inventory', 'invoice-settings'];
+  const adminOnlyTabs = ['email', 'leads', 'tryouts', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings'];
   const effectiveTab = !isAdmin && adminOnlyTabs.includes(activeTab) ? 'students' : activeTab;
 
   return (
@@ -46,6 +47,7 @@ export default function App() {
         {isAdmin && effectiveTab === 'tryouts' && <TryoutsPage setActiveTab={setActiveTab} />}
         {isAdmin && effectiveTab === 'register' && <RegisterPage />}
         {isAdmin && effectiveTab === 'testing' && <TestingPage />}
+        {isAdmin && effectiveTab === 'payroll' && <PayrollPage />}
         {isAdmin && effectiveTab === 'billing' && <BillingPage />}
         {isAdmin && effectiveTab === 'email' && <EmailPage />}
         {isAdmin && effectiveTab === 'invoices' && <InvoicesPage />}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award } from 'lucide-react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 
@@ -16,6 +16,7 @@ export const ALL_TABS = [
   { id: 'payments', label: 'Payments', icon: Receipt, adminOnly: true },
   { id: 'customers', label: 'Customers', icon: Contact, adminOnly: true },
   { id: 'reports', label: 'Sales & GST', icon: BarChart3, adminOnly: true },
+  { id: 'payroll', label: 'Payroll', icon: Banknote, adminOnly: true },
   { id: 'inventory', label: 'Inventory', icon: Package, adminOnly: true },
   { id: 'invoice-settings', label: 'Invoice Settings', icon: Settings, adminOnly: true },
 ];
