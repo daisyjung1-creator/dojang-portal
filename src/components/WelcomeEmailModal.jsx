@@ -3,13 +3,16 @@ import { Mail } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import Modal from './Modal';
 import Field from './Field';
-import { fillWelcomeTemplate } from '../lib/welcomeEmail';
+import { fillFamilyWelcome } from '../lib/welcomeEmail';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const splitEmails = (v) => String(v || '').split(/[,;\s]+/).map((e) => e.trim()).filter(Boolean);
 
-// Preview, edit and send the welcome email for one student.
-export default function WelcomeEmailModal({ student, onClose, onSent }) {
+// Preview, edit and send the welcome email — for one student, or one email
+// for siblings registered together (pass `students`).
+export default function WelcomeEmailModal({ student, students: many, onClose, onSent }) {
+  const students = many && many.length ? many : [student];
+  student = students[0];
   const [state, setState] = useState(null);
 
   useEffect(() => {
@@ -22,13 +25,13 @@ export default function WelcomeEmailModal({ student, onClose, onSent }) {
         const s = st || {};
         setState({
           to: student.guardian_email || '',
-          subject: fillWelcomeTemplate(s.welcome_subject || 'Welcome to {business}, {student}!', student, s),
-          message: fillWelcomeTemplate(s.welcome_message || '', student, s),
+          subject: fillFamilyWelcome(s.welcome_subject || 'Welcome to {business}, {student}!', students, s),
+          message: fillFamilyWelcome(s.welcome_message || '', students, s),
           error: '',
           sending: false,
         });
       });
-  }, [student.id]);
+  }, [students.map((x) => x.id).join()]);
 
   if (!state) return null;
 
@@ -45,13 +48,13 @@ export default function WelcomeEmailModal({ student, onClose, onSent }) {
     });
     if (error) return setState({ ...state, sending: false, error: 'Could not send: ' + error.message });
     const at = new Date().toISOString();
-    await supabase.from('students').update({ welcome_sent_at: at }).eq('id', student.id);
+    await supabase.from('students').update({ welcome_sent_at: at }).in('id', students.map((x) => x.id));
     onSent && onSent(at);
   }
 
   return (
     <Modal
-      title={`Welcome email — ${student.name}`}
+      title={`Welcome email — ${students.map((x) => x.name).join(', ')}`}
       maxWidth={640}
       onClose={onClose}
       footer={

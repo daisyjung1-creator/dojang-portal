@@ -1,37 +1,67 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Mail } from 'lucide-react';
+import { Check, Mail, Plus, X, Users } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
-import { todayISO } from '../../lib/billingDates';
+import { todayISO, PLANS } from '../../lib/billingDates';
 import Field from '../../components/Field';
 import ClassPicker from '../../components/ClassPicker';
 import WelcomeEmailModal from '../../components/WelcomeEmailModal';
-import { PLANS } from '../../lib/billingDates';
 import { allClassNames } from '../../lib/classes';
 import { suggestedTuition } from '../students/StudentsPage';
+import CustomerPicker from '../invoices/CustomerPicker';
 
-function emptyForm() {
-  return { name: '', guardian_name: '', guardian_phone: '', guardian_email: '', belt: 'White', class_name: '', tuition: '', enroll_date: todayISO(), billing_start_date: '', plan: '1 Month', classes_per_week: '', family_discount: false, notes: '' };
+// Parent / family details — entered once for all the children.
+function emptyFamily() {
+  return { existing_customer_id: '', guardian_name: '', guardian_phone: '', guardian_email: '', address: '', emergency_name: '', emergency_phone: '', payment_type: 'preauth' };
+}
+// Per child.
+function emptyChild(copyFrom) {
+  return {
+    name: '',
+    dob: '',
+    belt: 'White',
+    class_name: '',
+    classes_per_week: '',
+    plan: copyFrom?.plan || '1 Month',
+    tuition: '',
+    enroll_date: copyFrom?.enroll_date || todayISO(),
+    billing_start_date: copyFrom?.billing_start_date || '',
+    family_discount: !!copyFrom?.family_discount,
+    billing_exempt: false,
+    subsidy: false,
+    subsidy_name: '',
+    subsidy_amount: '',
+    subsidy_end_date: '',
+    notes: '',
+  };
 }
 
+const sectionLabel = { fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8A8D84', margin: '4px 0 10px' };
+
 export default function RegisterPage() {
-  const [form, setForm] = useState(emptyForm());
+  const [family, setFamily] = useState(emptyFamily());
+  const [kids, setKids] = useState([emptyChild()]);
   const [formError, setFormError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [saving, setSaving] = useState(false);
   const [classes, setClasses] = useState([]);
   const [recent, setRecent] = useState([]);
-  const [welcomeFor, setWelcomeFor] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  const [welcomeFor, setWelcomeFor] = useState(null); // array of students
 
   useEffect(() => {
     // Picks up a draft handed off from a converted trial booking, if any.
     const draft = sessionStorage.getItem('registerDraft');
     if (draft) {
-      setForm((prev) => ({ ...prev, ...JSON.parse(draft) }));
+      const d = JSON.parse(draft);
+      setFamily((f) => ({ ...f, guardian_name: d.guardian_name || '', guardian_phone: d.guardian_phone || '', guardian_email: d.guardian_email || '', address: d.address || '' }));
+      setKids([{ ...emptyChild(), name: d.name || '', class_name: d.class_name || '', dob: d.dob || '' }]);
       sessionStorage.removeItem('registerDraft');
     }
     loadClasses();
     loadQueue();
+    supabase.from('customers').select('id, name, email, phone, address, active').order('name').then(({ data }) => setCustomers(data || []));
   }, []);
 
   async function loadClasses() {
@@ -44,136 +74,244 @@ export default function RegisterPage() {
     setRecent(data || []);
   }
 
-  async function submitRegistration() {
-    if (!form.name.trim()) {
-      setFormError('Please enter a student name.');
-      return;
-    }
-    const payload = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v === '' ? null : v]));
-    payload.name = form.name.trim();
-    payload.tuition = form.tuition === '' ? null : Number(form.tuition);
-    payload.family_discount = !!form.family_discount;
-    const { data, error } = await supabase.from('students').insert(payload).select();
-    if (error) {
-      setFormError('Could not register: ' + error.message);
-      return;
-    }
-    const newStudent = data[0];
-    setRecent((prev) => [newStudent, ...prev]);
-    // Show the welcome email to review before it goes out.
-    if ((form.guardian_email || '').trim()) setWelcomeFor(newStudent);
-    setForm(emptyForm());
-    setFormError('');
-    setSuccess(true);
+  // Adding a child to a family that's already here: copy the parent details
+  // from one of its students.
+  async function pickFamily(customerId) {
+    if (!customerId) return setFamily((f) => ({ ...f, existing_customer_id: '' }));
+    const [{ data: st }, { data: c }] = await Promise.all([
+      supabase.from('students').select('guardian_name, guardian_phone, guardian_email, address, emergency_name, emergency_phone').eq('customer_id', customerId).limit(1),
+      supabase.from('customers').select('name, email, phone, address, payment_type').eq('id', customerId).maybeSingle(),
+    ]);
+    const s = st?.[0] || {};
+    setFamily({
+      existing_customer_id: customerId,
+      guardian_name: s.guardian_name || '',
+      guardian_phone: s.guardian_phone || c?.phone || '',
+      guardian_email: s.guardian_email || c?.email || '',
+      address: s.address || c?.address || '',
+      emergency_name: s.emergency_name || '',
+      emergency_phone: s.emergency_phone || '',
+      payment_type: c?.payment_type || 'preauth',
+    });
   }
 
+  const setKid = (i, patch) => setKids((list) => list.map((k, j) => (j === i ? { ...k, ...patch } : k)));
+  const addKid = () => setKids((list) => [...list, emptyChild(list[list.length - 1])]);
+  const removeKid = (i) => setKids((list) => list.filter((_, j) => j !== i));
+
+  async function submitRegistration() {
+    const named = kids.filter((k) => k.name.trim());
+    if (!named.length) return setFormError('Please enter the student’s name.');
+    if (named.length < kids.length) return setFormError('Every child needs a name (or remove the empty one).');
+    const bad = named.find((k) => k.subsidy && !k.subsidy_end_date);
+    if (bad) return setFormError(`${bad.name}: enter when the subsidy ends.`);
+    setSaving(true);
+    setFormError('');
+    const fam = {
+      guardian_name: family.guardian_name.trim() || null,
+      guardian_phone: family.guardian_phone.trim() || null,
+      guardian_email: family.guardian_email.trim() || null,
+      address: family.address.trim() || null,
+      emergency_name: family.emergency_name.trim() || null,
+      emergency_phone: family.emergency_phone.trim() || null,
+    };
+    let customerId = family.existing_customer_id || null;
+    const created = [];
+    for (const k of named) {
+      const row = {
+        ...fam,
+        name: k.name.trim(),
+        dob: k.dob || null,
+        belt: k.belt || 'White',
+        class_name: k.class_name || null,
+        classes_per_week: k.classes_per_week === '' ? null : Number(k.classes_per_week),
+        plan: k.plan || '1 Month',
+        tuition: k.tuition === '' ? null : Number(k.tuition),
+        enroll_date: k.enroll_date || todayISO(),
+        billing_start_date: k.billing_start_date || null,
+        family_discount: !!k.family_discount,
+        billing_exempt: !!k.billing_exempt,
+        subsidy: !!k.subsidy,
+        subsidy_name: k.subsidy ? k.subsidy_name || 'KidSport' : null,
+        subsidy_amount: k.subsidy && k.subsidy_amount !== '' ? Number(k.subsidy_amount) : null,
+        subsidy_end_date: k.subsidy ? k.subsidy_end_date || null : null,
+        notes: k.notes.trim() || null,
+        // Siblings go into the same family as the first child.
+        customer_id: customerId,
+      };
+      const { data, error } = await supabase.from('students').insert(row).select();
+      if (error) {
+        setSaving(false);
+        setFormError(`Could not register ${row.name}: ${error.message}` + (created.length ? ` (${created.map((c) => c.name).join(', ')} already saved)` : ''));
+        return;
+      }
+      created.push(data[0]);
+      customerId = customerId || data[0].customer_id || null;
+    }
+    if (customerId && family.payment_type) {
+      await supabase.from('customers').update({ payment_type: family.payment_type }).eq('id', customerId);
+    }
+    setSaving(false);
+    setRecent((prev) => [...created.slice().reverse(), ...prev]);
+    setSuccess(created.length === 1 ? `${created[0].name} registered.` : `${created.map((c) => c.name.split(' ')[0]).join(', ')} registered as one family.`);
+    // One welcome email for the whole family, to review before it goes out.
+    if (fam.guardian_email) setWelcomeFor(created);
+    setFamily(emptyFamily());
+    setKids([emptyChild()]);
+  }
+
+  const inp = { width: '100%' };
 
   return (
     <>
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Enrollment</h1>
-          <p style={styles.subtitle}>After registering you can review and send the welcome email</p>
+          <p style={styles.subtitle}>Parent details once, then each child · one welcome email for the family</p>
         </div>
       </div>
 
-      <div style={{ ...styles.card, padding: 20, marginBottom: 20, maxWidth: 480 }}>
+      <div style={{ ...styles.card, padding: 20, marginBottom: 20, maxWidth: 680 }}>
         {success && (
-          <div
-            style={{
-              background: '#E8F1E9',
-              border: '1px solid #BFDCC3',
-              color: '#2A5A30',
-              borderRadius: 6,
-              padding: '8px 12px',
-              fontSize: 13.5,
-              marginBottom: 14,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <span>Registered.</span>
-            <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => setSuccess(false)}>
-              Close
-            </button>
+          <div style={{ background: '#E8F1E9', border: '1px solid #BFDCC3', color: '#2A5A30', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{success}</span>
+            <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => setSuccess('')}>Close</button>
           </div>
         )}
-        <Field label="Student Name" required>
-          <input className="dp-input" style={{ width: '100%' }} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+
+        <div style={sectionLabel}>Parent / guardian</div>
+        <Field label="Adding to a family that's already registered? (optional)">
+          <CustomerPicker customers={customers} value={family.existing_customer_id} onChange={pickFamily} includeInactive={false} />
         </Field>
         <div style={styles.formRow}>
-          <Field label="Guardian Name">
-            <input className="dp-input" style={{ width: '100%' }} value={form.guardian_name || ''} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />
+          <Field label="Guardian name">
+            <input className="dp-input" style={inp} value={family.guardian_name} onChange={(e) => setFamily({ ...family, guardian_name: e.target.value })} />
           </Field>
-          <Field label="Guardian Phone">
-            <input className="dp-input" style={{ width: '100%' }} value={form.guardian_phone || ''} onChange={(e) => setForm({ ...form, guardian_phone: e.target.value })} />
+          <Field label="Guardian phone">
+            <input className="dp-input" style={inp} value={family.guardian_phone} onChange={(e) => setFamily({ ...family, guardian_phone: e.target.value })} />
           </Field>
         </div>
-        <Field label="Guardian Email(s) — separate with commas">
-          <input className="dp-input" style={{ width: '100%' }} value={form.guardian_email || ''} onChange={(e) => setForm({ ...form, guardian_email: e.target.value })} />
+        <Field label="Guardian email(s) — separate with commas; invoices go to all">
+          <input className="dp-input" style={inp} placeholder="mom@example.com, dad@example.com" value={family.guardian_email} onChange={(e) => setFamily({ ...family, guardian_email: e.target.value })} />
+        </Field>
+        <Field label="Address">
+          <textarea className="dp-input" rows={2} style={{ ...inp, resize: 'vertical' }} value={family.address} onChange={(e) => setFamily({ ...family, address: e.target.value })} />
         </Field>
         <div style={styles.formRow}>
-          <Field label="Belt">
-            <select className="dp-select" style={{ width: '100%' }} value={form.belt} onChange={(e) => setForm({ ...form, belt: e.target.value })}>
-              {BELTS.map((b) => (
-                <option key={b.value} value={b.value}>
-                  {b.value}
-                </option>
-              ))}
-            </select>
+          <Field label="Emergency contact name">
+            <input className="dp-input" style={inp} value={family.emergency_name} onChange={(e) => setFamily({ ...family, emergency_name: e.target.value })} />
+          </Field>
+          <Field label="Emergency phone">
+            <input className="dp-input" style={inp} value={family.emergency_phone} onChange={(e) => setFamily({ ...family, emergency_phone: e.target.value })} />
           </Field>
         </div>
-        <div style={{ marginBottom: 12 }}>
-            <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
-            <ClassPicker value={form.class_name || ''} onChange={(v) => setForm({ ...form, class_name: v })} options={classes} />
-        </div>
-        <div style={styles.formRow}>
-          <Field label="Enrollment Date">
-            <input type="date" className="dp-input" style={{ width: '100%' }} value={form.enroll_date} onChange={(e) => setForm({ ...form, enroll_date: e.target.value })} />
-          </Field>
-          <Field label="Billing Starts (default: same)">
-            <input type="date" className="dp-input" style={{ width: '100%' }} value={form.billing_start_date || form.enroll_date || ''} onChange={(e) => setForm({ ...form, billing_start_date: e.target.value === form.enroll_date ? '' : e.target.value })} />
-          </Field>
-        </div>
-        <div style={styles.formRow}>
-          <Field label="Plan">
-            <select className="dp-select" style={{ width: '100%' }} value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })}>
-              {PLANS.map((p) => <option key={p.value}>{p.value}</option>)}
-            </select>
-          </Field>
-          <Field label={form.plan === '3 Months' ? 'Tuition per 3 months ($, before GST)' : 'Monthly Tuition ($, before GST)'}>
-            <input type="number" className="dp-input" style={{ width: '100%' }} value={form.tuition} onChange={(e) => setForm({ ...form, tuition: e.target.value })} />
-          </Field>
-        </div>
-        <div style={styles.formRow}>
-          <Field label="Classes per week">
-            <select
-              className="dp-select"
-              style={{ width: '100%' }}
-              value={form.classes_per_week}
-              onChange={(e) => {
-                const n = e.target.value === '' ? '' : Number(e.target.value);
-                setForm({ ...form, classes_per_week: n, tuition: form.tuition === '' ? suggestedTuition(n, form.plan) : form.tuition });
-              }}
-            >
-              <option value="">—</option>
-              {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} × per week</option>)}
-            </select>
-          </Field>
-          <div style={{ flex: 1 }} />
-        </div>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 12 }}>
-          <input type="checkbox" checked={!!form.family_discount} onChange={(e) => setForm({ ...form, family_discount: e.target.checked })} />
-          Big family discount (20% off tuition)
-        </label>
-        <Field label="Notes">
-          <textarea className="dp-input" style={{ width: '100%', minHeight: 50, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        <Field label="How the family pays">
+          <select className="dp-select" style={inp} value={family.payment_type} onChange={(e) => setFamily({ ...family, payment_type: e.target.value })}>
+            <option value="preauth">Pre-authorized credit card</option>
+            <option value="manual">Pays manually — debit / cash (gets invoice + reminder)</option>
+          </select>
         </Field>
-        {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 12px' }}>{formError}</p>}
-        <button className="dp-btn dp-btn-primary" style={{ marginTop: 8 }} onClick={submitRegistration}>
-          <Check size={15} /> Complete Registration
+
+        {kids.map((k, i) => (
+          <div key={i} style={{ border: '1px solid #EDEAE0', borderRadius: 10, padding: '14px 14px 4px', margin: '16px 0 0', background: i ? '#FCFBF8' : '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ ...sectionLabel, margin: 0 }}>{kids.length === 1 ? 'Student' : `Child ${i + 1}`}</div>
+              {kids.length > 1 && (
+                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => removeKid(i)}><X size={12} /> Remove</button>
+              )}
+            </div>
+            <div style={styles.formRow}>
+              <Field label="Student name" required>
+                <input className="dp-input" style={inp} value={k.name} onChange={(e) => setKid(i, { name: e.target.value })} />
+              </Field>
+              <Field label="Date of birth">
+                <input type="date" className="dp-input" style={inp} value={k.dob} onChange={(e) => setKid(i, { dob: e.target.value })} />
+              </Field>
+            </div>
+            <div style={styles.formRow}>
+              <Field label="Belt">
+                <select className="dp-select" style={inp} value={k.belt} onChange={(e) => setKid(i, { belt: e.target.value })}>
+                  {BELTS.map((b) => <option key={b.value} value={b.value}>{b.value}</option>)}
+                </select>
+              </Field>
+              <Field label="Classes per week">
+                <select
+                  className="dp-select"
+                  style={inp}
+                  value={k.classes_per_week}
+                  onChange={(e) => {
+                    const n = e.target.value === '' ? '' : Number(e.target.value);
+                    setKid(i, { classes_per_week: n, tuition: k.tuition === '' ? suggestedTuition(n, k.plan) : k.tuition });
+                  }}
+                >
+                  <option value="">—</option>
+                  {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} × per week</option>)}
+                </select>
+              </Field>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
+              <ClassPicker value={k.class_name || ''} onChange={(v) => setKid(i, { class_name: v })} options={classes} />
+            </div>
+            <div style={styles.formRow}>
+              <Field label="Plan">
+                <select className="dp-select" style={inp} value={k.plan} onChange={(e) => setKid(i, { plan: e.target.value })}>
+                  {PLANS.map((p) => <option key={p.value}>{p.value}</option>)}
+                </select>
+              </Field>
+              <Field label={k.plan === '3 Months' ? 'Tuition per 3 months ($, before GST)' : 'Monthly tuition ($, before GST)'}>
+                <input type="number" className="dp-input" style={inp} value={k.tuition} onChange={(e) => setKid(i, { tuition: e.target.value })} />
+              </Field>
+            </div>
+            <div style={styles.formRow}>
+              <Field label="Enrollment date">
+                <input type="date" className="dp-input" style={inp} value={k.enroll_date} onChange={(e) => setKid(i, { enroll_date: e.target.value })} />
+              </Field>
+              <Field label="Billing starts (default: same)">
+                <input type="date" className="dp-input" style={inp} value={k.billing_start_date || k.enroll_date || ''} onChange={(e) => setKid(i, { billing_start_date: e.target.value === k.enroll_date ? '' : e.target.value })} />
+              </Field>
+            </div>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 10 }}>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13.5 }}>
+                <input type="checkbox" checked={k.family_discount} onChange={(e) => setKid(i, { family_discount: e.target.checked })} /> Big family discount (20%)
+              </label>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13.5 }}>
+                <input type="checkbox" checked={k.subsidy} onChange={(e) => setKid(i, { subsidy: e.target.checked })} /> Subsidy (KidSport etc.)
+              </label>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13.5 }}>
+                <input type="checkbox" checked={k.billing_exempt} onChange={(e) => setKid(i, { billing_exempt: e.target.checked })} /> Coach / instructor (not invoiced)
+              </label>
+            </div>
+            {k.subsidy && (
+              <div style={styles.formRow}>
+                <Field label="Subsidy">
+                  <input className="dp-input" style={inp} placeholder="KidSport" value={k.subsidy_name} onChange={(e) => setKid(i, { subsidy_name: e.target.value })} />
+                </Field>
+                <Field label="Amount / month ($)">
+                  <input type="number" className="dp-input" style={inp} value={k.subsidy_amount} onChange={(e) => setKid(i, { subsidy_amount: e.target.value })} />
+                </Field>
+                <Field label="Subsidy ends" required>
+                  <input type="date" className="dp-input" style={inp} value={k.subsidy_end_date} onChange={(e) => setKid(i, { subsidy_end_date: e.target.value })} />
+                </Field>
+              </div>
+            )}
+            <Field label="Notes">
+              <textarea className="dp-input" style={{ ...inp, minHeight: 44, resize: 'vertical' }} value={k.notes} onChange={(e) => setKid(i, { notes: e.target.value })} />
+            </Field>
+          </div>
+        ))}
+
+        <button className="dp-btn" style={{ marginTop: 12 }} onClick={addKid}>
+          <Plus size={14} /> Add a sibling
         </button>
+        <span style={{ fontSize: 12, color: '#8A8D84', marginLeft: 10 }}>Same parent, phone, email and address — just the child’s own details.</span>
+
+        {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '12px 0 0' }}>{formError}</p>}
+        <div style={{ marginTop: 16 }}>
+          <button className="dp-btn dp-btn-primary" disabled={saving} onClick={submitRegistration}>
+            {kids.length > 1 ? <Users size={15} /> : <Check size={15} />} {saving ? 'Saving…' : kids.length > 1 ? `Register ${kids.length} children` : 'Complete registration'}
+          </button>
+        </div>
       </div>
 
       <h2 style={{ fontSize: 15, fontWeight: 500, margin: '0 0 8px' }}>Recently registered</h2>
@@ -203,7 +341,7 @@ export default function RegisterPage() {
                     </span>
                   </td>
                   <td>
-                    <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} disabled={!w.guardian_email} onClick={() => setWelcomeFor(w)}>
+                    <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} disabled={!w.guardian_email} onClick={() => setWelcomeFor([w])}>
                       <Mail size={13} /> {w.welcome_sent_at ? 'Send again' : 'Send'}
                     </button>
                   </td>
@@ -216,10 +354,11 @@ export default function RegisterPage() {
 
       {welcomeFor && (
         <WelcomeEmailModal
-          student={welcomeFor}
+          students={welcomeFor}
           onClose={() => setWelcomeFor(null)}
           onSent={(at) => {
-            setRecent((prev) => prev.map((x) => (x.id === welcomeFor.id ? { ...x, welcome_sent_at: at } : x)));
+            const ids = new Set(welcomeFor.map((x) => x.id));
+            setRecent((prev) => prev.map((x) => (ids.has(x.id) ? { ...x, welcome_sent_at: at } : x)));
             setWelcomeFor(null);
           }}
         />

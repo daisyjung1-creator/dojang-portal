@@ -52,3 +52,39 @@ function addDay(iso, n) {
 }
 
 export const WELCOME_PLACEHOLDERS = '{guardian} {student} {student_full} {classes} {start_date} {plan} {tuition} {billing_schedule} {next_billing} {subsidy_note} {payment_methods} {refund_policy} {business} {address} {phone} {email}';
+
+// One welcome email for siblings registered together. With one child this is
+// the normal template; with several, the per-child parts become short lists.
+export function fillFamilyWelcome(tpl, students, settings = {}) {
+  const kids = (students || []).filter(Boolean);
+  if (kids.length <= 1) return fillWelcomeTemplate(tpl, kids[0] || {}, settings);
+  const first = (s) => (s.name || '').split(' ')[0];
+  const join = (arr) => (arr.length > 1 ? arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1] : arr[0] || '');
+  // Value of one placeholder for each child, filled the normal way.
+  const each = (ph) => kids.map((s) => fillWelcomeTemplate(ph, s, settings));
+  const same = (vals) => vals.every((v) => v === vals[0]);
+  const perChild = (ph) => {
+    const vals = each(ph);
+    return same(vals) ? vals[0] : '\n' + kids.map((s, i) => `- ${first(s)}: ${vals[i]}`).join('\n');
+  };
+  let text = String(tpl || '');
+  const subsidy = kids
+    .map((s) => fillWelcomeTemplate('{subsidy_note}', s, settings))
+    .map((v, i) => (v ? `${first(kids[i])} — ${v}` : ''))
+    .filter(Boolean)
+    .join('\n');
+  if (!subsidy) text = text.replace(/^[ \t]*\{subsidy_note\}[ \t]*\r?\n/m, '');
+  text = text
+    .replace(/\{student\} is /g, '{student} are ')
+    .replaceAll('{classes}', '\n' + kids.map((s) => `- ${first(s)}: ${fillWelcomeTemplate('{classes}', s, settings)}`).join('\n'))
+    .replaceAll('{tuition}', '\n' + kids.map((s) => `- ${first(s)}: ${fillWelcomeTemplate('{tuition}', s, settings)}`).join('\n'))
+    .replaceAll('{plan}', perChild('{plan}'))
+    .replaceAll('{start_date}', perChild('{start_date}'))
+    .replaceAll('{billing_schedule}', perChild('{billing_schedule}'))
+    .replaceAll('{next_billing}', perChild('{next_billing}'))
+    .replaceAll('{subsidy_note}', subsidy)
+    .replaceAll('{student_full}', join(kids.map((s) => s.name || '')))
+    .replaceAll('{student}', join(kids.map(first)));
+  // Everything else (guardian, business, policies…) is the same for the family.
+  return fillWelcomeTemplate(text, kids[0], settings);
+}
