@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Search, RotateCcw } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
+import MessagePreview from './MessagePreview';
 
 // Every email the portal has sent (or tried to): invoices, reminders,
 // receipts, welcome, makeup, absence check, trial, grant reminders, group emails.
@@ -19,7 +20,7 @@ const TYPES = {
 };
 const kindOf = (q) => (q.type === 'invoice' && q.payload?.reminder ? 'reminder' : q.type);
 
-export default function EmailLog() {
+export default function EmailLog({ onReuse }) {
   const [rows, setRows] = useState([]);
   const [names, setNames] = useState({});
   const [invNums, setInvNums] = useState({});
@@ -28,6 +29,8 @@ export default function EmailLog() {
   const [status, setStatus] = useState('all');
   const [q, setQ] = useState('');
   const [flash, setFlash] = useState('');
+  const [broadcasts, setBroadcasts] = useState({});
+  const [viewing, setViewing] = useState(null);
 
   useEffect(() => {
     load();
@@ -39,10 +42,13 @@ export default function EmailLog() {
     const list = data || [];
     const sids = [...new Set(list.map((r) => r.student_id).filter(Boolean))];
     const iids = [...new Set(list.map((r) => r.payload?.invoice_id).filter(Boolean))];
-    const [{ data: st }, { data: inv }] = await Promise.all([
+    const bids = [...new Set(list.map((r) => r.broadcast_id).filter(Boolean))];
+    const [{ data: st }, { data: inv }, { data: bc }] = await Promise.all([
       sids.length ? supabase.from('students').select('id, name').in('id', sids) : { data: [] },
       iids.length ? supabase.from('invoices').select('id, invoice_number, customer_name').in('id', iids) : { data: [] },
+      bids.length ? supabase.from('email_broadcasts').select('id, subject, message, audience').in('id', bids) : { data: [] },
     ]);
+    setBroadcasts(Object.fromEntries((bc || []).map((b) => [b.id, b])));
     setNames(Object.fromEntries((st || []).map((s) => [s.id, s.name])));
     setInvNums(Object.fromEntries((inv || []).map((i) => [i.id, i])));
     setRows(list);
@@ -59,6 +65,18 @@ export default function EmailLog() {
   }
   function whoOf(r) {
     return names[r.student_id] || invNums[r.payload?.invoice_id]?.customer_name || '';
+  }
+  // Emails whose text was written in the portal (group emails, makeup, absence…)
+  // can be opened and reused. Group emails reuse the original with {guardian}.
+  function openRow(r) {
+    if (!r.payload?.message) return;
+    const b = broadcasts[r.broadcast_id];
+    setViewing({
+      created_at: r.created_at,
+      to: b ? b.audience : r.recipient_email,
+      subject: b ? b.subject : r.payload.subject,
+      message: b ? b.message : r.payload.message,
+    });
   }
   const stateOf = (r) => (r.sent ? 'sent' : r.error ? 'failed' : 'waiting');
 
@@ -122,7 +140,7 @@ export default function EmailLog() {
               {shown.map((r) => {
                 const st = stateOf(r);
                 return (
-                  <tr key={r.id} className="dp-row">
+                  <tr key={r.id} className="dp-row" style={r.payload?.message ? { cursor: 'pointer' } : undefined} title={r.payload?.message ? 'Click to see the message' : undefined} onClick={() => openRow(r)}>
                     <td style={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>{new Date(r.created_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
                     <td style={{ fontSize: 12.5 }}>{TYPES[kindOf(r)] || r.type}</td>
                     <td style={{ fontSize: 12.5 }}>{whoOf(r)}</td>
@@ -139,7 +157,7 @@ export default function EmailLog() {
                     </td>
                     <td>
                       {st !== 'waiting' && (
-                        <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => resend(r)}><RotateCcw size={12} /> Resend</button>
+                        <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={(e) => { e.stopPropagation(); resend(r); }}><RotateCcw size={12} /> Resend</button>
                       )}
                     </td>
                   </tr>
@@ -149,7 +167,8 @@ export default function EmailLog() {
           </table>
         )}
       </div>
-      <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>Shows the last 500 emails. "Sent" means the email service accepted it for delivery.</p>
+      <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>Shows the last 500 emails. "Sent" means the email service accepted it for delivery. Click a written message (group email, makeup, absence…) to see it and copy it.</p>
+      {viewing && <MessagePreview item={viewing} onClose={() => setViewing(null)} onReuse={onReuse} />}
     </>
   );
 }

@@ -6,6 +6,7 @@ import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import { splitClasses, allClassNames } from '../../lib/classes';
 import EmailLog from './EmailLog';
+import MessagePreview from './MessagePreview';
 import { matchScore } from '../../components/SearchSelect';
 
 // Group email: write one message and send it to every family, or only to
@@ -39,6 +40,15 @@ export default function EmailPage() {
   const [history, setHistory] = useState([]);
   const [page, setPage] = useState('compose'); // compose | log
   const [find, setFind] = useState('');
+  const [viewing, setViewing] = useState(null);
+
+  function reuse(item) {
+    setSubject(item.subject || '');
+    setMessage(item.message || DEFAULT_MESSAGE);
+    setViewing(null);
+    setPage('compose');
+    say('Message copied into Group email — check who it goes to, then send.');
+  }
 
   useEffect(() => {
     supabase
@@ -202,7 +212,7 @@ export default function EmailPage() {
           ))}
         </div>
       </div>
-      {page === 'log' ? <EmailLog /> : (<>
+      {page === 'log' ? <EmailLog onReuse={reuse} /> : (<>
       {flash.text && <p style={{ background: flash.error ? '#FBEAEA' : '#E8F1E9', color: flash.error ? '#9A2B2B' : '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
@@ -308,7 +318,7 @@ export default function EmailPage() {
               <table className="dp-table">
                 <tbody>
                   {history.map((h) => (
-                    <tr key={h.id}>
+                    <tr key={h.id} className="dp-row" style={{ cursor: 'pointer' }} title="Click to see the message" onClick={() => setViewing(h)}>
                       <td style={{ fontSize: 12.5 }}>
                         <div style={{ fontWeight: 500 }}>{h.subject}</div>
                         <div style={{ color: '#8A8D84' }}>{new Date(h.created_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {h.audience}</div>
@@ -319,7 +329,7 @@ export default function EmailPage() {
                         {h.failed > 0 && (
                           <div>
                             <span style={{ color: '#9A2B2B' }}>{h.failed} failed </span>
-                            <button className="dp-btn" style={{ padding: '1px 6px', fontSize: 11.5 }} onClick={retryFailed}>Retry</button>
+                            <button className="dp-btn" style={{ padding: '1px 6px', fontSize: 11.5 }} onClick={(e) => { e.stopPropagation(); retryFailed(); }}>Retry</button>
                           </div>
                         )}
                       </td>
@@ -354,6 +364,7 @@ export default function EmailPage() {
         </Modal>
       )}
       </>)}
+      {viewing && <MessagePreview item={viewing} onClose={() => setViewing(null)} onReuse={reuse} />}
     </>
   );
 }
