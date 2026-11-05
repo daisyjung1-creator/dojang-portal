@@ -26,7 +26,17 @@ export function ratesFor(payDate) {
   return PAYROLL_RATES[y] || PAYROLL_RATES[years.filter((k) => k <= y).pop() || years[0]];
 }
 
-const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+// Round to cents, half up, without floating-point slips (620.925 → 620.93).
+const r2 = (n) => Math.round(Number(((Number(n) || 0) * 100).toFixed(6))) / 100;
+
+// Hours typed as a number (36.52) or as hours:minutes (36:31 or 36:31.5).
+export function parseHours(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return 0;
+  const m = s.match(/^(\d+):(\d+(?:\.\d+)?)$/);
+  if (m) return Number(m[1]) + Number(m[2]) / 60;
+  return Number(s) || 0;
+}
 
 function bracketTax(income, brackets) {
   let t = 0;
@@ -70,8 +80,8 @@ export function incomeTax({ pay, cpp, ei, periods = 12, payDate }) {
 export function calcPayslip(p, ytd = { cpp: 0, ei: 0 }) {
   const rates = ratesFor(p.pay_date);
   const periods = PAY_TYPES[p.pay_type] || 12;
-  const standard_pay = r2(Number(p.hours) * Number(p.rate));
-  const overtime_pay = r2(Number(p.overtime_hours || 0) * Number(p.overtime_rate || 0));
+  const standard_pay = r2(parseHours(p.hours) * Number(p.rate));
+  const overtime_pay = r2(parseHours(p.overtime_hours) * Number(p.overtime_rate || 0));
   const vacation_pay = p.vacation_pay_override != null && p.vacation_pay_override !== '' ? r2(p.vacation_pay_override) : r2(((standard_pay + overtime_pay) * Number(p.vacation_pct ?? 4)) / 100);
   const bonus = r2(p.bonus), sick_pay = r2(p.sick_pay), expenses = r2(p.expenses);
   const gross = r2(standard_pay + overtime_pay + vacation_pay + bonus + sick_pay + expenses);

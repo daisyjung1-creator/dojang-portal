@@ -7,7 +7,7 @@ import Field from '../../components/Field';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { PrintPortal } from '../invoices/InvoicePreview';
-import { calcPayslip, ytdTotals, ratesFor, PAY_TYPES, PAYROLL_RATES } from '../../lib/payroll';
+import { calcPayslip, ytdTotals, ratesFor, PAY_TYPES, PAYROLL_RATES, parseHours } from '../../lib/payroll';
 import PayslipDocument from './PayslipDocument';
 import { queueEmail } from '../invoices/api';
 
@@ -188,8 +188,8 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
     return calcPayslip({ ...r, pay_date: payDate, pay_type: e.pay_type, vacation_pct: e.vacation_pct ?? 4 }, ytd);
   };
   const set = (id, k, v) => setRows((x) => ({ ...x, [id]: { ...x[id], [k]: v } }));
-  const chosen = active.filter((e) => rows[e.id]?.include && Number(rows[e.id]?.hours) > 0);
-  const missingHours = active.filter((e) => rows[e.id]?.include && !(Number(rows[e.id]?.hours) > 0));
+  const chosen = active.filter((e) => rows[e.id]?.include && parseHours(rows[e.id]?.hours) > 0);
+  const missingHours = active.filter((e) => rows[e.id]?.include && !(parseHours(rows[e.id]?.hours) > 0));
   const existing = chosen.filter((e) => slips.some((s) => s.employee_id === e.id && s.pay_date === payDate));
 
   async function save() {
@@ -204,9 +204,9 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
         period_end: to,
         pay_type: e.pay_type,
         payment_method: e.payment_method,
-        hours: Number(r.hours) || 0,
+        hours: Math.round(parseHours(r.hours) * 10000) / 10000,
         rate: Number(r.rate) || 0,
-        overtime_hours: Number(r.overtime_hours) || 0,
+        overtime_hours: Math.round(parseHours(r.overtime_hours) * 10000) / 10000,
         overtime_rate: Number(r.overtime_rate) || 0,
         notes: r.notes || null,
         ...c,
@@ -306,7 +306,8 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                           {e.hourly_rate ? `${money(e.hourly_rate)}/h · ${e.payment_method}` : <span style={{ color: '#9A2B2B' }}>no hourly rate</span>}
                         </div>
                       </td>
-                      <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(70)} type="number" step="0.01" placeholder="0" value={r?.hours ?? ''} onChange={(ev) => set(e.id, 'hours', ev.target.value)} /></td>
+                      <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(78)} inputMode="decimal" placeholder="0 or h:mm" title="Hours as a number (36.52) or hours:minutes (36:31)" value={r?.hours ?? ''} onChange={(ev) => set(e.id, 'hours', ev.target.value)} />
+                        {String(r?.hours ?? '').includes(':') && <div style={{ fontSize: 11, color: '#8A8D84' }}>= {parseHours(r.hours).toFixed(3)} h</div>}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" value={r?.rate ?? ''} onChange={(ev) => set(e.id, 'rate', ev.target.value)} /></td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.vacation_pay) : ''}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(70)} type="number" step="0.01" value={r?.bonus ?? ''} onChange={(ev) => set(e.id, 'bonus', ev.target.value)} /></td>
@@ -321,7 +322,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                         <td></td>
                         <td colSpan={10} style={{ background: '#FAF8F2' }}>
                           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12.5, alignItems: 'center', marginBottom: 8 }}>
-                            <label>Overtime hrs <input className="dp-input" style={inp(60)} type="number" step="0.01" value={r.overtime_hours} onChange={(ev) => set(e.id, 'overtime_hours', ev.target.value)} /></label>
+                            <label>Overtime hrs <input className="dp-input" style={inp(60)} inputMode="decimal" value={r.overtime_hours} onChange={(ev) => set(e.id, 'overtime_hours', ev.target.value)} /></label>
                             <label>OT rate <input className="dp-input" style={inp(60)} type="number" step="0.01" value={r.overtime_rate} onChange={(ev) => set(e.id, 'overtime_rate', ev.target.value)} /></label>
                             <label>Sick pay <input className="dp-input" style={inp(70)} type="number" step="0.01" value={r.sick_pay} onChange={(ev) => set(e.id, 'sick_pay', ev.target.value)} /></label>
                             <label>Expenses <input className="dp-input" style={inp(70)} type="number" step="0.01" value={r.expenses} onChange={(ev) => set(e.id, 'expenses', ev.target.value)} /></label>
