@@ -36,3 +36,10 @@ export function allClassNames(students = []) {
 export function inClass(student, className) {
   return splitClasses(student.class_name).includes(className);
 }
+
+// Does the student come to this class on this weekday? (students.class_days;
+// empty = every scheduled day of their classes)
+export function comesOn(student, weekday, className) {
+  const days = student.class_days;
+  return !days || !days.length || days.includes(`${weekday}:${className}`);
+}

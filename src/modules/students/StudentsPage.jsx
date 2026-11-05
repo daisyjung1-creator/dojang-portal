@@ -8,6 +8,8 @@ import { BELTS } from '../../lib/constants';
 import { PLANS, billingAnchor, currentCycleStart, nextDueDate, todayISO, daysUntil } from '../../lib/billingDates';
 import Field from '../../components/Field';
 import ClassPicker from '../../components/ClassPicker';
+import ClassDaysPicker from '../../components/ClassDaysPicker';
+import { clearOffDayAbsences } from '../../lib/classDays';
 import WelcomeEmailModal from '../../components/WelcomeEmailModal';
 import { allClassNames } from '../../lib/classes';
 import Modal from '../../components/Modal';
@@ -31,7 +33,7 @@ const FIELD_DEFS = [
 ];
 
 function emptyForm() {
-  return { name: '', dob: '', guardian_name: '', guardian_phone: '', guardian_email: '', address: '', emergency_name: '', emergency_phone: '', belt: 'White', class_name: '', tuition: '', enroll_date: '', billing_start_date: '', plan: '1 Month', subsidy: false, subsidy_name: '', subsidy_amount: '', subsidy_end_date: '', classes_per_week: '', family_discount: false, billing_exempt: false, notes: '' };
+  return { name: '', dob: '', guardian_name: '', guardian_phone: '', guardian_email: '', address: '', emergency_name: '', emergency_phone: '', belt: 'White', class_name: '', tuition: '', enroll_date: '', billing_start_date: '', plan: '1 Month', subsidy: false, subsidy_name: '', subsidy_amount: '', subsidy_end_date: '', classes_per_week: '', class_days: null, family_discount: false, billing_exempt: false, notes: '' };
 }
 
 // Several guardian emails can be stored together, separated by commas.
@@ -150,6 +152,7 @@ export default function StudentsPage() {
       tuition: form.tuition === '' ? null : Number(form.tuition),
       subsidy: !!form.subsidy,
       classes_per_week: form.classes_per_week === '' || form.classes_per_week == null ? null : Number(form.classes_per_week),
+      class_days: form.class_days && form.class_days.length ? form.class_days : null,
       family_discount: !!form.family_discount,
       billing_exempt: !!form.billing_exempt,
       subsidy_name: form.subsidy ? blank(form.subsidy_name) : null,
@@ -159,6 +162,7 @@ export default function StudentsPage() {
     let submitError;
     if (editingId) {
       ({ error: submitError } = await supabase.from('students').update(payload).eq('id', editingId));
+      if (!submitError && payload.class_days) await clearOffDayAbsences(editingId, payload.class_days);
       const fam = form.customer_id && families[form.customer_id];
       if (!submitError && fam && fam.payment_type !== form.payment_type) {
         await supabase.from('customers').update({ payment_type: form.payment_type }).eq('id', form.customer_id);
@@ -559,6 +563,7 @@ export default function StudentsPage() {
             <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
             <ClassPicker value={form.class_name || ''} onChange={(v) => setForm({ ...form, class_name: v })} options={classes} />
           </div>
+          <ClassDaysPicker classNames={form.class_name} perWeek={form.classes_per_week} value={form.class_days} onChange={(v) => setForm({ ...form, class_days: v })} />
           <div style={styles.formRow}>
             <Field label="Guardian Name">
               <input className="dp-input" style={{ width: '100%' }} value={form.guardian_name || ''} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />

@@ -133,12 +133,18 @@ export function absenceAlerts(students, recordsBy, { schedule = [], cancellation
       const inWin = recs.filter((r) => r.date >= from && r.date <= today && r.class_name !== 'Private');
       const came = classCount(inWin) + inWin.filter((r) => r.status === 'excused' || r.status === 'vacation').length;
       const myClasses = splitList(s.class_name);
+      const mySlots = schedule.filter((c) => c.active !== false && myClasses.includes(c.class_name) && (!s.class_days?.length || s.class_days.includes(`${c.weekday}:${c.class_name}`)));
       let expected;
       if (comp) expected = Math.ceil((COMP_MIN * days) / 7);
       else {
-        const perWeek = Number(s.classes_per_week) || schedule.filter((c) => c.active !== false && myClasses.includes(c.class_name)).length;
+        const perWeek = Number(s.classes_per_week) || mySlots.length;
         if (!perWeek) return;
-        const cancelled = cancellations.filter((c) => c.date >= from && c.date <= yesterday && (!c.class_name || myClasses.includes(c.class_name))).length;
+        // Cancelled classes on the student's own class days.
+        const cancelled = cancellations.filter((c) => {
+          if (c.date < from || c.date > yesterday) return false;
+          const wd = new Date(c.date + 'T00:00:00').getDay();
+          return mySlots.some((sl) => sl.weekday === wd && (!c.class_name || sl.class_name === c.class_name));
+        }).length;
         expected = Math.max(Math.floor((perWeek * days) / 7) - cancelled, 0);
       }
       if (expected > 0 && came < expected) below.push({ s, came, expected, comp, from, last });

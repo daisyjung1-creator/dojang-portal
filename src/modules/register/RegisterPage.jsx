@@ -6,6 +6,7 @@ import { BELTS } from '../../lib/constants';
 import { todayISO, PLANS } from '../../lib/billingDates';
 import Field from '../../components/Field';
 import ClassPicker from '../../components/ClassPicker';
+import ClassDaysPicker from '../../components/ClassDaysPicker';
 import WelcomeEmailModal from '../../components/WelcomeEmailModal';
 import { allClassNames } from '../../lib/classes';
 import { suggestedTuition } from '../students/StudentsPage';
@@ -22,6 +23,7 @@ function emptyChild(copyFrom) {
     dob: '',
     belt: 'White',
     class_name: '',
+    class_days: null,
     classes_per_week: '',
     plan: copyFrom?.plan || '1 Month',
     tuition: '',
@@ -125,6 +127,7 @@ export default function RegisterPage() {
         belt: k.belt || 'White',
         class_name: k.class_name || null,
         classes_per_week: k.classes_per_week === '' ? null : Number(k.classes_per_week),
+        class_days: k.class_days && k.class_days.length ? k.class_days : null,
         plan: k.plan || '1 Month',
         tuition: k.tuition === '' ? null : Number(k.tuition),
         enroll_date: k.enroll_date || todayISO(),
@@ -253,6 +256,7 @@ export default function RegisterPage() {
               <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
               <ClassPicker value={k.class_name || ''} onChange={(v) => setKid(i, { class_name: v })} options={classes} />
             </div>
+            <ClassDaysPicker classNames={k.class_name} perWeek={k.classes_per_week} value={k.class_days} onChange={(v) => setKid(i, { class_days: v })} />
             <div style={styles.formRow}>
               <Field label="Plan">
                 <select className="dp-select" style={inp} value={k.plan} onChange={(e) => setKid(i, { plan: e.target.value })}>

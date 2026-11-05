@@ -53,7 +53,7 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
       .filter((s) => (cls === 'all' || inClass(s, cls)) && (!k || s.name.toLowerCase().includes(k)))
       .map((s) => {
         const mine = splitClasses(s.class_name);
-        const weekdays = new Set(schedule.filter((c) => c.active !== false && mine.includes(c.class_name)).map((c) => c.weekday));
+        const weekdays = new Set(schedule.filter((c) => c.active !== false && mine.includes(c.class_name) && (cls === 'all' || c.class_name === cls) && (!s.class_days?.length || s.class_days.includes(`${c.weekday}:${c.class_name}`))).map((c) => c.weekday));
         const recs = Object.values(byStudentDay[s.id] || {}).flat().filter((r) => cls === 'all' || r.class_name === cls || r.status === 'private');
         return { s, weekdays, total: classCount(recs.filter((r) => r.status !== 'private')), absent: recs.filter((r) => r.status === 'absent').length };
       });
@@ -103,7 +103,7 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
               <tr key={s.id}>
                 <td style={{ ...stickyCell, padding: '5px 10px', borderBottom: '1px solid #F1EFE7', whiteSpace: 'nowrap' }}>
                   <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: '#8A8D84', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.class_name || '—'}{s.classes_per_week ? ` · ${s.classes_per_week}x/wk` : ''}</div>
+                  <div style={{ fontSize: 11, color: '#8A8D84', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.class_name || '—'}{s.classes_per_week ? ` · ${s.classes_per_week}x/wk` : ''}{s.class_days?.length ? ` · ${[...new Set(s.class_days.map((k) => 'SMTWTFS'[Number(k.split(':')[0])]))].join('')}` : ''}</div>
                 </td>
                 {dayInfo.map(({ d, wd, weekend, allCancelled }) => {
                   const recs = (byStudentDay[s.id]?.[d] || []).filter((r) => cls === 'all' || r.class_name === cls || r.status === 'private');

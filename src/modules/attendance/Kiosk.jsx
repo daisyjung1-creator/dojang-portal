@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X, Check, Ban, Plus } from 'lucide-react';
-import { splitClasses } from '../../lib/classes';
+import { splitClasses, comesOn } from '../../lib/classes';
 import { BELTS } from '../../lib/constants';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
@@ -54,7 +54,7 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
     if (!cls) return [];
     const list = students
       .filter((s) => !s.billing_exempt && splitClasses(s.class_name).includes(cls.class_name) && (!s.enroll_date || s.enroll_date <= now.date))
-      .map((s) => ({ s, rec: attendance.find((a) => a.student_id === s.id && a.date === now.date && a.class_name === cls.class_name) }));
+      .map((s) => ({ s, off: !comesOn(s, cls.weekday, cls.class_name), rec: attendance.find((a) => a.student_id === s.id && a.date === now.date && a.class_name === cls.class_name) }));
     const guests = makeupRecords
       .filter((m) => (m.status === 'reserved' || m.status === 'completed') && m.reservation_date === now.date && (m.reservation_class_name || m.class_name) === cls.class_name)
       .map((m) => ({ s: students.find((x) => x.id === m.student_id), m, rec: attendance.find((a) => a.student_id === m.student_id && a.date === now.date && a.class_name === cls.class_name) }))
@@ -64,10 +64,13 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
       .filter((a) => a.date === now.date && a.class_name === cls.class_name && !list.some((r) => r.s.id === a.student_id) && !guests.some((g) => g.s.id === a.student_id))
       .map((a) => ({ s: students.find((x) => x.id === a.student_id), rec: a, drop: true }))
       .filter((g) => g.s);
-    return [...list.sort((a, b) => a.s.name.localeCompare(b.s.name)), ...guests, ...extras];
+    // Students whose class days don't include today go last (not expected today).
+    return [...list.sort((a, b) => (a.off === b.off ? a.s.name.localeCompare(b.s.name) : a.off ? 1 : -1)), ...guests, ...extras];
   }, [cls, students, attendance, makeupRecords, now.date]);
 
-  const here = roster.filter((r) => r.rec && ['present', 'double', 'private'].includes(r.rec.status)).length;
+  const isHere = (r) => r.rec && ['present', 'double', 'private'].includes(r.rec.status);
+  const here = roster.filter(isHere).length;
+  const expectedCount = roster.filter((r) => !r.off || isHere(r)).length;
   const ended = cls && now.minutes >= toMin(cls.end_time);
 
   function tap(r) {
@@ -81,7 +84,7 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: '#20241F', color: '#fff', flexWrap: 'wrap' }}>
         <div style={{ fontSize: 22, fontWeight: 600 }}>{cls ? cls.class_name : 'No classes today'}</div>
         {cls && <div style={{ fontSize: 15, opacity: 0.8 }}>{timeLabel(cls.start_time)} – {timeLabel(cls.end_time)}</div>}
-        {cls && !cancelled && <div style={{ fontSize: 15, background: '#2A5A30', borderRadius: 999, padding: '3px 12px' }}>{here} / {roster.length} here</div>}
+        {cls && !cancelled && <div style={{ fontSize: 15, background: '#2A5A30', borderRadius: 999, padding: '3px 12px' }}>{here} / {expectedCount} here</div>}
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 14, opacity: 0.8 }}>{new Date(now.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
         <button className="dp-btn" style={{ background: 'transparent', color: '#fff', borderColor: '#5B5F56' }} onClick={onClose}><X size={16} /> Exit</button>
@@ -124,7 +127,8 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
                     minHeight: 96,
                     borderRadius: 12,
                     border: `2px solid ${on ? '#3C7A43' : st === 'absent' ? '#E4B8B8' : st === 'vacation' || st === 'excused' ? '#F0D9A8' : '#DEDACC'}`,
-                    background: on ? '#E8F1E9' : st === 'absent' ? '#FBEAEA' : st === 'excused' ? '#FAEEDA' : '#fff',
+                    background: on ? '#E8F1E9' : st === 'absent' ? '#FBEAEA' : st === 'excused' ? '#FAEEDA' : r.off ? '#F6F4EE' : '#fff',
+                    opacity: r.off && !on && !st ? 0.7 : 1,
                     padding: '14px 12px 12px',
                     textAlign: 'left',
                     cursor: 'pointer',
@@ -135,9 +139,9 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
                   <div style={{ height: 6, borderRadius: 3, background: belt.bg, border: `1px solid ${belt.border}`, marginBottom: 10 }} />
                   <div style={{ fontSize: 17, fontWeight: 600, color: '#20241F', lineHeight: 1.25 }}>{r.s.name}</div>
                   <div style={{ fontSize: 12.5, color: '#5B5F56', marginTop: 4 }}>
-                    {r.m ? (on ? 'Makeup · here' : 'Makeup booked') : r.drop ? 'Drop-in · here' : st === 'absent' ? (r.rec.auto ? 'Marked absent' : 'Absent') : st === 'excused' ? 'Excused (makeup)' : st === 'vacation' ? 'Vacation' : st === 'double' ? 'Double class' : st === 'private' ? 'Private' : on ? 'Here' : 'Tap when here'}
+                    {r.m ? (on ? 'Makeup · here' : 'Makeup booked') : r.drop ? 'Drop-in · here' : st === 'absent' ? (r.rec.auto ? 'Marked absent' : 'Absent') : st === 'excused' ? 'Excused (makeup)' : st === 'vacation' ? 'Vacation' : st === 'double' ? 'Double class' : st === 'private' ? 'Private' : on ? 'Here' : r.off ? 'Not their day · tap if here' : 'Tap when here'}
                   </div>
-                  {!on && !r.m && !r.drop && (
+                  {!on && !r.m && !r.drop && !r.off && (
                     <span
                       role="button"
                       onClick={(e) => {

@@ -4,7 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { MAKEUP_STATUSES } from '../../lib/constants';
 import { todayISO, computeMakeupWindow, addDaysISO } from '../../lib/billingDates';
-import { splitClasses, allClassNames, inClass, DOJANG_CLASSES } from '../../lib/classes';
+import { splitClasses, allClassNames, inClass, DOJANG_CLASSES, comesOn } from '../../lib/classes';
 import { ATTENDANCE_KINDS, studentSummary, weekCount, lastAttended, minutesLabel, absenceAlerts, trackingStart, NOT_SEEN_DAYS, REGULAR_WINDOW, COMP_WINDOW } from '../../lib/attendanceStats';
 import { fillTemplate, makeupVars, studentVars } from '../../lib/emailTemplates';
 import { formatDate } from '../../lib/invoiceUtils';
@@ -15,6 +15,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import EmailComposeModal from '../../components/EmailComposeModal';
 import Kiosk from './Kiosk';
 import AttendanceMonth from './AttendanceMonth';
+import ClassDaysSetup from './ClassDaysSetup';
 
 const classOrder = (c) => {
   const i = DOJANG_CLASSES.indexOf(c);
@@ -212,7 +213,7 @@ export default function AttendancePage() {
     for (let d = from; d && to && d <= to && out.length < 60; d = addDaysISO(d, 1)) {
       const dow = new Date(d + 'T00:00:00').getDay();
       schedule
-        .filter((c) => c.active !== false && c.weekday === dow && mine.includes(c.class_name))
+        .filter((c) => c.active !== false && c.weekday === dow && mine.includes(c.class_name) && comesOn(student, c.weekday, c.class_name))
         .forEach((c) => out.push({ date: d, class_name: c.class_name, start: c.start_time }));
     }
     return out;
@@ -936,6 +937,7 @@ export default function AttendancePage() {
                 </table>
               </div>
             )}
+            <ClassDaysSetup students={students} schedule={schedule} onSaved={(id, days) => setStudents((prev) => prev.map((x) => (x.id === id ? { ...x, class_days: days } : x)))} onCleared={loadAll} />
           </>
         );
       })()}
