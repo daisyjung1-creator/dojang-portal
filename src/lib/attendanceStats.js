@@ -86,35 +86,68 @@ export function minutesLabel(min) {
 // ── Absence alerts (Attendance → Absence Check, and the Home page) ──────────
 // "Not in class": no class for NOT_SEEN_DAYS days and no vacation / excused
 //   absence marked in that time.
-// "Absent a lot": in the last FREQUENT_WINDOW days, at least FREQUENT_MIN
-//   unexcused absences and missed at least half of their classes.
+// "Below their classes":
+//   • regular students — fewer classes in the last 2 weeks than their plan
+//     (classes per week × 2; without a plan, their weekly scheduled classes).
+//   • Comp Team (can come every day) — 0 or 1 class in the last week.
+//   Excused / vacation days count as came; cancelled classes aren't expected.
+//   Counted up to yesterday (today's classes may not have happened yet), and
+//   never before attendance tracking started or before the student enrolled.
 export const NOT_SEEN_DAYS = 7;
-export const FREQUENT_WINDOW = 30;
-export const FREQUENT_MIN = 3;
+export const REGULAR_WINDOW = 14;
+export const COMP_WINDOW = 7;
+export const COMP_MIN = 2; // per week
 
-export function absenceAlerts(students, recordsBy, today = todayISO()) {
+// First day the kiosk was really in use (a day with 10+ records).
+export function trackingStart(records) {
+  const n = {};
+  records.forEach((r) => (n[r.date] = (n[r.date] || 0) + 1));
+  return Object.keys(n).filter((d) => n[d] >= 10).sort()[0] || null;
+}
+
+const isComp = (s) => /comp team/i.test(s.class_name || '');
+const dayCount = (from, to) => (from > to ? 0 : Math.round((new Date(to) - new Date(from)) / 86400000) + 1);
+
+export function absenceAlerts(students, recordsBy, { schedule = [], cancellations = [], today = todayISO(), start = null } = {}) {
   const since = addDaysISO(today, -NOT_SEEN_DAYS);
-  const from = addDaysISO(today, -FREQUENT_WINDOW);
+  const yesterday = addDaysISO(today, -1);
   const notSeen = [];
-  const frequent = [];
+  const below = [];
   students
     .filter((s) => !s.billing_exempt && (s.status || 'active') !== 'withdrawn')
     .forEach((s) => {
       const recs = recordsBy[s.id] || [];
       const last = lastAttended(recs);
       const told = recs.some((r) => (r.status === 'vacation' || r.status === 'excused') && r.date >= since);
-      const started = s.enroll_date || s.created_at?.slice(0, 10);
-      if (!told && (!last || last < since) && (!started || started <= since)) {
+      const enrolled = s.enroll_date || s.created_at?.slice(0, 10);
+      if (!told && (!last || last < since) && (!enrolled || enrolled <= since)) {
         notSeen.push({ s, last, days: last ? Math.round((new Date(today) - new Date(last)) / 86400000) : null });
       }
-      const recent = recs.filter((r) => r.date >= from && r.date <= today && r.class_name !== 'Private');
-      const absent = recent.filter((r) => r.status === 'absent');
-      const came = recent.filter((r) => r.status === 'present' || r.status === 'double').length;
-      if (absent.length >= FREQUENT_MIN && absent.length >= came) {
-        frequent.push({ s, absent: absent.length, came, last, lastAbsent: absent.map((r) => r.date).sort().pop() });
+      if (!start) return;
+      const comp = isComp(s);
+      let from = addDaysISO(today, -(comp ? COMP_WINDOW : REGULAR_WINDOW));
+      if (start > from) from = start;
+      if (enrolled && enrolled > from) from = enrolled;
+      const days = dayCount(from, yesterday);
+      if (days < 3) return; // too little to judge yet
+      const inWin = recs.filter((r) => r.date >= from && r.date <= today && r.class_name !== 'Private');
+      const came = classCount(inWin) + inWin.filter((r) => r.status === 'excused' || r.status === 'vacation').length;
+      const myClasses = splitList(s.class_name);
+      let expected;
+      if (comp) expected = Math.ceil((COMP_MIN * days) / 7);
+      else {
+        const perWeek = Number(s.classes_per_week) || schedule.filter((c) => c.active !== false && myClasses.includes(c.class_name)).length;
+        if (!perWeek) return;
+        const cancelled = cancellations.filter((c) => c.date >= from && c.date <= yesterday && (!c.class_name || myClasses.includes(c.class_name))).length;
+        expected = Math.max(Math.floor((perWeek * days) / 7) - cancelled, 0);
       }
+      if (expected > 0 && came < expected) below.push({ s, came, expected, comp, from, last });
     });
   notSeen.sort((a, b) => (b.days ?? 9999) - (a.days ?? 9999) || a.s.name.localeCompare(b.s.name));
-  frequent.sort((a, b) => b.absent - a.absent || a.came - b.came || a.s.name.localeCompare(b.s.name));
-  return { notSeen, frequent };
+  below.sort((a, b) => a.came / a.expected - b.came / b.expected || a.s.name.localeCompare(b.s.name));
+  return { notSeen, frequent: below };
+}
+
+function splitList(v) {
+  return String(v || '').split(',').map((c) => c.trim()).filter(Boolean);
 }

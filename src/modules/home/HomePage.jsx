@@ -7,7 +7,7 @@ import { isBillable, isManual } from '../../lib/tuitionBilling';
 import { inClass } from '../../lib/classes';
 import { money, formatDate } from '../../lib/invoiceUtils';
 import { fetchAll, loadSettings } from '../invoices/api';
-import { absenceAlerts, NOT_SEEN_DAYS } from '../../lib/attendanceStats';
+import { absenceAlerts, trackingStart, NOT_SEEN_DAYS } from '../../lib/attendanceStats';
 import InvoicePreview from '../invoices/InvoicePreview';
 
 // Home: what matters today at a glance — today's classes, who is billed
@@ -140,6 +140,7 @@ export default function HomePage({ setActiveTab }) {
       makeups: makeups || [],
       slips: slips || [],
       empById: Object.fromEntries((emps || []).map((e) => [e.id, e])),
+      trackStart: trackingStart(recent || []),
       recordsBy: (recent || []).reduce((m, r) => ((m[r.student_id] = m[r.student_id] || []).push(r), m), {}),
     });
   }
@@ -212,15 +213,15 @@ export default function HomePage({ setActiveTab }) {
         detail: trials.map((t) => `${t.student_name} (${t.date === today ? 'today' : shortDay(t.date)}${t.time ? ' ' + t.time.slice(0, 5) : ''})`).join(', '),
       });
     // Absent a lot / not in class for a week
-    const { frequent, notSeen } = absenceAlerts(d.students, d.recordsBy, today);
+    const { frequent, notSeen } = absenceAlerts(d.students, d.recordsBy, { schedule: d.schedule, cancellations: d.cancels, today, start: d.trackStart });
     if (frequent.length || notSeen.length)
       out.push({
         icon: AlertTriangle,
         tab: 'attendance',
         tone: 'warn',
-        title: [frequent.length && `${frequent.length} absent a lot`, notSeen.length && `${notSeen.length} not in class for ${NOT_SEEN_DAYS}+ days`].filter(Boolean).join(' · '),
+        title: [frequent.length && `${frequent.length} below their classes`, notSeen.length && `${notSeen.length} not in class for ${NOT_SEEN_DAYS}+ days`].filter(Boolean).join(' · '),
         detail: frequent.length
-          ? frequent.slice(0, 6).map((x) => `${x.s.name} (${x.absent} absent)`).join(', ') + (frequent.length > 6 ? '…' : '')
+          ? frequent.slice(0, 6).map((x) => `${x.s.name} (${x.came}/${x.expected})`).join(', ') + (frequent.length > 6 ? '…' : '')
           : notSeen.slice(0, 6).map((x) => x.s.name).join(', ') + (notSeen.length > 6 ? '…' : ''),
       });
     // New leads to call back

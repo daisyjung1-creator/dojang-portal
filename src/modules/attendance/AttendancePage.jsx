@@ -5,7 +5,7 @@ import { styles } from '../../lib/uiStyles';
 import { MAKEUP_STATUSES } from '../../lib/constants';
 import { todayISO, computeMakeupWindow, addDaysISO } from '../../lib/billingDates';
 import { splitClasses, allClassNames, inClass, DOJANG_CLASSES } from '../../lib/classes';
-import { ATTENDANCE_KINDS, studentSummary, weekCount, lastAttended, minutesLabel, absenceAlerts, NOT_SEEN_DAYS, FREQUENT_WINDOW, FREQUENT_MIN } from '../../lib/attendanceStats';
+import { ATTENDANCE_KINDS, studentSummary, weekCount, lastAttended, minutesLabel, absenceAlerts, trackingStart, NOT_SEEN_DAYS, REGULAR_WINDOW, COMP_WINDOW } from '../../lib/attendanceStats';
 import { fillTemplate, makeupVars, studentVars } from '../../lib/emailTemplates';
 import { formatDate } from '../../lib/invoiceUtils';
 import { useAuth } from '../../auth/AuthContext';
@@ -14,6 +14,7 @@ import Field from '../../components/Field';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmailComposeModal from '../../components/EmailComposeModal';
 import Kiosk from './Kiosk';
+import AttendanceMonth from './AttendanceMonth';
 
 const classOrder = (c) => {
   const i = DOJANG_CLASSES.indexOf(c);
@@ -334,7 +335,10 @@ export default function AttendancePage() {
   );
 
   // Not in class for a week, or absent a lot lately (see attendanceStats.js).
-  const alerts = useMemo(() => absenceAlerts(students, recordsBy, todayISO()), [students, recordsBy]);
+  const alerts = useMemo(
+    () => absenceAlerts(students, recordsBy, { schedule, cancellations, today: todayISO(), start: trackingStart(attendance) }),
+    [students, recordsBy, schedule, cancellations, attendance]
+  );
   const absentees = alerts.notSeen;
   const frequent = alerts.frequent;
   const alertCount = new Set([...absentees, ...frequent].map((x) => x.s.id)).size;
@@ -369,6 +373,7 @@ export default function AttendancePage() {
   const tabs = [
     { id: 'checkin', label: 'Check-in' },
     { id: 'history', label: 'History' },
+    { id: 'month', label: 'Monthly' },
     { id: 'makeup', label: 'Makeup Classes' },
     { id: 'private', label: 'Private Lessons' },
     { id: 'absence', label: `Absence Check${alertCount ? ` (${alertCount})` : ''}` },
@@ -449,7 +454,7 @@ export default function AttendancePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FAEEDA', border: '1px solid #F0D9A8', borderRadius: 8, padding: '9px 14px', marginBottom: 14, fontSize: 13, color: '#5C3A07', flexWrap: 'wrap' }}>
           <AlertTriangle size={15} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1, minWidth: 240 }}>
-            {frequent.length > 0 && <><b>{frequent.length} absent a lot</b> ({frequent.slice(0, 4).map((x) => x.s.name).join(', ')}{frequent.length > 4 ? '…' : ''})</>}
+            {frequent.length > 0 && <><b>{frequent.length} below their classes</b> ({frequent.slice(0, 4).map((x) => x.s.name).join(', ')}{frequent.length > 4 ? '…' : ''})</>}
             {frequent.length > 0 && absentees.length > 0 && ' · '}
             {absentees.length > 0 && <><b>{absentees.length} not in class for {NOT_SEEN_DAYS}+ days</b></>}
           </span>
@@ -597,6 +602,8 @@ export default function AttendancePage() {
           </p>
         </>
       )}
+
+      {view === 'month' && <AttendanceMonth students={students} attendance={attendance} schedule={schedule} classes={classes} />}
 
       {view === 'history' && (
         <>
@@ -771,31 +778,31 @@ export default function AttendancePage() {
 
       {view === 'absence' && (
         <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Absent a lot</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Below their classes</h3>
           <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
-            In the last {FREQUENT_WINDOW} days: {FREQUENT_MIN} or more absences (not counting excused or vacation) and missed at least half of their classes.
+            Fewer classes in the last {REGULAR_WINDOW / 7} weeks than their plan (e.g. 2x/week → 4), or Comp Team with 0–1 class in the last week. Excused / vacation count as came; cancelled classes aren't expected. Counted up to yesterday.
           </p>
           <div style={{ ...styles.card, marginBottom: 22 }}>
             {frequent.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Nobody has missed a lot of classes lately.</p>
+              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Everyone is keeping up with their classes.</p>
             ) : (
               <table className="dp-table">
                 <thead>
                   <tr>
                     <th>Student</th>
                     <th>Classes</th>
-                    <th>Last {FREQUENT_WINDOW} days</th>
+                    <th>Came / expected</th>
                     <th>Last class</th>
                     <th>Last check-in email</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {frequent.map(({ s, absent, came, last }) => (
+                  {frequent.map(({ s, came, expected, comp, from, last }) => (
                     <tr key={s.id} className="dp-row">
                       <td style={{ fontWeight: 500 }}>{s.name}</td>
                       <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{s.class_name || '—'}</td>
-                      <td style={{ fontSize: 13 }}><span style={{ color: '#9A2B2B', fontWeight: 500 }}>{absent} absent</span> · <span style={{ color: '#2A5A30' }}>{came} came</span></td>
+                      <td style={{ fontSize: 13 }}><span style={{ color: '#9A2B2B', fontWeight: 500 }}>{came} / {expected}</span> <span style={{ fontSize: 12, color: '#8A8D84' }}>since {formatDate(from)}{comp ? ' · Comp Team' : ''}</span></td>
                       <td style={{ fontSize: 13 }}>{last ? formatDate(last) : <span style={{ color: '#8A8D84' }}>None yet</span>}</td>
                       <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{s.absence_emailed_at ? new Date(s.absence_emailed_at).toLocaleDateString('en-CA') : '—'}</td>
                       <td>
