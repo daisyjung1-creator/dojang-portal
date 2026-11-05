@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Printer, Trash2, Pencil, Check, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Mail } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { Plus, Printer, Trash2, Pencil, Check, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Mail, Download } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Modal from '../../components/Modal';
@@ -26,6 +27,104 @@ async function emailPayslips(list, empById) {
   }
   return { sent, skipped };
 }
+// Everything payroll in one Excel file: payslips, yearly totals, CRA
+// remittances, staff and company details.
+function downloadBackup(slips, employees, settings) {
+  const emp = Object.fromEntries(employees.map((e) => [e.id, e]));
+  const num = (v) => Math.round(Number(v || 0) * 10000) / 10000;
+  const sorted = [...slips].sort((a, b) => (emp[a.employee_id]?.name || '').localeCompare(emp[b.employee_id]?.name || '') || (a.pay_date < b.pay_date ? -1 : 1));
+  const payslips = sorted.map((s) => ({
+    'Pay date': s.pay_date,
+    Employee: emp[s.employee_id]?.name || '',
+    'Period from': s.period_start || '',
+    'Period to': s.period_end || '',
+    'Pay type': s.pay_type || '',
+    'Payment method': s.payment_method || '',
+    Hours: num(s.hours),
+    Rate: num(s.rate),
+    'Standard pay': num(s.standard_pay),
+    'Overtime hours': num(s.overtime_hours),
+    'Overtime rate': num(s.overtime_rate),
+    'Overtime pay': num(s.overtime_pay),
+    'Vacation pay': num(s.vacation_pay),
+    'Commission and bonus': num(s.bonus),
+    'Sick pay': num(s.sick_pay),
+    Expenses: num(s.expenses),
+    'Gross pay': num(s.gross),
+    'Income tax': num(s.tax),
+    CPP: num(s.cpp),
+    EI: num(s.ei),
+    'Other deductions': num(s.other_deductions),
+    'Total deductions': num(s.total_deductions),
+    'Net pay': num(s.net),
+    Emailed: s.emailed_at ? String(s.emailed_at).slice(0, 10) : '',
+    Notes: s.notes || '',
+  }));
+  const ytdMap = {};
+  sorted.forEach((s) => {
+    const k = `${emp[s.employee_id]?.name || ''}|${String(s.pay_date).slice(0, 4)}`;
+    const t = (ytdMap[k] ||= { Employee: emp[s.employee_id]?.name || '', Year: Number(String(s.pay_date).slice(0, 4)), Payslips: 0, Hours: 0, 'Gross pay': 0, 'Vacation pay': 0, 'Income tax': 0, CPP: 0, EI: 0, 'Net pay': 0 });
+    t.Payslips++;
+    t.Hours = num(t.Hours + Number(s.hours || 0));
+    t['Gross pay'] = num(t['Gross pay'] + Number(s.gross || 0));
+    t['Vacation pay'] = num(t['Vacation pay'] + Number(s.vacation_pay || 0));
+    t['Income tax'] = num(t['Income tax'] + Number(s.tax || 0));
+    t.CPP = num(t.CPP + Number(s.cpp || 0));
+    t.EI = num(t.EI + Number(s.ei || 0));
+    t['Net pay'] = num(t['Net pay'] + Number(s.net || 0));
+  });
+  const remitMap = {};
+  slips.forEach((s) => {
+    const t = (remitMap[s.pay_date] ||= { 'Pay date': s.pay_date, Staff: 0, 'CPP (employee)': 0, 'CPP (employer)': 0, 'EI (employee)': 0, 'EI (employer 1.4x)': 0, 'Income tax': 0 });
+    t.Staff++;
+    t['CPP (employee)'] = num(t['CPP (employee)'] + Number(s.cpp || 0));
+    t['EI (employee)'] = num(t['EI (employee)'] + Number(s.ei || 0));
+    t['Income tax'] = num(t['Income tax'] + Number(s.tax || 0));
+  });
+  const remits = Object.values(remitMap)
+    .sort((a, b) => (a['Pay date'] < b['Pay date'] ? -1 : 1))
+    .map((t) => {
+      t['CPP (employer)'] = t['CPP (employee)'];
+      t['EI (employer 1.4x)'] = Math.round(t['EI (employee)'] * 140) / 100;
+      const d = new Date(t['Pay date'] + 'T00:00:00');
+      const due = new Date(d.getFullYear(), d.getMonth() + 1, 15);
+      return { ...t, 'Total to CRA': num(t['CPP (employee)'] * 2 + t['EI (employee)'] + t['EI (employer 1.4x)'] + t['Income tax']), 'Due by': `${due.getFullYear()}-${pad(due.getMonth() + 1)}-15` };
+    });
+  const staff = employees.map((e) => ({
+    Name: e.name,
+    'Hourly rate': num(e.hourly_rate),
+    'Vacation %': e.vacation_pct ?? 4,
+    'Pay type': e.pay_type,
+    'Payment method': e.payment_method,
+    Address: e.address || '',
+    Phone: e.phone || '',
+    Email: e.email || '',
+    SIN: e.sin_masked || '',
+    'Payroll #': e.payroll_no || '',
+    Active: e.active === false ? 'No' : 'Yes',
+  }));
+  const company = [
+    { Field: 'Company name', Value: settings.company_name || '' },
+    { Field: 'Address', Value: settings.address || '' },
+    { Field: 'Phone', Value: settings.phone || '' },
+    { Field: 'Email', Value: settings.email || '' },
+    { Field: 'Questions contact', Value: settings.contact_line || '' },
+    { Field: 'Backup made', Value: new Date().toLocaleString('en-CA') },
+  ];
+  const wb = XLSX.utils.book_new();
+  const add = (rows, name, widths) => {
+    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{}]);
+    if (widths) ws['!cols'] = widths.map((w) => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+  add(payslips, 'Payslips', [11, 22, 11, 11, 9, 13, 8, 7, 11, 9, 9, 10, 10, 10, 9, 9, 10, 10, 8, 8, 10, 11, 10, 11, 24]);
+  add(Object.values(ytdMap), 'Yearly totals', [22, 6, 9, 9, 11, 11, 10, 9, 9, 11]);
+  add(remits, 'CRA remittances', [11, 6, 13, 13, 12, 15, 10, 12, 11]);
+  add(staff, 'Staff', [22, 10, 9, 9, 13, 26, 14, 28, 12, 9, 7]);
+  add(company, 'Company', [20, 50]);
+  XLSX.writeFile(wb, `Payroll-backup-${localISO()}.xlsx`);
+}
+
 const emailNote = ({ sent, skipped }) => `${sent} payslip${sent === 1 ? '' : 's'} emailed (PDF attached).${skipped.length ? ' No email on file: ' + skipped.join(', ') + '.' : ''}`;
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -69,6 +168,9 @@ export default function PayrollPage() {
           <h1 style={styles.title}>Payroll</h1>
           <p style={styles.subtitle}>Enter hours worked → payslips with vacation pay, CPP and EI</p>
         </div>
+        <button className="dp-btn" onClick={() => downloadBackup(slips, employees, settings)} title="Download every payslip, yearly totals, CRA remittances and staff details as an Excel file">
+          <Download size={15} /> Backup (Excel)
+        </button>
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
