@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Printer, Trash2, Pencil, Check, ChevronDown, ChevronRight, AlertTriangle, Mail } from 'lucide-react';
+import { Plus, Printer, Trash2, Pencil, Check, ChevronDown, ChevronRight, ChevronLeft, AlertTriangle, Mail } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Modal from '../../components/Modal';
@@ -35,10 +35,6 @@ function monthRange(offset = -1) {
   const end = new Date(m.getFullYear(), m.getMonth() + 1, 0);
   return { from: `${m.getFullYear()}-${pad(m.getMonth() + 1)}-01`, to: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}` };
 }
-const firstOfThisMonth = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
-};
 
 export default function PayrollPage() {
   const [tab, setTab] = useState('run');
@@ -123,10 +119,21 @@ export default function PayrollPage() {
 
 // ── Run payroll ──────────────────────────────────────────────────────────────
 function RunPayroll({ employees, slips, onSaved, onError }) {
-  const def = monthRange(-1);
-  const [from, setFrom] = useState(def.from);
-  const [to, setTo] = useState(def.to);
-  const [payDate, setPayDate] = useState(firstOfThisMonth());
+  // One run per month: pick the month worked; the period is that whole month
+  // and pay day defaults to the 1st of the next month.
+  const [month, setMonth] = useState(monthRange(-1).from.slice(0, 7));
+  const [y, m] = month.split('-').map(Number);
+  const from = `${month}-01`;
+  const to = `${month}-${pad(new Date(y, m, 0).getDate())}`;
+  const defaultPay = m === 12 ? `${y + 1}-01-01` : `${y}-${pad(m + 1)}-01`;
+  const [payOverride, setPayOverride] = useState({});
+  const payDate = payOverride[month] || defaultPay;
+  const setPayDate = (d) => setPayOverride((o) => ({ ...o, [month]: d }));
+  const shiftMonth = (n) => {
+    const d = new Date(y, m - 1 + n, 1);
+    setMonth(`${d.getFullYear()}-${pad(d.getMonth() + 1)}`);
+  };
+  const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
   const [rows, setRows] = useState({});
   const [open, setOpen] = useState({});
   const [saving, setSaving] = useState(false);
@@ -136,10 +143,26 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
   // Hours are typed in (the clock-in app's times include late log-outs that
   // aren't paid). Everyone with an hourly rate starts ticked.
   useEffect(() => {
-    setRows((old) => {
-      const next = { ...old };
+    setRows(() => {
+      const next = {};
       active.forEach((e) => {
-        if (next[e.id]) return;
+        const done = slips.find((x) => x.employee_id === e.id && x.pay_date === payDate);
+        if (done) {
+          next[e.id] = {
+            include: true,
+            hours: Number(done.hours),
+            rate: Number(done.rate),
+            overtime_hours: Number(done.overtime_hours || 0),
+            overtime_rate: Number(done.overtime_rate || 0),
+            bonus: Number(done.bonus || 0),
+            sick_pay: Number(done.sick_pay || 0),
+            expenses: Number(done.expenses || 0),
+            tax: Number(done.tax || 0),
+            other_deductions: Number(done.other_deductions || 0),
+            notes: done.notes || '',
+          };
+          return;
+        }
         next[e.id] = {
           include: !!e.hourly_rate,
           hours: '',
@@ -156,7 +179,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
       });
       return next;
     });
-  }, [employees]);
+  }, [employees, payDate, slips.length]);
 
   const calc = (e) => {
     const r = rows[e.id];
@@ -207,14 +230,36 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
   }
 
   const rates = ratesFor(payDate);
+  // What goes to CRA for this pay date: employee + employer CPP, EI (employer
+  // pays 1.4×) and income tax — due by the 15th of the month after pay day.
+  const remit = chosen.reduce(
+    (t, e) => {
+      const c = calc(e);
+      return { cpp: t.cpp + c.cpp, ei: t.ei + c.ei, tax: t.tax + c.tax, net: t.net + c.net, gross: t.gross + c.gross };
+    },
+    { cpp: 0, ei: 0, tax: 0, net: 0, gross: 0 }
+  );
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const remitTotal = r2(remit.cpp * 2 + remit.ei + r2(remit.ei * 1.4) + remit.tax);
+  const pd = new Date(payDate + 'T00:00:00');
+  const remitDue = new Date(pd.getFullYear(), pd.getMonth() + 1, 15);
   const inp = (w) => ({ width: w, padding: '4px 6px', fontSize: 13, textAlign: 'right' });
 
   return (
     <>
       <div style={{ ...styles.card, padding: 14, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
-        <Field label="Work period from"><input type="date" className="dp-input" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
-        <Field label="to"><input type="date" className="dp-input" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
-        <Field label="Pay date"><input type="date" className="dp-input" value={payDate} onChange={(e) => setPayDate(e.target.value)} /></Field>
+        <div>
+          <div style={{ fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Month worked</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button className="dp-btn" style={{ padding: '6px 9px' }} aria-label="Previous month" onClick={() => shiftMonth(-1)}><ChevronLeft size={15} /></button>
+            <div style={{ minWidth: 150, textAlign: 'center', fontSize: 16, fontWeight: 600 }}>{monthLabel}</div>
+            <button className="dp-btn" style={{ padding: '6px 9px' }} aria-label="Next month" onClick={() => shiftMonth(1)}><ChevronRight size={15} /></button>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Pay date</div>
+          <input type="date" className="dp-input" value={payDate} onChange={(e) => e.target.value && setPayDate(e.target.value)} />
+        </div>
         <span style={{ fontSize: 12, color: '#8A8D84', marginBottom: 14, marginLeft: 'auto' }}>
           {String(payDate).slice(0, 4)}: CPP {rates.cppRate}% over ${rates.cppExemption.toLocaleString()}/yr · EI {rates.eiRate}% · vacation pay 4% · income tax federal + Alberta (basic TD1)
         </span>
@@ -291,6 +336,16 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
               })}
             </tbody>
           </table>
+          {chosen.length > 0 && (
+            <div style={{ padding: '10px 14px', borderTop: '1px solid #EDEAE0', background: '#FAF8F2', fontSize: 12.5, color: '#5B5F56', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+              <span>Total gross <b style={{ color: '#20241F' }}>{money(remit.gross)}</b></span>
+              <span>Total net pay <b style={{ color: '#20241F' }}>{money(remit.net)}</b></span>
+              <span title={`CPP ${money(remit.cpp)} × 2 + EI ${money(remit.ei)} + employer EI ${money(remit.ei * 1.4)} + tax ${money(remit.tax)}`}>
+                CRA remittance <b style={{ color: '#20241F' }}>{money(remitTotal)}</b> due {remitDue.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                <span style={{ color: '#8A8D84' }}> (CPP {money(remit.cpp * 2)} · EI {money(remit.ei + r2(remit.ei * 1.4))} · tax {money(remit.tax)})</span>
+              </span>
+            </div>
+          )}
           <div style={{ padding: '12px 14px', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             {missingHours.length > 0 && (
               <span style={{ fontSize: 12.5, color: '#5B5F56' }}>Enter hours for {missingHours.map((e) => e.name.split(' ')[0]).join(', ')}.</span>
