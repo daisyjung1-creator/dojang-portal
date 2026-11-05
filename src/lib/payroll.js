@@ -42,11 +42,6 @@ export function calcPayslip(p, ytd = { cpp: 0, ei: 0 }) {
   return { standard_pay, overtime_pay, vacation_pay, bonus, sick_pay, expenses, gross, cpp, ei, tax, other_deductions, total_deductions, net: r2(gross - total_deductions) };
 }
 
-// Hours worked from clock-in / clock-out records.
-export function hoursFrom(entries) {
-  return r2(entries.reduce((t, e) => (e.clock_in && e.clock_out ? t + (new Date(e.clock_out) - new Date(e.clock_in)) / 3600000 : t), 0));
-}
-
 // Year-to-date totals for one employee up to and including a pay date.
 export const YTD_FIELDS = ['hours', 'standard_pay', 'overtime_hours', 'overtime_pay', 'vacation_pay', 'bonus', 'sick_pay', 'expenses', 'gross', 'tax', 'cpp', 'ei', 'other_deductions', 'total_deductions', 'net'];
 export function ytdTotals(slips, employeeId, payDate, { inclusive = true } = {}) {

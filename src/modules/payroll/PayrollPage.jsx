@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Printer, Trash2, Pencil, RefreshCw, Check, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Plus, Printer, Trash2, Pencil, Check, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Modal from '../../components/Modal';
@@ -7,8 +7,7 @@ import Field from '../../components/Field';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { PrintPortal } from '../invoices/InvoicePreview';
-import { calcPayslip, hoursFrom, ytdTotals, ratesFor, PAY_TYPES } from '../../lib/payroll';
-import { loadStaff, loadShifts } from '../../lib/attendanceApp';
+import { calcPayslip, ytdTotals, ratesFor, PAY_TYPES } from '../../lib/payroll';
 import PayslipDocument from './PayslipDocument';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -22,15 +21,12 @@ const firstOfThisMonth = () => {
   const d = new Date();
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
 };
-const fmtTime = (iso) => new Date(iso).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Edmonton' });
 
 export default function PayrollPage() {
   const [tab, setTab] = useState('run');
   const [employees, setEmployees] = useState([]);
   const [slips, setSlips] = useState([]);
   const [settings, setSettings] = useState({});
-  const [staff, setStaff] = useState([]);
-  const [staffError, setStaffError] = useState('');
   const [flash, setFlash] = useState({ text: '', error: false });
   const [view, setView] = useState(null);
   const [editEmp, setEditEmp] = useState(null);
@@ -48,9 +44,6 @@ export default function PayrollPage() {
   }
   useEffect(() => {
     loadAll();
-    loadStaff()
-      .then(setStaff)
-      .catch((err) => setStaffError('Could not reach the staff clock-in app: ' + (err.message || err)));
   }, []);
 
   const empById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees]);
@@ -60,7 +53,7 @@ export default function PayrollPage() {
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Payroll</h1>
-          <p style={styles.subtitle}>Hours from the staff clock-in app → payslips with vacation pay, CPP and EI</p>
+          <p style={styles.subtitle}>Enter hours worked → payslips with vacation pay, CPP and EI</p>
         </div>
       </div>
 
@@ -77,14 +70,12 @@ export default function PayrollPage() {
       </div>
 
       {flash.text && <p style={{ background: flash.error ? '#FBEAEA' : '#E8F1E9', color: flash.error ? '#9A2B2B' : '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
-      {staffError && <p style={{ background: '#FAEEDA', color: '#854F0B', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{staffError}</p>}
 
-      {tab === 'run' && <RunPayroll employees={employees} slips={slips} staff={staff} onSaved={async (ids) => { await loadAll(); say(`${ids.length} payslip${ids.length === 1 ? '' : 's'} saved.`); setTab('slips'); }} onError={(m) => say(m, true)} />}
+      {tab === 'run' && <RunPayroll employees={employees} slips={slips} onSaved={async (ids) => { await loadAll(); say(`${ids.length} payslip${ids.length === 1 ? '' : 's'} saved.`); setTab('slips'); }} onError={(m) => say(m, true)} />}
       {tab === 'slips' && <SlipList slips={slips} empById={empById} onView={setView} onDeleted={() => { loadAll(); say('Payslip deleted.'); }} />}
       {tab === 'staff' && (
         <StaffTab
           employees={employees}
-          staff={staff}
           settings={settings}
           onEdit={setEditEmp}
           onSettingsSaved={async () => { await loadAll(); say('Company details saved.'); }}
@@ -103,7 +94,6 @@ export default function PayrollPage() {
       {editEmp && (
         <EmployeeModal
           employee={editEmp}
-          staff={staff}
           onClose={() => setEditEmp(null)}
           onSaved={async () => { setEditEmp(null); await loadAll(); say('Staff saved.'); }}
         />
@@ -113,30 +103,26 @@ export default function PayrollPage() {
 }
 
 // ── Run payroll ──────────────────────────────────────────────────────────────
-function RunPayroll({ employees, slips, staff, onSaved, onError }) {
+function RunPayroll({ employees, slips, onSaved, onError }) {
   const def = monthRange(-1);
   const [from, setFrom] = useState(def.from);
   const [to, setTo] = useState(def.to);
   const [payDate, setPayDate] = useState(firstOfThisMonth());
-  const [shifts, setShifts] = useState(null);
   const [rows, setRows] = useState({});
   const [open, setOpen] = useState({});
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const active = employees.filter((e) => e.active !== false);
-  const staffName = Object.fromEntries(staff.map((s) => [s.id, s.name]));
 
-  async function pull() {
-    setLoading(true);
-    try {
-      const list = await loadShifts(from, to);
-      setShifts(list);
-      const next = {};
+  // Hours are typed in (the clock-in app's times include late log-outs that
+  // aren't paid). Everyone with an hourly rate starts ticked.
+  useEffect(() => {
+    setRows((old) => {
+      const next = { ...old };
       active.forEach((e) => {
-        const mine = list.filter((x) => x.employee_id === e.attendance_employee_id);
+        if (next[e.id]) return;
         next[e.id] = {
-          include: !!e.hourly_rate && mine.length > 0,
-          hours: e.attendance_employee_id ? hoursFrom(mine) : 0,
+          include: !!e.hourly_rate,
+          hours: '',
           rate: e.hourly_rate ?? '',
           overtime_hours: 0,
           overtime_rate: e.hourly_rate ? Math.round(e.hourly_rate * 150) / 100 : 0,
@@ -148,15 +134,9 @@ function RunPayroll({ employees, slips, staff, onSaved, onError }) {
           notes: '',
         };
       });
-      setRows(next);
-    } catch (err) {
-      onError('Could not load hours: ' + (err.message || err));
-    }
-    setLoading(false);
-  }
-  useEffect(() => {
-    if (active.length) pull();
-  }, [from, to, employees.length]);
+      return next;
+    });
+  }, [employees]);
 
   const calc = (e) => {
     const r = rows[e.id];
@@ -165,7 +145,8 @@ function RunPayroll({ employees, slips, staff, onSaved, onError }) {
     return calcPayslip({ ...r, pay_date: payDate, pay_type: e.pay_type, vacation_pct: e.vacation_pct ?? 4 }, ytd);
   };
   const set = (id, k, v) => setRows((x) => ({ ...x, [id]: { ...x[id], [k]: v } }));
-  const chosen = active.filter((e) => rows[e.id]?.include);
+  const chosen = active.filter((e) => rows[e.id]?.include && Number(rows[e.id]?.hours) > 0);
+  const missingHours = active.filter((e) => rows[e.id]?.include && !(Number(rows[e.id]?.hours) > 0));
   const existing = chosen.filter((e) => slips.some((s) => s.employee_id === e.id && s.pay_date === payDate));
 
   async function save() {
@@ -203,7 +184,6 @@ function RunPayroll({ employees, slips, staff, onSaved, onError }) {
         <Field label="Work period from"><input type="date" className="dp-input" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
         <Field label="to"><input type="date" className="dp-input" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
         <Field label="Pay date"><input type="date" className="dp-input" value={payDate} onChange={(e) => setPayDate(e.target.value)} /></Field>
-        <button className="dp-btn" onClick={pull} disabled={loading} style={{ marginBottom: 12 }}><RefreshCw size={14} /> {loading ? 'Loading…' : 'Reload hours'}</button>
         <span style={{ fontSize: 12, color: '#8A8D84', marginBottom: 14, marginLeft: 'auto' }}>
           {String(payDate).slice(0, 4)}: CPP {rates.cppRate}% over ${rates.cppExemption.toLocaleString()}/yr · EI {rates.eiRate}% · vacation pay 4%
         </span>
@@ -233,7 +213,6 @@ function RunPayroll({ employees, slips, staff, onSaved, onError }) {
               {active.map((e) => {
                 const r = rows[e.id];
                 const c = calc(e);
-                const mine = (shifts || []).filter((x) => x.employee_id === e.attendance_employee_id);
                 return (
                   <React.Fragment key={e.id}>
                     <tr className="dp-row" style={{ opacity: r?.include ? 1 : 0.55 }}>
@@ -243,11 +222,10 @@ function RunPayroll({ employees, slips, staff, onSaved, onError }) {
                           {open[e.id] ? <ChevronDown size={13} /> : <ChevronRight size={13} />} {e.name}
                         </button>
                         <div style={{ fontSize: 11.5, color: '#8A8D84', marginLeft: 17 }}>
-                          {e.attendance_employee_id ? `${mine.length} shift${mine.length === 1 ? '' : 's'} · ${staffName[e.attendance_employee_id] || 'clock-in app'}` : 'Not linked to the clock-in app'}
-                          {!e.hourly_rate && <span style={{ color: '#9A2B2B' }}> · no hourly rate</span>}
+                          {e.hourly_rate ? `${money(e.hourly_rate)}/h · ${e.payment_method}` : <span style={{ color: '#9A2B2B' }}>no hourly rate</span>}
                         </div>
                       </td>
-                      <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(70)} type="number" step="0.01" value={r?.hours ?? ''} onChange={(ev) => set(e.id, 'hours', ev.target.value)} /></td>
+                      <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(70)} type="number" step="0.01" placeholder="0" value={r?.hours ?? ''} onChange={(ev) => set(e.id, 'hours', ev.target.value)} /></td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" value={r?.rate ?? ''} onChange={(ev) => set(e.id, 'rate', ev.target.value)} /></td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.vacation_pay) : ''}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(70)} type="number" step="0.01" value={r?.bonus ?? ''} onChange={(ev) => set(e.id, 'bonus', ev.target.value)} /></td>
@@ -269,21 +247,6 @@ function RunPayroll({ employees, slips, staff, onSaved, onError }) {
                             <label>Other deductions <input className="dp-input" style={inp(70)} type="number" step="0.01" value={r.other_deductions} onChange={(ev) => set(e.id, 'other_deductions', ev.target.value)} /></label>
                             <label style={{ flex: 1, minWidth: 200 }}>Note on payslip <input className="dp-input" style={{ width: '100%', padding: '4px 6px', fontSize: 13 }} value={r.notes} onChange={(ev) => set(e.id, 'notes', ev.target.value)} /></label>
                           </div>
-                          {mine.length === 0 ? (
-                            <div style={{ fontSize: 12.5, color: '#8A8D84' }}>No clock-in records in this period.</div>
-                          ) : (
-                            <table style={{ fontSize: 12.5, borderCollapse: 'collapse' }}>
-                              <tbody>
-                                {mine.map((x) => (
-                                  <tr key={x.id}>
-                                    <td style={{ padding: '2px 14px 2px 0' }}>{formatDate(x.date)}</td>
-                                    <td style={{ padding: '2px 14px 2px 0' }}>{fmtTime(x.clock_in)} – {x.clock_out ? fmtTime(x.clock_out) : <span style={{ color: '#9A2B2B' }}>no clock-out</span>}</td>
-                                    <td style={{ padding: '2px 0', textAlign: 'right' }}>{x.clock_out ? hoursFrom([x]).toFixed(2) + ' h' : ''}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
                         </td>
                       </tr>
                     )}
@@ -293,6 +256,9 @@ function RunPayroll({ employees, slips, staff, onSaved, onError }) {
             </tbody>
           </table>
           <div style={{ padding: '12px 14px', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            {missingHours.length > 0 && (
+              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>Enter hours for {missingHours.map((e) => e.name.split(' ')[0]).join(', ')}.</span>
+            )}
             {existing.length > 0 && (
               <span style={{ fontSize: 12.5, color: '#854F0B', display: 'flex', gap: 6, alignItems: 'center' }}>
                 <AlertTriangle size={14} /> {existing.map((e) => e.name.split(' ')[0]).join(', ')} already {existing.length === 1 ? 'has a payslip' : 'have payslips'} for {formatDate(payDate)} — saving replaces {existing.length === 1 ? 'it' : 'them'}.
@@ -417,12 +383,9 @@ function PayslipView({ slip, employee, ytd, settings, onClose }) {
 }
 
 // ── Staff & settings ─────────────────────────────────────────────────────────
-function StaffTab({ employees, staff, settings, onEdit, onSettingsSaved }) {
+function StaffTab({ employees, settings, onEdit, onSettingsSaved }) {
   const [form, setForm] = useState(settings);
   useEffect(() => setForm(settings), [settings]);
-  const staffName = Object.fromEntries(staff.map((s) => [s.id, s.name]));
-  const linked = new Set(employees.map((e) => e.attendance_employee_id).filter(Boolean));
-  const unlinked = staff.filter((s) => !linked.has(s.id));
   async function saveSettings() {
     const { id, ...rest } = form;
     await supabase.from('payroll_settings').upsert({ id: 1, ...rest });
@@ -438,7 +401,6 @@ function StaffTab({ employees, staff, settings, onEdit, onSettingsSaved }) {
           <thead>
             <tr>
               <th>Name</th>
-              <th>Clock-in app</th>
               <th style={{ textAlign: 'right' }}>Hourly rate</th>
               <th>Pay type</th>
               <th>Paid by</th>
@@ -449,7 +411,6 @@ function StaffTab({ employees, staff, settings, onEdit, onSettingsSaved }) {
             {employees.map((e) => (
               <tr key={e.id} className="dp-row" style={{ opacity: e.active === false ? 0.5 : 1 }}>
                 <td style={{ fontWeight: 500 }}>{e.name}{e.active === false ? ' (inactive)' : ''}</td>
-                <td style={{ fontSize: 12.5 }}>{e.attendance_employee_id ? staffName[e.attendance_employee_id] || 'Linked' : <span style={{ color: '#9A2B2B' }}>Not linked</span>}</td>
                 <td style={{ textAlign: 'right' }}>{e.hourly_rate ? money(e.hourly_rate) : <span style={{ color: '#9A2B2B' }}>—</span>}</td>
                 <td>{e.pay_type}</td>
                 <td>{e.payment_method}</td>
@@ -458,16 +419,6 @@ function StaffTab({ employees, staff, settings, onEdit, onSettingsSaved }) {
             ))}
           </tbody>
         </table>
-        {unlinked.length > 0 && (
-          <div style={{ padding: '10px 14px', borderTop: '1px solid #EDEAE0', fontSize: 12.5, color: '#5B5F56', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            In the clock-in app but not here:
-            {unlinked.map((s) => (
-              <button key={s.id} className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => onEdit({ name: s.name, attendance_employee_id: s.id, pay_type: 'Monthly', payment_method: 'Cheque', active: true })}>
-                <Plus size={12} /> {s.name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       <div style={{ ...styles.card, padding: 16, maxWidth: 640 }}>
@@ -485,7 +436,7 @@ function StaffTab({ employees, staff, settings, onEdit, onSettingsSaved }) {
   );
 }
 
-function EmployeeModal({ employee, staff, onClose, onSaved }) {
+function EmployeeModal({ employee, onClose, onSaved }) {
   const [f, setF] = useState(employee);
   const [err, setErr] = useState('');
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
@@ -493,7 +444,6 @@ function EmployeeModal({ employee, staff, onClose, onSaved }) {
     if (!f.name?.trim()) return setErr('Name is required.');
     const row = {
       name: f.name.trim(),
-      attendance_employee_id: f.attendance_employee_id || null,
       address: f.address || null,
       phone: f.phone || null,
       email: f.email || null,
@@ -522,12 +472,6 @@ function EmployeeModal({ employee, staff, onClose, onSaved }) {
     >
       {err && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{err}</p>}
       <Field label="Name (as on the payslip)" required><input className="dp-input" style={{ width: '100%' }} value={f.name || ''} onChange={(e) => set('name', e.target.value)} /></Field>
-      <Field label="Clock-in app name (hours come from here)">
-        <select className="dp-select" style={{ width: '100%' }} value={f.attendance_employee_id || ''} onChange={(e) => set('attendance_employee_id', e.target.value)}>
-          <option value="">— not linked —</option>
-          {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </Field>
       <div style={styles.formRow}>
         <Field label="Hourly rate ($)"><input className="dp-input" style={{ width: '100%' }} type="number" step="0.01" value={f.hourly_rate ?? ''} onChange={(e) => set('hourly_rate', e.target.value)} /></Field>
         <Field label="Vacation pay %"><input className="dp-input" style={{ width: '100%' }} type="number" step="0.01" placeholder="4" value={f.vacation_pct ?? ''} onChange={(e) => set('vacation_pct', e.target.value)} /></Field>
