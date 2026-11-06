@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Printer, Mail, FileText, Award, Search, Check, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Printer, Mail, FileText, Award, Search, Check, AlertTriangle, Pencil } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
@@ -194,6 +194,27 @@ export default function TestingPage() {
     loadEntries();
   }
 
+  async function updateTest(date, title) {
+    const { data, error } = await supabase.from('belt_tests').update({ test_date: date, title: title || null }).eq('id', test.id).select().single();
+    if (error) return say('Could not save the test: ' + error.message, true);
+    setTests((t) => t.map((x) => (x.id === data.id ? data : x)).sort((a, b) => (a.test_date < b.test_date ? 1 : -1)));
+    setModal(null);
+    say('Test updated.');
+  }
+
+  // Delete a test (and its list). Not once students were promoted from it.
+  async function deleteTest() {
+    const { error } = await supabase.from('belt_tests').delete().eq('id', test.id);
+    if (error) return say('Could not delete the test: ' + error.message, true);
+    const rest = tests.filter((x) => x.id !== test.id);
+    setTests(rest);
+    const today = localISO(new Date());
+    const next = rest.filter((x) => x.test_date >= today).sort((a, b) => (a.test_date < b.test_date ? -1 : 1))[0] || rest[0];
+    setTestId(next ? next.id : '');
+    setModal(null);
+    say('Test deleted.');
+  }
+
   async function createTest(date, title) {
     const { data, error } = await supabase.from('belt_tests').insert({ test_date: date, title: title || null }).select().single();
     if (error) return say('Could not create the test: ' + error.message, true);
@@ -315,6 +336,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
               </option>
             ))}
           </select>
+          {test && <button className="dp-btn" aria-label="Edit or delete this test" title="Change the date / name, or delete this test" onClick={() => setModal('edit')}><Pencil size={14} /> Edit</button>}
           <button className="dp-btn" onClick={() => setModal('new')}><Plus size={15} /> New test</button>
         </div>
       </div>
@@ -445,6 +467,16 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
       )}
 
       {modal === 'new' && <NewTestModal onClose={() => setModal(null)} onSave={createTest} />}
+      {modal === 'edit' && test && (
+        <NewTestModal
+          test={test}
+          entryCount={entries.length}
+          promoted={entries.filter((e) => e.promoted_at).length}
+          onClose={() => setModal(null)}
+          onSave={updateTest}
+          onDelete={deleteTest}
+        />
+      )}
       {modal === 'add' && test && (
         <AddStudentsModal students={students} already={new Set(entries.map((e) => e.student_id))} countFor={countFor} partial={partialCounts} onClose={() => setModal(null)} onAdd={addStudents} />
       )}
@@ -503,20 +535,38 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
   );
 }
 
-function NewTestModal({ onClose, onSave }) {
-  const [date, setDate] = useState('');
-  const [title, setTitle] = useState('');
+function NewTestModal({ test, entryCount = 0, promoted = 0, onClose, onSave, onDelete }) {
+  const [date, setDate] = useState(test?.test_date || '');
+  const [title, setTitle] = useState(test?.title || '');
+  const [sure, setSure] = useState(false);
   return (
     <Modal
-      title="New belt test"
+      title={test ? 'Edit belt test' : 'New belt test'}
       onClose={onClose}
       footer={
         <>
+          {test && (
+            <button
+              className="dp-btn dp-btn-danger"
+              style={{ marginRight: 'auto' }}
+              disabled={promoted > 0}
+              title={promoted > 0 ? 'Students were already promoted from this test' : ''}
+              onClick={() => (sure || entryCount === 0 ? onDelete() : setSure(true))}
+            >
+              <Trash2 size={14} /> {sure ? `Yes, delete with ${entryCount} student${entryCount === 1 ? '' : 's'}` : 'Delete test'}
+            </button>
+          )}
           <button className="dp-btn" onClick={onClose}>Cancel</button>
-          <button className="dp-btn dp-btn-primary" disabled={!date} onClick={() => onSave(date, title.trim())}><Check size={15} /> Create</button>
+          <button className="dp-btn dp-btn-primary" disabled={!date} onClick={() => onSave(date, title.trim())}><Check size={15} /> {test ? 'Save' : 'Create'}</button>
         </>
       }
     >
+      {test && sure && (
+        <p style={{ background: '#FBEAEA', color: '#9A2B2B', padding: '8px 10px', borderRadius: 6, fontSize: 12.5, margin: '0 0 12px' }}>
+          This test has {entryCount} student{entryCount === 1 ? '' : 's'} on its list. Deleting removes the list (forms, results). Invoices already made stay as they are.
+        </p>
+      )}
+      {test && promoted > 0 && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '0 0 12px' }}>{promoted} student{promoted === 1 ? ' was' : 's were'} already promoted from this test, so it can't be deleted.</p>}
       <Field label="Test date" required><input type="date" className="dp-input" style={{ width: '100%' }} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
       <Field label="Name"><input className="dp-input" style={{ width: '100%' }} placeholder="e.g. February 2027 Belt Testing" value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
     </Modal>
