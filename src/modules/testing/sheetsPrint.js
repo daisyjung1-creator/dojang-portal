@@ -70,7 +70,7 @@ export function printScoringSheet(rows, curByBelt, test) {
         .map((r) => {
           n += 1;
           const p = planFor(r.e, curByBelt);
-          return `<tr class="st"><td class="no">${n}</td><td class="nm"><b>${esc(r.s.name)}</b>${stripeNo(r.e.current_belt) != null ? `<small>${esc(r.e.current_belt.replace('Black Stripe', 'BS'))} → ${esc(String(r.e.target_belt || '').replace('Black Stripe', 'BS'))}</small>` : ''}</td><td class="pm">${p.poomsae ? (String(p.poomsae).length > 2 ? `<b>${esc(p.poomsae)}</b>` : `<span>${esc(p.poomsae)}</span>`) : '—'}</td><td class="bk">${esc(short(p.break_en) || '—')}</td>${SCORE_COLS.map((_, k) => `<td class="sc${k === 3 && !p.sparring ? ' na' : ''}"></td>`).join('')}<td class="sc tot"></td><td class="ok"><i></i></td></tr>`;
+          return `<tr class="st"><td class="no">${n}</td><td class="nm"><b>${esc(r.s.name)}</b>${stripeNo(r.e.current_belt) != null ? `<small>${esc(r.e.current_belt.replace('Black Stripe', 'BS'))} → ${esc(String(r.e.target_belt || '').replace('Black Stripe', 'BS'))}</small>` : ''}</td><td class="pm">${p.poomsae ? (String(p.poomsae).length > 2 ? `<b class="many">${esc(p.poomsae)}</b>` : `<span>${esc(p.poomsae)}</span>`) : '—'}</td><td class="bk">${esc(short(p.break_en) || '—')}</td>${SCORE_COLS.map((_, k) => `<td class="sc${k === 3 && !p.sparring ? ' na' : ''}"></td>`).join('')}<td class="sc tot"></td><td class="ok"><i></i></td></tr>`;
         })
         .join('');
       return `<tbody>${div}${trs}</tbody>`;
@@ -102,8 +102,9 @@ export function printScoringSheet(rows, curByBelt, test) {
   tr.st:nth-child(odd) td{background:#fafafa}
   td.no{text-align:center;color:#999;font-size:9px}
   td.nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  td.nm b{font-size:12px}td.nm small{font-size:8.5px;color:#666;margin-left:6px}
+  td.nm b{font-size:12px}td.nm small{display:block;font-size:8px;color:#666;line-height:1.1}
   td.pm{text-align:center;font-weight:800;font-size:12px}
+  tr.st td.pm b.many{display:block;font-size:9px;line-height:1.1;white-space:normal}
   tr.st td.pm span{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#141414;color:#fff;font-size:11px}
   td.bk{font-size:8.5px;line-height:1.15;color:#333}
   td.sc{border-left:1px solid #cfcfcf}
@@ -118,7 +119,7 @@ export function printScoringSheet(rows, curByBelt, test) {
   .ref td{border-bottom:1px solid #d6d6d6;padding:5px;vertical-align:top;line-height:1.35}
   .ref td.rb{white-space:nowrap}
   .ref .en{color:#666}`;
-  const colg = `<colgroup><col style="width:22px"><col style="width:205px"><col style="width:34px"><col style="width:130px">${'<col>'.repeat(cols)}<col style="width:44px"><col style="width:34px"></colgroup>`;
+  const colg = `<colgroup><col style="width:22px"><col style="width:190px"><col style="width:50px"><col style="width:130px">${'<col>'.repeat(cols)}<col style="width:44px"><col style="width:34px"></colgroup>`;
   const refHtml = ref
     ? `<div class="ref">${header('Test Content', '심사 내용', test)}<table><colgroup><col style="width:110px"><col style="width:40px"><col><col><col style="width:150px"><col style="width:170px"><col style="width:36px"></colgroup><thead><tr><th>Belt (now)</th><th>품새</th><th>기본동작</th><th>Basic movements</th><th>발차기 Kicking</th><th>격파 Break</th><th>Spot</th></tr></thead><tbody>${ref}</tbody></table></div>`
     : '';

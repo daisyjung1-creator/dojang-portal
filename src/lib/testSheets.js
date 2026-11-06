@@ -28,15 +28,32 @@ export function stripeNo(belt) {
   return m ? Number(m[1] || 0) : null;
 }
 
-// Black stripes test the poomsae of each stripe they go for: stripe n →
-// Taegeuk n and 9 − n (1 & 8, 2 & 7, 3 & 6, 4 & 5).
+// Black stripes test the poomsae of every stripe up to the one they go for
+// (stripe n adds Taegeuk n and 9 − n): BS1 → 1, 8 · BS2 → 1, 2, 7, 8 ·
+// BS3 → 1–3, 6–8 · BS4 → 1–8.
 export function blackStripePoomsae(current, target) {
   const from = stripeNo(current);
   if (from == null) return '';
-  const to = stripeNo(target) ?? from + 1;
+  const to = Math.min(stripeNo(target) ?? from + 1, 4);
   const set = new Set();
-  for (let k = from + 1; k <= Math.min(to, 4); k++) [k, 9 - k].forEach((n) => set.add(n));
-  return [...set].sort((a, b) => a - b).join(', ');
+  for (let k = 1; k <= to; k++) [k, 9 - k].forEach((n) => set.add(n));
+  return compactNumbers([...set].join(','));
+}
+
+// "1,2,3,6,7,8" → "1–3, 6–8"; anything that isn't a number list is left as is.
+export function compactNumbers(text) {
+  const raw = String(text || '').trim();
+  const parts = raw.split(/[\s,]+/).filter(Boolean);
+  if (!parts.length || !parts.every((x) => /^\d+$/.test(x))) return raw.replace(/^[,\s]+|[,\s]+$/g, '');
+  const nums = [...new Set(parts.map(Number))].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < nums.length; i++) {
+    let j = i;
+    while (j + 1 < nums.length && nums[j + 1] === nums[j] + 1) j++;
+    out.push(j - i >= 2 ? `${nums[i]}–${nums[j]}` : j > i ? `${nums[i]}, ${nums[j]}` : `${nums[i]}`);
+    i = j;
+  }
+  return out.join(', ');
 }
 
 const curriculumKey = (belt) => (stripeNo(belt) != null ? 'Black Stripe' : belt);
@@ -48,7 +65,7 @@ export function planFor(e, curByBelt) {
   const pick = (k, auto) => (p[k] != null && p[k] !== '' ? p[k] : auto ?? '');
   return {
     black,
-    poomsae: pick('poomsae', black ? blackStripePoomsae(e.current_belt, e.target_belt) : c.poomsae),
+    poomsae: compactNumbers(pick('poomsae', black ? blackStripePoomsae(e.current_belt, e.target_belt) : c.poomsae)),
     basic_ko: c.basic_ko || '',
     basic_en: c.basic_en || '',
     kicking: c.kicking || '',
