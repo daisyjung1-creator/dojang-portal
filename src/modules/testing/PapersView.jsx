@@ -105,8 +105,17 @@ function Leaders({ test, tests, onSave }) {
   const init = test.leaders || { rows: [], notes: DEFAULT_LEADER_NOTES };
   const [rows, setRows] = useState(init.rows?.length ? init.rows : [{ name: '', poomsae: '', sparring: '', board: '' }]);
   const [notes, setNotes] = useState(init.notes ?? DEFAULT_LEADER_NOTES);
-  const save = (r = rows, n = notes) => onSave({ rows: r.filter((x) => x.name || x.poomsae || x.sparring || x.board), notes: n });
-  const set = (i, k, val) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: val } : r)));
+  // Only save after a real change, so an old open page can't overwrite the list.
+  const dirty = React.useRef(false);
+  const save = (r = rows, n = notes, force = false) => {
+    if (!force && !dirty.current) return;
+    dirty.current = false;
+    onSave({ rows: r.filter((x) => x.name || x.poomsae || x.sparring || x.board), notes: n });
+  };
+  const set = (i, k, val) => {
+    dirty.current = true;
+    setRows(rows.map((r, j) => (j === i ? { ...r, [k]: val } : r)));
+  };
   const previous = tests.filter((t) => t.id !== test.id && t.leaders?.rows?.length).sort((a, b) => (a.test_date < b.test_date ? 1 : -1))[0];
 
   // Names used at earlier tests, to pick from.
@@ -121,7 +130,7 @@ function Leaders({ test, tests, onSave }) {
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Leaders Club roles</h3>
         <span style={{ fontSize: 12.5, color: '#5B5F56' }}>For this test only — pick a role from the list or type your own. Saves as you go.</span>
         {previous && !test.leaders?.rows?.length && (
-          <button className="dp-btn" style={{ marginLeft: 'auto', padding: '3px 10px', fontSize: 12.5 }} onClick={() => { setRows(previous.leaders.rows); setNotes(previous.leaders.notes ?? notes); save(previous.leaders.rows, previous.leaders.notes ?? notes); }}>
+          <button className="dp-btn" style={{ marginLeft: 'auto', padding: '3px 10px', fontSize: 12.5 }} onClick={() => { setRows(previous.leaders.rows); setNotes(previous.leaders.notes ?? notes); save(previous.leaders.rows, previous.leaders.notes ?? notes, true); }}>
             <Copy size={13} /> Start from the last test’s list
           </button>
         )}
@@ -141,7 +150,7 @@ function Leaders({ test, tests, onSave }) {
                 <td>{cell(i, 'sparring')}</td>
                 <td>{cell(i, 'board')}</td>
                 <td>
-                  <button className="dp-btn" style={{ padding: 5 }} aria-label="Remove assistant" onClick={() => { const next = rows.filter((_, j) => j !== i); setRows(next.length ? next : [{ name: '', poomsae: '', sparring: '', board: '' }]); save(next); }}><Trash2 size={13} /></button>
+                  <button className="dp-btn" style={{ padding: 5 }} aria-label="Remove assistant" onClick={() => { const next = rows.filter((_, j) => j !== i); setRows(next.length ? next : [{ name: '', poomsae: '', sparring: '', board: '' }]); save(next, notes, true); }}><Trash2 size={13} /></button>
                 </td>
               </tr>
             ))}
@@ -152,7 +161,7 @@ function Leaders({ test, tests, onSave }) {
         </div>
       </div>
       <label style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', margin: '12px 0 4px' }}>Notes printed under the roles</label>
-      <textarea className="dp-input" style={{ width: '100%', minHeight: 110, fontSize: 13 }} value={notes} onChange={(ev) => setNotes(ev.target.value)} onBlur={() => save()} />
+      <textarea className="dp-input" style={{ width: '100%', minHeight: 110, fontSize: 13 }} value={notes} onChange={(ev) => { dirty.current = true; setNotes(ev.target.value); }} onBlur={() => save()} />
     </>
   );
 }
