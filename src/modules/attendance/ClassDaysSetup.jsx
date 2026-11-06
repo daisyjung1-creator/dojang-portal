@@ -41,7 +41,7 @@ export default function ClassDaysSetup({ students, schedule, onSaved, onCleared 
         </label>
       </div>
       <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 10px' }}>
-        For students in more classes a week than their plan (e.g. Int A Tue/Thu + Int/Adv Fri on 2x/week), tap the days they come. They're only marked absent on those days. Saves right away.
+        For students in more classes a week than their plan (e.g. Int A Tue/Thu + Int/Adv Fri on 2x/week), tap the days they come (tap again to undo). They're only marked absent on those days. Saves right away.
       </p>
       {msg && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '6px 10px', borderRadius: 6, fontSize: 12.5, margin: '0 0 10px' }}>{msg}</p>}
       <div style={styles.card}>
@@ -54,7 +54,7 @@ export default function ClassDaysSetup({ students, schedule, onSaved, onCleared 
                 <tr key={s.id}>
                   <td style={{ width: 210, verticalAlign: 'top' }}>
                     <div style={{ fontWeight: 500 }}>{s.name}</div>
-                    <div style={{ fontSize: 12, color: '#8A8D84' }}>{s.classes_per_week ? `${s.classes_per_week}x/week` : 'No plan count'}{s.class_days?.length ? '' : ' · all days'}</div>
+                    <div style={{ fontSize: 12, color: '#8A8D84' }}>{s.classes_per_week ? `${s.classes_per_week}x/week` : 'No plan count'}{s.class_days?.length ? '' : ' · not set'}</div>
                   </td>
                   <td>
                     <ClassDaysPicker compact classNames={s.class_name} perWeek={s.classes_per_week} value={s.class_days} schedule={active} onChange={(v) => save(s, v)} />

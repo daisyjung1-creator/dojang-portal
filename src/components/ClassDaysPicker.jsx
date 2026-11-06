@@ -46,11 +46,12 @@ export default function ClassDaysPicker({ classNames, perWeek, value, onChange, 
   const sessions = sessionsFor(classNames, schedule);
   if (/comp team/i.test(classNames || '') || sessions.length < 2) return null;
   const all = sessions.map(slotKey);
-  const chosen = value && value.length ? value.filter((k) => all.includes(k)) : all;
-  const everyDay = !value || !value.length;
+  // Tap a day = they come that day. Nothing picked = every class day counts.
+  const chosen = value && value.length ? value.filter((k) => all.includes(k)) : [];
+  const everyDay = chosen.length === 0;
   const toggle = (k) => {
     const next = chosen.includes(k) ? chosen.filter((x) => x !== k) : [...chosen, k];
-    onChange(next.length === 0 || next.length === all.length ? null : all.filter((x) => next.includes(x)));
+    onChange(next.length === 0 ? null : all.filter((x) => next.includes(x)));
   };
   const want = Number(perWeek) || 0;
   const mismatch = want && chosen.length !== want && !(everyDay && want >= all.length);
@@ -58,7 +59,7 @@ export default function ClassDaysPicker({ classNames, perWeek, value, onChange, 
     <div style={{ marginBottom: compact ? 0 : 12 }}>
       {!compact && (
         <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>
-          Class days {everyDay ? '(all — tap to pick the days they come)' : ''}
+          Class days — tap the days they come{everyDay ? ' (none picked = every class day)' : ''}
         </span>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -71,7 +72,8 @@ export default function ClassDaysPicker({ classNames, perWeek, value, onChange, 
               type="button"
               className="dp-btn"
               onClick={() => toggle(k)}
-              style={{ padding: '3px 9px', fontSize: 12, background: on ? (everyDay ? '#F1EFE7' : '#20241F') : '#fff', color: on ? (everyDay ? '#20241F' : '#fff') : '#8A8D84', borderColor: on ? (everyDay ? '#DEDACC' : '#20241F') : '#DEDACC' }}
+              aria-pressed={on}
+              style={{ padding: '3px 9px', fontSize: 12, background: on ? '#20241F' : '#fff', color: on ? '#fff' : '#5B5F56', borderColor: on ? '#20241F' : '#DEDACC' }}
             >
               {DAYS[c.weekday]} {t12(c.start_time)} · {c.class_name}
             </button>
@@ -80,7 +82,7 @@ export default function ClassDaysPicker({ classNames, perWeek, value, onChange, 
       </div>
       {mismatch ? (
         <div style={{ fontSize: 11.5, color: '#854F0B', marginTop: 4 }}>
-          {everyDay ? `Plan is ${want}x/week but they're in ${all.length} classes a week — pick the ${want} days they come.` : `${chosen.length} day${chosen.length === 1 ? '' : 's'} picked, plan is ${want}x/week.`}
+          {everyDay ? `Plan is ${want}x/week but they're in ${all.length} classes a week — tap the ${want} day${want === 1 ? '' : 's'} they come.` : `${chosen.length} day${chosen.length === 1 ? '' : 's'} picked, plan is ${want}x/week.`}
         </div>
       ) : null}
     </div>
