@@ -4,19 +4,22 @@ import { addDays } from './invoiceUtils';
 
 export const MIN_CLASSES = 21;
 
-// Which testing fee applies, by the belt the student holds now.
-//   Beginner (White – Green Stripe) · Intermediate (Green – Blue Stripe)
-//   Intermediate/Advance (Blue – Red Stripe) · Advance (Red → Black Stripe)
+// Which testing fee applies, by the belt the student holds now (= the belt
+// they test for):
+//   Beginner $50   White → Yellow Stripe, Yellow Stripe → Yellow, Yellow → Green Stripe
+//   Intermediate $60   becoming Green: Green Stripe → Green, Green → Blue Stripe
+//   Int/Adv $70        becoming Blue: Blue Stripe → Blue, Blue → Red Stripe
+//   Advance $80        becoming Red: Red Stripe → Red, Red → Black Stripe
 //   Mini test between black stripes · Black Belt tests
 const FEE_BY_BELT = {
   White: 'Test Fee (Beg)',
   'Yellow Stripe': 'Test Fee (Beg)',
   Yellow: 'Test Fee (Beg)',
-  'Green Stripe': 'Test Fee (Beg)',
+  'Green Stripe': 'Test Fee (Int)',
   Green: 'Test Fee (Int)',
-  'Blue Stripe': 'Test Fee (Int)',
+  'Blue Stripe': 'Test Fee (Int/Adv)',
   Blue: 'Test Fee (Int/Adv)',
-  'Red Stripe': 'Test Fee (Int/Adv)',
+  'Red Stripe': 'Test Fee (Adv)',
   Red: 'Test Fee (Adv)',
   'Black Stripe': 'Test Fee (Mini)',
   'Black Stripe 1': 'Test Fee (Mini)',
