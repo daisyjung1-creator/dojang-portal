@@ -70,7 +70,7 @@ export function printScoringSheet(rows, curByBelt, test) {
         .map((r) => {
           n += 1;
           const p = planFor(r.e, curByBelt);
-          return `<tr class="st"><td class="no">${n}</td><td class="nm"><b>${esc(r.s.name)}</b>${stripeNo(r.e.current_belt) != null ? `<small>${esc(r.e.current_belt.replace('Black Stripe', 'BS'))} → ${esc(String(r.e.target_belt || '').replace('Black Stripe', 'BS'))}</small>` : ''}</td><td class="pm">${p.poomsae ? (String(p.poomsae).length > 2 ? `<b class="many">${esc(p.poomsae)}</b>` : `<span>${esc(p.poomsae)}</span>`) : '—'}</td><td class="bk">${esc(short(p.break_en) || '—')}</td>${SCORE_COLS.map((_, k) => `<td class="sc${k === 3 && !p.sparring ? ' na' : ''}"></td>`).join('')}<td class="sc tot"></td><td class="ok"><i></i></td></tr>`;
+          return `<tr class="st"><td class="no">${n}</td><td class="nm"><b>${esc(r.s.name)}</b>${stripeNo(r.e.current_belt) != null ? `<small>${esc(r.e.current_belt.replace('Black Stripe', 'BS'))} → ${esc(String(r.e.target_belt || '').replace('Black Stripe', 'BS'))}</small>` : ''}</td><td class="pm">${p.poomsae ? (String(p.poomsae).length > 2 ? `<b class="many">${esc(p.poomsae)}</b>` : `<span>${esc(p.poomsae)}</span>`) : '—'}</td><td class="bk">${esc(short(p.break_en) || '—')}</td>${SCORE_COLS.map((_, k) => `<td class="sc${(k === 3 && !p.sparring) || (k === 0 && !p.poomsae) ? ' na' : ''}"></td>`).join('')}<td class="sc tot"></td><td class="ok"><i></i></td></tr>`;
         })
         .join('');
       return `<tbody>${div}${trs}</tbody>`;
@@ -123,7 +123,7 @@ export function printScoringSheet(rows, curByBelt, test) {
   const refHtml = ref
     ? `<div class="ref">${header('Test Content', '심사 내용', test)}<table><colgroup><col style="width:110px"><col style="width:40px"><col><col><col style="width:150px"><col style="width:170px"><col style="width:36px"></colgroup><thead><tr><th>Belt (now)</th><th>품새</th><th>기본동작</th><th>Basic movements</th><th>발차기 Kicking</th><th>격파 Break</th><th>Spot</th></tr></thead><tbody>${ref}</tbody></table></div>`
     : '';
-  return open(`Scoring sheet — ${formatDate(test.test_date)}`, css, `${header('Scoring Sheet', '채점표', test, `${list.length} students · grey = no sparring`)}<table>${colg}${head}${body}</table>${refHtml}`);
+  return open(`Scoring sheet — ${formatDate(test.test_date)}`, css, `${header('Scoring Sheet', '채점표', test, `${list.length} students · grey = not tested (White: no poomsae · below Yellow: no sparring)`)}<table>${colg}${head}${body}</table>${refHtml}`);
 }
 
 // ── Board-break spots ───────────────────────────────────────────────────────
