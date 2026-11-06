@@ -11,6 +11,7 @@ import { money, round2, localISO, formatDate } from '../../lib/invoiceUtils';
 import { fetchAll, loadSettings, saveInvoice, queueEmail } from '../invoices/api';
 import ScoresView from './ScoresView';
 import SparringView from './SparringView';
+import PapersView from './PapersView';
 import { openReports, openBracket } from './testReports';
 import { MIN_CLASSES, TEST_FEE_ITEMS, feeItemFor, nextBelt, beltMeta, beltIndex, countStart, classesSince, matchFees, NOTICE_SUBJECT, NOTICE_MESSAGE } from '../../lib/beltTesting';
 
@@ -364,7 +365,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
           )}
 
           <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #E4E0D4', marginBottom: 14 }}>
-            {[['list', 'Test list'], ['scores', 'Scores & reports'], ['sparring', 'Sparring pairings']].map(([k, l]) => (
+            {[['list', 'Test list'], ['papers', 'Test-day sheets'], ['sparring', 'Sparring pairings'], ['scores', 'Scores & reports']].map(([k, l]) => (
               <button key={k} onClick={() => setView(k)} style={{ background: 'none', border: 'none', borderBottom: view === k ? '2px solid #20241F' : '2px solid transparent', padding: '8px 14px', fontSize: 14, fontWeight: view === k ? 600 : 400, color: view === k ? '#20241F' : '#5B5F56', cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1 }}>{l}</button>
             ))}
           </div>
@@ -379,6 +380,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
               onPrint={(list) => openReports(list, test, settings?.logo_data) || say('Allow pop-ups to print the reports.', true)}
             />
           )}
+          {view === 'papers' && <PapersView key={test.id} rows={rows} test={test} tests={tests} onPatchEntry={patchEntry} onPatchTest={patchTest} say={say} />}
           {view === 'sparring' && (
             <SparringView
               key={test.id}
