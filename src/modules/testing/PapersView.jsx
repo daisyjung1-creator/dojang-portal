@@ -109,8 +109,10 @@ function Leaders({ test, tests, onSave }) {
   const set = (i, k, val) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: val } : r)));
   const previous = tests.filter((t) => t.id !== test.id && t.leaders?.rows?.length).sort((a, b) => (a.test_date < b.test_date ? 1 : -1))[0];
 
+  // Names used at earlier tests, to pick from.
+  const knownNames = [...new Set(tests.flatMap((t) => (t.leaders?.rows || []).map((r) => r.name)).filter(Boolean))].sort();
   const cell = (i, k) => (
-    <input className="dp-input" list="leader-roles" style={{ width: '100%', fontSize: 13, padding: '5px 7px' }} value={rows[i][k] || ''} onChange={(ev) => set(i, k, ev.target.value)} onBlur={() => save()} />
+    <input className="dp-input" list={k === 'name' ? 'leader-names' : 'leader-roles'} style={{ width: '100%', fontSize: 13, padding: '5px 7px' }} value={rows[i][k] || ''} onChange={(ev) => set(i, k, ev.target.value)} onBlur={() => save()} />
   );
 
   return (
@@ -125,6 +127,7 @@ function Leaders({ test, tests, onSave }) {
         )}
       </div>
       <datalist id="leader-roles">{LEADER_ROLES.map((r) => <option key={r} value={r} />)}</datalist>
+      <datalist id="leader-names">{knownNames.map((r) => <option key={r} value={r} />)}</datalist>
       <div style={styles.card}>
         <table className="dp-table">
           <thead>
