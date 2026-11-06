@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Shuffle, Plus, Trash2, Printer, ArrowLeftRight } from 'lucide-react';
+import { Shuffle, Plus, Trash2, Printer, ArrowLeftRight, GripVertical } from 'lucide-react';
 import { styles } from '../../lib/uiStyles';
 import { makePairs } from '../../lib/testScoring';
 import { beltIndex } from '../../lib/beltTesting';
@@ -17,6 +17,15 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
   const byId = Object.fromEntries(fighters.map((f) => [f.id, f]));
   const [pairs, setPairs] = useState(test.bracket || []);
   const [sure, setSure] = useState(false);
+  // Drag a match by its handle to change the order.
+  const [drag, setDrag] = useState(null); // { from, over, armed }
+  const move = (from, to) => {
+    if (from == null || to == null || from === to) return;
+    const next = [...pairs];
+    const [m] = next.splice(from, 1);
+    next.splice(to > from ? to - 1 : to, 0, m);
+    save(next);
+  };
 
   const save = (next) => {
     setPairs(next);
@@ -77,8 +86,38 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
           </p>
         ) : (
           pairs.map((p, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: i < pairs.length - 1 ? '1px solid #F1EFE7' : 'none' }}>
-              <span style={{ width: 26, fontWeight: 700, fontSize: 15, color: '#5B5F56' }}>{i + 1}</span>
+            <div
+              key={`${p.red}-${p.blue}-${i}`}
+              draggable={drag?.armed === i}
+              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag({ from: i, over: i, armed: i }); }}
+              onDragOver={(e) => {
+                if (drag?.from == null) return;
+                e.preventDefault();
+                const r = e.currentTarget.getBoundingClientRect();
+                const over = e.clientY < r.top + r.height / 2 ? i : i + 1;
+                if (over !== drag.over) setDrag({ ...drag, over });
+              }}
+              onDrop={(e) => { e.preventDefault(); move(drag?.from, drag?.over); setDrag(null); }}
+              onDragEnd={() => setDrag(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                borderBottom: i < pairs.length - 1 ? '1px solid #F1EFE7' : 'none',
+                opacity: drag?.from === i ? 0.4 : 1,
+                boxShadow: drag?.from != null && drag.over === i && drag.from !== i && drag.from !== i - 1 ? 'inset 0 3px 0 #20241F' : drag?.from != null && drag.over === i + 1 && i === pairs.length - 1 && drag.from !== i ? 'inset 0 -3px 0 #20241F' : 'none',
+                background: '#fff',
+              }}
+            >
+              <span
+                title="Drag to move this match"
+                aria-label="Drag to reorder"
+                onMouseDown={() => setDrag({ armed: i })}
+                onMouseUp={() => drag?.from == null && setDrag(null)}
+                onTouchStart={() => setDrag({ armed: i })}
+                style={{ cursor: 'grab', color: '#8A8D84', display: 'flex', padding: '4px 0' }}
+              >
+                <GripVertical size={16} />
+              </span>
+              <span style={{ width: 22, fontWeight: 700, fontSize: 15, color: '#5B5F56' }}>{i + 1}</span>
               <Person id={p.red} side="red" i={i} />
               <button className="dp-btn" style={{ padding: 5 }} aria-label="Swap sides" title="Swap red / blue" onClick={() => save(pairs.map((x, k) => (k === i ? { ...x, red: x.blue, blue: x.red } : x)))}><ArrowLeftRight size={14} /></button>
               <Person id={p.blue} side="blue" i={i} />
@@ -87,7 +126,7 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
           ))
         )}
       </div>
-      <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>Red = Hong, Blue = Chung. Saved automatically with this test.</p>
+      <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>Red = Hong, Blue = Chung. Drag ⋮⋮ to change the order. Saved automatically with this test.</p>
     </>
   );
 }
