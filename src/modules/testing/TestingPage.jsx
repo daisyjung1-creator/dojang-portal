@@ -9,6 +9,9 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { matchScore } from '../../components/SearchSelect';
 import { money, round2, localISO, formatDate } from '../../lib/invoiceUtils';
 import { fetchAll, loadSettings, saveInvoice, queueEmail } from '../invoices/api';
+import ScoresView from './ScoresView';
+import SparringView from './SparringView';
+import { openReports, openBracket } from './testReports';
 import { MIN_CLASSES, TEST_FEE_ITEMS, feeItemFor, nextBelt, beltMeta, beltIndex, countStart, classesSince, matchFees, NOTICE_SUBJECT, NOTICE_MESSAGE } from '../../lib/beltTesting';
 
 const RESULTS = [
@@ -46,6 +49,7 @@ export default function TestingPage() {
   const [modal, setModal] = useState(null); // 'add' | 'new' | 'invoice' | 'notice' | 'promote'
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState('list'); // list | scores | sparring
 
   const test = tests.find((t) => t.id === testId);
   const say = (text, error = false) => setFlash({ text, error });
@@ -54,7 +58,7 @@ export default function TestingPage() {
     (async () => {
       const [{ data: t }, { data: st }, { data: cu }, { data: fi }, s, { data: fa }] = await Promise.all([
         supabase.from('belt_tests').select('*').order('test_date', { ascending: false }),
-        fetchAll(() => supabase.from('students').select('id, name, belt, status, customer_id, guardian_name, guardian_email, enroll_date, last_test_date, class_name, billing_exempt').order('name')),
+        fetchAll(() => supabase.from('students').select('id, name, belt, dob, status, customer_id, guardian_name, guardian_email, enroll_date, last_test_date, class_name, billing_exempt').order('name')),
         fetchAll(() => supabase.from('customers').select('id, name, email, address, printed_info, active, separate_invoices')),
         supabase.from('fee_items').select('*'),
         loadSettings(),
@@ -194,6 +198,12 @@ export default function TestingPage() {
     loadEntries();
   }
 
+  async function patchTest(patch) {
+    setTests((t) => t.map((x) => (x.id === test.id ? { ...x, ...patch } : x)));
+    const { error } = await supabase.from('belt_tests').update(patch).eq('id', test.id);
+    if (error) say('Could not save: ' + error.message, true);
+  }
+
   async function updateTest(date, title) {
     const { data, error } = await supabase.from('belt_tests').update({ test_date: date, title: title || null }).eq('id', test.id).select().single();
     if (error) return say('Could not save the test: ' + error.message, true);
@@ -297,7 +307,7 @@ export default function TestingPage() {
     if (others.length) await supabase.from('students').update({ last_test_date: test.test_date }).in('id', others);
     setBusy(false);
     setModal(null);
-    const { data: st } = await fetchAll(() => supabase.from('students').select('id, name, belt, status, customer_id, guardian_name, guardian_email, enroll_date, last_test_date, class_name, billing_exempt').order('name'));
+    const { data: st } = await fetchAll(() => supabase.from('students').select('id, name, belt, dob, status, customer_id, guardian_name, guardian_email, enroll_date, last_test_date, class_name, billing_exempt').order('name'));
     setStudents(st || []);
     say(`${n} student${n === 1 ? '' : 's'} moved up to their new belt.`);
     loadEntries();
@@ -353,6 +363,33 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
             </p>
           )}
 
+          <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #E4E0D4', marginBottom: 14 }}>
+            {[['list', 'Test list'], ['scores', 'Scores & reports'], ['sparring', 'Sparring pairings']].map(([k, l]) => (
+              <button key={k} onClick={() => setView(k)} style={{ background: 'none', border: 'none', borderBottom: view === k ? '2px solid #20241F' : '2px solid transparent', padding: '8px 14px', fontSize: 14, fontWeight: view === k ? 600 : 400, color: view === k ? '#20241F' : '#5B5F56', cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1 }}>{l}</button>
+            ))}
+          </div>
+
+          {view === 'scores' && (
+            <ScoresView
+              key={test.id}
+              rows={rows}
+              test={test}
+              onPatch={patchEntry}
+              onExaminer={(name) => patchTest({ examiner: name })}
+              onPrint={(list) => openReports(list, test) || say('Allow pop-ups to print the reports.', true)}
+            />
+          )}
+          {view === 'sparring' && (
+            <SparringView
+              key={test.id}
+              rows={rows}
+              test={test}
+              onSave={(pairs) => patchTest({ bracket: pairs })}
+              onPrint={(pairs) => openBracket(pairs, sById, test) || say('Allow pop-ups to print.', true)}
+            />
+          )}
+
+          {view === 'list' && (<>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
             <button className="dp-btn dp-btn-primary" onClick={() => setModal('add')}><Plus size={15} /> Add students</button>
             <button className="dp-btn" disabled={!stats.noInvoice.length} onClick={() => setModal('invoice')}><FileText size={15} /> Create fee invoices ({stats.noInvoice.length})</button>
@@ -463,6 +500,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
               </table>
             )}
           </div>
+          </>)}
         </>
       )}
 
