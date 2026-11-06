@@ -137,44 +137,46 @@ export function printBoardSheet(rows, curriculum, curByBelt, test) {
     const items = withKids.filter((x) => (sp ? x.c.spot === sp : !['#1', '#2'].includes(x.c.spot)));
     if (!items.length) return '';
     const total = items.reduce((t, x) => t + x.kids.length, 0);
-    return `<tbody><tr class="sp"><td colspan="4"><span class="spot s${esc((sp || '').replace('#', ''))}">${esc(sp || '—')}</span><b>Spot ${esc(sp || '')}</b><span class="cnt">${total} students</span></td></tr>${items
+    return `<tbody><tr class="sp"><td colspan="3"><span class="spot s${esc((sp || '').replace('#', ''))}">${esc(sp || '—')}</span><b>Spot ${esc(sp || '')}</b><span class="cnt">${total} students</span></td></tr>${items
       .map(({ c, kids }) => {
         const en = lines(c.break_en), ko = lines(c.break_ko);
-        return `<tr><td class="belt"><i class="sw" style="${beltStyle(c.belt)}"></i><b>${esc(c.belt)}</b></td><td class="tech">${en.map((t, i) => `<div><b>${i + 1}. ${esc(t)}</b> <span>${esc(ko[i] || '')}</span></div>`).join('')}</td><td class="mat">${esc(c.material || '')}</td><td class="kids">${kidList(kids)}</td></tr>`;
+        return `<tr><td class="belt"><i class="sw" style="${beltStyle(c.belt)}"></i><b>${esc(c.belt)}</b></td><td class="tech">${en.map((t, i) => `<div><b>${i + 1}. ${esc(t)}</b> <span>${esc(ko[i] || '')}</span></div>`).join('')}${c.material ? `<div class="mat">Material: <b>${esc(c.material)}</b></div>` : ''}</td><td class="kids">${kidList(kids)}</td></tr>`;
       })
       .join('')}</tbody>`;
   };
   const blacks = list.filter((r) => stripeNo(r.e.current_belt) != null);
   const black = blacks.length
-    ? `<tbody><tr class="sp"><td colspan="4"><span class="spot sb">BS</span><b>Black stripes — own break</b><span class="cnt">${blacks.length} students</span></td></tr>${blacks
+    ? `<tbody><tr class="sp"><td colspan="3"><span class="spot sb">BS</span><b>Black stripes — own break</b><span class="cnt">${blacks.length} students</span></td></tr>${blacks
         .map((r) => {
           const p = planFor(r.e, curByBelt);
-          return `<tr><td class="belt"><span class="k"><i></i><b>${esc(r.s.name)}</b></span></td><td class="tech"><b>${esc(short(p.break_en)) || '<span style="color:#bbb">—</span>'}</b>${p.break_ko ? ` <span>${esc(short(p.break_ko))}</span>` : ''}</td><td class="mat">${esc(p.material || '')}</td><td class="kids"><span style="color:#888;font-size:9px">${esc(r.e.current_belt)} → ${esc(r.e.target_belt || '')}</span></td></tr>`;
+          return `<tr><td class="belt"><span class="k"><i></i><b>${esc(r.s.name)}</b></span></td><td class="tech"><b>${esc(short(p.break_en)) || '<span style="color:#bbb">—</span>'}</b>${p.break_ko ? ` <span>${esc(short(p.break_ko))}</span>` : ''}${p.material ? `<div class="mat">Material: <b>${esc(p.material)}</b></div>` : ''}</td><td class="kids"><span style="color:#777;font-size:11px">${esc(r.e.current_belt)} → ${esc(r.e.target_belt || '')}</span></td></tr>`;
         })
         .join('')}</tbody>`
     : '';
-  const css = `@page{size:letter;margin:10mm}
-  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px}
-  th{font-size:8px;text-transform:uppercase;letter-spacing:.05em;color:#666;text-align:left;padding:3px 6px;border-bottom:2px solid #141414}
+  const css = `@page{size:letter;margin:9mm 10mm}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
+  th{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#666;text-align:left;padding:4px 7px;border-bottom:2px solid #141414}
   tbody{break-inside:avoid}
-  tr.sp td{padding:10px 4px 4px;border-bottom:1.5px solid #141414;font-size:12px}
+  tr.sp td{padding:7px 6px 4px;border-bottom:1.5px solid #141414;font-size:15px}
   tr.sp b{margin-left:7px}
-  .cnt{float:right;font-size:9px;color:#666;margin-top:3px}
-  .spot{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:20px;border-radius:4px;font-weight:800;font-size:11px;padding:0 4px;vertical-align:middle}
-  .s1{background:#141414;color:#fff}.s2{background:#bf1c21;color:#fff}.sb{background:#fff;color:#141414;border:1.5px solid #141414;font-size:9px}
+  .cnt{float:right;font-size:11px;color:#555;margin-top:4px}
+  .spot{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:26px;border-radius:5px;font-weight:800;font-size:14px;padding:0 5px;vertical-align:middle}
+  .s1{background:#141414;color:#fff}.s2{background:#bf1c21;color:#fff}.sb{background:#fff;color:#141414;border:1.5px solid #141414;font-size:12px}
   tr.sp td{background:#f2f2f2}
-  td{padding:6px;border-bottom:1px solid #d9d9d9;vertical-align:top}
-  td.belt{white-space:nowrap}td.belt b{margin-left:6px}
-  .sw{display:inline-block;width:20px;height:8px;border:1px solid #999;border-radius:2px;vertical-align:middle}
-  td.tech div{margin-bottom:2px}td.tech span{color:#777;font-size:9px}
-  td.mat{font-size:9px;color:#444}
-  .kg{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px}
-  .k{display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .k i{display:inline-block;width:10px;height:10px;border:1.3px solid #141414;border-radius:2px;flex-shrink:0}`;
+  td{padding:5px 7px;border-bottom:1px solid #d9d9d9;vertical-align:top}
+  td.belt b{margin-left:6px}
+  .sw{display:inline-block;width:26px;height:10px;border:1px solid #999;border-radius:2px;vertical-align:middle}
+  td.belt b{font-size:14px}
+  td.tech div{margin-bottom:1px}td.tech span{color:#777;font-size:11px}
+  .mat{font-size:11px;color:#444;margin-top:3px}
+  .kg{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;font-size:13px}
+  .k{display:flex;align-items:flex-start;gap:5px;line-height:1.2}
+  .k i{margin-top:1px}
+  .k i{display:inline-block;width:13px;height:13px;border:1.5px solid #141414;border-radius:3px;flex-shrink:0}`;
   return open(
     `Board break — ${formatDate(test.test_date)}`,
     css,
-    `${header('Board Break', '격파', test, `${list.length} students`)}<table><colgroup><col style="width:165px"><col style="width:200px"><col style="width:70px"><col></colgroup><thead><tr><th>Belt</th><th>Technique</th><th>Material</th><th>Students ✓</th></tr></thead>${spotRows('#1')}${spotRows('#2')}${spotRows(null)}${black}</table>`
+    `${header('Board Break', '격파', test, `${list.length} students`)}<table><colgroup><col style="width:175px"><col style="width:215px"><col></colgroup><thead><tr><th>Belt</th><th>Technique</th><th>Students ✓</th></tr></thead>${spotRows('#1')}${spotRows('#2')}${spotRows(null)}${black}</table>`
   );
 }
 
@@ -203,21 +205,21 @@ export function printLeaders(leaders, test) {
     .map((r) => `<tr><td class="n"><span class="av">${esc(r.name.trim()[0] || '?')}</span>${esc(r.name)}</td><td>${rolePill(r.poomsae)}</td><td>${rolePill(r.sparring)}</td><td>${rolePill(r.board)}</td></tr>`)
     .join('');
   const css = `@page{size:letter;margin:13mm}
-  table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;border:1px solid #d6d6d6;border-radius:8px;overflow:hidden;table-layout:fixed}
-  th{background:#141414;color:#fff;font-size:10px;text-transform:uppercase;letter-spacing:.07em;padding:9px 8px;text-align:center}
+  table{width:100%;border-collapse:separate;border-spacing:0;font-size:15px;border:1px solid #d6d6d6;border-radius:8px;overflow:hidden;table-layout:fixed}
+  th{background:#141414;color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.07em;padding:9px 8px;text-align:center}
   th:first-child{text-align:left;padding-left:14px}
-  td{padding:9px 8px;text-align:center;vertical-align:middle;border-top:1px solid #e6e6e6;height:50px}
+  td{padding:9px 8px;text-align:center;vertical-align:middle;border-top:1px solid #e6e6e6;height:60px}
   tr:nth-child(even) td{background:#fafafa}
-  td.n{text-align:left;font-weight:700;font-size:13px;padding-left:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  td.n{text-align:left;font-weight:700;font-size:17px;padding-left:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pill{max-width:100%}
   .av{display:none}
-  .pill{font-size:12px;font-weight:600}
-  .sub{font-size:9.5px;color:#777;margin-top:3px}
+  .pill{font-size:15px;font-weight:600}
+  .sub{font-size:12px;color:#666;margin-top:3px}
   .none{color:#ccc}
-  .notes{margin-top:16px;border:1px solid #cfcfcf;border-radius:8px;padding:11px 14px;font-size:11px;line-height:1.65}
-  .notes h3{margin:0 0 4px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#555}
+  .notes{margin-top:16px;border:1px solid #cfcfcf;border-radius:8px;padding:12px 16px;font-size:14px;line-height:1.6}
+  .notes h3{margin:0 0 5px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#555}
   .notes p{margin:0}
-  .big{margin-top:12px;background:#bf1c21;color:#fff;text-align:center;font-weight:800;font-size:18px;letter-spacing:.04em;padding:11px;border-radius:8px}`;
+  .big{margin-top:12px;background:#bf1c21;color:#fff;text-align:center;font-weight:800;font-size:24px;letter-spacing:.04em;padding:11px;border-radius:8px}`;
   return open(
     `Leaders Club roles — ${formatDate(test.test_date)}`,
     css,
