@@ -177,6 +177,16 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
             />
           </div>
         </div>
+        <div style={{ marginTop: 10 }}>
+          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, marginBottom: 4 }}>Instructor’s comments &amp; next goals <span style={{ fontWeight: 400, fontSize: 12, color: '#8A8D84' }}>· printed at the bottom of the report (left blank = lines to write on)</span></span>
+          <textarea
+            className="dp-input"
+            style={{ width: '100%', minHeight: 56, fontSize: 12.5, resize: 'vertical' }}
+            value={notes.overall || ''}
+            onChange={(ev) => setNotes({ ...notes, overall: ev.target.value })}
+            onBlur={() => saveNote('overall')}
+          />
+        </div>
         {onNext && (
           <div style={{ textAlign: 'right', marginTop: 12 }}>
             <button className="dp-btn" onClick={onNext}>Next student <ChevronRight size={14} /></button>

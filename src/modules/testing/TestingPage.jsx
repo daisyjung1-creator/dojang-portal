@@ -376,7 +376,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
               test={test}
               onPatch={patchEntry}
               onExaminer={(name) => patchTest({ examiner: name })}
-              onPrint={(list) => openReports(list, test) || say('Allow pop-ups to print the reports.', true)}
+              onPrint={(list) => openReports(list, test, settings?.logo_data) || say('Allow pop-ups to print the reports.', true)}
             />
           )}
           {view === 'sparring' && (
