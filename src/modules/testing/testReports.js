@@ -145,15 +145,21 @@ export function openReports(rows, test, logo) {
 export function openBracket(pairs, sById, test) {
   const w = window.open('', '_blank');
   if (!w) return false;
-  const has = (v) => v !== '' && v != null;
+  // Students in more than one match get "1st / 2nd match" so nobody misses a turn.
+  const total = {}, seen = {};
+  pairs.forEach((p) => [p.red, p.blue].forEach((id) => id && (total[id] = (total[id] || 0) + 1)));
+  const tag = (id) => {
+    if (!id || total[id] < 2) return '';
+    seen[id] = (seen[id] || 0) + 1;
+    return `<span class="twice">${seen[id] === 1 ? '1st' : seen[id] === 2 ? '2nd' : seen[id] + 'th'} of ${total[id]}</span>`;
+  };
   const row = (p, i) => {
     const r = sById[p.red] || {}, b = sById[p.blue] || {};
-    const scored = has(p.rs) && has(p.bs);
-    const win = scored ? (Number(p.rs) > Number(p.bs) ? 'red' : Number(p.bs) > Number(p.rs) ? 'blue' : '') : '';
+    const rt = tag(p.red), bt = tag(p.blue);
     return `<tr><td class="no">${i + 1}</td>
-      <td class="side red${win === 'red' ? ' win' : ''}"><b>${esc(r.name || '')}</b><div class="sm">${esc(r.belt || '')}</div></td>
-      <td class="score"><span class="box r">${scored ? esc(p.rs) : ''}</span><span class="colon">:</span><span class="box b">${scored ? esc(p.bs) : ''}</span></td>
-      <td class="side blue${win === 'blue' ? ' win' : ''}"><b>${esc(b.name || '')}</b><div class="sm">${esc(b.belt || '')}</div></td></tr>`;
+      <td class="side red"><b>${esc(r.name || '')}</b><div class="sm">${esc(r.belt || '')}${rt}</div></td>
+      <td class="score"><span class="box r"></span><span class="colon">:</span><span class="box b"></span></td>
+      <td class="side blue"><b>${esc(b.name || '')}</b><div class="sm">${bt}${esc(b.belt || '')}</div></td></tr>`;
   };
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Sparring — ${esc(formatDate(test.test_date))}</title>
 <style>@page{size:letter;margin:11mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -171,12 +177,12 @@ tr{page-break-inside:avoid}
 td.no{text-align:center;font-weight:800;font-size:16px;color:#888;width:40px}
 td.side b{font-size:16px}td.side .sm{font-size:11px;color:#666;margin-top:2px}
 td.red{border-left:6px solid #bf1c21}td.blue{border-right:6px solid #1E4566;text-align:right}
-td.win b::after{content:' ★';color:#bf1c21}td.blue.win b::after{color:#1E4566}
+.twice{display:inline-block;font-size:10px;font-weight:800;background:#141414;color:#fff;border-radius:999px;padding:1px 7px;margin:0 6px;vertical-align:middle}
 td.score{text-align:center;white-space:nowrap}
 .box{display:inline-block;width:46px;height:34px;line-height:32px;border:1.8px solid #141414;border-radius:6px;font-size:20px;font-weight:800;vertical-align:middle}
 .box.r{border-color:#bf1c21;color:#bf1c21}.box.b{border-color:#1E4566;color:#1E4566}
 .colon{font-size:20px;font-weight:800;margin:0 7px;vertical-align:middle}</style></head>
-<body><div class="hd"><div><div class="accent"></div><div class="d">${esc(DOJANG_NAME)}</div><h1>Sparring<span>겨루기</span></h1></div><div class="m"><b>${esc(formatDate(test.test_date))}</b><br>${esc(test.title || 'Belt Testing')}<br>${pairs.length} matches</div></div>
+<body><div class="hd"><div><div class="accent"></div><div class="d">${esc(DOJANG_NAME)}</div><h1>Sparring<span>겨루기</span></h1></div><div class="m"><b>${esc(formatDate(test.test_date))}</b><br>${esc(test.title || 'Belt Testing')}<br>${pairs.length} matches${Object.values(total).some((n) => n > 1) ? ' · <b style="font-size:10px">1st of 2</b> = spars twice' : ''}</div></div>
 <table><colgroup><col style="width:44px"><col><col style="width:150px"><col></colgroup><thead><tr><th>#</th><th class="r">Red · Hong</th><th>Score</th><th class="b">Blue · Chung</th></tr></thead><tbody>${pairs.map(row).join('')}</tbody></table>
 <script>window.onload=()=>window.print()</script></body></html>`);
   w.document.close();

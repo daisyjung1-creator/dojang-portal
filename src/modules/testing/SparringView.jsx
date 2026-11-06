@@ -80,14 +80,7 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: i < pairs.length - 1 ? '1px solid #F1EFE7' : 'none' }}>
               <span style={{ width: 26, fontWeight: 700, fontSize: 15, color: '#5B5F56' }}>{i + 1}</span>
               <Person id={p.red} side="red" i={i} />
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <ScoreBox value={p.rs} color="#BF1C21" label="Red score" onSave={(v) => save(pairs.map((x, k) => (k === i ? { ...x, rs: v } : x)))} />
-                  <b style={{ fontSize: 16 }}>:</b>
-                  <ScoreBox value={p.bs} color="#1E4566" label="Blue score" onSave={(v) => save(pairs.map((x, k) => (k === i ? { ...x, bs: v } : x)))} />
-                </div>
-                <button className="dp-btn" style={{ padding: '1px 6px', fontSize: 11 }} aria-label="Swap sides" title="Swap red / blue" onClick={() => save(pairs.map((x, k) => (k === i ? { ...x, red: x.blue, blue: x.red, rs: x.bs, bs: x.rs } : x)))}><ArrowLeftRight size={12} /> swap</button>
-              </div>
+              <button className="dp-btn" style={{ padding: 5 }} aria-label="Swap sides" title="Swap red / blue" onClick={() => save(pairs.map((x, k) => (k === i ? { ...x, red: x.blue, blue: x.red } : x)))}><ArrowLeftRight size={14} /></button>
               <Person id={p.blue} side="blue" i={i} />
               <button className="dp-btn" style={{ padding: 5 }} aria-label="Remove match" onClick={() => save(pairs.filter((_, k) => k !== i))}><Trash2 size={13} /></button>
             </div>
@@ -99,19 +92,3 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
   );
 }
 
-// Score for one side; saves when you leave the box.
-function ScoreBox({ value, color, label, onSave }) {
-  const [v, setV] = useState(value ?? '');
-  React.useEffect(() => setV(value ?? ''), [value]);
-  return (
-    <input
-      className="dp-input"
-      inputMode="numeric"
-      aria-label={label}
-      value={v}
-      onChange={(e) => setV(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
-      onBlur={() => String(v) !== String(value ?? '') && onSave(v === '' ? null : Number(v))}
-      style={{ width: 46, textAlign: 'center', fontSize: 17, fontWeight: 700, padding: '4px 2px', color, borderColor: color }}
-    />
-  );
-}
