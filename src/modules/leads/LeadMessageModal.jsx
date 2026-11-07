@@ -18,31 +18,48 @@ const PHONE = '780-450-0181';
 export const classForAge = (age) => (Number(age) >= 11 ? 'intB' : 'beginner');
 
 const first = (name) => String(name || '').trim().split(/\s+/)[0] || '';
+const list = (xs) => (xs.length <= 1 ? xs[0] || '' : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]);
 
-export function leadMessage({ lead, cls, kidsport, kind }) {
-  const c = TRIAL_CLASSES[cls];
-  const kid = first(lead.student_name) || 'your child';
-  const Kid = kid.charAt(0).toUpperCase() + kid.slice(1);
-  const kids = first(lead.student_name) ? `${kid}'s` : "your child's";
+// kids: [{ name, age, cls }] — siblings in the same class share one line.
+export function leadMessage({ lead, kids, kidsport, kind }) {
+  const named = kids.filter((k) => first(k.name));
+  const groups = Object.keys(TRIAL_CLASSES)
+    .map((cls) => ({ c: TRIAL_CLASSES[cls], names: kids.filter((k) => k.cls === cls).map((k) => first(k.name)) }))
+    .filter((g) => g.names.length);
+  const many = kids.length > 1;
+  const who = named.length ? list(named.map((k) => first(k.name))) : many ? 'your children' : 'your child';
+  const Who = who.charAt(0).toUpperCase() + who.slice(1);
+  const nameOf = (g) => (g.names.every(Boolean) ? list(g.names) : many ? 'your children' : 'your child');
   const hello = lead.guardian_name ? `Hello ${first(lead.guardian_name)},` : 'Hello,';
+  const kidsportText = many
+    ? `please sign up first at ${KIDSPORT_URL} — once you bring in the enrollment forms, we'll give you the Proof of Enrollment and the info you need to apply.`
+    : `please sign up first at ${KIDSPORT_URL} — once you bring in the enrollment form, we'll give you the Proof of Enrollment and the info you need to apply.`;
   if (kind === 'text') {
+    const offer =
+      groups.length === 1
+        ? `${Who} can try our ${groups[0].c.label} class (${groups[0].c.short}).`
+        : groups.map((g) => `${nameOf(g)}: ${g.c.label} class (${g.c.short})`).join('\n');
     return [
       `${hello} this is Master Daisy from ${DOJANG}. Thank you for your interest!`,
-      `${Kid} can try our ${c.label} class (${c.short}). Which date works best for the trial class?`,
-      kidsport ? `For the KidSport grant: please sign up first at ${KIDSPORT_URL} — once you bring in the enrollment form, we'll give you the Proof of Enrollment and the info you need to apply.` : '',
+      `${groups.length === 1 ? offer : 'For the trial classes:\n' + offer}\nWhich date works best for the trial class${many ? 'es' : ''}?`,
+      kidsport ? `For the KidSport grant: ${kidsportText}` : '',
     ]
       .filter(Boolean)
       .join('\n\n');
   }
+  const offer =
+    groups.length === 1
+      ? `For ${named.length ? who + (many ? '’s ages' : '’s age') : many ? 'your children’s ages' : 'your child’s age'}, the best fit is our ${groups[0].c.label} class:\n${groups[0].c.when}`
+      : 'For their ages, the best fit is:\n' + groups.map((g) => `• ${nameOf(g)} — ${g.c.label} class: ${g.c.when}`).join('\n');
   return {
-    subject: first(lead.student_name) ? `Trial class for ${kid} — ${DOJANG}` : `Trial class — ${DOJANG}`,
+    subject: named.length ? `Trial class for ${who} — ${DOJANG}` : `Trial class — ${DOJANG}`,
     body: [
       hello,
-      `Thank you for your interest in ${DOJANG}! We would love to have ${kid} join us for a trial class.`,
-      `For ${kids} age, the best fit is our ${c.label} class:\n${c.when}`,
-      'Please reply with the date that works best for you, and we will book the trial class.',
+      `Thank you for your interest in ${DOJANG}! We would love to have ${who} join us for a trial class.`,
+      offer,
+      'Please reply with the date that works best for you, and we will book the trial class' + (many ? 'es.' : '.'),
       kidsport
-        ? `KidSport grant (help with fees for families who qualify):\n1. First, sign up for an account here: ${KIDSPORT_URL}\n2. When you bring in the enrollment form, we will give you the Proof of Enrollment and all the information you need for the application.`
+        ? `KidSport grant (help with fees for families who qualify):\n1. First, sign up for an account here: ${KIDSPORT_URL}\n2. When you bring in the enrollment form${many ? 's' : ''}, we will give you the Proof of Enrollment and all the information you need for the application.`
         : '',
       `If you have any questions, just reply to this email or call us at ${PHONE}.`,
       'Best Regards,\nMaster Daisy\n' + DOJANG,
@@ -52,9 +69,15 @@ export function leadMessage({ lead, cls, kidsport, kind }) {
   };
 }
 
+const kidsOf = (lead) =>
+  (Array.isArray(lead.children) && lead.children.length ? lead.children : [{ name: lead.student_name || '', age: lead.student_age }]).map((k) => ({
+    name: k.name || '',
+    age: k.age ?? '',
+    cls: classForAge(k.age),
+  }));
+
 export default function LeadMessageModal({ lead, onClose, onDone }) {
-  const [age, setAge] = useState(lead.student_age ?? '');
-  const [cls, setCls] = useState(classForAge(lead.student_age));
+  const [kids, setKids] = useState(kidsOf(lead));
   const [kidsport, setKidsport] = useState(true);
   const [kind, setKind] = useState(lead.email ? 'email' : 'text');
   const [email, setEmail] = useState(lead.email || '');
@@ -64,18 +87,24 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
 
   // Rewrite the message whenever the options change.
+  const key = JSON.stringify(kids.map((k) => [k.name, k.cls]));
   useEffect(() => {
-    if (kind === 'text') setBody(leadMessage({ lead, cls, kidsport, kind }));
+    if (kind === 'text') setBody(leadMessage({ lead, kids, kidsport, kind }));
     else {
-      const m = leadMessage({ lead, cls, kidsport, kind });
+      const m = leadMessage({ lead, kids, kidsport, kind });
       setSubject(m.subject);
       setBody(m.body);
     }
-  }, [cls, kidsport, kind]);
+  }, [key, kidsport, kind]);
+  const setKid = (i, patch) => setKids(kids.map((k, j) => (j === i ? { ...k, ...patch } : k)));
 
   async function markContacted(how) {
     const patch = { contacted_at: new Date().toISOString(), contacted_by: how };
-    if (age !== '' && Number(age) !== lead.student_age) patch.student_age = Number(age);
+    const children = kids.map((k) => ({ name: k.name, age: k.age === '' ? null : Number(k.age) }));
+    if (JSON.stringify(children) !== JSON.stringify(lead.children || null)) {
+      patch.children = children;
+      patch.student_age = children[0]?.age ?? null;
+    }
     if (how === 'email' && email && email !== lead.email) patch.email = email;
     const { data } = await supabase.from('leads').update(patch).eq('id', lead.id).select().single();
     onDone(data || { ...lead, ...patch });
@@ -145,22 +174,19 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
         {tab('text', MessageSquare, 'Text message')}
       </div>
 
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
-        <label style={{ fontSize: 12.5, color: '#5B5F56' }}>
-          Child’s age
-          <input className="dp-input" inputMode="numeric" style={{ display: 'block', width: 70, marginTop: 3 }} value={age} onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 2); setAge(v); if (v !== '') setCls(classForAge(v)); }} />
-        </label>
-        <div style={{ fontSize: 12.5, color: '#5B5F56' }}>
-          Trial class
-          <div style={{ display: 'flex', gap: 5, marginTop: 3 }}>
-            {Object.entries(TRIAL_CLASSES).map(([k, c]) => (
-              <button key={k} className="dp-btn" onClick={() => setCls(k)} style={{ fontSize: 12.5, background: cls === k ? '#20241F' : '#fff', color: cls === k ? '#fff' : '#20241F' }}>
-                {c.label} · {c.short}
+      <div style={{ marginBottom: 10 }}>
+        {kids.map((k, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+            <span style={{ minWidth: 110, fontSize: 13.5, fontWeight: 500 }}>{k.name || (kids.length > 1 ? `Child ${i + 1}` : 'Child')}</span>
+            <input className="dp-input" inputMode="numeric" aria-label="Age" placeholder="Age" style={{ width: 58 }} value={k.age} onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 2); setKid(i, v === '' ? { age: v } : { age: v, cls: classForAge(v) }); }} />
+            {Object.entries(TRIAL_CLASSES).map(([c, t]) => (
+              <button key={c} className="dp-btn" onClick={() => setKid(i, { cls: c })} style={{ fontSize: 12.5, background: k.cls === c ? '#20241F' : '#fff', color: k.cls === c ? '#fff' : '#20241F' }}>
+                {t.label} · {t.short}
               </button>
             ))}
           </div>
-        </div>
-        <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 6 }}>
+        ))}
+        <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
           <input type="checkbox" checked={kidsport} onChange={(e) => setKidsport(e.target.checked)} /> Include KidSport grant info
         </label>
       </div>

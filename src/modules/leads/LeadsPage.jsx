@@ -9,6 +9,13 @@ import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
+// Children on an inquiry: [{ name, age }] (siblings ask together).
+export function leadKids(lead) {
+  if (Array.isArray(lead?.children) && lead.children.length) return lead.children.map((k) => ({ name: k.name || '', age: k.age ?? '' }));
+  return [{ name: lead?.student_name || '', age: lead?.student_age ?? '' }];
+}
+const joinNames = (names) => (names.length <= 1 ? names[0] || '' : names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1]);
+
 function emptyForm() {
   return { student_name: '', guardian_name: '', phone: '', email: '', student_age: '', source: 'Phone', inquiry_date: todayISO(), consult_date: '', status: 'New Inquiry', notes: '', linked_student_id: null };
 }
@@ -64,7 +71,7 @@ export default function LeadsPage({ setActiveTab }) {
 
   function openAdd() {
     setEditingId(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), kids: [{ name: '', age: '' }] });
     setFormError('');
     setLinkedStudent(null);
     setPastMatches([]);
@@ -74,7 +81,7 @@ export default function LeadsPage({ setActiveTab }) {
 
   async function openEdit(lead) {
     setEditingId(lead.id);
-    setForm({ ...emptyForm(), ...lead });
+    setForm({ ...emptyForm(), ...lead, kids: leadKids(lead) });
     setFormError('');
     setPastMatches([]);
     setPastSearch('');
@@ -88,12 +95,15 @@ export default function LeadsPage({ setActiveTab }) {
   }
 
   async function submitForm() {
-    if (!String(form.student_name || '').trim() && !String(form.guardian_name || '').trim()) {
+    const kids = (form.kids || leadKids(form)).map((k) => ({ name: String(k.name || '').trim(), age: k.age === '' || k.age == null ? null : Number(k.age) })).filter((k) => k.name || k.age != null);
+    const names = kids.map((k) => k.name).filter(Boolean);
+    if (!names.length && !String(form.guardian_name || '').trim()) {
       setFormError('Enter the student’s or the parent’s name (one is enough).');
       return;
     }
     let submitError;
-    const row = { ...form, student_name: String(form.student_name || '').trim() || null, guardian_name: String(form.guardian_name || '').trim() || null, student_age: form.student_age === '' || form.student_age == null ? null : Number(form.student_age) };
+    const { kids: _k, ...rest } = form;
+    const row = { ...rest, children: kids.length ? kids : null, student_name: joinNames(names) || null, guardian_name: String(form.guardian_name || '').trim() || null, student_age: kids[0]?.age ?? null };
     if (editingId) ({ error: submitError } = await supabase.from('leads').update(row).eq('id', editingId));
     else ({ error: submitError } = await supabase.from('leads').insert(row));
     if (submitError) {
@@ -122,11 +132,12 @@ export default function LeadsPage({ setActiveTab }) {
       setActiveTab('students');
       return;
     }
+    // Open Enrollment with the parent and every child from the inquiry.
     sessionStorage.setItem(
-      'studentDraft',
-      JSON.stringify({ name: lead.student_name, guardian_name: lead.guardian_name, guardian_phone: lead.phone, guardian_email: lead.email, enroll_date: todayISO() })
+      'registerDraft',
+      JSON.stringify({ guardian_name: lead.guardian_name, guardian_phone: lead.phone, guardian_email: lead.email, kids: leadKids(lead).map((k) => ({ name: k.name })) })
     );
-    setActiveTab('students');
+    setActiveTab('register');
   }
 
   const stats = useMemo(() => {
@@ -222,7 +233,7 @@ export default function LeadsPage({ setActiveTab }) {
                   <tr key={l.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
                       {l.student_name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>(child’s name not given)</span>}
-                      {l.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {l.student_age}y</span>}
+                      {leadKids(l).some((k) => k.age !== '' && k.age != null) && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {leadKids(l).map((k) => (k.age !== '' && k.age != null ? k.age + 'y' : '?')).join(', ')}</span>}
                       {l.linked_student_id && (
                         <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Linked</span>
                       )}
@@ -336,9 +347,17 @@ export default function LeadsPage({ setActiveTab }) {
             )}
           </div>
           <p style={{ fontSize: 12, color: '#8A8D84', margin: '0 0 6px' }}>The child’s name or the parent’s name is enough to save.</p>
-          <Field label="Student Name">
-            <input className="dp-input" style={{ width: '100%' }} value={form.student_name || ''} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
-          </Field>
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Child{(form.kids || []).length > 1 ? 'ren' : ''} — name and age</span>
+            {(form.kids || [{ name: '', age: '' }]).map((k, i) => (
+              <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                <input className="dp-input" style={{ flex: 1 }} placeholder={i === 0 ? 'Child’s name' : 'Sibling’s name'} value={k.name || ''} onChange={(e) => setForm({ ...form, kids: form.kids.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
+                <input className="dp-input" inputMode="numeric" style={{ width: 70 }} placeholder="Age" value={k.age ?? ''} onChange={(e) => setForm({ ...form, kids: form.kids.map((x, j) => (j === i ? { ...x, age: e.target.value.replace(/\D/g, '').slice(0, 2) } : x)) })} />
+                {form.kids.length > 1 && <button className="dp-btn" style={{ padding: 6 }} aria-label="Remove child" onClick={() => setForm({ ...form, kids: form.kids.filter((_, j) => j !== i) })}><Trash2 size={13} /></button>}
+              </div>
+            ))}
+            <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12.5 }} onClick={() => setForm({ ...form, kids: [...(form.kids || []), { name: '', age: '' }] })}><Plus size={13} /> Add a sibling</button>
+          </div>
           <div style={styles.formRow}>
             <Field label="Guardian Name">
               <input className="dp-input" style={{ width: '100%' }} value={form.guardian_name || ''} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />
@@ -378,9 +397,6 @@ export default function LeadsPage({ setActiveTab }) {
               </select>
             </Field>
           </div>
-          <Field label="Child’s age">
-            <input className="dp-input" inputMode="numeric" style={{ width: 90 }} value={form.student_age ?? ''} onChange={(e) => setForm({ ...form, student_age: e.target.value.replace(/\D/g, '').slice(0, 2) })} />
-          </Field>
           <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>

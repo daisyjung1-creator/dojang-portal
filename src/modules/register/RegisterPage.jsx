@@ -58,7 +58,8 @@ export default function RegisterPage() {
     if (draft) {
       const d = JSON.parse(draft);
       setFamily((f) => ({ ...f, guardian_name: d.guardian_name || '', guardian_phone: d.guardian_phone || '', guardian_email: d.guardian_email || '', address: d.address || '' }));
-      setKids([{ ...emptyChild(), name: d.name || '', class_name: d.class_name || '', dob: d.dob || '' }]);
+      if (Array.isArray(d.kids) && d.kids.length) setKids(d.kids.map((k) => ({ ...emptyChild(), name: k.name || '', class_name: k.class_name || '', dob: k.dob || '' })));
+      else setKids([{ ...emptyChild(), name: d.name || '', class_name: d.class_name || '', dob: d.dob || '' }]);
       sessionStorage.removeItem('registerDraft');
     }
     loadClasses();
