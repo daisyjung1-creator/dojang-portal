@@ -165,8 +165,10 @@ table.dp-table td {
     background: rgba(32, 36, 31, 0.45);
     z-index: 55;
   }
+  /* Netlify puts its badge at the bottom of the screen: keep a clear strip
+     there so nothing (buttons, Save, the last row) sits underneath it. */
   .dp-main {
-    padding: 14px 12px 40px !important;
+    padding: 14px 12px 110px !important;
     width: 100%;
   }
 
@@ -218,6 +220,13 @@ table.dp-table td {
   div[style*='position: fixed'][style*='rgba(32, 36, 31, 0.4'] > div {
     width: calc(100% - 20px) !important;
     max-width: none !important;
-    max-height: calc(100dvh - 24px) !important;
+    max-height: calc(100dvh - 120px) !important;
+  }
+  div[style*='position: fixed'][style*='rgba(32, 36, 31, 0.4'] {
+    align-items: flex-start !important;
+    padding-top: 16px;
+  }
+  .dp-kiosk-foot {
+    padding: 10px 14px calc(78px + env(safe-area-inset-bottom)) !important;
   }
 }
