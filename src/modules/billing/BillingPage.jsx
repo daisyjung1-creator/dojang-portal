@@ -235,7 +235,7 @@ export default function BillingPage() {
 
       {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, marginBottom: 18 }}>
+      <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, marginBottom: 18 }}>
         <Metric label="Students billed" value={stats.billable} />
         <Metric label="Tuition per month (before GST)" value={money(stats.monthly)} />
         <Metric label="Unpaid tuition invoices" value={`${stats.unpaidCount} · ${money(stats.unpaidAmount)}`} />

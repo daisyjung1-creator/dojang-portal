@@ -174,7 +174,7 @@ export default function LeadsPage({ setActiveTab }) {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
+      <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
         <div style={styles.metricCard}>
           <p style={styles.metricLabel}>Total Inquiries</p>
           <p style={styles.metricValue}>{stats.total}</p>

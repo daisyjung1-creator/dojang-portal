@@ -204,7 +204,7 @@ function CurriculumModal({ curriculum, onClose, onSaved }) {
           <button key={c.belt} className="dp-btn" onClick={() => { setBelt(c.belt); setMsg(''); }} style={{ padding: '3px 10px', fontSize: 12.5, background: c.belt === belt ? '#20241F' : '#fff', color: c.belt === belt ? '#fff' : '#20241F' }}>{c.belt}</button>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
+      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
         {f('poomsae', 'Poomsae (Taegeuk)', 1)}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {f('spot', 'Break spot (#1 / #2)', 1)}

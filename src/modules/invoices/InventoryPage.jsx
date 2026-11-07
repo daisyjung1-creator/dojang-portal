@@ -67,7 +67,7 @@ export default function InventoryPage() {
       </div>
       {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+      <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
         <Metric label="Items tracked" value={levels.length} />
         <Metric label="Not counted yet" value={counts.uncounted} tone={counts.uncounted ? 'warn' : ''} onClick={() => setFilter('uncounted')} />
         <Metric label="Low / out of stock" value={counts.low + counts.out} tone={counts.low + counts.out ? 'bad' : ''} onClick={() => setFilter(counts.out ? 'out' : 'low')} />

@@ -492,7 +492,7 @@ export default function AttendancePage() {
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Class</th>
+                    <th className="dp-hide-sm">Class</th>
                     <th>Attendance</th>
                   </tr>
                 </thead>
@@ -525,8 +525,8 @@ export default function AttendancePage() {
                               </button>
                             </div>
                           </td>
-                          <td>{className}</td>
-                          <td>
+                          <td className="dp-hide-sm">{className}</td>
+                          <td className="dp-att-actions">
                             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
                               {kindButton('present', st === 'present', () => setAttendanceStatus(s.id, checkinDate, className, 'present'), <CircleCheck size={13} />)}
                               {kindButton('absent', st === 'absent', () => setAttendanceStatus(s.id, checkinDate, className, 'absent'), <CircleX size={13} />)}
@@ -561,8 +561,8 @@ export default function AttendancePage() {
                           {st.name}
                           <span style={{ marginLeft: 6, fontSize: 10.5, color: '#1E4566', border: '1px solid #B9D3E4', background: '#E6F0F6', borderRadius: 999, padding: '1px 6px' }}>Drop-in</span>
                         </td>
-                        <td>{a.class_name} (home class: {st.class_name || 'Unassigned'})</td>
-                        <td>
+                        <td className="dp-hide-sm">{a.class_name} (home class: {st.class_name || 'Unassigned'})</td>
+                        <td className="dp-att-actions">
                           <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => clearAttendance(a)}>Remove</button>
                         </td>
                       </tr>
@@ -584,8 +584,8 @@ export default function AttendancePage() {
                           {s.name}
                           <span style={{ marginLeft: 6, fontSize: 10.5, color: '#854F0B', border: '1px solid #F0D9A8', background: '#FAEEDA', borderRadius: 999, padding: '1px 6px' }}>Makeup</span>
                         </td>
-                        <td>{className} (home class: {s.class_name || 'Unassigned'})</td>
-                        <td>
+                        <td className="dp-hide-sm">{className} (home class: {s.class_name || 'Unassigned'})</td>
+                        <td className="dp-att-actions">
                           <div style={{ display: 'flex', gap: 6 }}>
                             {kindButton('present', record?.status === 'present', () => setMakeupGuestStatus(m, checkinDate, className, 'present'), <CircleCheck size={13} />)}
                             {kindButton('absent', record?.status === 'absent', () => setMakeupGuestStatus(m, checkinDate, className, 'absent'), <CircleX size={13} />)}

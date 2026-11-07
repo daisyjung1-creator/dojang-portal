@@ -184,7 +184,7 @@ export default function InvoiceSettingsPage() {
       </div>
       {saved && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{saved}</p>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start' }}>
+      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start' }}>
         <div style={{ ...styles.card, padding: 18 }}>
           <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Company profile</p>
           {TEXT_FIELDS.map(([k, label]) => (
@@ -224,7 +224,7 @@ export default function InvoiceSettingsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start', marginTop: 18 }}>
+      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start', marginTop: 18 }}>
         <div style={{ ...styles.card, padding: 18 }}>
           <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Payment methods</p>
           <Field label="One per line — the first one is the default when recording a payment">
@@ -250,7 +250,7 @@ export default function InvoiceSettingsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start', marginTop: 18 }}>
+      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start', marginTop: 18 }}>
         <div style={{ ...styles.card, padding: 18 }}>
           <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Tuition billing</p>
           <div style={styles.formRow}>

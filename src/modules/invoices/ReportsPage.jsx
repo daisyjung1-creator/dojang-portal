@@ -98,7 +98,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
+      <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
         <Metric label={`${MONTHS[selMonth]} net sales (before GST)`} value={money(sel.netSales)} note={sel.refundSales ? `${money(sel.subtotal)} sales − ${money(sel.refundSales)} refunds` : ''} />
         <Metric label={`${MONTHS[selMonth]} net GST collected`} value={money(sel.gst)} note={sel.refundGst ? `${money(sel.grossGst)} − ${money(sel.refundGst)} refunded` : ''} />
         <Metric label={`${MONTHS[selMonth]} received (net)`} value={money(sel.received)} note={sel.refunded ? `${money(sel.paidIn)} in − ${money(sel.refunded)} refunded` : ''} />
@@ -118,7 +118,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
+      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
         <div style={styles.card}>
           <table className="dp-table">
             <thead>

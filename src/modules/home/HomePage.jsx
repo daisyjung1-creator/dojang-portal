@@ -328,7 +328,7 @@ export default function HomePage({ setActiveTab }) {
         <Metric label="Active students" value={d.students.length} sub={`${d.students.filter(isBillable).length} billed monthly`} onClick={() => setActiveTab('students')} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 1fr)', gap: 18, alignItems: 'start' }}>
+      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 1fr)', gap: 18, alignItems: 'start' }}>
         {/* ── Left column ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <Card title="Today's classes" icon={Clock} action={<button className="dp-btn" style={smallBtn} onClick={() => setActiveTab('attendance')}>Attendance</button>}>

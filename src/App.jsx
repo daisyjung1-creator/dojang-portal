@@ -41,10 +41,10 @@ export default function App() {
   const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'students' : startTab;
 
   return (
-    <div style={styles.shell}>
+    <div className="dp-shell" style={styles.shell}>
       <Sidebar activeTab={effectiveTab} setActiveTab={setActiveTab} />
       <ConfirmSendHost />
-      <div style={styles.main}>
+      <div className="dp-main" style={styles.main}>
         {isAdmin && effectiveTab === 'home' && <HomePage setActiveTab={setActiveTab} />}
         {effectiveTab === 'students' && <StudentsPage />}
         {effectiveTab === 'attendance' && <AttendancePage />}

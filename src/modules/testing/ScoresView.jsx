@@ -29,7 +29,7 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
         <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#8A8D84' }}>In the print window choose “Save as PDF” to get the PDF.</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '250px minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
+      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: '250px minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
         {/* Student list */}
         <div style={{ ...styles.card, maxHeight: '75vh', overflowY: 'auto' }}>
           {rows.map(({ e, s }) => {
@@ -129,7 +129,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
               <span style={{ fontSize: 12.5, color: '#5B5F56', marginRight: 10 }}>Total {sec.marks.some((m) => m != null) ? sec.total : '–'} / {sec.max}</span>
               <Rank r={sec.rank} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(200px, 0.8fr)', gap: 12, padding: '8px 12px' }}>
+            <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(200px, 0.8fr)', gap: 12, padding: '8px 12px' }}>
               <div>
                 {sec.criteria.map((c, i) => (
                   <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}>
@@ -154,7 +154,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
           <div style={{ padding: '7px 12px', background: '#FAF9F5', borderBottom: '1px solid #EDEAE0', borderRadius: '8px 8px 0 0', fontWeight: 600, fontSize: 13.5 }}>
             {MENTAL.label} <span style={{ fontWeight: 400, fontSize: 12, color: '#8A8D84' }}>· 0 = NI, 1–2 = MS, 3 = ES</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(200px, 0.8fr)', gap: 12, padding: '8px 12px' }}>
+          <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(200px, 0.8fr)', gap: 12, padding: '8px 12px' }}>
             <div>
               {MENTAL.criteria.map((c, i) => (
                 <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}>

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard } from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 
@@ -25,12 +25,28 @@ export const ALL_TABS = [
 export default function Sidebar({ activeTab, setActiveTab }) {
   const { isAdmin, signOut } = useAuth();
   const tabs = ALL_TABS.filter((t) => isAdmin || !t.adminOnly);
+  // On a phone the sidebar becomes a top bar; the menu slides in from the left.
+  const [open, setOpen] = useState(false);
+  const current = ALL_TABS.find((t) => t.id === activeTab);
+  const pick = (id) => {
+    setActiveTab(id);
+    setOpen(false);
+    window.scrollTo(0, 0);
+  };
 
   return (
-    <div style={{ ...styles.sidebar, display: 'flex', flexDirection: 'column' }}>
+    <>
+    <div className="dp-topbar">
+      <button className="dp-topbar-btn" aria-label="Open menu" onClick={() => setOpen(true)}><Menu size={22} /></button>
+      <div style={styles.brandMark} />
+      <span style={{ ...styles.brandText, fontSize: 15 }}>{current?.label || 'Dojang Portal'}</span>
+    </div>
+    {open && <div className="dp-drawer-backdrop" onClick={() => setOpen(false)} />}
+    <div className={`dp-sidebar${open ? ' open' : ''}`} style={{ ...styles.sidebar, display: 'flex', flexDirection: 'column' }}>
       <div style={styles.brand}>
         <div style={styles.brandMark} />
         <span style={styles.brandText}>Dojang Portal</span>
+        <button className="dp-topbar-btn dp-drawer-close" aria-label="Close menu" onClick={() => setOpen(false)}><X size={20} /></button>
       </div>
       <nav style={{ marginTop: 24, flex: 1 }}>
         {tabs.map((tab) => {
@@ -40,7 +56,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             <React.Fragment key={tab.id}>
             {tab.section && <div style={{ fontSize: 11, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 10px 6px' }}>{tab.section}</div>}
             <button
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => pick(tab.id)}
               style={{
                 ...styles.navItem,
                 background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
@@ -62,5 +78,6 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         <span>Log Out</span>
       </button>
     </div>
+    </>
   );
 }

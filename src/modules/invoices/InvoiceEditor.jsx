@@ -126,7 +126,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
         </>
       }
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 12 }}>
+      <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 12 }}>
         <Field label="Customer" required>
           <div style={{ display: 'flex', gap: 6 }}>
             <CustomerPicker customers={customers} value={form.customer_id} onChange={pickCustomer} includeInactive={false} />
