@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Pencil, Trash2, Check, TrendingUp } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Check, TrendingUp, MessageSquare } from 'lucide-react';
+import LeadMessageModal from './LeadMessageModal';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { LEAD_SOURCES, LEAD_STATUSES } from '../../lib/constants';
@@ -9,7 +10,7 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 function emptyForm() {
-  return { student_name: '', guardian_name: '', phone: '', email: '', source: 'Phone', inquiry_date: todayISO(), consult_date: '', status: 'New Inquiry', notes: '', linked_student_id: null };
+  return { student_name: '', guardian_name: '', phone: '', email: '', student_age: '', source: 'Phone', inquiry_date: todayISO(), consult_date: '', status: 'New Inquiry', notes: '', linked_student_id: null };
 }
 
 export default function LeadsPage({ setActiveTab }) {
@@ -24,6 +25,8 @@ export default function LeadsPage({ setActiveTab }) {
   const [pastSearch, setPastSearch] = useState('');
   const [pastMatches, setPastMatches] = useState([]);
   const [linkedStudent, setLinkedStudent] = useState(null);
+  const [messaging, setMessaging] = useState(null);
+  const [flash, setFlash] = useState('');
 
   useEffect(() => {
     fetchLeads();
@@ -90,8 +93,9 @@ export default function LeadsPage({ setActiveTab }) {
       return;
     }
     let submitError;
-    if (editingId) ({ error: submitError } = await supabase.from('leads').update(form).eq('id', editingId));
-    else ({ error: submitError } = await supabase.from('leads').insert(form));
+    const row = { ...form, student_age: form.student_age === '' || form.student_age == null ? null : Number(form.student_age) };
+    if (editingId) ({ error: submitError } = await supabase.from('leads').update(row).eq('id', editingId));
+    else ({ error: submitError } = await supabase.from('leads').insert(row));
     if (submitError) {
       setFormError('Could not save: ' + submitError.message);
       return;
@@ -218,12 +222,18 @@ export default function LeadsPage({ setActiveTab }) {
                   <tr key={l.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
                       {l.student_name}
+                      {l.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {l.student_age}y</span>}
                       {l.linked_student_id && (
                         <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Linked</span>
                       )}
                     </td>
                     <td>{l.guardian_name || '—'}</td>
-                    <td>{l.phone || '—'}</td>
+                    <td>
+                      {l.phone || '—'}
+                      {l.contacted_at && (
+                        <div style={{ fontSize: 11, color: '#2A5A30' }}>✓ {l.contacted_by === 'email' ? 'Emailed' : 'Texted'} {new Date(l.contacted_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</div>
+                      )}
+                    </td>
                     <td>{l.source}</td>
                     <td>{l.inquiry_date || '—'}</td>
                     <td>{l.consult_date || '—'}</td>
@@ -243,6 +253,9 @@ export default function LeadsPage({ setActiveTab }) {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} title="Email or text: trial class times and KidSport info" onClick={() => setMessaging(l)}>
+                          <MessageSquare size={13} /> Reply
+                        </button>
                         {l.status !== 'Enrolled' && (
                           <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => convertToStudent(l)}>
                             Enroll
@@ -364,12 +377,24 @@ export default function LeadsPage({ setActiveTab }) {
               </select>
             </Field>
           </div>
+          <Field label="Child’s age">
+            <input className="dp-input" inputMode="numeric" style={{ width: 90 }} value={form.student_age ?? ''} onChange={(e) => setForm({ ...form, student_age: e.target.value.replace(/\D/g, '').slice(0, 2) })} />
+          </Field>
           <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
+
+      {messaging && (
+        <LeadMessageModal
+          lead={messaging}
+          onDone={(row) => setLeads((list) => list.map((x) => (x.id === row.id ? { ...x, ...row } : x)))}
+          onClose={(note) => { setMessaging(null); if (note) { setFlash(note); setTimeout(() => setFlash(''), 4000); } }}
+        />
+      )}
+      {flash && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#20241F', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13.5, zIndex: 300 }}>{flash}</div>}
 
       {confirmDeleteId && <ConfirmDialog message="Delete this inquiry? This can't be undone." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
     </>

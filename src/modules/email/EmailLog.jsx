@@ -8,6 +8,7 @@ import { confirmSend } from '../../components/ConfirmSend';
 // Every email the portal has sent (or tried to): invoices, reminders,
 // receipts, welcome, makeup, absence check, trial, grant reminders, group emails.
 const TYPES = {
+  lead: 'Inquiry reply',
   invoice: 'Invoice',
   reminder: 'Payment reminder',
   receipt: 'Receipt',
@@ -19,7 +20,7 @@ const TYPES = {
   makeup: 'Makeup class',
   absence_check: 'Absence check',
 };
-const kindOf = (q) => (q.type === 'invoice' && q.payload?.reminder ? 'reminder' : q.type);
+const kindOf = (q) => (q.type === 'invoice' && q.payload?.reminder ? 'reminder' : q.type === 'tryout_confirmation' && q.payload?.lead_id ? 'lead' : q.type);
 
 export default function EmailLog({ onReuse }) {
   const [rows, setRows] = useState([]);
