@@ -88,12 +88,12 @@ export default function LeadsPage({ setActiveTab }) {
   }
 
   async function submitForm() {
-    if (!form.student_name.trim()) {
-      setFormError('Please enter a student name.');
+    if (!String(form.student_name || '').trim() && !String(form.guardian_name || '').trim()) {
+      setFormError('Enter the student’s or the parent’s name (one is enough).');
       return;
     }
     let submitError;
-    const row = { ...form, student_age: form.student_age === '' || form.student_age == null ? null : Number(form.student_age) };
+    const row = { ...form, student_name: String(form.student_name || '').trim() || null, guardian_name: String(form.guardian_name || '').trim() || null, student_age: form.student_age === '' || form.student_age == null ? null : Number(form.student_age) };
     if (editingId) ({ error: submitError } = await supabase.from('leads').update(row).eq('id', editingId));
     else ({ error: submitError } = await supabase.from('leads').insert(row));
     if (submitError) {
@@ -142,7 +142,7 @@ export default function LeadsPage({ setActiveTab }) {
       const matchesStatus = statusFilter === 'all' || l.status === statusFilter;
       const matchesSearch =
         !search.trim() ||
-        l.student_name.toLowerCase().includes(search.toLowerCase()) ||
+        (l.student_name || '').toLowerCase().includes(search.toLowerCase()) ||
         (l.guardian_name || '').toLowerCase().includes(search.toLowerCase()) ||
         (l.phone || '').includes(search);
       return matchesStatus && matchesSearch;
@@ -221,7 +221,7 @@ export default function LeadsPage({ setActiveTab }) {
                 return (
                   <tr key={l.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
-                      {l.student_name}
+                      {l.student_name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>(child’s name not given)</span>}
                       {l.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {l.student_age}y</span>}
                       {l.linked_student_id && (
                         <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Linked</span>
@@ -335,8 +335,9 @@ export default function LeadsPage({ setActiveTab }) {
               </>
             )}
           </div>
-          <Field label="Student Name" required>
-            <input className="dp-input" style={{ width: '100%' }} value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: '0 0 6px' }}>The child’s name or the parent’s name is enough to save.</p>
+          <Field label="Student Name">
+            <input className="dp-input" style={{ width: '100%' }} value={form.student_name || ''} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
           </Field>
           <div style={styles.formRow}>
             <Field label="Guardian Name">

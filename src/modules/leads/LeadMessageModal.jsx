@@ -22,22 +22,24 @@ const first = (name) => String(name || '').trim().split(/\s+/)[0] || '';
 export function leadMessage({ lead, cls, kidsport, kind }) {
   const c = TRIAL_CLASSES[cls];
   const kid = first(lead.student_name) || 'your child';
+  const Kid = kid.charAt(0).toUpperCase() + kid.slice(1);
+  const kids = first(lead.student_name) ? `${kid}'s` : "your child's";
   const hello = lead.guardian_name ? `Hello ${first(lead.guardian_name)},` : 'Hello,';
   if (kind === 'text') {
     return [
       `${hello} this is Master Daisy from ${DOJANG}. Thank you for your interest!`,
-      `${kid} can try our ${c.label} class (${c.short}). Which date works best for the trial class?`,
+      `${Kid} can try our ${c.label} class (${c.short}). Which date works best for the trial class?`,
       kidsport ? `For the KidSport grant: please sign up first at ${KIDSPORT_URL} — once you bring in the enrollment form, we'll give you the Proof of Enrollment and the info you need to apply.` : '',
     ]
       .filter(Boolean)
       .join('\n\n');
   }
   return {
-    subject: `Trial class for ${kid} — ${DOJANG}`,
+    subject: first(lead.student_name) ? `Trial class for ${kid} — ${DOJANG}` : `Trial class — ${DOJANG}`,
     body: [
       hello,
       `Thank you for your interest in ${DOJANG}! We would love to have ${kid} join us for a trial class.`,
-      `For ${kid}'s age, the best fit is our ${c.label} class:\n${c.when}`,
+      `For ${kids} age, the best fit is our ${c.label} class:\n${c.when}`,
       'Please reply with the date that works best for you, and we will book the trial class.',
       kidsport
         ? `KidSport grant (help with fees for families who qualify):\n1. First, sign up for an account here: ${KIDSPORT_URL}\n2. When you bring in the enrollment form, we will give you the Proof of Enrollment and all the information you need for the application.`
