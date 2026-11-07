@@ -232,7 +232,7 @@ export default function LeadsPage({ setActiveTab }) {
                 return (
                   <tr key={l.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
-                      {l.student_name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>(child’s name not given)</span>}
+                      {l.student_name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>{leadKids(l).length > 1 ? `${leadKids(l).length} children` : 'Child'} (no name yet)</span>}
                       {leadKids(l).some((k) => k.age !== '' && k.age != null) && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {leadKids(l).map((k) => (k.age !== '' && k.age != null ? k.age + 'y' : '?')).join(', ')}</span>}
                       {l.linked_student_id && (
                         <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Linked</span>

@@ -21,15 +21,25 @@ const first = (name) => String(name || '').trim().split(/\s+/)[0] || '';
 const list = (xs) => (xs.length <= 1 ? xs[0] || '' : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]);
 
 // kids: [{ name, age, cls }] — siblings in the same class share one line.
+// A child without a name is called by age ("your 8-year-old"), or just "your child".
+const labelOf = (k, many) => first(k.name) || (k.age !== '' && k.age != null ? `your ${k.age}-year-old` : many ? 'one of your children' : 'your child');
+
 export function leadMessage({ lead, kids, kidsport, kind }) {
   const named = kids.filter((k) => first(k.name));
-  const groups = Object.keys(TRIAL_CLASSES)
-    .map((cls) => ({ c: TRIAL_CLASSES[cls], names: kids.filter((k) => k.cls === cls).map((k) => first(k.name)) }))
-    .filter((g) => g.names.length);
   const many = kids.length > 1;
-  const who = named.length ? list(named.map((k) => first(k.name))) : many ? 'your children' : 'your child';
+  const noNames = !named.length;
+  const ages = kids.every((k) => k.age !== '' && k.age != null);
+  const groups = Object.keys(TRIAL_CLASSES)
+    .map((cls) => ({ c: TRIAL_CLASSES[cls], kids: kids.filter((k) => k.cls === cls) }))
+    .filter((g) => g.kids.length);
+  // Everyone: names if we have them; otherwise "your children" / "your child".
+  const who = noNames ? (many ? 'your children' : 'your child') : list(kids.map((k) => labelOf(k, many)));
   const Who = who.charAt(0).toUpperCase() + who.slice(1);
-  const nameOf = (g) => (g.names.every(Boolean) ? list(g.names) : many ? 'your children' : 'your child');
+  const nameOf = (g) => {
+    if (noNames && !ages) return groups.length === 1 ? who : list(g.kids.map((k) => labelOf(k, many)));
+    return list(g.kids.map((k) => labelOf(k, many)));
+  };
+  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
   const hello = lead.guardian_name ? `Hello ${first(lead.guardian_name)},` : 'Hello,';
   const kidsportText = many
     ? `please sign up first at ${KIDSPORT_URL} — once you bring in the enrollment forms, we'll give you the Proof of Enrollment and the info you need to apply.`
@@ -38,7 +48,7 @@ export function leadMessage({ lead, kids, kidsport, kind }) {
     const offer =
       groups.length === 1
         ? `${Who} can try our ${groups[0].c.label} class (${groups[0].c.short}).`
-        : groups.map((g) => `${nameOf(g)}: ${g.c.label} class (${g.c.short})`).join('\n');
+        : groups.map((g) => `${cap(nameOf(g))}: ${g.c.label} class (${g.c.short})`).join('\n');
     return [
       `${hello} this is Master Daisy from ${DOJANG}. Thank you for your interest!`,
       `${groups.length === 1 ? offer : 'For the trial classes:\n' + offer}\nWhich date works best for the trial class${many ? 'es' : ''}?`,
@@ -49,10 +59,10 @@ export function leadMessage({ lead, kids, kidsport, kind }) {
   }
   const offer =
     groups.length === 1
-      ? `For ${named.length ? who + (many ? '’s ages' : '’s age') : many ? 'your children’s ages' : 'your child’s age'}, the best fit is our ${groups[0].c.label} class:\n${groups[0].c.when}`
-      : 'For their ages, the best fit is:\n' + groups.map((g) => `• ${nameOf(g)} — ${g.c.label} class: ${g.c.when}`).join('\n');
+      ? `For ${noNames ? (many ? 'your children’s ages' : 'your child’s age') : many ? 'their ages' : who + '’s age'}, the best fit is our ${groups[0].c.label} class:\n${groups[0].c.when}`
+      : 'For their ages, the best fit is:\n' + groups.map((g) => `• ${cap(nameOf(g))} — ${g.c.label} class: ${g.c.when}`).join('\n');
   return {
-    subject: named.length ? `Trial class for ${who} — ${DOJANG}` : `Trial class — ${DOJANG}`,
+    subject: named.length === kids.length ? `Trial class for ${who} — ${DOJANG}` : `Trial class — ${DOJANG}`,
     body: [
       hello,
       `Thank you for your interest in ${DOJANG}! We would love to have ${who} join us for a trial class.`,
@@ -177,7 +187,7 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
       <div style={{ marginBottom: 10 }}>
         {kids.map((k, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
-            <span style={{ minWidth: 110, fontSize: 13.5, fontWeight: 500 }}>{k.name || (kids.length > 1 ? `Child ${i + 1}` : 'Child')}</span>
+            <span style={{ minWidth: 110, fontSize: 13.5, fontWeight: 500 }}>{k.name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>{kids.length > 1 ? `Child ${i + 1}` : 'Child'} (no name)</span>}</span>
             <input className="dp-input" inputMode="numeric" aria-label="Age" placeholder="Age" style={{ width: 58 }} value={k.age} onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 2); setKid(i, v === '' ? { age: v } : { age: v, cls: classForAge(v) }); }} />
             {Object.entries(TRIAL_CLASSES).map(([c, t]) => (
               <button key={c} className="dp-btn" onClick={() => setKid(i, { cls: c })} style={{ fontSize: 12.5, background: k.cls === c ? '#20241F' : '#fff', color: k.cls === c ? '#fff' : '#20241F' }}>
