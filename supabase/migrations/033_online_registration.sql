@@ -55,3 +55,8 @@ grant execute on function public.public_dojang_logo() to anon, authenticated;
 alter table public.registrations add column if not exists signature_image text;
 alter table public.registrations drop constraint if exists registrations_signature_size;
 alter table public.registrations add constraint registrations_signature_size check (signature_image is null or (signature_image like 'data:image/png;base64,%' and length(signature_image) < 300000));
+
+-- 036_registration_initials: initials on the key parts of the agreement.
+alter table public.registrations add column if not exists initials jsonb;
+alter table public.registrations drop constraint if exists registrations_initials_size;
+alter table public.registrations add constraint registrations_initials_size check (initials is null or octet_length(initials::text) < 2000);

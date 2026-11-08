@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import {
   AGREEMENT_VERSION, SCHOOL, HEARD_FROM, FREQUENCIES, PLAN_CHOICES, EMERGENCY_AUTH, TERMS,
-  PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO,
+  PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO, boldParts,
 } from '../../lib/agreement';
 
 // Public registration form (no login): /join
@@ -64,6 +64,7 @@ export default function JoinPage() {
   const [startDate, setStartDate] = useState('');
   const [photo, setPhoto] = useState(null);
   const [agree, setAgree] = useState(false);
+  const [initials, setInitials] = useState({}); // { p5: 'JP', … } for parts that need initials
   const [signature, setSignature] = useState(''); // printed full name
   const [sigImage, setSigImage] = useState(null); // drawn signature (PNG data URL)
   const [trap, setTrap] = useState(''); // left empty by people, filled by spam bots
@@ -101,6 +102,8 @@ export default function JoinPage() {
     if (!frequency) e.push('Training frequency');
     if (frequency === 'other' && !otherProgram.trim()) e.push('Which other program');
     if (!plan) e.push('Membership & payment option');
+    const needInit = TERMS.filter((t) => t.initial && !String(initials[t.key] || '').replace(/[^A-Z]/g, ''));
+    if (needInit.length) e.push(`Initials for ${needInit.map((t) => t.title.split(' — ')[0]).join(', ')}`);
     if (photo == null) e.push('Photo & video consent (Yes or No)');
     if (!agree) e.push('Tick the box to agree to the terms');
     if (signature.trim().length < 2) e.push(adult ? 'Your full name (above the signature)' : 'Parent/guardian full name (above the signature)');
@@ -141,6 +144,7 @@ export default function JoinPage() {
       photo_consent: photo,
       signature_name: signature.trim(),
       signature_image: sigImage,
+      initials: Object.fromEntries(TERMS.filter((t) => t.initial).map((t) => [t.key, String(initials[t.key] || '').trim()])),
       signed_on: today(),
       adult_student: adult,
       agreement_version: AGREEMENT_VERSION,
@@ -232,7 +236,7 @@ export default function JoinPage() {
         })}
         {!adult && kids.length < 6 && (
           <button type="button" style={{ ...btn, background: '#fff' }} onClick={() => setKids((l) => [...l, { ...emptyKid(), last: l[0]?.last || '' }])}>
-            + Add a brother or sister
+            + Add an additional child
           </button>
         )}
       </Section>
@@ -291,24 +295,35 @@ export default function JoinPage() {
         </p>
       </Section>
 
-      {/* PARTS 5–12 */}
+      {/* PARTS 4–12 */}
       <Section n="4–12" title="Membership terms">
-        <p style={{ ...small, color: C.soft, marginTop: 0 }}>Please read before signing. Scroll inside the box.</p>
-        <div style={{ ...box, background: C.paper, maxHeight: 360, overflowY: 'auto', ...small }}>
-          {INTRO.map((p) => <p key={p} style={{ margin: '0 0 8px', fontStyle: 'italic' }}>{p}</p>)}
-          {TERMS.map((t) => (
-            <div key={t.title} style={{ marginBottom: 14 }}>
-              <div style={{ fontWeight: 700, color: C.ink, marginBottom: 4 }}>{t.title}</div>
-              {t.body.map((b, j) =>
-                typeof b === 'string' ? (
-                  <p key={j} style={{ margin: '0 0 6px' }}>{b}</p>
-                ) : (
-                  <ul key={j} style={{ margin: '0 0 6px', paddingLeft: 20 }}>{b.list.map((x) => <li key={x}>{x}</li>)}</ul>
-                )
-              )}
-            </div>
-          ))}
-        </div>
+        <p style={{ ...small, color: C.soft, marginTop: 0 }}>Please read each part. Where it asks, type your <b>initials</b> to show you've read it.</p>
+        <div style={{ ...small, color: C.soft, fontStyle: 'italic', marginBottom: 10 }}>{INTRO.map((p) => <p key={p} style={{ margin: '0 0 6px' }}>{p}</p>)}</div>
+        {TERMS.map((t) => (
+          <div key={t.key} style={{ ...box, ...small, marginBottom: 10, ...(t.initial ? { borderLeft: `4px solid ${initials[t.key]?.trim() ? C.green : C.red}` } : {}) }}>
+            <div style={{ fontWeight: 700, fontSize: 14.5, color: C.ink, marginBottom: 6 }}>{t.title}</div>
+            {t.body.map((b, j) =>
+              typeof b === 'string' ? (
+                <p key={j} style={{ margin: '0 0 6px' }}><Rich text={b} /></p>
+              ) : (
+                <ul key={j} style={{ margin: '0 0 6px', paddingLeft: 20 }}>{b.list.map((x) => <li key={x}><Rich text={x} /></li>)}</ul>
+              )
+            )}
+            {t.initial && (
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
+                <span style={{ fontWeight: 600 }}>I have read {t.title.split(' — ')[0]}. Initials <b style={{ color: C.red }}>*</b></span>
+                <input
+                  value={initials[t.key] || ''}
+                  maxLength={4}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  onChange={(e) => setInitials({ ...initials, [t.key]: e.target.value.toUpperCase().replace(/[^A-Z.\- ]/g, '') })}
+                  style={{ ...field, width: 74, textAlign: 'center', fontWeight: 700, letterSpacing: '0.08em', padding: '9px 6px' }}
+                />
+              </label>
+            )}
+          </div>
+        ))}
       </Section>
 
       {/* PART 13 */}
@@ -584,4 +599,8 @@ function exportPng(cv) {
   out.height = Math.round(cv.height * scale);
   out.getContext('2d').drawImage(cv, 0, 0, out.width, out.height);
   return out.toDataURL('image/png');
+}
+
+function Rich({ text }) {
+  return boldParts(text).map((p, i) => (p.bold ? <b key={i} style={{ color: C.ink }}>{p.text}</b> : <React.Fragment key={i}>{p.text}</React.Fragment>));
 }

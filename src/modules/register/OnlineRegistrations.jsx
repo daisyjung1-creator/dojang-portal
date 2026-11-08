@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Globe, Copy, Eye, Printer, X, ArrowDownToLine, Check } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
-import { SCHOOL, INTRO, TERMS, EMERGENCY_AUTH, ACKNOWLEDGMENTS, PHOTO_YES, PHOTO_NO, FREQUENCIES } from '../../lib/agreement';
+import { SCHOOL, INTRO, TERMS, boldParts, EMERGENCY_AUTH, ACKNOWLEDGMENTS, PHOTO_YES, PHOTO_NO, FREQUENCIES } from '../../lib/agreement';
 
 // Registrations families sent from the public /join form, waiting for review.
 export const JOIN_URL = `${window.location.origin}/join`;
@@ -10,6 +10,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmtDate = (d) => (d ? new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '—');
 export const kidName = (k) => `${k.first || ''} ${k.last || ''}`.trim();
+const rich = (t) => boldParts(t).map((p) => (p.bold ? `<b>${esc(p.text)}</b>` : esc(p.text))).join('');
 const sigImg = (r, h) => (r.signature_image && r.signature_image.startsWith('data:image/png;base64,') ? `<div><img src="${r.signature_image}" alt="signature" style="height:${h}px;border-bottom:1px solid #CFCAB9"></div>` : '');
 const freqLabel = (r) => (r.frequency === 'other' ? `Other: ${r.other_program || ''}` : FREQUENCIES.find((f) => f.value === r.frequency)?.label || '—');
 const daysText = (k) => (k.class_days || []).map((s) => { const [d, c] = s.split(':'); return `${DAYS[d]} ${c}`; }).join(', ');
@@ -106,7 +107,7 @@ function summaryHtml(r) {
   <h3 style="font-size:14px;margin:14px 0 4px">${r.adult_student ? 'Adult student' : 'Parent / guardian'}</h3>
   <table>${row('Name', esc(f.guardian_name) + (f.relationship && !r.adult_student ? ` (${esc(f.relationship)})` : ''))}${row('Phone', esc(f.phone))}${row('Email', esc(f.email))}${row('Address', `${esc(f.address)} ${esc(f.postal)}`)}${row('Emergency', `${esc(f.emergency_name)} · ${esc(f.emergency_phone)}${f.emergency_relationship ? ` (${esc(f.emergency_relationship)})` : ''}`)}${row('Heard from', esc(f.heard === 'Other' ? `Other: ${f.heard_other || ''}` : f.heard || '—'))}</table>
   <h3 style="font-size:14px;margin:14px 0 4px">Membership</h3>
-  <table>${row('Frequency', esc(freqLabel(r)))}${row('Payment', esc(r.plan))}${row('Start', esc(fmtDate(r.start_date)))}${row('Photo/video', r.photo_consent ? 'Yes — consents' : '<b style="color:#BF1C21">No</b> — no promotional photos')}${row('Signed', `${esc(r.signature_name)} · ${esc(fmtDate(r.signed_on))} · version ${esc(r.agreement_version)}${sigImg(r, 46)}`)}</table>`;
+  <table>${row('Frequency', esc(freqLabel(r)))}${row('Payment', esc(r.plan))}${row('Start', esc(fmtDate(r.start_date)))}${row('Photo/video', r.photo_consent ? 'Yes — consents' : '<b style="color:#BF1C21">No</b> — no promotional photos')}${row('Initials', esc(TERMS.filter((t) => t.initial).map((t) => `${t.title.split(' — ')[0].replace('Part ', 'P')}: ${r.initials?.[t.key] || '—'}`).join(' · ')))}${row('Signed', `${esc(r.signature_name)} · ${esc(fmtDate(r.signed_on))} · version ${esc(r.agreement_version)}${sigImg(r, 46)}`)}</table>`;
 }
 
 // The full signed agreement as a printable page (Save as PDF to keep a copy).
@@ -114,7 +115,7 @@ export function printAgreement(r) {
   const w = window.open('', '_blank');
   if (!w) return alert('Allow pop-ups to print.');
   const terms = TERMS.map(
-    (t) => `<h3>${esc(t.title)}</h3>${t.body.map((b) => (typeof b === 'string' ? `<p>${esc(b)}</p>` : `<ul>${b.list.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`)).join('')}`
+    (t) => `<h3>${esc(t.title)}</h3>${t.body.map((b) => (typeof b === 'string' ? `<p>${rich(b)}</p>` : `<ul>${b.list.map((x) => `<li>${rich(x)}</li>`).join('')}</ul>`)).join('')}${t.initial ? `<div class="init">Initials: <b>${esc(r.initials?.[t.key] || '____')}</b></div>` : ''}`
   ).join('');
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Registration — ${esc((r.kids || []).map(kidName).join(', '))}</title>
   <style>
@@ -124,7 +125,7 @@ export function printAgreement(r) {
     table{border-collapse:collapse;width:100%}td{padding:3px 8px 3px 0;vertical-align:top}td.k{color:#5B5F56;width:150px}
     .kid{border:1px solid #CFCAB9;border-radius:6px;padding:6px 10px;margin:6px 0}
     .sig{font-family:Georgia,serif;font-style:italic;font-size:17px}
-    .cols{columns:2;column-gap:22px}.cols h3{break-after:avoid}
+    .cols{columns:2;column-gap:22px}.init{text-align:right;margin:2px 0 8px;font-size:11px}.init b{border:1px solid #20241F;padding:1px 8px;display:inline-block;min-width:26px;text-align:center}.cols h3{break-after:avoid}
     @media print{body{margin:0}}
   </style></head><body>
   <h1>${esc(SCHOOL.name)}</h1><div>Student Registration &amp; Membership Agreement · ${esc(SCHOOL.address)} · ${esc(SCHOOL.email)}</div>
