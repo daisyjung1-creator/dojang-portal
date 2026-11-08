@@ -12,9 +12,13 @@ import { Page, Section, Label, Row, In, Area, Chip, C, box, btn, linkBtn } from 
 const classForAge = (age) => (age === '' || age == null ? null : Number(age) >= 11 ? 'Intermediate B' : 'Beginner');
 // Trial classes a child can pick: black belt → Advance (Poomsae or Sparring),
 // color belt → Intermediate A, new students by age.
-const trialClasses = (k) =>
-  k.experience === 'Black belt' ? ['Advance Poomsae', 'Advance Sparring'] // black belts: Advance, any age
-  : k.experience && Number(k.age) >= 12 ? ['Intermediate B'] // 12 and up: Intermediate B : k.experience === 'Color belt' ? ['Intermediate A'] : k.experience === 'None' ? [classForAge(k.age)].filter(Boolean) : [];
+const trialClasses = (k) => {
+  if (k.experience === 'Black belt') return ['Advance Poomsae', 'Advance Sparring']; // black belts: Advance, any age
+  if (!k.experience) return [];
+  if (Number(k.age) >= 12) return ['Intermediate B']; // 12 and up: Intermediate B
+  if (k.experience === 'Color belt') return ['Intermediate A'];
+  return [classForAge(k.age)].filter(Boolean);
+};
 const shortClass = (c) => c.replace('Advance ', '');
 const t12 = (t) => {
   const [h, m] = String(t || '').split(':').map(Number);
