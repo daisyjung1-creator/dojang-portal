@@ -10,6 +10,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmtDate = (d) => (d ? new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '—');
 export const kidName = (k) => `${k.first || ''} ${k.last || ''}`.trim();
+const sigImg = (r, h) => (r.signature_image && r.signature_image.startsWith('data:image/png;base64,') ? `<div><img src="${r.signature_image}" alt="signature" style="height:${h}px;border-bottom:1px solid #CFCAB9"></div>` : '');
 const freqLabel = (r) => (r.frequency === 'other' ? `Other: ${r.other_program || ''}` : FREQUENCIES.find((f) => f.value === r.frequency)?.label || '—');
 const daysText = (k) => (k.class_days || []).map((s) => { const [d, c] = s.split(':'); return `${DAYS[d]} ${c}`; }).join(', ');
 
@@ -105,7 +106,7 @@ function summaryHtml(r) {
   <h3 style="font-size:14px;margin:14px 0 4px">${r.adult_student ? 'Adult student' : 'Parent / guardian'}</h3>
   <table>${row('Name', esc(f.guardian_name) + (f.relationship && !r.adult_student ? ` (${esc(f.relationship)})` : ''))}${row('Phone', esc(f.phone))}${row('Email', esc(f.email))}${row('Address', `${esc(f.address)} ${esc(f.postal)}`)}${row('Emergency', `${esc(f.emergency_name)} · ${esc(f.emergency_phone)}${f.emergency_relationship ? ` (${esc(f.emergency_relationship)})` : ''}`)}${row('Heard from', esc(f.heard === 'Other' ? `Other: ${f.heard_other || ''}` : f.heard || '—'))}</table>
   <h3 style="font-size:14px;margin:14px 0 4px">Membership</h3>
-  <table>${row('Frequency', esc(freqLabel(r)))}${row('Payment', esc(r.plan))}${row('Start', esc(fmtDate(r.start_date)))}${row('Photo/video', r.photo_consent ? 'Yes — consents' : '<b style="color:#BF1C21">No</b> — no promotional photos')}${row('Signed', `${esc(r.signature_name)} · ${esc(fmtDate(r.signed_on))} · version ${esc(r.agreement_version)}`)}</table>`;
+  <table>${row('Frequency', esc(freqLabel(r)))}${row('Payment', esc(r.plan))}${row('Start', esc(fmtDate(r.start_date)))}${row('Photo/video', r.photo_consent ? 'Yes — consents' : '<b style="color:#BF1C21">No</b> — no promotional photos')}${row('Signed', `${esc(r.signature_name)} · ${esc(fmtDate(r.signed_on))} · version ${esc(r.agreement_version)}${sigImg(r, 46)}`)}</table>`;
 }
 
 // The full signed agreement as a printable page (Save as PDF to keep a copy).
@@ -132,7 +133,7 @@ export function printAgreement(r) {
   <h2>Photo &amp; video consent</h2><p>☒ ${esc(r.photo_consent ? PHOTO_YES : PHOTO_NO)}</p>
   <h2>Terms</h2>${INTRO.map((p) => `<p><i>${esc(p)}</i></p>`).join('')}<div class="cols">${terms}</div>
   <h2>Acknowledgment &amp; signature</h2><ul>${ACKNOWLEDGMENTS.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
-  <table style="margin-top:8px"><tr><td class="k">${r.adult_student ? 'Adult student signature' : 'Parent/guardian signature'}</td><td class="sig">${esc(r.signature_name)}</td></tr>
+  <table style="margin-top:8px"><tr><td class="k">${r.adult_student ? 'Adult student signature' : 'Parent/guardian signature'}</td><td>${sigImg(r, 60) || '<span class="sig">' + esc(r.signature_name) + '</span>'}<div>${esc(r.signature_name)}</div></td></tr>
   <tr><td class="k">Date</td><td>${esc(fmtDate(r.signed_on))} (signed online, agreement version ${esc(r.agreement_version)})</td></tr>
   <tr><td class="k">Dojang representative</td><td>__________________________ &nbsp; Date: ____________</td></tr></table>
   <script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`);

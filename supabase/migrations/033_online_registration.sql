@@ -50,3 +50,8 @@ returns text language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.public_dojang_logo() from public;
 grant execute on function public.public_dojang_logo() to anon, authenticated;
+
+-- 035_registration_signature_image: the signature drawn with a finger / mouse.
+alter table public.registrations add column if not exists signature_image text;
+alter table public.registrations drop constraint if exists registrations_signature_size;
+alter table public.registrations add constraint registrations_signature_size check (signature_image is null or (signature_image like 'data:image/png;base64,%' and length(signature_image) < 300000));

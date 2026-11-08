@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import {
   AGREEMENT_VERSION, SCHOOL, HEARD_FROM, FREQUENCIES, PLAN_CHOICES, EMERGENCY_AUTH, TERMS,
@@ -64,7 +64,8 @@ export default function JoinPage() {
   const [startDate, setStartDate] = useState('');
   const [photo, setPhoto] = useState(null);
   const [agree, setAgree] = useState(false);
-  const [signature, setSignature] = useState('');
+  const [signature, setSignature] = useState(''); // printed full name
+  const [sigImage, setSigImage] = useState(null); // drawn signature (PNG data URL)
   const [trap, setTrap] = useState(''); // left empty by people, filled by spam bots
   const [tried, setTried] = useState(false); // after the first Submit, the list updates as they fix things
   const [sendError, setSendError] = useState('');
@@ -102,7 +103,8 @@ export default function JoinPage() {
     if (!plan) e.push('Membership & payment option');
     if (photo == null) e.push('Photo & video consent (Yes or No)');
     if (!agree) e.push('Tick the box to agree to the terms');
-    if (signature.trim().length < 2) e.push('Type your full name as your signature');
+    if (signature.trim().length < 2) e.push(adult ? 'Your full name (above the signature)' : 'Parent/guardian full name (above the signature)');
+    if (!sigImage) e.push('Sign in the signature box');
     return e;
   }
 
@@ -138,6 +140,7 @@ export default function JoinPage() {
       start_date: startDate || null,
       photo_consent: photo,
       signature_name: signature.trim(),
+      signature_image: sigImage,
       signed_on: today(),
       adult_student: adult,
       agreement_version: AGREEMENT_VERSION,
@@ -326,8 +329,14 @@ export default function JoinPage() {
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} style={{ width: 20, height: 20 }} />
           <span style={{ fontWeight: 600 }}>I have read and agree to the Student Registration & Membership Agreement.</span>
         </label>
-        <In label={adult ? 'Signature — type your full name' : 'Parent/guardian signature — type your full name'} req value={signature} onChange={(e) => setSignature(e.target.value)} style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 19 }} />
-        <div style={{ fontSize: 13, color: C.faint }}>Date: {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+        <div style={{ ...box, marginBottom: 10 }}>
+          <div style={{ fontSize: 13.5, color: C.soft, marginBottom: 10 }}>
+            <b style={{ color: C.ink }}>Student name{kids.length > 1 ? 's' : ''}:</b> {kids.map((k) => `${k.first} ${k.last}`.trim()).filter(Boolean).join(', ') || '—'}
+          </div>
+          <In label={adult ? 'Adult student — full name' : 'Parent/guardian name'} req value={signature} onChange={(e) => setSignature(e.target.value)} autoComplete="name" />
+          <Label req>{adult ? 'Adult student signature' : 'Parent/guardian signature'} <span style={{ color: C.faint, fontWeight: 400 }}>— sign with your finger or mouse</span></Label>
+          <SignaturePad onChange={setSigImage} />
+        </div>
         <input tabIndex={-1} autoComplete="off" value={trap} onChange={(e) => setTrap(e.target.value)} aria-hidden="true" style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }} name="website" />
       </Section>
 
@@ -481,4 +490,98 @@ function ClassGuide() {
       <div style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Age groups are a guide; each student is placed by age, size and experience. Students receive a recommendation notice when they reach the age and belt level to move into a more suitable class.</div>
     </div>
   );
+}
+
+// Draw a signature with a finger or mouse; reports a PNG (or null when cleared).
+function SignaturePad({ onChange }) {
+  const ref = useRef(null);
+  const drawing = useRef(false);
+  const last = useRef(null);
+  const [empty, setEmpty] = useState(true);
+
+  useEffect(() => {
+    const cv = ref.current;
+    const ratio = Math.max(window.devicePixelRatio || 1, 2);
+    const w = cv.clientWidth;
+    const h = cv.clientHeight;
+    cv.width = w * ratio;
+    cv.height = h * ratio;
+    const ctx = cv.getContext('2d');
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#14213D';
+  }, []);
+
+  const pos = (e) => {
+    const r = ref.current.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  };
+  const down = (e) => {
+    e.preventDefault();
+    ref.current.setPointerCapture?.(e.pointerId);
+    drawing.current = true;
+    last.current = pos(e);
+    const ctx = ref.current.getContext('2d');
+    ctx.beginPath();
+    ctx.arc(last.current[0], last.current[1], 1.1, 0, Math.PI * 2);
+    ctx.fillStyle = '#14213D';
+    ctx.fill();
+  };
+  const move = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const p = pos(e);
+    const ctx = ref.current.getContext('2d');
+    ctx.beginPath();
+    ctx.moveTo(last.current[0], last.current[1]);
+    ctx.lineTo(p[0], p[1]);
+    ctx.stroke();
+    last.current = p;
+  };
+  const up = () => {
+    if (!drawing.current) return;
+    drawing.current = false;
+    setEmpty(false);
+    onChange(exportPng(ref.current));
+  };
+  const clear = () => {
+    const cv = ref.current;
+    cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+    setEmpty(true);
+    onChange(null);
+  };
+
+  return (
+    <div>
+      <div style={{ position: 'relative' }}>
+        <canvas
+          ref={ref}
+          onPointerDown={down}
+          onPointerMove={move}
+          onPointerUp={up}
+          onPointerLeave={up}
+          onPointerCancel={up}
+          style={{ width: '100%', height: 150, display: 'block', background: '#fff', border: `1.5px dashed ${empty ? '#B9B5A8' : C.ink}`, borderRadius: 10, touchAction: 'none', cursor: 'crosshair' }}
+        />
+        <div style={{ position: 'absolute', left: 16, right: 16, bottom: 34, borderBottom: '1px solid #D6D2C4', pointerEvents: 'none' }} />
+        {empty && <div style={{ position: 'absolute', left: 18, bottom: 40, fontSize: 22, color: '#C9C5B8', pointerEvents: 'none' }}>✕</div>}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 13, color: C.faint }}>
+        <span>Date: {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+        {!empty && <button type="button" style={linkBtn} onClick={clear}>Clear and sign again</button>}
+      </div>
+    </div>
+  );
+}
+
+// A small PNG of the signature: scaled down to at most 600 px wide.
+function exportPng(cv) {
+  const scale = Math.min(1, 600 / cv.width);
+  const out = document.createElement('canvas');
+  out.width = Math.round(cv.width * scale);
+  out.height = Math.round(cv.height * scale);
+  out.getContext('2d').drawImage(cv, 0, 0, out.width, out.height);
+  return out.toDataURL('image/png');
 }
