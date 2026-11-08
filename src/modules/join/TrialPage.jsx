@@ -13,7 +13,8 @@ const classForAge = (age) => (age === '' || age == null ? null : Number(age) >= 
 // Trial classes a child can pick: black belt → Advance (Poomsae or Sparring),
 // color belt → Intermediate A, new students by age.
 const trialClasses = (k) =>
-  k.experience === 'Black belt' ? ['Advance Poomsae', 'Advance Sparring'] : k.experience === 'Color belt' ? ['Intermediate A'] : k.experience === 'None' ? [classForAge(k.age)].filter(Boolean) : [];
+  k.experience && Number(k.age) >= 12 ? ['Intermediate B'] // 12 and up: always Intermediate B
+  : k.experience === 'Black belt' ? ['Advance Poomsae', 'Advance Sparring'] : k.experience === 'Color belt' ? ['Intermediate A'] : k.experience === 'None' ? [classForAge(k.age)].filter(Boolean) : [];
 const shortClass = (c) => c.replace('Advance ', '');
 const t12 = (t) => {
   const [h, m] = String(t || '').split(':').map(Number);
@@ -125,7 +126,7 @@ export default function TrialPage() {
 
       <Section n="1" title="Who's coming?">
         <div style={{ fontSize: 13.5, color: C.soft, marginBottom: 12, lineHeight: 1.5 }}>
-          New students: <b>10 and under</b> — Beginner, Tue &amp; Thu 4:30–5:20 pm · <b>11 and up</b> — Intermediate B, Mon &amp; Wed 4:30–5:20 pm · Color belts: Intermediate A · Black belts: Advance classes
+          New students: <b>10 and under</b> — Beginner, Tue &amp; Thu 4:30–5:20 pm · <b>11 and up</b> — Intermediate B, Mon &amp; Wed 4:30–5:20 pm · Under 12 with experience: color belts Intermediate A, black belts Advance classes · <b>12 and up</b>: Intermediate B
         </div>
         {kids.map((k, i) => {
           const classes = k.age === '' ? [] : trialClasses(k);
@@ -147,7 +148,7 @@ export default function TrialPage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {EXPERIENCE.map((x) => <Chip key={x.value} on={k.experience === x.value} onClick={() => setKid(i, { experience: x.value, date: '', cls: '' })}>{x.label}</Chip>)}
               </div>
-              {k.experience && k.experience !== 'None' && (
+              {k.experience && k.experience !== 'None' && Number(k.age) < 12 && (
                 <div style={{ fontSize: 13.5, color: C.green, margin: '-4px 0 12px' }}>{k.experience === 'Black belt' ? 'Great! Pick an Advance class below (Poomsae or Sparring).' : 'Great! Pick an Intermediate A class below.'} We'll confirm the best class for {k.name.trim().split(' ')[0] || 'your child'}'s level.</div>
               )}
               {cls && (
