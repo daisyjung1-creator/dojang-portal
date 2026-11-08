@@ -27,6 +27,8 @@ export default function TryoutsPage({ setActiveTab }) {
   const [settings, setSettings] = useState({});
   const [email, setEmail] = useState(null);
   const [copied, setCopied] = useState(false);
+  // This site's own /trial page (so the preview site links to the preview form).
+  const bookingLink = `${window.location.origin}/trial`;
 
   useEffect(() => {
     fetchTryouts();
@@ -148,16 +150,16 @@ export default function TryoutsPage({ setActiveTab }) {
         <Link2 size={18} style={{ color: '#BF1C21' }} />
         <div style={{ flex: '1 1 260px', minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>Online trial booking link</div>
-          <a href={TRIAL_LINK} target="_blank" rel="noreferrer" style={{ fontSize: 15, color: '#1E4566', wordBreak: 'break-all' }}>{TRIAL_LINK}</a>
+          <a href={bookingLink} target="_blank" rel="noreferrer" style={{ fontSize: 15, color: '#1E4566', wordBreak: 'break-all' }}>{bookingLink}</a>
           <div style={{ fontSize: 12, color: '#8A8D84', marginTop: 2 }}>
             Families pick a date themselves · up to {settings.trial_capacity ?? 3} trials per class · next {settings.trial_days_ahead ?? 21} days · bookings show below as “Booked online” and in Leads
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button className="dp-btn" onClick={async () => { try { await navigator.clipboard.writeText(TRIAL_LINK); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', TRIAL_LINK); } }}>
+          <button className="dp-btn" onClick={async () => { try { await navigator.clipboard.writeText(bookingLink); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', bookingLink); } }}>
             {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy link'}
           </button>
-          <a className="dp-btn" href={TRIAL_LINK} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open</a>
+          <a className="dp-btn" href={bookingLink} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open</a>
         </div>
       </div>
 
