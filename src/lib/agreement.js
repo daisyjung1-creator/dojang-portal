@@ -2,7 +2,7 @@
 // Shown on the public /join form and printed with each online registration.
 // Change AGREEMENT_VERSION whenever the wording changes, so each signed
 // registration records which version the family agreed to.
-export const AGREEMENT_VERSION = '2026-11-f';
+export const AGREEMENT_VERSION = '2026-11-g';
 
 export const SCHOOL = {
   name: 'Champion Hankook Taekwondo',
@@ -34,8 +34,8 @@ export const GST_NOTE = 'All tuition is subject to 5% GST.';
 
 export const PLAN_CHOICES = [
   { value: 'Monthly Credit Card', label: 'Monthly — Pre-Authorized Credit Card', note: 'Your credit card is charged automatically every month' },
-  { value: 'Three-Month Credit Card', label: 'Three-Month — Pre-Authorized Credit Card', note: 'Your credit card is charged automatically every three months' },
-  { value: 'Three-Month Advance Payment', label: 'Three-Month Advance Payment', note: 'Cash, debit card or e-transfer, three months in advance' },
+  { value: 'Three-Month Credit Card', label: 'Three-Month — Pre-Authorized Credit Card', note: 'Charged automatically every three months · save $15 · free uniform for new students' },
+  { value: 'Three-Month Advance Payment', label: 'Three-Month Advance Payment', note: 'Cash, debit card or e-transfer, three months in advance · save $15 · free uniform for new students' },
 ];
 
 export const EMERGENCY_AUTH = [
@@ -57,6 +57,7 @@ export const TERMS = [
       '**Tuition:**',
       { list: ['2 classes per week: **$150 per month**, or **$435 for three months**', '3 classes per week: **$170 per month**, or **$495 for three months**', '4 classes per week: **$200 per month**, or **$585 for three months**'] },
       'All tuition is subject to 5% GST.',
+      'Three-month memberships **save $15** compared with paying monthly, whatever the payment method. **New students who start with a three-month membership receive a free uniform.**',
       'The guaranteed number of classes applies to **each fully paid monthly service period**; for three-month memberships, it applies to each month of the period. Additional regularly scheduled classes may be available depending on the calendar and program schedule.',
       'The Dojang will confirm the membership start date and payment dates by email before the first payment.',
     ],

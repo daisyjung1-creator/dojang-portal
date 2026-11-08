@@ -297,7 +297,7 @@ export default function JoinPage() {
           return (
             <div style={{ ...box, background: '#FFF7F6', borderColor: '#F0C9C6', marginBottom: 12, fontSize: 15 }}>
               {amt ? (
-                <>Tuition: <b>${amt}{three ? ' for three months' : ' per month'}</b> <span style={{ color: C.soft }}>+ 5% GST</span>{kids.length > 1 ? <span style={{ color: C.soft }}> · per student</span> : null}</>
+                <>Tuition: <b>${amt}{three ? ' for three months' : ' per month'}</b> <span style={{ color: C.soft }}>+ 5% GST</span>{kids.length > 1 ? <span style={{ color: C.soft }}> · per student</span> : null}{three && <div style={{ color: C.green, fontSize: 14, marginTop: 4 }}>You save $15 · free uniform for new students</div>}</>
               ) : (
                 <>Tuition for this option: the Dojang will confirm it with you.</>
               )}
