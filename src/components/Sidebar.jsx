@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BrandMark from './BrandMark';
 import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
@@ -38,13 +39,13 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     <>
     <div className="dp-topbar">
       <button className="dp-topbar-btn" aria-label="Open menu" onClick={() => setOpen(true)}><Menu size={22} /></button>
-      <div style={styles.brandMark} />
+      <BrandMark />
       <span style={{ ...styles.brandText, fontSize: 15 }}>{current?.label || 'Dojang Portal'}</span>
     </div>
     {open && <div className="dp-drawer-backdrop" onClick={() => setOpen(false)} />}
     <div className={`dp-sidebar${open ? ' open' : ''}`} style={{ ...styles.sidebar, display: 'flex', flexDirection: 'column' }}>
       <div style={styles.brand}>
-        <div style={styles.brandMark} />
+        <BrandMark />
         <span style={styles.brandText}>Dojang Portal</span>
         <button className="dp-topbar-btn dp-drawer-close" aria-label="Close menu" onClick={() => setOpen(false)}><X size={20} /></button>
       </div>

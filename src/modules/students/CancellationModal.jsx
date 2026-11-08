@@ -98,7 +98,7 @@ export default function CancellationModal({ student, onClose, onSaved }) {
       <Field label="Notes (optional)">
         <input className="dp-input" style={{ width: '100%' }} placeholder="e.g. moving to Calgary" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
-      <p style={{ fontSize: 12, color: '#8A8D84', margin: '4px 0 0' }}>Remember to confirm receipt to the family by email (Part 6). PAD at the bank is cancelled separately.</p>
+      <p style={{ fontSize: 12, color: '#8A8D84', margin: '4px 0 0' }}>Remember to confirm receipt to the family by email (Part 6). The credit card authorization is cancelled separately.</p>
       {err && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{err}</p>}
       {history.length > 0 && (
         <div style={{ marginTop: 14, fontSize: 12.5, color: '#5B5F56' }}>

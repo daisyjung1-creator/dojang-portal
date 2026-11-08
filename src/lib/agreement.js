@@ -2,7 +2,7 @@
 // Shown on the public /join form and printed with each online registration.
 // Change AGREEMENT_VERSION whenever the wording changes, so each signed
 // registration records which version the family agreed to.
-export const AGREEMENT_VERSION = '2026-11-c';
+export const AGREEMENT_VERSION = '2026-11-d';
 
 export const SCHOOL = {
   name: 'Champion Hankook Taekwondo',
@@ -25,9 +25,9 @@ export const FREQUENCIES = [
 ];
 
 export const PLAN_CHOICES = [
-  { value: 'Monthly PAD', label: 'Monthly PAD', note: 'Pre-authorized debit every month' },
-  { value: 'Three-Month PAD', label: 'Three-Month PAD', note: 'Pre-authorized debit every three months' },
-  { value: 'Three-Month Advance Payment', label: 'Three-Month Advance Payment (Non-PAD)', note: 'Cash, debit card or e-transfer, three months in advance' },
+  { value: 'Monthly Credit Card', label: 'Monthly — Pre-Authorized Credit Card', note: 'Your credit card is charged automatically every month' },
+  { value: 'Three-Month Credit Card', label: 'Three-Month — Pre-Authorized Credit Card', note: 'Your credit card is charged automatically every three months' },
+  { value: 'Three-Month Advance Payment', label: 'Three-Month Advance Payment', note: 'Cash, debit card or e-transfer, three months in advance' },
 ];
 
 export const EMERGENCY_AUTH = [
@@ -76,7 +76,7 @@ export const TERMS = [
       'The Dojang will confirm receipt of the cancellation request by email.',
       '**Cancellation Timing:** If the request is received at least 14 calendar days before the next scheduled payment date, the upcoming membership renewal will be cancelled. If the request is received **fewer than 14 calendar days** before the next scheduled payment date, **the upcoming renewal may proceed** according to the agreed membership terms, subject to applicable law and payment authorization rules.',
       '**Refunds After Payment:** Tuition payments already processed are **generally non-refundable** for voluntary cancellation. For three-month memberships, cancellation ordinarily **takes effect at the end of the paid three-month service period**. The 14-day cancellation notice requirement applies to the next scheduled renewal.',
-      'Members retain all cancellation, refund, and payment authorization rights provided by applicable law. The 14-day membership cancellation requirement does not restrict a member’s right to revoke a PAD authorization under applicable payment rules.',
+      'Members retain all cancellation, refund, and payment authorization rights provided by applicable law. The 14-day membership cancellation requirement does not restrict a member’s right to cancel a pre-authorized credit card authorization under applicable payment rules.',
     ],
   },
   {
@@ -84,10 +84,10 @@ export const TERMS = [
     initial: true,
     title: 'Part 7 — Payment Policy',
     body: [
-      '**7.1 Pre-Authorized Debit (PAD):** Members who select PAD may arrange automatic tuition payments monthly or every three months. **A separate PAD Agreement must be completed** before automatic bank withdrawals begin. The PAD Agreement will identify the payment amount, frequency, withdrawal date, cancellation process, and applicable rights. **Cancelling PAD authorization does not automatically cancel the underlying membership agreement** or eliminate valid outstanding charges.',
-      '**7.2 Non-PAD Members:** Members who do not select PAD **must pay tuition for three months in advance**. The following payment methods are accepted:',
+      '**7.1 Pre-Authorized Credit Card Payments:** Members who select pre-authorized credit card payments may arrange automatic tuition payments monthly or every three months. **A separate Credit Card Authorization must be completed** before automatic charges begin. The authorization will identify the payment amount, frequency, charge date, cancellation process, and applicable rights. **Cancelling the credit card authorization does not automatically cancel the underlying membership agreement** or eliminate valid outstanding charges.',
+      '**7.2 Members Not Using Pre-Authorized Credit Card Payments:** Members who do not select pre-authorized credit card payments **must pay tuition for three months in advance**. The following payment methods are accepted:',
       { list: ['Cash', 'Debit Card', 'E-transfer'] },
-      'Payment must be completed **before the start of each three-month membership period**. Members are responsible for making their next three-month payment by the applicable renewal date. No automatic bank withdrawal will occur without a separate PAD authorization.',
+      'Payment must be completed **before the start of each three-month membership period**. Members are responsible for making their next three-month payment by the applicable renewal date. No automatic credit card charge will occur without a separate Credit Card Authorization.',
       '**7.3 Overdue Payments:** Tuition must be paid by the agreed payment date. If payment is overdue or unsuccessful, the Dojang **may temporarily suspend class participation** after providing reasonable notice and an opportunity to resolve the outstanding balance.',
       '**7.4 Re-Registration Fee:** A **$20 re-registration fee** applies when a student’s membership has ended or been cancelled and the student subsequently registers again. The fee does not apply to an active membership or a temporary payment issue resolved before membership termination.',
       '**7.5 Additional Fees:** Belt testing, tournaments, coaching fees, uniforms, private lessons, and special events are **not included in regular tuition** unless expressly stated. Applicable fees will be disclosed before purchase or registration.',
@@ -188,7 +188,7 @@ export const ACKNOWLEDGMENTS = [
   'I understand the membership type, tuition amount, billing date, and applicable term.',
   'I understand the guaranteed class frequency and make-up class conditions.',
   'I understand that membership cancellation requests must be submitted by email at least 14 calendar days before the next scheduled payment date.',
-  'I understand that membership cancellation and PAD authorization cancellation are separate processes.',
+  'I understand that membership cancellation and cancelling the credit card authorization are separate processes.',
   'I agree to the terms of this agreement, subject to my rights under applicable law.',
   'I have received or will receive a copy of the completed agreement.',
 ];

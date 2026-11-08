@@ -92,7 +92,7 @@ export default function RegisterPage() {
       address: [f.address, f.postal].filter(Boolean).join(', '),
       emergency_name: f.emergency_name || '',
       emergency_phone: f.emergency_phone || '',
-      payment_type: String(r.plan || '').includes('PAD') ? 'preauth' : 'manual',
+      payment_type: /Credit Card|PAD/.test(String(r.plan || '')) ? 'preauth' : 'manual',
     });
     const start = r.start_date || todayISO();
     const perWeek = ['2', '3', '4'].includes(r.frequency) ? r.frequency : '';
@@ -113,8 +113,8 @@ export default function RegisterPage() {
           class_name: k.class_name || '',
           class_days: k.class_days && k.class_days.length ? k.class_days : null,
           classes_per_week: perWeek ? Number(perWeek) : '',
-          plan: r.plan === 'Monthly PAD' ? '1 Month' : '3 Months',
-          tuition: perWeek ? suggestedTuition(Number(perWeek), r.plan === 'Monthly PAD' ? '1 Month' : '3 Months') : '',
+          plan: /^Monthly/.test(String(r.plan || '')) ? '1 Month' : '3 Months',
+          tuition: perWeek ? suggestedTuition(Number(perWeek), /^Monthly/.test(String(r.plan || '')) ? '1 Month' : '3 Months') : '',
           enroll_date: start,
           billing_start_date: start,
           medical: k.medical ? k.medical_detail || 'Yes (see registration)' : '',

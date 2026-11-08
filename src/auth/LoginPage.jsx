@@ -1,3 +1,4 @@
+import logo from '../assets/logo.png';
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
@@ -19,9 +20,9 @@ export default function LoginPage() {
   return (
     <div style={styles.wrap}>
       <form style={styles.card} onSubmit={handleSubmit}>
-        <div style={styles.brand}>
-          <div style={styles.brandMark} />
-          <span style={styles.brandText}>Dojang Portal</span>
+        <div style={{ textAlign: 'center', marginBottom: 18 }}>
+          <img src={logo} alt="Hankook Taekwondo" style={{ width: 170, maxWidth: '70%', height: 'auto' }} />
+          <div style={{ ...styles.brandText, fontSize: 14, color: '#5B5F56', marginTop: 6 }}>Dojang Portal</div>
         </div>
         <label style={styles.label}>
           Email

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../supabaseClient';
+import logoImg from '../../assets/logo.png';
+import markImg from '../../assets/logo-mark.png';
 import {
   AGREEMENT_VERSION, SCHOOL, HEARD_FROM, FREQUENCIES, PLAN_CHOICES, EMERGENCY_AUTH, TERMS,
   PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO, boldParts,
@@ -50,7 +52,6 @@ const C = {
 const emptyKid = () => ({ first: '', last: '', dob: '', medical: '', medical_detail: '', instructions: '', slots: [] });
 
 export default function JoinPage() {
-  const [logo, setLogo] = useState(null);
   const [schedule, setSchedule] = useState([]);
   const [adult, setAdult] = useState(false);
   const [fam, setFam] = useState({
@@ -75,7 +76,6 @@ export default function JoinPage() {
 
   useEffect(() => {
     document.title = `Registration · ${SCHOOL.name}`;
-    supabase.rpc('public_dojang_logo').then(({ data }) => data && setLogo(data));
     supabase.rpc('public_class_schedule').then(({ data }) => setSchedule(data || []));
   }, []);
 
@@ -161,15 +161,15 @@ export default function JoinPage() {
 
   if (done) {
     return (
-      <Page logo={logo}>
+      <Page>
         <div style={{ ...box, textAlign: 'center', padding: '36px 22px' }}>
-          <div style={{ fontSize: 40, lineHeight: 1 }}>🥋</div>
+          <img src={logoImg} alt="Hankook Taekwondo" style={{ width: 150, maxWidth: '60%', height: 'auto' }} />
           <h2 style={{ margin: '14px 0 8px', fontSize: 22 }}>Thank you{done.names.length ? `, ${done.names.join(' & ')} ${done.names.length > 1 ? 'are' : 'is'} registered!` : '!'}</h2>
           <p style={{ color: C.soft, margin: '0 auto 6px', maxWidth: 440, lineHeight: 1.55 }}>
             We've received your registration and emailed you a copy of the signed agreement. Master Daisy will confirm the class schedule, tuition and payment details with you by email or phone.
           </p>
-          {done.row?.plan?.includes('PAD') && (
-            <p style={{ color: C.soft, margin: '10px auto 0', maxWidth: 440, lineHeight: 1.55 }}>A separate PAD Agreement is completed at the Dojang before automatic payments begin.</p>
+          {done.row?.plan?.includes('Credit Card') && (
+            <p style={{ color: C.soft, margin: '10px auto 0', maxWidth: 440, lineHeight: 1.55 }}>A separate Credit Card Authorization is completed at the Dojang before automatic payments begin.</p>
           )}
           <p style={{ color: C.faint, fontSize: 13.5, marginTop: 18 }}>Questions? {SCHOOL.email}</p>
         </div>
@@ -180,7 +180,7 @@ export default function JoinPage() {
   const name = (k) => k.first.trim() || 'the student';
   const errors = sendError ? [sendError] : tried ? validate() : [];
   return (
-    <Page logo={logo}>
+    <Page>
       <p style={{ color: C.soft, lineHeight: 1.55, margin: '0 0 18px', fontSize: 15 }}>
         Welcome! Please fill in this form to register. It takes about 5 minutes. Fields marked <b style={{ color: C.red }}>*</b> are required.
       </p>
@@ -291,7 +291,7 @@ export default function JoinPage() {
         </div>
         <In label="Preferred start date" type="date" value={startDate} min={today()} onChange={(e) => setStartDate(e.target.value)} style={{ maxWidth: 220 }} />
         <p style={{ ...small, color: C.soft, margin: '4px 0 0' }}>
-          The Dojang will confirm tuition, taxes and payment dates with you.{plan.includes('PAD') ? ' Bank details for PAD are collected separately at the Dojang (a separate PAD Agreement) — please don’t enter them here.' : ''}
+          The Dojang will confirm tuition, taxes and payment dates with you.{plan.includes('Credit Card') ? ' Your credit card details are collected separately at the Dojang (a separate Credit Card Authorization) — please don’t enter them here.' : ''}
         </p>
       </Section>
 
@@ -377,12 +377,12 @@ const btn = { border: `1px solid ${C.line}`, borderRadius: 10, padding: '11px 16
 const linkBtn = { background: 'none', border: 'none', padding: 0, color: C.red, fontSize: 13.5, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' };
 const field = { width: '100%', boxSizing: 'border-box', border: `1px solid #D6D2C4`, borderRadius: 9, padding: '11px 12px', fontSize: 16, fontFamily: 'inherit', color: C.ink, background: '#fff' };
 
-function Page({ logo, children }) {
+function Page({ children }) {
   return (
     <div style={{ minHeight: '100vh', background: C.paper, fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', color: C.ink }}>
       <div style={{ background: C.ink, color: '#fff', padding: '18px 16px' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 14 }}>
-          {logo && <img src={logo} alt="" style={{ width: 52, height: 52, objectFit: 'contain', background: '#fff', borderRadius: 10, padding: 4 }} />}
+          <img src={markImg} alt="Hankook Taekwondo" style={{ width: 50, height: 50, objectFit: 'contain', background: '#fff', borderRadius: 10, padding: 3, flex: 'none' }} />
           <div>
             <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '0.01em' }}>{SCHOOL.name}</div>
             <div style={{ fontSize: 13.5, opacity: 0.75 }}>Student Registration & Membership Agreement</div>

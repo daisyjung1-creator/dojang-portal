@@ -94,7 +94,7 @@ export async function buildRegistrationPdf(r: Record<string, any>): Promise<Uint
   row('Training frequency', freqLabel(r));
   row('Membership & payment', r.plan || '-');
   row('Preferred start date', fdate(r.start_date));
-  para('Tuition, taxes and payment dates are confirmed by the Dojang. A separate PAD Agreement is completed before automatic bank withdrawals begin.', { color: mute, size: 8.2 });
+  para('Tuition, taxes and payment dates are confirmed by the Dojang. Pre-authorized credit card payments start after a separate Credit Card Authorization is completed.', { color: mute, size: 8.2 });
 
   for (const t of TERMS) {
     heading(t.title);
@@ -157,7 +157,7 @@ Thank you for registering ${r.adult_student ? 'with us' : names} at ${SCHOOL.nam
 
 A copy of your signed Student Registration & Membership Agreement is attached for your records.
 
-We'll confirm the class schedule, tuition and payment details with you shortly.${String(r.plan || '').includes('PAD') ? ' A separate PAD Agreement will be completed at the Dojang before automatic payments begin.' : ''}
+We'll confirm the class schedule, tuition and payment details with you shortly.${String(r.plan || '').includes('Credit Card') ? ' A separate Credit Card Authorization will be completed at the Dojang before automatic payments begin.' : ''}
 
 If you have any questions, just reply to this email.
 
