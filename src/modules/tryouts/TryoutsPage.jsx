@@ -13,7 +13,7 @@ import { fillTemplate, tryoutVars, timeLabel } from '../../lib/emailTemplates';
 
 // Trials are usually at 4:30 pm (changeable in Invoice Settings).
 function emptyForm(time = '16:30') {
-  return { student_name: '', student_age: '', guardian_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time, status: 'Scheduled', notes: '' };
+  return { student_name: '', student_age: '', experience: '', guardian_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time, status: 'Scheduled', notes: '' };
 }
 
 export default function TryoutsPage({ setActiveTab }) {
@@ -90,7 +90,7 @@ export default function TryoutsPage({ setActiveTab }) {
       setFormError('Please enter a student name.');
       return;
     }
-    const row = { ...form, student_age: form.student_age === '' || form.student_age == null ? null : Number(form.student_age), guardian_name: (form.guardian_name || '').trim() || null };
+    const row = { ...form, student_age: form.student_age === '' || form.student_age == null ? null : Number(form.student_age), guardian_name: (form.guardian_name || '').trim() || null, experience: form.experience || null };
     let submitError;
     if (editingId) {
       ({ error: submitError } = await supabase.from('tryouts').update(row).eq('id', editingId));
@@ -200,6 +200,7 @@ export default function TryoutsPage({ setActiveTab }) {
                     <td style={{ fontWeight: 500 }}>
                       {t.student_name}
                       {t.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84' }}> · {t.student_age}y</span>}
+                      {t.experience && t.experience !== 'None' && <div style={{ fontSize: 11, color: '#854F0B', fontWeight: 600 }}>{t.experience === 'Black belt' ? 'Black belt (Adv)' : 'Color belt (Inter)'}</div>}
                       {/^Booked online/.test(t.notes || '') && <div style={{ fontSize: 11, color: '#1E4566', fontWeight: 400 }}>Booked online</div>}
                     </td>
                     <td>{t.guardian_name || '—'}</td>
@@ -301,6 +302,14 @@ export default function TryoutsPage({ setActiveTab }) {
               />
             </Field>
           </div>
+          <Field label="Taekwondo Experience">
+            <select className="dp-select" style={{ width: '100%' }} value={form.experience || ''} onChange={(e) => setForm({ ...form, experience: e.target.value })}>
+              <option value="">—</option>
+              <option value="None">No experience</option>
+              <option value="Color belt">Color belt (Intermediate)</option>
+              <option value="Black belt">Black belt (Advanced)</option>
+            </select>
+          </Field>
           <Field label="Parent / Guardian Name">
             <input className="dp-input" style={{ width: '100%' }} value={form.guardian_name || ''} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />
           </Field>

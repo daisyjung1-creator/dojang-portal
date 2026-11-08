@@ -16,7 +16,12 @@ const t12 = (t) => {
 };
 const dayLabel = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
 const longDay = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' });
-const emptyKid = () => ({ name: '', age: '', date: '' });
+const emptyKid = () => ({ name: '', age: '', experience: '', date: '' });
+export const EXPERIENCE = [
+  { value: 'None', label: 'No experience' },
+  { value: 'Color belt', label: 'Color belt (Intermediate)' },
+  { value: 'Black belt', label: 'Black belt (Advanced)' },
+];
 
 export default function TrialPage() {
   const [slots, setSlots] = useState(null);
@@ -51,6 +56,7 @@ export default function TrialPage() {
       if (!k.name.trim()) e.push(`${who}name`);
       if (k.age === '' || Number(k.age) < 3 || Number(k.age) > 80) e.push(`${who}age`);
       else if (!k.date) e.push(`${who}pick a trial date`);
+      if (!k.experience) e.push(`${who}Taekwondo experience`);
     });
     if (fam.guardian_name.trim().length < 2) e.push('Your name');
     const em = fam.email.trim();
@@ -74,7 +80,7 @@ export default function TrialPage() {
     if (trap) return setDone({ kids: [], emailed: true });
     setSaving(true);
     const { data, error } = await supabase.rpc('book_trial', {
-      p: { ...fam, kids: kids.map((k) => ({ name: k.name.trim(), age: Number(k.age), date: k.date })) },
+      p: { ...fam, kids: kids.map((k) => ({ name: k.name.trim(), age: Number(k.age), experience: k.experience, date: k.date })) },
     });
     setSaving(false);
     if (error) {
@@ -131,6 +137,13 @@ export default function TrialPage() {
                 <In label="Name" req value={k.name} onChange={(e) => setKid(i, { name: e.target.value })} autoComplete="off" />
                 <In label="Age" req type="number" inputMode="numeric" min={3} max={80} value={k.age} onChange={(e) => setKid(i, { age: e.target.value, date: '' })} style={{ maxWidth: 120 }} />
               </Row>
+              <Label req>Taekwondo experience</Label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {EXPERIENCE.map((x) => <Chip key={x.value} on={k.experience === x.value} onClick={() => setKid(i, { experience: x.value })}>{x.label}</Chip>)}
+              </div>
+              {k.experience && k.experience !== 'None' && (
+                <div style={{ fontSize: 13.5, color: C.green, margin: '-4px 0 12px' }}>Great! Book any date below — we'll confirm the best class for {k.name.trim().split(' ')[0] || 'your child'}'s level.</div>
+              )}
               {cls && (
                 <>
                   <Label req>Pick a trial date — {cls}, {list[0] ? `${t12(list[0].start_time)}–${t12(list[0].end_time)}` : '4:30 pm'}</Label>
