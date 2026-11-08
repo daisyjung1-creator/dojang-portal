@@ -9,6 +9,9 @@ const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const fdate = (iso?: string) =>
   iso ? new Date(String(iso).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }) : '-';
+// Calendar date in Edmonton for a timestamp.
+const edmontonDate = (ts?: string) =>
+  ts ? new Date(ts).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Edmonton' }) : '-';
 export const kidName = (k: any) => `${k?.first || ''} ${k?.last || ''}`.trim();
 const kidsText = (r: any) => (r.kids || []).map(kidName).filter(Boolean).join(', ');
 const daysText = (k: any) => (k.class_days || []).map((s: string) => { const [d, c] = s.split(':'); return `${DAYS[Number(d)]} ${c}`; }).join(', ');
@@ -136,8 +139,9 @@ export async function buildRegistrationPdf(r: Record<string, any>): Promise<Uint
   page.drawLine({ start: { x: M + 130, y }, end: { x: M + 360, y }, thickness: 0.6, color: hair });
   y -= 6;
   row('Date', `${fdate(r.signed_on)} — signed online (agreement version ${r.agreement_version || ''})`);
-  y -= 14; need(30);
-  page.drawText('Dojang representative: ______________________   Signature: ______________________   Date: ____________', { x: M, y: y - 9, size: 8.6, font, color: ink });
+  y -= 8;
+  row('Received by', `${SCHOOL.name} on ${edmontonDate(r.created_at)}`);
+  if (r.status === 'approved' && r.handled_at) row('Accepted by', `${SCHOOL.name} — Master Daisy, ${edmontonDate(r.handled_at)}`);
 
   // Page numbers
   const pages = pdf.getPages();

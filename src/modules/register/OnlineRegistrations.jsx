@@ -11,6 +11,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const fmtDate = (d) => (d ? new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '—');
 export const kidName = (k) => `${k.first || ''} ${k.last || ''}`.trim();
 const rich = (t) => boldParts(t).map((p) => (p.bold ? `<b>${esc(p.text)}</b>` : esc(p.text))).join('');
+const tsDate = (ts) => (ts ? new Date(ts).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Edmonton' }) : '—');
 const sigImg = (r, h) => (r.signature_image && r.signature_image.startsWith('data:image/png;base64,') ? `<div><img src="${r.signature_image}" alt="signature" style="height:${h}px;border-bottom:1px solid #CFCAB9"></div>` : '');
 const freqLabel = (r) => (r.frequency === 'other' ? `Other: ${r.other_program || ''}` : FREQUENCIES.find((f) => f.value === r.frequency)?.label || '—');
 const daysText = (k) => (k.class_days || []).map((s) => { const [d, c] = s.split(':'); return `${DAYS[d]} ${c}`; }).join(', ');
@@ -136,7 +137,7 @@ export function printAgreement(r) {
   <h2>Acknowledgment &amp; signature</h2><ul>${ACKNOWLEDGMENTS.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
   <table style="margin-top:8px"><tr><td class="k">${r.adult_student ? 'Adult student signature' : 'Parent/guardian signature'}</td><td>${sigImg(r, 60) || '<span class="sig">' + esc(r.signature_name) + '</span>'}<div>${esc(r.signature_name)}</div></td></tr>
   <tr><td class="k">Date</td><td>${esc(fmtDate(r.signed_on))} (signed online, agreement version ${esc(r.agreement_version)})</td></tr>
-  <tr><td class="k">Dojang representative</td><td>__________________________ &nbsp; Date: ____________</td></tr></table>
+  <tr><td class="k">Received by</td><td>${esc(SCHOOL.name)} on ${esc(tsDate(r.created_at))}</td></tr>${r.status === 'approved' && r.handled_at ? `<tr><td class="k">Accepted by</td><td>${esc(SCHOOL.name)} — Master Daisy, ${esc(tsDate(r.handled_at))}</td></tr>` : ''}</table>
   <script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`);
   w.document.close();
 }
