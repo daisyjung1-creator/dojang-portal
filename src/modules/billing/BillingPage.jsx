@@ -108,7 +108,8 @@ export default function BillingPage() {
         // Older cycles were billed in Express Invoice, so only offer the current
         // cycle if it started in the last week; otherwise the next one.
         const recent = cycle && cycle >= addDaysISO(today, -7);
-        const toInvoice = recent && !cycleInv ? cycle : !nextInv ? next : null;
+        let toInvoice = recent && !cycleInv ? cycle : !nextInv ? next : null;
+        if (toInvoice && s.billing_end_date && toInvoice > s.billing_end_date) toInvoice = null; // membership cancelled
         return { s, family: custById[s.customer_id], cycle, next, cycleInv, nextInv, recent, toInvoice };
       });
     const fam = (r) => (r.family?.name || r.s.name).toLowerCase();
@@ -142,6 +143,9 @@ export default function BillingPage() {
         const header = invoiceHeader(p, settings, today);
         const inv = await saveInvoice(header, p.lines, null);
         made++;
+        // The re-registration fee is charged once.
+        const refee = [...new Set(p.lines.filter((l) => l.line_kind === 'reregistration').map((l) => l.student_id))];
+        if (refee.length) await supabase.from('students').update({ reregistration_fee_due: false }).in('id', refee);
         // Family credit (from an earlier overpayment) comes off first.
         let used = 0;
         try {
@@ -379,8 +383,15 @@ export default function BillingPage() {
                     )}
                   </td>
                   <td>
-                    {r.next && !s.billing_exempt ? formatDate(r.next) : '—'}
-                    {r.nextInv && <span style={{ marginLeft: 6 }}><StatusPill status={r.nextInv.status} /></span>}
+                    {s.billing_end_date && r.next > s.billing_end_date ? (
+                      <span style={{ fontSize: 12.5, color: '#9A2B2B' }} title="Membership cancelled — no more tuition">Ends {formatDate(s.billing_end_date)}</span>
+                    ) : (
+                      <>
+                        {r.next && !s.billing_exempt ? formatDate(r.next) : '—'}
+                        {r.nextInv && <span style={{ marginLeft: 6 }}><StatusPill status={r.nextInv.status} /></span>}
+                      </>
+                    )}
+                    {s.reregistration_fee_due && <div style={{ fontSize: 11.5, color: '#854F0B' }}>+ $20 re-registration fee</div>}
                   </td>
                   <td>
                     {isBillable(s) && r.toInvoice && (

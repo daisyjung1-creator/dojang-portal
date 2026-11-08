@@ -13,6 +13,8 @@ import { billingAnchor, currentCycleStart, nextDueDate, addDaysISO } from './bil
 import { round2, calcTotals, formatDate } from './invoiceUtils';
 import { splitClasses } from './classes';
 
+export const REREGISTRATION_FEE = 20;
+
 // Students who get tuition invoices.
 export function isBillable(s) {
   return s && (s.status || 'active') !== 'withdrawn' && !s.billing_exempt && Number(s.tuition) > 0 && !!billingAnchor(s);
@@ -27,6 +29,8 @@ export function cyclesInWindow(student, today, leadDays = 7, graceDays = 7) {
   let d = currentCycleStart(student, from);
   if (d < from) d = nextDueDate(student, from);
   for (let i = 0; i < 6 && d <= to; i++) {
+    // Membership cancelled: nothing after the last paid day.
+    if (student.billing_end_date && d > student.billing_end_date) break;
     if (d >= from) out.push(d);
     d = nextDueDate(student, d);
   }
@@ -80,6 +84,19 @@ export function tuitionLines(student, cycleStart, settings = {}) {
       quantity: 1,
       unit_price: -round2(Number(student.subsidy_amount) * months),
       taxable: false,
+    });
+  }
+  // Coming back after their membership ended (Part 7.4): one-time fee.
+  if (student.reregistration_fee_due) {
+    lines.push({
+      student_id: student.id,
+      cycle_start: cycleStart,
+      line_kind: 'reregistration',
+      item_name: 'Re-registration fee',
+      description: `Re-registration fee — ${firstName(student.name)}`,
+      quantity: 1,
+      unit_price: round2(Number(settings.reregistration_fee ?? REREGISTRATION_FEE)),
+      taxable: true,
     });
   }
   return lines;

@@ -12,6 +12,7 @@ import { allClassNames } from '../../lib/classes';
 import { suggestedTuition } from '../students/StudentsPage';
 import CustomerPicker from '../invoices/CustomerPicker';
 import OnlineRegistrations, { kidName } from './OnlineRegistrations';
+import { REREGISTRATION_FEE } from '../../lib/tuitionBilling';
 
 // Parent / family details — entered once for all the children.
 function emptyFamily() {
@@ -36,11 +37,25 @@ function emptyChild(copyFrom) {
     subsidy_name: '',
     subsidy_amount: '',
     subsidy_end_date: '',
+    medical: '',
+    photo_consent: null,
+    refee: null, // returning student: add the re-registration fee (null = not decided)
     notes: '',
   };
 }
 
 const sectionLabel = { fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8A8D84', margin: '4px 0 10px' };
+
+// The family's inquiry (same email or phone) is marked Enrolled once they're in.
+const digits = (v) => String(v || '').replace(/\D/g, '').slice(-10);
+async function closeMatchingLeads(fam, student) {
+  const emails = String(fam.guardian_email || '').toLowerCase().split(/[,;\s]+/).filter(Boolean);
+  const phone = digits(fam.guardian_phone);
+  if (!emails.length && phone.length < 7) return;
+  const { data } = await supabase.from('leads').select('id, email, phone, status').neq('status', 'Enrolled');
+  const hits = (data || []).filter((l) => (l.email && emails.includes(String(l.email).toLowerCase().trim())) || (phone.length >= 7 && digits(l.phone) === phone));
+  for (const l of hits) await supabase.from('leads').update({ status: 'Enrolled', linked_student_id: student?.id || null }).eq('id', l.id);
+}
 
 export default function RegisterPage() {
   const [family, setFamily] = useState(emptyFamily());
@@ -55,6 +70,13 @@ export default function RegisterPage() {
   // The online registration (from /join) currently loaded into the form.
   const [fromOnline, setFromOnline] = useState(null);
   const [onlineReload, setOnlineReload] = useState(0);
+  // Former students (withdrawn), to spot someone coming back.
+  const [former, setFormer] = useState([]);
+  useEffect(() => {
+    supabase.from('students').select('id, name, dob, withdrawn_date').eq('status', 'withdrawn').then(({ data }) => setFormer(data || []));
+  }, []);
+  const norm = (n) => String(n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const formerMatch = (k) => k.name.trim().length > 2 && former.find((f) => norm(f.name) === norm(k.name) && (!k.dob || !f.dob || k.dob === f.dob));
 
   // Fill the form from an online registration. The parent's class picks come
   // in as they chose them; change anything before saving.
@@ -78,9 +100,7 @@ export default function RegisterPage() {
       (r.kids || []).map((k) => {
         const notes = [
           `Online registration ${String(r.created_at).slice(0, 10)}${r.adult_student ? ' (adult student)' : ''}.`,
-          k.medical ? `Medical: ${k.medical_detail}` : 'Medical: none',
           k.instructions ? `Emergency instructions: ${k.instructions}` : '',
-          `Photo/video consent: ${r.photo_consent ? 'Yes' : 'NO'}`,
           !r.adult_student && f.relationship ? `Guardian: ${f.relationship}` : '',
           f.emergency_relationship ? `Emergency contact: ${f.emergency_relationship}` : '',
           r.frequency === 'other' ? `Program: ${r.other_program}` : '',
@@ -97,6 +117,8 @@ export default function RegisterPage() {
           tuition: perWeek ? suggestedTuition(Number(perWeek), r.plan === 'Monthly PAD' ? '1 Month' : '3 Months') : '',
           enroll_date: start,
           billing_start_date: start,
+          medical: k.medical ? k.medical_detail || 'Yes (see registration)' : '',
+          photo_consent: r.photo_consent == null ? null : !!r.photo_consent,
           notes,
         };
       })
@@ -194,6 +216,9 @@ export default function RegisterPage() {
         subsidy_name: k.subsidy ? k.subsidy_name || 'KidSport' : null,
         subsidy_amount: k.subsidy && k.subsidy_amount !== '' ? Number(k.subsidy_amount) : null,
         subsidy_end_date: k.subsidy ? k.subsidy_end_date || null : null,
+        medical: String(k.medical || '').trim() || null,
+        photo_consent: k.photo_consent ?? null,
+        reregistration_fee_due: k.refee ?? !!formerMatch(k),
         notes: k.notes.trim() || null,
         // Siblings go into the same family as the first child.
         customer_id: customerId,
@@ -210,6 +235,7 @@ export default function RegisterPage() {
     if (customerId && family.payment_type) {
       await supabase.from('customers').update({ payment_type: family.payment_type }).eq('id', customerId);
     }
+    await closeMatchingLeads(fam, created[0]);
     if (fromOnline) {
       await supabase.from('registrations').update({ status: 'approved', student_ids: created.map((c) => c.id), handled_at: new Date().toISOString() }).eq('id', fromOnline.id);
       setFromOnline(null);
@@ -303,6 +329,14 @@ export default function RegisterPage() {
                 <input type="date" className="dp-input" style={inp} value={k.dob} onChange={(e) => setKid(i, { dob: e.target.value })} />
               </Field>
             </div>
+            {formerMatch(k) && (
+              <div style={{ background: '#FAEEDA', border: '1px solid #F0D9A8', color: '#854F0B', borderRadius: 6, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+                {formerMatch(k).name} was a student before (withdrawn{formerMatch(k).withdrawn_date ? ` ${formerMatch(k).withdrawn_date}` : ''}). You can also reactivate the old record in Students instead.
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, color: '#20241F' }}>
+                  <input type="checkbox" checked={k.refee ?? true} onChange={(e) => setKid(i, { refee: e.target.checked })} /> Add the ${REREGISTRATION_FEE} re-registration fee to the first tuition invoice
+                </label>
+              </div>
+            )}
             <div style={styles.formRow}>
               <Field label="Belt">
                 <select className="dp-select" style={inp} value={k.belt} onChange={(e) => setKid(i, { belt: e.target.value })}>
@@ -371,6 +405,18 @@ export default function RegisterPage() {
                 </Field>
               </div>
             )}
+            <div style={styles.formRow}>
+              <Field label="Medical (coaches see an alert)">
+                <input className="dp-input" style={inp} placeholder="None" value={k.medical || ''} onChange={(e) => setKid(i, { medical: e.target.value })} />
+              </Field>
+              <Field label="Promotional photos">
+                <select className="dp-select" style={inp} value={k.photo_consent == null ? '' : k.photo_consent ? 'yes' : 'no'} onChange={(e) => setKid(i, { photo_consent: e.target.value === '' ? null : e.target.value === 'yes' })}>
+                  <option value="">Not asked</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">NO photos</option>
+                </select>
+              </Field>
+            </div>
             <Field label="Notes">
               <textarea className="dp-input" style={{ ...inp, minHeight: 44, resize: 'vertical' }} value={k.notes} onChange={(e) => setKid(i, { notes: e.target.value })} />
             </Field>

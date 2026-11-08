@@ -1,3 +1,4 @@
+import StudentFlags from '../../components/StudentFlags';
 import React, { useEffect, useMemo, useState } from 'react';
 import { CircleCheck, CircleX, CalendarClock, BarChart3, Mail, Plus, Trash2, Check, Plane, Copy, User, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
@@ -515,6 +516,7 @@ export default function AttendancePage() {
                           <td style={{ fontWeight: 500 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               {s.name}
+                              <StudentFlags s={s} />
                               {s.classes_per_week ? (
                                 <span title="Classes this week / classes per week" style={{ fontSize: 11, color: wk >= s.classes_per_week ? '#2A5A30' : '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '0 6px', fontWeight: 400 }}>
                                   {wk}/{s.classes_per_week} this wk
@@ -559,6 +561,7 @@ export default function AttendancePage() {
                       <tr key={'drop_' + a.id} className="dp-row" style={{ background: '#FCFAF3' }}>
                         <td style={{ fontWeight: 500 }}>
                           {st.name}
+                          <StudentFlags s={st} style={{ marginLeft: 6 }} />
                           <span style={{ marginLeft: 6, fontSize: 10.5, color: '#1E4566', border: '1px solid #B9D3E4', background: '#E6F0F6', borderRadius: 999, padding: '1px 6px' }}>Drop-in</span>
                         </td>
                         <td className="dp-hide-sm">{a.class_name} (home class: {st.class_name || 'Unassigned'})</td>
@@ -582,6 +585,7 @@ export default function AttendancePage() {
                       <tr key={'guest_' + m.id} className="dp-row" style={{ background: '#FCFAF3' }}>
                         <td style={{ fontWeight: 500 }}>
                           {s.name}
+                          <StudentFlags s={s} style={{ marginLeft: 6 }} />
                           <span style={{ marginLeft: 6, fontSize: 10.5, color: '#854F0B', border: '1px solid #F0D9A8', background: '#FAEEDA', borderRadius: 999, padding: '1px 6px' }}>Makeup</span>
                         </td>
                         <td className="dp-hide-sm">{className} (home class: {s.class_name || 'Unassigned'})</td>
@@ -681,8 +685,11 @@ export default function AttendancePage() {
                                 {classes.map((c) => <option key={c} value={c}>{c}</option>)}
                               </select>
                             </div>
+                            {m.reservation_date && m.expiration_date && m.reservation_date > m.expiration_date && m.status !== 'completed' && (
+                              <div style={{ fontSize: 11, color: '#9A2B2B', marginTop: 3 }}>After it expires ({m.expiration_date}) — must be within 30 days</div>
+                            )}
                           </td>
-                          <td>{statusBadge(m.status)}</td>
+                          <td>{statusBadge(m.status === 'pending' && m.expiration_date && m.expiration_date < todayISO() ? 'expired' : m.status)}</td>
                           <td>
                             <div style={{ display: 'flex', gap: 4 }}>
                               {student && m.status !== 'completed' && (

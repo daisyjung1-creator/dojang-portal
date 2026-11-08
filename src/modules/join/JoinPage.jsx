@@ -166,7 +166,7 @@ export default function JoinPage() {
           <div style={{ fontSize: 40, lineHeight: 1 }}>🥋</div>
           <h2 style={{ margin: '14px 0 8px', fontSize: 22 }}>Thank you{done.names.length ? `, ${done.names.join(' & ')} ${done.names.length > 1 ? 'are' : 'is'} registered!` : '!'}</h2>
           <p style={{ color: C.soft, margin: '0 auto 6px', maxWidth: 440, lineHeight: 1.55 }}>
-            We've received your registration. Master Daisy will confirm the class schedule, tuition and payment details with you by email or phone.
+            We've received your registration and emailed you a copy of the signed agreement. Master Daisy will confirm the class schedule, tuition and payment details with you by email or phone.
           </p>
           {done.row?.plan?.includes('PAD') && (
             <p style={{ color: C.soft, margin: '10px auto 0', maxWidth: 440, lineHeight: 1.55 }}>A separate PAD Agreement is completed at the Dojang before automatic payments begin.</p>

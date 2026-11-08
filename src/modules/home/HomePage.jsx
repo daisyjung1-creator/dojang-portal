@@ -83,6 +83,7 @@ export default function HomePage({ setActiveTab }) {
       { data: makeups },
       { data: slips },
       { data: regs },
+      { data: expiring },
       { data: emps },
       { data: n },
       s,
@@ -101,6 +102,7 @@ export default function HomePage({ setActiveTab }) {
       supabase.from('makeup_records').select('*').eq('status', 'reserved').gte('reservation_date', today),
       supabase.from('payslips').select('employee_id, pay_date, cpp, ei, tax, emailed_at').gte('pay_date', addDaysISO(today, -70)),
       supabase.from('registrations').select('id, kids').eq('status', 'new'),
+      supabase.from('makeup_records').select('student_id, absence_date, expiration_date').eq('status', 'pending').gte('expiration_date', today).lte('expiration_date', addDaysISO(today, 7)).order('expiration_date'),
       supabase.from('payroll_employees').select('id, name, email'),
       supabase.from('dashboard_notes').select('*').order('created_at'),
       loadSettings(),
@@ -142,6 +144,7 @@ export default function HomePage({ setActiveTab }) {
       makeups: makeups || [],
       slips: slips || [],
       regs: regs || [],
+      expiring: expiring || [],
       empById: Object.fromEntries((emps || []).map((e) => [e.id, e])),
       trackStart: trackingStart(recent || []),
       recordsBy: (recent || []).reduce((m, r) => ((m[r.student_id] = m[r.student_id] || []).push(r), m), {}),
@@ -238,6 +241,27 @@ export default function HomePage({ setActiveTab }) {
         detail: names.slice(0, 5).join(', ') + (names.length > 5 ? '…' : '') + ' — confirm classes and tuition in Enrollment.',
       });
     }
+    // Make-ups expire 30 days after the missed class (Part 8.1)
+    if (d.expiring.length) {
+      const nameOf = (id) => d.students.find((x) => x.id === id)?.name || '?';
+      out.push({
+        icon: CalendarDays,
+        tab: 'attendance',
+        tone: 'warn',
+        title: `${d.expiring.length} make-up class${d.expiring.length === 1 ? '' : 'es'} expire this week`,
+        detail: d.expiring.slice(0, 6).map((m) => `${nameOf(m.student_id)} (${shortDay(m.expiration_date)})`).join(', ') + (d.expiring.length > 6 ? '…' : '') + ' — not booked yet.',
+      });
+    }
+    // Memberships ending (cancellation requests)
+    const ending = d.students.filter((x) => x.billing_end_date && (x.status || 'active') !== 'withdrawn' && daysUntil(x.billing_end_date) <= 14);
+    if (ending.length)
+      out.push({
+        icon: CalendarDays,
+        tab: 'students',
+        tone: 'info',
+        title: `${ending.length} membership${ending.length === 1 ? '' : 's'} ending soon`,
+        detail: ending.map((x) => `${x.name} (last day ${shortDay(x.billing_end_date)})`).join(', '),
+      });
     // New leads to call back
     if (d.leads.length)
       out.push({

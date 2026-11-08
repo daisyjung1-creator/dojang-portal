@@ -1,6 +1,9 @@
+import StudentFlags from '../../components/StudentFlags';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail } from 'lucide-react';
+import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX } from 'lucide-react';
+import CancellationModal from './CancellationModal';
+import { REREGISTRATION_FEE } from '../../lib/tuitionBilling';
 import { fillSubsidyTemplate, DEFAULT_SUBSIDY_SUBJECT } from '../../lib/subsidyReminder';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
@@ -33,7 +36,7 @@ const FIELD_DEFS = [
 ];
 
 function emptyForm() {
-  return { name: '', dob: '', guardian_name: '', guardian_phone: '', guardian_email: '', address: '', emergency_name: '', emergency_phone: '', belt: 'White', class_name: '', tuition: '', enroll_date: '', billing_start_date: '', plan: '1 Month', subsidy: false, subsidy_name: '', subsidy_amount: '', subsidy_end_date: '', classes_per_week: '', class_days: null, family_discount: false, billing_exempt: false, notes: '' };
+  return { name: '', dob: '', guardian_name: '', guardian_phone: '', guardian_email: '', address: '', emergency_name: '', emergency_phone: '', belt: 'White', class_name: '', tuition: '', enroll_date: '', billing_start_date: '', plan: '1 Month', subsidy: false, subsidy_name: '', subsidy_amount: '', subsidy_end_date: '', classes_per_week: '', class_days: null, family_discount: false, billing_exempt: false, medical: '', photo_consent: null, notes: '' };
 }
 
 // Several guardian emails can be stored together, separated by commas.
@@ -64,6 +67,8 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [beltFilter, setBeltFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [cancelFor, setCancelFor] = useState(null);
+  const [reactivateFor, setReactivateFor] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm());
@@ -184,8 +189,8 @@ export default function StudentsPage() {
     fetchStudents();
   }
 
-  async function setStudentStatus(id, status) {
-    const payload = status === 'withdrawn' ? { status, withdrawn_date: new Date().toISOString().slice(0, 10) } : { status, withdrawn_date: null };
+  async function setStudentStatus(id, status, extra = {}) {
+    const payload = { ...(status === 'withdrawn' ? { status, withdrawn_date: new Date().toISOString().slice(0, 10) } : { status, withdrawn_date: null, billing_end_date: null }), ...extra };
     const { data } = await supabase.from('students').update(payload).eq('id', id).select();
     if (data) setStudents((prev) => prev.map((s) => (s.id === id ? data[0] : s)));
   }
@@ -435,6 +440,7 @@ export default function StudentsPage() {
                   <tr key={s.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
                       {s.name}
+                      <StudentFlags s={s} style={{ marginLeft: 6 }} />
                       {s.status === 'withdrawn' && (
                         <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Withdrawn</span>
                       )}
@@ -472,17 +478,25 @@ export default function StudentsPage() {
                       {families[s.customer_id]?.credit > 0.004 && <Badge c={['#2A5A30', '#E8F1E9', '#BFDCC3']} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
                       {s.subsidy && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
                     </td>
-                    <td>{billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}</td>
+                    <td>
+                      {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: '#9A2B2B', fontSize: 12.5 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
+                      {s.reregistration_fee_due && <div style={{ fontSize: 11, color: '#854F0B' }}>+ re-registration fee</div>}
+                    </td>
                     {isAdmin && (
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button
                             className="dp-btn"
                             style={{ padding: '4px 8px', fontSize: 12 }}
-                            onClick={() => setStudentStatus(s.id, s.status === 'withdrawn' ? 'active' : 'withdrawn')}
+                            onClick={() => (s.status === 'withdrawn' ? setReactivateFor(s) : setStudentStatus(s.id, 'withdrawn'))}
                           >
                             {s.status === 'withdrawn' ? 'Reactivate' : 'Withdraw'}
                           </button>
+                          {s.status !== 'withdrawn' && (
+                            <button aria-label="Membership cancellation" title="Membership cancellation (email request, 14-day rule)" className="dp-btn" style={{ padding: 6, ...(s.billing_end_date ? { color: '#9A2B2B', borderColor: '#E4B8B8' } : {}) }} onClick={() => setCancelFor(s)}>
+                              <CalendarX size={14} />
+                            </button>
+                          )}
                           <button aria-label="Edit" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(s)}>
                             <Pencil size={14} />
                           </button>
@@ -678,10 +692,51 @@ export default function StudentsPage() {
               </Field>
             </div>
           )}
+          <Field label="Medical conditions, allergies or limitations (shown to coaches in attendance)">
+            <textarea className="dp-input" style={{ width: '100%', minHeight: 44, resize: 'vertical' }} placeholder="None" value={form.medical || ''} onChange={(e) => setForm({ ...form, medical: e.target.value })} />
+          </Field>
+          <Field label="Promotional photos & videos">
+            <select className="dp-select" style={{ width: '100%' }} value={form.photo_consent == null ? '' : form.photo_consent ? 'yes' : 'no'} onChange={(e) => setForm({ ...form, photo_consent: e.target.value === '' ? null : e.target.value === 'yes' })}>
+              <option value="">Not asked</option>
+              <option value="yes">Yes — family consents</option>
+              <option value="no">NO — no promotional photos/videos</option>
+            </select>
+          </Field>
           <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
+        </Modal>
+      )}
+
+      {cancelFor && (
+        <CancellationModal
+          student={cancelFor}
+          onClose={() => setCancelFor(null)}
+          onSaved={(row) => {
+            if (row) setStudents((prev) => prev.map((x) => (x.id === row.id ? row : x)));
+            setCancelFor(null);
+          }}
+        />
+      )}
+
+      {reactivateFor && (
+        <Modal
+          title={`Reactivate ${reactivateFor.name}`}
+          maxWidth={480}
+          onClose={() => setReactivateFor(null)}
+          footer={
+            <>
+              <button className="dp-btn" onClick={() => setReactivateFor(null)}>Cancel</button>
+              <button className="dp-btn" onClick={async () => { await setStudentStatus(reactivateFor.id, 'active'); setReactivateFor(null); }}>Reactivate, no fee</button>
+              <button className="dp-btn dp-btn-primary" onClick={async () => { await setStudentStatus(reactivateFor.id, 'active', { reregistration_fee_due: true }); setReactivateFor(null); }}>Reactivate + ${REREGISTRATION_FEE} fee</button>
+            </>
+          }
+        >
+          <p style={{ fontSize: 14, lineHeight: 1.55, margin: 0 }}>
+            {reactivateFor.name.split(' ')[0]}'s membership ended{reactivateFor.withdrawn_date ? ` on ${reactivateFor.withdrawn_date}` : ''}. Coming back after a membership has ended has a <b>${REREGISTRATION_FEE} re-registration fee</b> (Part 7.4). It goes on the next tuition invoice.
+          </p>
+          <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '8px 0 0' }}>No fee if it was only a temporary payment issue, or a mistake.</p>
         </Modal>
       )}
 

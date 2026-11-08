@@ -11,6 +11,8 @@ export const TRIAL_CLASSES = {
   intB: { label: 'Intermediate B', when: 'Mondays and Wednesdays, 4:30–5:20 pm', short: 'Mon/Wed 4:30–5:20pm' },
 };
 export const KIDSPORT_URL = 'https://kidsport.smartsimple.ca/s_Login.jsp';
+// Online registration form (the live site, so links work from any preview too).
+export const JOIN_LINK = 'https://dojang-portal.netlify.app/join';
 const DOJANG = 'Edmonton Champion Hankook Taekwondo';
 const PHONE = '780-450-0181';
 
@@ -24,7 +26,7 @@ const list = (xs) => (xs.length <= 1 ? xs[0] || '' : xs.slice(0, -1).join(', ') 
 // A child without a name is called by age ("your 8-year-old"), or just "your child".
 const labelOf = (k, many) => first(k.name) || (k.age !== '' && k.age != null ? `your ${k.age}-year-old` : many ? 'one of your children' : 'your child');
 
-export function leadMessage({ lead, kids, kidsport, kind }) {
+export function leadMessage({ lead, kids, kidsport, join = true, kind }) {
   const named = kids.filter((k) => first(k.name));
   const many = kids.length > 1;
   const noNames = !named.length;
@@ -52,6 +54,7 @@ export function leadMessage({ lead, kids, kidsport, kind }) {
     return [
       `${hello} this is Master Daisy from ${DOJANG}. Thank you for your interest!`,
       `${groups.length === 1 ? offer : 'For the trial classes:\n' + offer}\nWhich date works best for the trial class${many ? 'es' : ''}?`,
+      join ? `When you're ready to join, you can register online here: ${JOIN_LINK}` : '',
       kidsport ? `For the KidSport grant: ${kidsportText}` : '',
     ]
       .filter(Boolean)
@@ -68,6 +71,7 @@ export function leadMessage({ lead, kids, kidsport, kind }) {
       `Thank you for your interest in ${DOJANG}! We would love to have ${who} join us for a trial class.`,
       offer,
       'Please reply with the date that works best for you, and we will book the trial class' + (many ? 'es.' : '.'),
+      join ? `When you're ready to join, you can register online here (it takes about 5 minutes):\n${JOIN_LINK}` : '',
       kidsport
         ? `KidSport grant (help with fees for families who qualify):\n1. First, sign up for an account here: ${KIDSPORT_URL}\n2. When you bring in the enrollment form${many ? 's' : ''}, we will give you the Proof of Enrollment and all the information you need for the application.`
         : '',
@@ -89,6 +93,7 @@ const kidsOf = (lead) =>
 export default function LeadMessageModal({ lead, onClose, onDone }) {
   const [kids, setKids] = useState(kidsOf(lead));
   const [kidsport, setKidsport] = useState(true);
+  const [join, setJoin] = useState(true);
   const [kind, setKind] = useState(lead.email ? 'email' : 'text');
   const [email, setEmail] = useState(lead.email || '');
   const [subject, setSubject] = useState('');
@@ -99,13 +104,13 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
   // Rewrite the message whenever the options change.
   const key = JSON.stringify(kids.map((k) => [k.name, k.cls]));
   useEffect(() => {
-    if (kind === 'text') setBody(leadMessage({ lead, kids, kidsport, kind }));
+    if (kind === 'text') setBody(leadMessage({ lead, kids, kidsport, join, kind }));
     else {
-      const m = leadMessage({ lead, kids, kidsport, kind });
+      const m = leadMessage({ lead, kids, kidsport, join, kind });
       setSubject(m.subject);
       setBody(m.body);
     }
-  }, [key, kidsport, kind]);
+  }, [key, kidsport, join, kind]);
   const setKid = (i, patch) => setKids(kids.map((k, j) => (j === i ? { ...k, ...patch } : k)));
 
   async function markContacted(how) {
@@ -198,6 +203,9 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
         ))}
         <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
           <input type="checkbox" checked={kidsport} onChange={(e) => setKidsport(e.target.checked)} /> Include KidSport grant info
+        </label>
+        <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <input type="checkbox" checked={join} onChange={(e) => setJoin(e.target.checked)} /> Include the online registration link
         </label>
       </div>
       <p style={{ fontSize: 11.5, color: '#8A8D84', margin: '-6px 0 12px' }}>Under 10 → Beginner · 11 and up → Intermediate B (10 years old: pick one).</p>
