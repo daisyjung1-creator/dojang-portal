@@ -35,7 +35,7 @@ export const JOIN_CLASSES = [
   { name: 'Beginner', short: 'Beginner', grid: 'Beginner', ages: 'All ages', belts: 'White – Green', min: null, max: null },
   { name: 'Beginner/Intermediate', short: 'Beg/Inter', grid: 'Beg/Inter', ages: 'Age 12 & under', belts: 'White – Blue', min: null, max: 12 },
   { name: 'Intermediate A', short: 'Intermediate A', grid: 'Inter A', ages: 'Age 8 to 12', belts: 'Yellow – Red', min: 8, max: 12 },
-  { name: 'Intermediate B', short: 'Intermediate B', grid: 'Inter B', ages: 'Age 12 & up', belts: 'Yellow – Red', min: 12, max: null },
+  { name: 'Intermediate B', short: 'Intermediate B', grid: 'Inter B', ages: 'Age 11 & up', belts: 'Yellow – Red', min: 11, max: null },
   { name: 'Intermediate/Advance', short: 'Inter/Adv', grid: 'Inter/Adv', ages: 'Age 8 & up', belts: 'Green – Red', min: 8, max: null },
 ];
 const classInfo = Object.fromEntries(JOIN_CLASSES.map((c) => [c.name, c]));
@@ -218,7 +218,7 @@ export default function JoinPage() {
                 <>
                   {age != null && (
                     <div style={{ fontSize: 13, color: C.green, marginBottom: 6 }}>
-                      For age {age}: {JOIN_CLASSES.filter((c) => fitsAge(c, age)).map((c) => c.short).join(', ')}. New students (white belt) usually start in {JOIN_CLASSES.filter((c) => c.belts.startsWith('White') && fitsAge(c, age)).map((c) => c.short).join(' or ')}.
+                      Usual classes for age {age}: {JOIN_CLASSES.filter((c) => fitsAge(c, age)).map((c) => c.short).join(', ')}. Age groups are a guide; the Dojang places each student by age, size and experience.
                     </div>
                   )}
                   <WeekGrid schedule={schedule} age={age} picked={k.slots} onToggle={(key) => setKid(i, { slots: k.slots.includes(key) ? k.slots.filter((x) => x !== key) : [...k.slots, key] })} />
@@ -446,13 +446,13 @@ function WeekGrid({ schedule, age, picked, onToggle }) {
               type="button"
               onClick={() => onToggle(key)}
               style={{
-                background: on ? C.red : ok ? '#FBF6DC' : '#D9D6C8', color: on ? '#fff' : ok ? C.ink : '#6E7168', border: 'none', borderRadius: 6, padding: '8px 2px', minHeight: 64, minWidth: 0, overflow: 'hidden',
+                background: on ? C.red : '#FBF6DC', color: on ? '#fff' : C.ink, border: 'none', borderRadius: 6, padding: '8px 2px', minHeight: 64, minWidth: 0, overflow: 'hidden',
                 cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
               }}
             >
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.15, textAlign: 'center' }}>{on ? '✓ ' : ''}{info.grid}</span>
               <span style={{ fontSize: 10.5, opacity: 0.85 }}>{t12short(c.start_time)}–{t12short(c.end_time)}</span>
-              {!ok && <span style={{ fontSize: 9.5 }}>{info.ages}</span>}
+              {!ok && !on && <span style={{ fontSize: 9.5, color: C.faint }}>{info.ages}</span>}
             </button>
           );
         })
@@ -478,7 +478,7 @@ function ClassGuide() {
           ))}
         </tbody>
       </table>
-      <div style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Students receive a recommendation notice when they reach the age and belt level to move into a more suitable class.</div>
+      <div style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Age groups are a guide; each student is placed by age, size and experience. Students receive a recommendation notice when they reach the age and belt level to move into a more suitable class.</div>
     </div>
   );
 }
