@@ -46,11 +46,14 @@ declare
 begin
   select * into s from invoice_settings where id = 1;
   if length(g_name) < 2 or length(g_name) > 80 then raise exception 'Please enter your name.'; end if;
-  if g_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' or length(g_email) > 120 then raise exception 'Please enter a valid email address.'; end if;
-  if length(regexp_replace(g_phone, '\D', '', 'g')) < 7 or length(g_phone) > 30 then raise exception 'Please enter a valid phone number.'; end if;
+  -- Email or phone: at least one. No email → the dojang texts the confirmation.
+  if g_email = '' and g_phone = '' then raise exception 'Please enter an email address or a phone number.'; end if;
+  if g_email <> '' and (g_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' or length(g_email) > 120) then raise exception 'Please enter a valid email address.'; end if;
+  if g_phone <> '' and (length(regexp_replace(g_phone, '\D', '', 'g')) < 7 or length(g_phone) > 30) then raise exception 'Please enter a valid phone number.'; end if;
   if jsonb_typeof(kids) <> 'array' or jsonb_array_length(kids) < 1 or jsonb_array_length(kids) > 4 then raise exception 'Please add 1 to 4 children.'; end if;
   -- Light spam guard: a handful of bookings per email per day.
-  select count(*) into n from tryouts where lower(guardian_email) = g_email and created_at > now() - interval '1 day';
+  select count(*) into n from tryouts where created_at > now() - interval '1 day'
+    and ((g_email <> '' and lower(guardian_email) = g_email) or (g_phone <> '' and guardian_phone = g_phone));
   if n >= 6 then raise exception 'Too many bookings today — please call or email us.'; end if;
 
   for k in select * from jsonb_array_elements(kids) loop
@@ -66,8 +69,8 @@ begin
     if not coalesce(slot_ok, false) then raise exception 'Sorry, % on % is no longer available — please pick another date.', k_class, to_char(k_date, 'FMMon FMDD'); end if;
 
     insert into tryouts (student_name, guardian_phone, guardian_email, class_name, date, time, status, notes)
-      values (k_name, g_phone, g_email, k_class, k_date, k_time, 'Scheduled',
-              'Booked online · age ' || k_age || case when note <> '' then ' · ' || note else '' end)
+      values (k_name, nullif(g_phone, ''), nullif(g_email, ''), k_class, k_date, k_time, 'Scheduled',
+              'Booked online · age ' || k_age || case when g_email = '' then ' · text the confirmation' else '' end || case when note <> '' then ' · ' || note else '' end)
       returning id into t_id;
 
     subj := replace(coalesce(s.tryout_subject, 'Trial class confirmed for {student}'), '{student}', split_part(k_name, ' ', 1));
@@ -79,8 +82,10 @@ begin
       '{class}', k_class), '{business}', coalesce(s.business_name, '')),
       '{address}', coalesce(s.address, '')), '{phone}', coalesce(s.phone, ''));
     msg := msg || E'\n\nReady to join after the trial? You can register online here: https://dojang-portal.netlify.app/join';
-    insert into email_queue (type, recipient_email, payload)
-      values ('tryout_confirmation', g_email, jsonb_build_object('subject', subj, 'message', msg, 'tryout_id', t_id));
+    if g_email <> '' then
+      insert into email_queue (type, recipient_email, payload)
+        values ('tryout_confirmation', g_email, jsonb_build_object('subject', subj, 'message', msg, 'tryout_id', t_id));
+    end if;
 
     lead_children := lead_children || jsonb_build_object('name', k_name, 'age', k_age);
     first_date := least(coalesce(first_date, k_date), k_date);
@@ -88,10 +93,14 @@ begin
   end loop;
 
   insert into leads (student_name, guardian_name, phone, email, source, inquiry_date, consult_date, status, notes, student_age, children)
-    values (lead_children->0->>'name', g_name, g_phone, g_email, 'Online', today, first_date, 'Consultation Scheduled',
+    values (lead_children->0->>'name', g_name, nullif(g_phone, ''), nullif(g_email, ''), 'Online', today, first_date, 'Consultation Scheduled',
             'Trial booked online' || case when heard <> '' then ' · heard from: ' || heard else '' end || case when note <> '' then ' · ' || note else '' end,
             (lead_children->0->>'age')::int, lead_children);
-  return out;
+  return jsonb_build_object('kids', out, 'emailed', g_email <> '');
 end $$;
 revoke all on function public.book_trial(jsonb) from public;
 grant execute on function public.book_trial(jsonb) to anon, authenticated;
+
+-- 041_trial_email_or_phone: the version of book_trial above already takes
+-- email OR phone (applied live as migration 041); phone-only bookings get
+-- a "text the confirmation" note instead of an email.

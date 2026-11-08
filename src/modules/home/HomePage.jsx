@@ -84,6 +84,7 @@ export default function HomePage({ setActiveTab }) {
       { data: slips },
       { data: regs },
       { data: expiring },
+      { data: toText },
       { data: emps },
       { data: n },
       s,
@@ -103,6 +104,7 @@ export default function HomePage({ setActiveTab }) {
       supabase.from('payslips').select('employee_id, pay_date, cpp, ei, tax, emailed_at').gte('pay_date', addDaysISO(today, -70)),
       supabase.from('registrations').select('id, kids').eq('status', 'new'),
       supabase.from('makeup_records').select('student_id, absence_date, expiration_date').eq('status', 'pending').gte('expiration_date', today).lte('expiration_date', addDaysISO(today, 7)).order('expiration_date'),
+      supabase.from('tryouts').select('student_name, date').eq('confirmation_sent', false).is('guardian_email', null).not('guardian_phone', 'is', null).gte('date', today).neq('status', 'Cancelled'),
       supabase.from('payroll_employees').select('id, name, email'),
       supabase.from('dashboard_notes').select('*').order('created_at'),
       loadSettings(),
@@ -145,6 +147,7 @@ export default function HomePage({ setActiveTab }) {
       slips: slips || [],
       regs: regs || [],
       expiring: expiring || [],
+      toText: toText || [],
       empById: Object.fromEntries((emps || []).map((e) => [e.id, e])),
       trackStart: trackingStart(recent || []),
       recordsBy: (recent || []).reduce((m, r) => ((m[r.student_id] = m[r.student_id] || []).push(r), m), {}),
@@ -241,6 +244,15 @@ export default function HomePage({ setActiveTab }) {
         detail: names.slice(0, 5).join(', ') + (names.length > 5 ? '…' : '') + ' — confirm classes and tuition in Enrollment.',
       });
     }
+    // Trials booked online with a phone only: text them the confirmation
+    if (d.toText.length)
+      out.push({
+        icon: CalendarDays,
+        tab: 'tryouts',
+        tone: 'warn',
+        title: `${d.toText.length} trial booking${d.toText.length === 1 ? '' : 's'} to confirm by text`,
+        detail: d.toText.map((t) => `${t.student_name} (${shortDay(t.date)})`).join(', ') + ' — tap Text in Trials.',
+      });
     // Make-ups expire 30 days after the missed class (Part 8.1)
     if (d.expiring.length) {
       const nameOf = (id) => d.students.find((x) => x.id === id)?.name || '?';

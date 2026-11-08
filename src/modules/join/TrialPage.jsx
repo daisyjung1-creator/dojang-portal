@@ -53,8 +53,13 @@ export default function TrialPage() {
       else if (!k.date) e.push(`${who}pick a trial date`);
     });
     if (fam.guardian_name.trim().length < 2) e.push('Your name');
-    if (!/^\S+@\S+\.\S+$/.test(fam.email.trim())) e.push('A valid email address');
-    if (fam.phone.replace(/\D/g, '').length < 7) e.push('Phone number');
+    const em = fam.email.trim();
+    const ph = fam.phone.replace(/\D/g, '');
+    if (!em && !ph) e.push('An email address or a phone number');
+    else {
+      if (em && !/^\S+@\S+\.\S+$/.test(em)) e.push('A valid email address');
+      if (fam.phone.trim() && ph.length < 7) e.push('A valid phone number');
+    }
     return e;
   }
   const errors = sendError ? [sendError] : tried ? validate() : [];
@@ -66,7 +71,7 @@ export default function TrialPage() {
       setTimeout(() => document.getElementById('trial-errors')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
       return;
     }
-    if (trap) return setDone([]);
+    if (trap) return setDone({ kids: [], emailed: true });
     setSaving(true);
     const { data, error } = await supabase.rpc('book_trial', {
       p: { ...fam, kids: kids.map((k) => ({ name: k.name.trim(), age: Number(k.age), date: k.date })) },
@@ -77,7 +82,7 @@ export default function TrialPage() {
       load();
       return;
     }
-    setDone(data || []);
+    setDone(data || { kids: [], emailed: true });
     window.scrollTo(0, 0);
   }
 
@@ -87,15 +92,15 @@ export default function TrialPage() {
         <div style={{ ...box, textAlign: 'center', padding: '32px 22px' }}>
           <img src={logoImg} alt="Hankook Taekwondo" style={{ width: 150, maxWidth: '60%', height: 'auto' }} />
           <h2 style={{ margin: '14px 0 10px', fontSize: 22 }}>You're booked!</h2>
-          {done.map((d) => (
+          {(done.kids || []).map((d) => (
             <div key={d.name} style={{ fontSize: 16, margin: '6px 0' }}>
               <b>{d.name}</b> — {d.class}, {longDay(d.date)} at {t12(d.time)}
             </div>
           ))}
           <p style={{ color: C.soft, margin: '14px auto 0', maxWidth: 440, lineHeight: 1.55 }}>
-            A confirmation email is on its way. Please arrive about 10 minutes early in comfortable clothes (t-shirt and track pants) and bring a water bottle.
+            {done.emailed ? 'A confirmation email is on its way.' : 'We’ll text you a confirmation shortly.'} Please arrive about 10 minutes early in comfortable clothes (t-shirt and track pants) and bring a water bottle.
           </p>
-          <p style={{ color: C.faint, fontSize: 13.5, marginTop: 16 }}>Need to change the date? Just reply to the email or write to {SCHOOL.email}.</p>
+          <p style={{ color: C.faint, fontSize: 13.5, marginTop: 16 }}>Need to change the date? Just reply to our {done.emailed ? 'email' : 'text'} or write to {SCHOOL.email}.</p>
         </div>
       </Page>
     );
@@ -166,9 +171,10 @@ export default function TrialPage() {
 
       <Section n="2" title="Your contact information">
         <In label="Parent/guardian name" req value={fam.guardian_name} onChange={setF('guardian_name')} autoComplete="name" />
+        <div style={{ fontSize: 13.5, color: C.soft, margin: '-4px 0 8px' }}>Email or phone — at least one <b style={{ color: C.red }}>*</b>. With a phone number only, we’ll text your confirmation.</div>
         <Row>
-          <In label="Email" req type="email" value={fam.email} onChange={setF('email')} autoComplete="email" />
-          <In label="Phone" req type="tel" value={fam.phone} onChange={setF('phone')} autoComplete="tel" />
+          <In label="Email" type="email" value={fam.email} onChange={setF('email')} autoComplete="email" />
+          <In label="Phone" type="tel" value={fam.phone} onChange={setF('phone')} autoComplete="tel" />
         </Row>
         <Label>How did you hear about us?</Label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>

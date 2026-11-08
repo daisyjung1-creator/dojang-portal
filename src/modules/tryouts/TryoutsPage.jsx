@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, Mail, Link2 } from 'lucide-react';
-import { TRIAL_LINK } from '../leads/LeadMessageModal';
+import { Plus, Pencil, Trash2, Check, Mail, Link2, MessageSquare } from 'lucide-react';
+import { TRIAL_LINK, JOIN_LINK } from '../leads/LeadMessageModal';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { TRYOUT_STATUSES } from '../../lib/constants';
@@ -47,6 +47,21 @@ export default function TryoutsPage({ setActiveTab }) {
       note: t.confirmation_sent ? 'A confirmation was already sent for this booking.' : '',
       tryoutId: t.id,
     });
+  }
+
+  // Text confirmation (opens the phone's messages app; free, sent from your phone).
+  function trialText(t) {
+    const v = tryoutVars(t, settings);
+    return `Hello, this is Master Daisy from ${v.business}. This confirms ${v.student}'s free trial class:\n${v.class} — ${v.date}, ${v.time}\n${v.address}\nPlease arrive 10 minutes early in comfortable clothes (t-shirt and track pants) and bring a water bottle. Ready to join after the trial? Register online: ${JOIN_LINK}`;
+  }
+  function smsHref(t) {
+    const phone = String(t.guardian_phone || '').replace(/[^\d+]/g, '');
+    return `sms:${phone}${/iPhone|iPad|Mac/i.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(trialText(t))}`;
+  }
+  async function markTexted(t) {
+    if (t.guardian_email || t.confirmation_sent) return;
+    await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', t.id);
+    setTryouts((prev) => prev.map((x) => (x.id === t.id ? { ...x, confirmation_sent: true } : x)));
   }
 
   async function fetchTryouts() {
@@ -174,13 +189,25 @@ export default function TryoutsPage({ setActiveTab }) {
                     <td>{t.date || '—'}</td>
                     <td>{timeLabel(t.time) || '—'}</td>
                     <td>
-                      {t.guardian_email ? (
-                        <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => openEmail(t)}>
-                          <Mail size={12} /> {t.confirmation_sent ? 'Sent ✓' : 'Send'}
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: 12.5, color: '#8A8D84' }}>No email</span>
-                      )}
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
+                        {t.guardian_email && (
+                          <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => openEmail(t)}>
+                            <Mail size={12} /> {t.confirmation_sent ? 'Sent ✓' : 'Send'}
+                          </button>
+                        )}
+                        {t.guardian_phone && (
+                          <a
+                            className="dp-btn"
+                            style={{ padding: '3px 8px', fontSize: 12, textDecoration: 'none', ...(!t.guardian_email && !t.confirmation_sent ? { background: '#BF1C21', color: '#fff', borderColor: '#BF1C21' } : {}) }}
+                            href={smsHref(t)}
+                            title="Opens your phone's messages with the confirmation written"
+                            onClick={() => markTexted(t)}
+                          >
+                            <MessageSquare size={12} /> {!t.guardian_email && t.confirmation_sent ? 'Texted ✓' : 'Text'}
+                          </a>
+                        )}
+                        {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12.5, color: '#8A8D84' }}>No contact</span>}
+                      </div>
                     </td>
                     <td>
                       <select
