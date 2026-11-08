@@ -45,7 +45,7 @@ const fitsAge = (c, age) => age == null || ((c.min == null || age >= c.min) && (
 const t12short = (t) => t12(t).replace(/ (am|pm)$/, '');
 const slotKey = (c) => `${c.weekday}:${c.class_name}`;
 
-const C = {
+export const C = {
   ink: '#20241F', soft: '#5B5F56', faint: '#8A8D84', line: '#E4E0D4', paper: '#FAF8F2', red: '#BF1C21', redSoft: '#FBEDEC', green: '#2A5A30',
 };
 
@@ -385,14 +385,14 @@ export default function JoinPage() {
 }
 
 // ---------- layout pieces ----------
-const box = { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 };
+export const box = { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 };
 const small = { fontSize: 13.5, lineHeight: 1.55, color: C.ink };
 const check = { display: 'flex', gap: 10, alignItems: 'center', fontSize: 15, cursor: 'pointer' };
-const btn = { border: `1px solid ${C.line}`, borderRadius: 10, padding: '11px 16px', fontSize: 15, cursor: 'pointer', color: C.ink, fontFamily: 'inherit' };
-const linkBtn = { background: 'none', border: 'none', padding: 0, color: C.red, fontSize: 13.5, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' };
+export const btn = { border: `1px solid ${C.line}`, borderRadius: 10, padding: '11px 16px', fontSize: 15, cursor: 'pointer', color: C.ink, fontFamily: 'inherit' };
+export const linkBtn = { background: 'none', border: 'none', padding: 0, color: C.red, fontSize: 13.5, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' };
 const field = { width: '100%', boxSizing: 'border-box', border: `1px solid #D6D2C4`, borderRadius: 9, padding: '11px 12px', fontSize: 16, fontFamily: 'inherit', color: C.ink, background: '#fff' };
 
-function Page({ children }) {
+export function Page({ children, subtitle = 'Student Registration & Membership Agreement' }) {
   return (
     <div style={{ minHeight: '100vh', background: C.paper, fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', color: C.ink }}>
       <div style={{ background: C.ink, color: '#fff', padding: '18px 16px' }}>
@@ -400,7 +400,7 @@ function Page({ children }) {
           <img src={markImg} alt="Hankook Taekwondo" style={{ width: 50, height: 50, objectFit: 'contain', background: '#fff', borderRadius: 10, padding: 3, flex: 'none' }} />
           <div>
             <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '0.01em' }}>{SCHOOL.name}</div>
-            <div style={{ fontSize: 13.5, opacity: 0.75 }}>Student Registration & Membership Agreement</div>
+            <div style={{ fontSize: 13.5, opacity: 0.75 }}>{subtitle}</div>
           </div>
         </div>
       </div>
@@ -409,7 +409,7 @@ function Page({ children }) {
     </div>
   );
 }
-function Section({ n, title, children }) {
+export function Section({ n, title, children }) {
   return (
     <section style={{ marginBottom: 26 }}>
       <h2 style={{ fontSize: 17, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -420,13 +420,13 @@ function Section({ n, title, children }) {
     </section>
   );
 }
-function Label({ req, children }) {
+export function Label({ req, children }) {
   return <div style={{ fontSize: 14, fontWeight: 600, margin: '4px 0 6px', lineHeight: 1.4 }}>{children}{req && <b style={{ color: C.red }}> *</b>}</div>;
 }
-function Row({ children }) {
+export function Row({ children }) {
   return <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0 12px' }}>{React.Children.map(children, (c) => c && <div style={{ flex: '1 1 220px', minWidth: 0 }}>{c}</div>)}</div>;
 }
-function In({ label, req, style, ...p }) {
+export function In({ label, req, style, ...p }) {
   return (
     <label style={{ display: 'block', marginBottom: 12 }}>
       <Label req={req}>{label}</Label>
@@ -434,7 +434,7 @@ function In({ label, req, style, ...p }) {
     </label>
   );
 }
-function Area({ label, req, ...p }) {
+export function Area({ label, req, ...p }) {
   return (
     <label style={{ display: 'block', marginBottom: 12 }}>
       <Label req={req}>{label}</Label>
@@ -442,7 +442,7 @@ function Area({ label, req, ...p }) {
     </label>
   );
 }
-function Chip({ on, onClick, children }) {
+export function Chip({ on, onClick, children }) {
   return (
     <button type="button" onClick={onClick} style={{ ...btn, padding: '9px 13px', fontSize: 14.5, background: on ? C.ink : '#fff', color: on ? '#fff' : C.ink, borderColor: on ? C.ink : '#D6D2C4' }}>
       {on ? '✓ ' : ''}{children}

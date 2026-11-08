@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, Mail } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Mail, Link2 } from 'lucide-react';
+import { TRIAL_LINK } from '../leads/LeadMessageModal';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { TRYOUT_STATUSES } from '../../lib/constants';
@@ -25,6 +26,7 @@ export default function TryoutsPage({ setActiveTab }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [settings, setSettings] = useState({});
   const [email, setEmail] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchTryouts();
@@ -120,10 +122,18 @@ export default function TryoutsPage({ setActiveTab }) {
           <h1 style={styles.title}>Trials</h1>
           <p style={styles.subtitle}>{tryouts.length} trial bookings</p>
         </div>
-        <button className="dp-btn dp-btn-primary" onClick={openAdd}>
-          <Plus size={15} /> Add Booking
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="dp-btn" title={TRIAL_LINK} onClick={async () => { try { await navigator.clipboard.writeText(TRIAL_LINK); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', TRIAL_LINK); } }}>
+            {copied ? <Check size={15} /> : <Link2 size={15} />} {copied ? 'Copied' : 'Copy booking link'}
+          </button>
+          <button className="dp-btn dp-btn-primary" onClick={openAdd}>
+            <Plus size={15} /> Add Booking
+          </button>
+        </div>
       </div>
+      <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '-6px 0 12px' }}>
+        Families can book a free trial themselves at {TRIAL_LINK} — up to {settings.trial_capacity ?? 3} trials per class, next {settings.trial_days_ahead ?? 21} days. Online bookings show here as “Booked online” and in Leads.
+      </p>
 
       <div style={styles.filterBar}>
         <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>

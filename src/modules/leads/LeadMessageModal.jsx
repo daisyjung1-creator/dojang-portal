@@ -13,6 +13,7 @@ export const TRIAL_CLASSES = {
 export const KIDSPORT_URL = 'https://kidsport.smartsimple.ca/s_Login.jsp';
 // Online registration form (the live site, so links work from any preview too).
 export const JOIN_LINK = 'https://dojang-portal.netlify.app/join';
+export const TRIAL_LINK = 'https://dojang-portal.netlify.app/trial';
 const DOJANG = 'Edmonton Champion Hankook Taekwondo';
 const PHONE = '780-450-0181';
 
@@ -26,7 +27,7 @@ const list = (xs) => (xs.length <= 1 ? xs[0] || '' : xs.slice(0, -1).join(', ') 
 // A child without a name is called by age ("your 8-year-old"), or just "your child".
 const labelOf = (k, many) => first(k.name) || (k.age !== '' && k.age != null ? `your ${k.age}-year-old` : many ? 'one of your children' : 'your child');
 
-export function leadMessage({ lead, kids, kidsport, join = true, kind }) {
+export function leadMessage({ lead, kids, kidsport, join = true, book = true, kind }) {
   const named = kids.filter((k) => first(k.name));
   const many = kids.length > 1;
   const noNames = !named.length;
@@ -53,7 +54,7 @@ export function leadMessage({ lead, kids, kidsport, join = true, kind }) {
         : groups.map((g) => `${cap(nameOf(g))}: ${g.c.label} class (${g.c.short})`).join('\n');
     return [
       `${hello} this is Master Daisy from ${DOJANG}. Thank you for your interest!`,
-      `${groups.length === 1 ? offer : 'For the trial classes:\n' + offer}\nWhich date works best for the trial class${many ? 'es' : ''}?`,
+      `${groups.length === 1 ? offer : 'For the trial classes:\n' + offer}\n${book ? `Book the trial here: ${TRIAL_LINK} (or just reply with the date that works best).` : `Which date works best for the trial class${many ? 'es' : ''}?`}`,
       join ? `When you're ready to join, you can register online here: ${JOIN_LINK}` : '',
       kidsport ? `For the KidSport grant: ${kidsportText}` : '',
     ]
@@ -70,7 +71,9 @@ export function leadMessage({ lead, kids, kidsport, join = true, kind }) {
       hello,
       `Thank you for your interest in ${DOJANG}! We would love to have ${who} join us for a trial class.`,
       offer,
-      'Please reply with the date that works best for you, and we will book the trial class' + (many ? 'es.' : '.'),
+      book
+        ? `You can pick a date and book the trial class${many ? 'es' : ''} yourself here:\n${TRIAL_LINK}\nOr just reply with the date that works best for you, and we will book it for you.`
+        : 'Please reply with the date that works best for you, and we will book the trial class' + (many ? 'es.' : '.'),
       join ? `When you're ready to join, you can register online here (it takes about 5 minutes):\n${JOIN_LINK}` : '',
       kidsport
         ? `KidSport grant (help with fees for families who qualify):\n1. First, sign up for an account here: ${KIDSPORT_URL}\n2. When you bring in the enrollment form${many ? 's' : ''}, we will give you the Proof of Enrollment and all the information you need for the application.`
@@ -94,6 +97,7 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
   const [kids, setKids] = useState(kidsOf(lead));
   const [kidsport, setKidsport] = useState(true);
   const [join, setJoin] = useState(true);
+  const [book, setBook] = useState(true);
   const [kind, setKind] = useState(lead.email ? 'email' : 'text');
   const [email, setEmail] = useState(lead.email || '');
   const [subject, setSubject] = useState('');
@@ -104,13 +108,13 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
   // Rewrite the message whenever the options change.
   const key = JSON.stringify(kids.map((k) => [k.name, k.cls]));
   useEffect(() => {
-    if (kind === 'text') setBody(leadMessage({ lead, kids, kidsport, join, kind }));
+    if (kind === 'text') setBody(leadMessage({ lead, kids, kidsport, join, book, kind }));
     else {
-      const m = leadMessage({ lead, kids, kidsport, join, kind });
+      const m = leadMessage({ lead, kids, kidsport, join, book, kind });
       setSubject(m.subject);
       setBody(m.body);
     }
-  }, [key, kidsport, join, kind]);
+  }, [key, kidsport, join, book, kind]);
   const setKid = (i, patch) => setKids(kids.map((k, j) => (j === i ? { ...k, ...patch } : k)));
 
   async function markContacted(how) {
@@ -206,6 +210,9 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
         </label>
         <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
           <input type="checkbox" checked={join} onChange={(e) => setJoin(e.target.checked)} /> Include the online registration link
+        </label>
+        <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <input type="checkbox" checked={book} onChange={(e) => setBook(e.target.checked)} /> Include the trial booking link
         </label>
       </div>
       <p style={{ fontSize: 11.5, color: '#8A8D84', margin: '-6px 0 12px' }}>Under 10 → Beginner · 11 and up → Intermediate B (10 years old: pick one).</p>
