@@ -10,13 +10,18 @@ import { Page, Section, Label, Row, In, Area, Chip, C, box, btn, linkBtn } from 
 // portal and a confirmation email goes out (the dojang gets a copy).
 
 const classForAge = (age) => (age === '' || age == null ? null : Number(age) >= 11 ? 'Intermediate B' : 'Beginner');
+// Trial classes a child can pick: black belt → Advance (Poomsae or Sparring),
+// color belt → Intermediate A, new students by age.
+const trialClasses = (k) =>
+  k.experience === 'Black belt' ? ['Advance Poomsae', 'Advance Sparring'] : k.experience === 'Color belt' ? ['Intermediate A'] : k.experience === 'None' ? [classForAge(k.age)].filter(Boolean) : [];
+const shortClass = (c) => c.replace('Advance ', '');
 const t12 = (t) => {
   const [h, m] = String(t || '').split(':').map(Number);
   return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'pm' : 'am'}`;
 };
 const dayLabel = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
 const longDay = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' });
-const emptyKid = () => ({ name: '', age: '', experience: '', date: '' });
+const emptyKid = () => ({ name: '', age: '', experience: '', date: '', cls: '' });
 export const EXPERIENCE = [
   { value: 'None', label: 'No experience' },
   { value: 'Color belt', label: 'Color belt (Intermediate)' },
@@ -47,7 +52,7 @@ export default function TrialPage() {
     return m;
   }, [slots]);
   // Seats a child takes from a session's free spots when siblings pick the same one.
-  const takenHere = (cls, date, except) => kids.filter((k, j) => j !== except && classForAge(k.age) === cls && k.date === date).length;
+  const takenHere = (cls, date, except) => kids.filter((k, j) => j !== except && k.cls === cls && k.date === date).length;
 
   function validate() {
     const e = [];
@@ -80,7 +85,7 @@ export default function TrialPage() {
     if (trap) return setDone({ kids: [], emailed: true });
     setSaving(true);
     const { data, error } = await supabase.rpc('book_trial', {
-      p: { ...fam, kids: kids.map((k) => ({ name: k.name.trim(), age: Number(k.age), experience: k.experience, date: k.date })) },
+      p: { ...fam, kids: kids.map((k) => ({ name: k.name.trim(), age: Number(k.age), experience: k.experience, class: k.cls, date: k.date })) },
     });
     setSaving(false);
     if (error) {
@@ -120,11 +125,12 @@ export default function TrialPage() {
 
       <Section n="1" title="Who's coming?">
         <div style={{ fontSize: 13.5, color: C.soft, marginBottom: 12, lineHeight: 1.5 }}>
-          Trial classes: <b>10 and under</b> — Beginner, Tue &amp; Thu 4:30–5:20 pm · <b>11 and up</b> — Intermediate B, Mon &amp; Wed 4:30–5:20 pm
+          New students: <b>10 and under</b> — Beginner, Tue &amp; Thu 4:30–5:20 pm · <b>11 and up</b> — Intermediate B, Mon &amp; Wed 4:30–5:20 pm · Color belts: Intermediate A · Black belts: Advance classes
         </div>
         {kids.map((k, i) => {
-          const cls = classForAge(k.age);
-          const list = cls ? byClass[cls] || [] : [];
+          const classes = k.age === '' ? [] : trialClasses(k);
+          const cls = classes.length ? classes.join(' / ') : null;
+          const list = classes.flatMap((c) => byClass[c] || []).sort((a, b) => (a.date === b.date ? (a.start_time < b.start_time ? -1 : 1) : a.date < b.date ? -1 : 1));
           return (
             <div key={i} style={{ ...box, marginBottom: 14, ...(kids.length > 1 ? { borderLeft: `4px solid ${C.red}` } : {}) }}>
               {kids.length > 1 && (
@@ -135,18 +141,18 @@ export default function TrialPage() {
               )}
               <Row>
                 <In label="Name" req value={k.name} onChange={(e) => setKid(i, { name: e.target.value })} autoComplete="off" />
-                <In label="Age" req type="number" inputMode="numeric" min={3} max={80} value={k.age} onChange={(e) => setKid(i, { age: e.target.value, date: '' })} style={{ maxWidth: 120 }} />
+                <In label="Age" req type="number" inputMode="numeric" min={3} max={80} value={k.age} onChange={(e) => setKid(i, { age: e.target.value, date: '', cls: '' })} style={{ maxWidth: 120 }} />
               </Row>
               <Label req>Taekwondo experience</Label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                {EXPERIENCE.map((x) => <Chip key={x.value} on={k.experience === x.value} onClick={() => setKid(i, { experience: x.value })}>{x.label}</Chip>)}
+                {EXPERIENCE.map((x) => <Chip key={x.value} on={k.experience === x.value} onClick={() => setKid(i, { experience: x.value, date: '', cls: '' })}>{x.label}</Chip>)}
               </div>
               {k.experience && k.experience !== 'None' && (
-                <div style={{ fontSize: 13.5, color: C.green, margin: '-4px 0 12px' }}>Great! Book any date below — we'll confirm the best class for {k.name.trim().split(' ')[0] || 'your child'}'s level.</div>
+                <div style={{ fontSize: 13.5, color: C.green, margin: '-4px 0 12px' }}>{k.experience === 'Black belt' ? 'Great! Pick an Advance class below (Poomsae or Sparring).' : 'Great! Pick an Intermediate A class below.'} We'll confirm the best class for {k.name.trim().split(' ')[0] || 'your child'}'s level.</div>
               )}
               {cls && (
                 <>
-                  <Label req>Pick a trial date — {cls}, {list[0] ? `${t12(list[0].start_time)}–${t12(list[0].end_time)}` : '4:30 pm'}</Label>
+                  <Label req>Pick a trial date — {cls}{classes.length === 1 && list[0] ? `, ${t12(list[0].start_time)}–${t12(list[0].end_time)}` : ''}</Label>
                   {slots == null ? (
                     <div style={{ fontSize: 13.5, color: C.faint }}>Loading dates…</div>
                   ) : list.length === 0 ? (
@@ -154,17 +160,17 @@ export default function TrialPage() {
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {list.map((s) => {
-                        const full = s.booked + takenHere(cls, s.date, i) >= s.capacity;
-                        const on = k.date === s.date;
+                        const full = s.booked + takenHere(s.class_name, s.date, i) >= s.capacity;
+                        const on = k.date === s.date && k.cls === s.class_name;
                         return (
                           <button
-                            key={s.date}
+                            key={s.date + s.class_name}
                             type="button"
                             disabled={full && !on}
-                            onClick={() => setKid(i, { date: on ? '' : s.date })}
+                            onClick={() => setKid(i, on ? { date: '', cls: '' } : { date: s.date, cls: s.class_name })}
                             style={{ ...btn, padding: '9px 12px', fontSize: 14.5, background: on ? C.red : full ? '#F1EFE7' : '#fff', color: on ? '#fff' : full ? C.faint : C.ink, borderColor: on ? C.red : '#D6D2C4', cursor: full && !on ? 'not-allowed' : 'pointer' }}
                           >
-                            {on ? '✓ ' : ''}{dayLabel(s.date)}{full && !on ? ' · full' : ''}
+                            {on ? '✓ ' : ''}{dayLabel(s.date)}{classes.length > 1 ? ` · ${shortClass(s.class_name)} ${t12(s.start_time)}` : ''}{full && !on ? ' · full' : ''}
                           </button>
                         );
                       })}
