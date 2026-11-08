@@ -97,7 +97,7 @@ export async function buildRegistrationPdf(r: Record<string, any>): Promise<Uint
   row('Training frequency', freqLabel(r));
   row('Membership & payment', r.plan || '-');
   row('Preferred start date', fdate(r.start_date));
-  para('Tuition, taxes and payment dates are confirmed by the Dojang. Pre-authorized credit card payments start after a separate Credit Card Authorization is completed.', { color: mute, size: 8.2 });
+  para('The Dojang confirms the start date and payment dates by email. Pre-authorized credit card payments start after a separate Credit Card Authorization is completed.', { color: mute, size: 8.2 });
 
   for (const t of TERMS) {
     heading(t.title);

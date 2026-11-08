@@ -4,7 +4,7 @@ import logoImg from '../../assets/logo.png';
 import markImg from '../../assets/logo-mark.png';
 import {
   AGREEMENT_VERSION, SCHOOL, HEARD_FROM, FREQUENCIES, PLAN_CHOICES, EMERGENCY_AUTH, TERMS,
-  PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO, boldParts,
+  PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO, boldParts, TUITION,
 } from '../../lib/agreement';
 
 // Public registration form (no login): /join
@@ -289,9 +289,24 @@ export default function JoinPage() {
             <Option key={p.value} on={plan === p.value} onClick={() => setPlan(p.value)} title={p.label} note={p.note} />
           ))}
         </div>
+        {(() => {
+          const t = TUITION[frequency];
+          if (!t || !plan) return null;
+          const three = !plan.startsWith('Monthly');
+          const amt = three ? t.three : t.month;
+          return (
+            <div style={{ ...box, background: '#FFF7F6', borderColor: '#F0C9C6', marginBottom: 12, fontSize: 15 }}>
+              {amt ? (
+                <>Tuition: <b>${amt}{three ? ' for three months' : ' per month'}</b> <span style={{ color: C.soft }}>+ 5% GST</span>{kids.length > 1 ? <span style={{ color: C.soft }}> · per student</span> : null}</>
+              ) : (
+                <>Tuition for this option: the Dojang will confirm it with you.</>
+              )}
+            </div>
+          );
+        })()}
         <In label="Preferred start date" type="date" value={startDate} min={today()} onChange={(e) => setStartDate(e.target.value)} style={{ maxWidth: 220 }} />
         <p style={{ ...small, color: C.soft, margin: '4px 0 0' }}>
-          The Dojang will confirm tuition, taxes and payment dates with you.{plan.includes('Credit Card') ? ' Your credit card details are collected separately at the Dojang (a separate Credit Card Authorization) — please don’t enter them here.' : ''}
+          The Dojang will confirm your start date and payment dates by email.{plan.includes('Credit Card') ? ' Your credit card details are collected separately at the Dojang (a separate Credit Card Authorization) — please don’t enter them here.' : ''}
         </p>
       </Section>
 
