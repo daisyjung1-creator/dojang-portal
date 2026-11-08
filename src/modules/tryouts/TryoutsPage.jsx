@@ -13,7 +13,7 @@ import { fillTemplate, tryoutVars, timeLabel } from '../../lib/emailTemplates';
 
 // Trials are usually at 4:30 pm (changeable in Invoice Settings).
 function emptyForm(time = '16:30') {
-  return { student_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time, status: 'Scheduled', notes: '' };
+  return { student_name: '', student_age: '', guardian_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time, status: 'Scheduled', notes: '' };
 }
 
 export default function TryoutsPage({ setActiveTab }) {
@@ -88,11 +88,12 @@ export default function TryoutsPage({ setActiveTab }) {
       setFormError('Please enter a student name.');
       return;
     }
+    const row = { ...form, student_age: form.student_age === '' || form.student_age == null ? null : Number(form.student_age), guardian_name: (form.guardian_name || '').trim() || null };
     let submitError;
     if (editingId) {
-      ({ error: submitError } = await supabase.from('tryouts').update(form).eq('id', editingId));
+      ({ error: submitError } = await supabase.from('tryouts').update(row).eq('id', editingId));
     } else {
-      const { data, error } = await supabase.from('tryouts').insert(form).select().single();
+      const { data, error } = await supabase.from('tryouts').insert(row).select().single();
       submitError = error;
       // New booking with an email: show the confirmation to review and send.
       if (!error && data && (data.guardian_email || '').trim()) {
@@ -123,7 +124,7 @@ export default function TryoutsPage({ setActiveTab }) {
 
   async function convertToRegistration(t) {
     await setStatus(t.id, 'Converted');
-    sessionStorage.setItem('registerDraft', JSON.stringify({ name: t.student_name, guardian_phone: t.guardian_phone, guardian_email: t.guardian_email, class_name: t.class_name }));
+    sessionStorage.setItem('registerDraft', JSON.stringify({ name: t.student_name, guardian_name: t.guardian_name, guardian_phone: t.guardian_phone, guardian_email: t.guardian_email, class_name: t.class_name }));
     setActiveTab('register');
   }
 
@@ -179,6 +180,7 @@ export default function TryoutsPage({ setActiveTab }) {
             <thead>
               <tr>
                 <th>Student</th>
+                <th>Parent</th>
                 <th>Phone</th>
                 <th>Interested Class</th>
                 <th>Date</th>
@@ -193,7 +195,12 @@ export default function TryoutsPage({ setActiveTab }) {
                 const meta = statusMeta(t.status);
                 return (
                   <tr key={t.id} className="dp-row">
-                    <td style={{ fontWeight: 500 }}>{t.student_name}</td>
+                    <td style={{ fontWeight: 500 }}>
+                      {t.student_name}
+                      {t.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84' }}> · {t.student_age}y</span>}
+                      {/^Booked online/.test(t.notes || '') && <div style={{ fontSize: 11, color: '#1E4566', fontWeight: 400 }}>Booked online</div>}
+                    </td>
+                    <td>{t.guardian_name || '—'}</td>
                     <td>{t.guardian_phone || '—'}</td>
                     <td>{t.class_name || '—'}</td>
                     <td>{t.date || '—'}</td>
@@ -271,8 +278,29 @@ export default function TryoutsPage({ setActiveTab }) {
             </>
           }
         >
-          <Field label="Student Name" required>
-            <input className="dp-input" style={{ width: '100%' }} value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
+          <div style={styles.formRow}>
+            <Field label="Student Name" required>
+              <input className="dp-input" style={{ width: '100%' }} value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
+            </Field>
+            <Field label="Age">
+              <input
+                type="number"
+                min={3}
+                max={80}
+                className="dp-input"
+                style={{ width: 90 }}
+                value={form.student_age ?? ''}
+                onChange={(e) => {
+                  const age = e.target.value;
+                  // New booking: suggest the trial class by age (10 and under → Beginner, 11+ → Intermediate B).
+                  const suggest = age === '' ? form.class_name : Number(age) >= 11 ? 'Intermediate B' : 'Beginner';
+                  setForm({ ...form, student_age: age, class_name: editingId || form.class_name && !['Beginner', 'Intermediate B'].includes(form.class_name) ? form.class_name : suggest });
+                }}
+              />
+            </Field>
+          </div>
+          <Field label="Parent / Guardian Name">
+            <input className="dp-input" style={{ width: '100%' }} value={form.guardian_name || ''} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />
           </Field>
           <Field label="Guardian Phone">
             <input className="dp-input" style={{ width: '100%' }} value={form.guardian_phone || ''} onChange={(e) => setForm({ ...form, guardian_phone: e.target.value })} />
