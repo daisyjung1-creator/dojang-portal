@@ -843,6 +843,6 @@ function Badge({ c, title, children }) {
 // Standard tuition (before GST) for a number of classes a week.
 export function suggestedTuition(perWeek, plan) {
   if (!perWeek) return '';
-  if (plan === '3 Months') return perWeek === 2 ? 435 : '';
-  return perWeek === 1 ? 135 : perWeek === 2 ? 150 : 200;
+  if (plan === '3 Months') return perWeek === 2 ? 435 : perWeek === 3 ? 495 : perWeek >= 4 ? 585 : '';
+  return perWeek === 1 ? 135 : perWeek === 2 ? 150 : perWeek === 3 ? 170 : 200;
 }

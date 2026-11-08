@@ -4,7 +4,7 @@
 // Shown on the public /join form and printed with each online registration.
 // Change AGREEMENT_VERSION whenever the wording changes, so each signed
 // registration records which version the family agreed to.
-export const AGREEMENT_VERSION = '2026-11-e';
+export const AGREEMENT_VERSION = '2026-11-f';
 
 export const SCHOOL = {
   name: 'Champion Hankook Taekwondo',
@@ -29,8 +29,8 @@ export const FREQUENCIES = [
 // Tuition (before 5% GST). three: null = not offered / ask the Dojang.
 export const TUITION = {
   2: { month: 150, three: 435 },
-  3: { month: 200, three: null },
-  4: { month: 200, three: null },
+  3: { month: 170, three: 495 },
+  4: { month: 200, three: 585 },
 };
 export const GST_NOTE = 'All tuition is subject to 5% GST.';
 
@@ -57,7 +57,7 @@ export const TERMS = [
     body: [
       'Champion Hankook Taekwondo offers monthly and three-month memberships. **Monthly payment is available only with pre-authorized credit card payments**; members who pay by cash, debit card or e-transfer pay three months in advance.',
       '**Tuition:**',
-      { list: ['2 classes per week: **$150 per month**, or **$435 for three months**', '3 or 4 classes per week: **$200 per month**'] },
+      { list: ['2 classes per week: **$150 per month**, or **$435 for three months**', '3 classes per week: **$170 per month**, or **$495 for three months**', '4 classes per week: **$200 per month**, or **$585 for three months**'] },
       'All tuition is subject to 5% GST.',
       'The guaranteed number of classes applies to **each fully paid monthly service period**; for three-month memberships, it applies to each month of the period. Additional regularly scheduled classes may be available depending on the calendar and program schedule.',
       'The Dojang will confirm the membership start date and payment dates by email before the first payment.',
