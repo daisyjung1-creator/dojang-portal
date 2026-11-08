@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Globe, Copy, Eye, Printer, X, ArrowDownToLine, Check } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
-import { SCHOOL, TERMS, EMERGENCY_AUTH, ACKNOWLEDGMENTS, PHOTO_YES, PHOTO_NO, FREQUENCIES } from '../../lib/agreement';
+import { SCHOOL, INTRO, TERMS, EMERGENCY_AUTH, ACKNOWLEDGMENTS, PHOTO_YES, PHOTO_NO, FREQUENCIES } from '../../lib/agreement';
 
 // Registrations families sent from the public /join form, waiting for review.
 export const JOIN_URL = `${window.location.origin}/join`;
@@ -130,11 +130,11 @@ export function printAgreement(r) {
   ${summaryHtml(r).replace(/<h3 style="[^"]*">/g, '<h2>').replace(/<\/h3>/g, '</h2>')}
   <h2>Emergency authorization</h2>${EMERGENCY_AUTH.map((p) => `<p>${esc(p)}</p>`).join('')}
   <h2>Photo &amp; video consent</h2><p>☒ ${esc(r.photo_consent ? PHOTO_YES : PHOTO_NO)}</p>
-  <h2>Terms</h2><div class="cols">${terms}</div>
+  <h2>Terms</h2>${INTRO.map((p) => `<p><i>${esc(p)}</i></p>`).join('')}<div class="cols">${terms}</div>
   <h2>Acknowledgment &amp; signature</h2><ul>${ACKNOWLEDGMENTS.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>
   <table style="margin-top:8px"><tr><td class="k">${r.adult_student ? 'Adult student signature' : 'Parent/guardian signature'}</td><td class="sig">${esc(r.signature_name)}</td></tr>
   <tr><td class="k">Date</td><td>${esc(fmtDate(r.signed_on))} (signed online, agreement version ${esc(r.agreement_version)})</td></tr>
-  <tr><td class="k">School representative</td><td>__________________________ &nbsp; Date: ____________</td></tr></table>
+  <tr><td class="k">Dojang representative</td><td>__________________________ &nbsp; Date: ____________</td></tr></table>
   <script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`);
   w.document.close();
 }

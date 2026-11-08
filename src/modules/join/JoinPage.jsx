@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import {
   AGREEMENT_VERSION, SCHOOL, HEARD_FROM, FREQUENCIES, PLAN_CHOICES, EMERGENCY_AUTH, TERMS,
-  PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS,
+  PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO,
 } from '../../lib/agreement';
 
 // Public registration form (no login): /join
 // Families fill in the Student Registration & Membership Agreement online.
-// It is saved as a pending registration; the school reviews it in the portal
+// It is saved as a pending registration; the Dojang reviews it in the portal
 // (Enrollment tab), confirms classes and tuition, and creates the students.
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -28,14 +28,26 @@ const ageOn = (dob, on) => {
   return y >= 0 && y < 120 ? y : null;
 };
 // New students start in: 10 and under → Beginner, 11 and up → Intermediate B.
-const recommendedClass = (age) => (age == null ? null : age <= 10 ? 'Beginner' : 'Intermediate B');
+// Classes families can choose online (Comp Team, its Advance Poomsae /
+// Sparring sessions and HP are by invitation, so they aren't offered here).
+// Same guide as the printed class schedule.
+export const JOIN_CLASSES = [
+  { name: 'Beginner', short: 'Beginner', grid: 'Beginner', ages: 'All ages', belts: 'White – Green', min: null, max: null },
+  { name: 'Beginner/Intermediate', short: 'Beg/Inter', grid: 'Beg/Inter', ages: 'Age 12 & under', belts: 'White – Blue', min: null, max: 12 },
+  { name: 'Intermediate A', short: 'Intermediate A', grid: 'Inter A', ages: 'Age 8 to 12', belts: 'Yellow – Red', min: 8, max: 12 },
+  { name: 'Intermediate B', short: 'Intermediate B', grid: 'Inter B', ages: 'Age 12 & up', belts: 'Yellow – Red', min: 12, max: null },
+  { name: 'Intermediate/Advance', short: 'Inter/Adv', grid: 'Inter/Adv', ages: 'Age 8 & up', belts: 'Green – Red', min: 8, max: null },
+];
+const classInfo = Object.fromEntries(JOIN_CLASSES.map((c) => [c.name, c]));
+const fitsAge = (c, age) => age == null || ((c.min == null || age >= c.min) && (c.max == null || age <= c.max));
+const t12short = (t) => t12(t).replace(/ (am|pm)$/, '');
 const slotKey = (c) => `${c.weekday}:${c.class_name}`;
 
 const C = {
   ink: '#20241F', soft: '#5B5F56', faint: '#8A8D84', line: '#E4E0D4', paper: '#FAF8F2', red: '#BF1C21', redSoft: '#FBEDEC', green: '#2A5A30',
 };
 
-const emptyKid = () => ({ first: '', last: '', dob: '', medical: '', medical_detail: '', instructions: '', slots: [], showAll: false });
+const emptyKid = () => ({ first: '', last: '', dob: '', medical: '', medical_detail: '', instructions: '', slots: [] });
 
 export default function JoinPage() {
   const [logo, setLogo] = useState(null);
@@ -150,7 +162,7 @@ export default function JoinPage() {
             We've received your registration. Master Daisy will confirm the class schedule, tuition and payment details with you by email or phone.
           </p>
           {done.row?.plan?.includes('PAD') && (
-            <p style={{ color: C.soft, margin: '10px auto 0', maxWidth: 440, lineHeight: 1.55 }}>A separate PAD agreement is completed at the school before automatic payments begin.</p>
+            <p style={{ color: C.soft, margin: '10px auto 0', maxWidth: 440, lineHeight: 1.55 }}>A separate PAD Agreement is completed at the Dojang before automatic payments begin.</p>
           )}
           <p style={{ color: C.faint, fontSize: 13.5, marginTop: 18 }}>Questions? {SCHOOL.email}</p>
         </div>
@@ -172,11 +184,9 @@ export default function JoinPage() {
           <input type="checkbox" checked={adult} onChange={(e) => { setAdult(e.target.checked); if (e.target.checked) setKids((l) => l.slice(0, 1)); }} />
           <span>I am registering myself (18 or older)</span>
         </label>
+        <ClassGuide />
         {kids.map((k, i) => {
           const age = ageOn(k.dob, startDate);
-          const rec = recommendedClass(age);
-          const recSlots = schedule.filter((c) => c.class_name === rec);
-          const shown = k.showAll || !rec || !recSlots.length ? schedule : recSlots;
           return (
             <div key={i} style={{ ...box, marginBottom: 14, ...(kids.length > 1 ? { borderLeft: `4px solid ${C.red}` } : {}) }}>
               {kids.length > 1 && (
@@ -201,30 +211,17 @@ export default function JoinPage() {
               {k.medical === 'yes' && <Area label="Please explain" req value={k.medical_detail} onChange={(e) => setKid(i, { medical_detail: e.target.value })} />}
               <Area label="Emergency instructions or activity restrictions (optional)" value={k.instructions} onChange={(e) => setKid(i, { instructions: e.target.value })} />
 
-              <Label>Which classes would {name(k)} like to come to? <span style={{ color: C.faint, fontWeight: 400 }}>Tap each day. The school will confirm.</span></Label>
+              <Label>Which classes would {name(k)} like to come to? <span style={{ color: C.faint, fontWeight: 400 }}>Tap each class. The Dojang will confirm.</span></Label>
               {!schedule.length ? (
                 <div style={{ fontSize: 13.5, color: C.faint }}>Loading the class schedule…</div>
               ) : (
                 <>
-                  {rec && recSlots.length > 0 && !k.showAll && (
-                    <div style={{ fontSize: 13, color: C.green, marginBottom: 6 }}>New students age {age} usually start in <b>{rec}</b>.</div>
+                  {age != null && (
+                    <div style={{ fontSize: 13, color: C.green, marginBottom: 6 }}>
+                      For age {age}: {JOIN_CLASSES.filter((c) => fitsAge(c, age)).map((c) => c.short).join(', ')}. New students (white belt) usually start in {JOIN_CLASSES.filter((c) => c.belts.startsWith('White') && fitsAge(c, age)).map((c) => c.short).join(' or ')}.
+                    </div>
                   )}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {shown.map((c) => {
-                      const key = slotKey(c);
-                      const on = k.slots.includes(key);
-                      return (
-                        <Chip key={key} on={on} onClick={() => setKid(i, { slots: on ? k.slots.filter((x) => x !== key) : [...k.slots, key] })}>
-                          <b>{DAYS[c.weekday]}</b> {t12(c.start_time)} · {c.class_name}
-                        </Chip>
-                      );
-                    })}
-                  </div>
-                  {rec && recSlots.length > 0 && (
-                    <button type="button" style={{ ...linkBtn, marginTop: 8 }} onClick={() => setKid(i, { showAll: !k.showAll })}>
-                      {k.showAll ? `Show only ${rec}` : 'Has trained before? Show all classes'}
-                    </button>
-                  )}
+                  <WeekGrid schedule={schedule} age={age} picked={k.slots} onToggle={(key) => setKid(i, { slots: k.slots.includes(key) ? k.slots.filter((x) => x !== key) : [...k.slots, key] })} />
                 </>
               )}
             </div>
@@ -287,7 +284,7 @@ export default function JoinPage() {
         </div>
         <In label="Preferred start date" type="date" value={startDate} min={today()} onChange={(e) => setStartDate(e.target.value)} style={{ maxWidth: 220 }} />
         <p style={{ ...small, color: C.soft, margin: '4px 0 0' }}>
-          The school will confirm tuition, taxes and payment dates with you.{plan.includes('PAD') ? ' Bank details for PAD are collected separately at the school (a separate PAD Agreement) — please don’t enter them here.' : ''}
+          The Dojang will confirm tuition, taxes and payment dates with you.{plan.includes('PAD') ? ' Bank details for PAD are collected separately at the Dojang (a separate PAD Agreement) — please don’t enter them here.' : ''}
         </p>
       </Section>
 
@@ -295,6 +292,7 @@ export default function JoinPage() {
       <Section n="4–12" title="Membership terms">
         <p style={{ ...small, color: C.soft, marginTop: 0 }}>Please read before signing. Scroll inside the box.</p>
         <div style={{ ...box, background: C.paper, maxHeight: 360, overflowY: 'auto', ...small }}>
+          {INTRO.map((p) => <p key={p} style={{ margin: '0 0 8px', fontStyle: 'italic' }}>{p}</p>)}
           {TERMS.map((t) => (
             <div key={t.title} style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 700, color: C.ink, marginBottom: 4 }}>{t.title}</div>
@@ -421,5 +419,66 @@ function Option({ on, onClick, title, note }) {
         {note && <span style={{ display: 'block', fontSize: 13, color: C.faint, marginTop: 2 }}>{note}</span>}
       </span>
     </button>
+  );
+}
+
+// The weekly timetable, like the printed schedule: tap a class to pick it.
+function WeekGrid({ schedule, age, picked, onToggle }) {
+  const sessions = schedule.filter((c) => classInfo[c.class_name]);
+  const days = [1, 2, 3, 4, 5].filter((d) => sessions.some((c) => c.weekday === d));
+  const rows = [...new Set(sessions.map((c) => (String(c.start_time) < '17:00' ? 0 : 1)))].sort();
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, gap: 4, background: C.ink, padding: 4, borderRadius: 10 }}>
+      {days.map((d) => (
+        <div key={d} style={{ color: '#F2C230', textAlign: 'center', fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', padding: '6px 0' }}>{DAYS[d].toUpperCase()}</div>
+      ))}
+      {rows.map((r) =>
+        days.map((d) => {
+          const c = sessions.find((x) => x.weekday === d && (String(x.start_time) < '17:00' ? 0 : 1) === r);
+          if (!c) return <div key={`${r}-${d}`} style={{ background: '#F7F2D4', borderRadius: 6, minHeight: 64 }} />;
+          const info = classInfo[c.class_name];
+          const key = slotKey(c);
+          const on = picked.includes(key);
+          const ok = fitsAge(info, age);
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onToggle(key)}
+              style={{
+                background: on ? C.red : ok ? '#FBF6DC' : '#D9D6C8', color: on ? '#fff' : ok ? C.ink : '#6E7168', border: 'none', borderRadius: 6, padding: '8px 2px', minHeight: 64, minWidth: 0, overflow: 'hidden',
+                cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+              }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: 1.15, textAlign: 'center' }}>{on ? '✓ ' : ''}{info.grid}</span>
+              <span style={{ fontSize: 10.5, opacity: 0.85 }}>{t12short(c.start_time)}–{t12short(c.end_time)}</span>
+              {!ok && <span style={{ fontSize: 9.5 }}>{info.ages}</span>}
+            </button>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function ClassGuide() {
+  return (
+    <div style={{ background: '#E6EAF3', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+        <thead>
+          <tr style={{ textAlign: 'left', color: C.ink }}>
+            <th style={{ padding: '2px 8px 4px 0' }}>Class</th><th style={{ padding: '2px 8px 4px 0' }}>Age group</th><th style={{ padding: '2px 0 4px' }}>Belt range</th>
+          </tr>
+        </thead>
+        <tbody>
+          {JOIN_CLASSES.map((c) => (
+            <tr key={c.name} style={{ color: C.soft }}>
+              <td style={{ padding: '2px 8px 2px 0', color: C.ink }}>{c.short}</td><td style={{ padding: '2px 8px 2px 0' }}>{c.ages}</td><td style={{ padding: '2px 0' }}>{c.belts}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Students receive a recommendation notice when they reach the age and belt level to move into a more suitable class.</div>
+    </div>
   );
 }

@@ -2,13 +2,18 @@
 // Shown on the public /join form and printed with each online registration.
 // Change AGREEMENT_VERSION whenever the wording changes, so each signed
 // registration records which version the family agreed to.
-export const AGREEMENT_VERSION = '2026-11';
+export const AGREEMENT_VERSION = '2026-11-b';
 
 export const SCHOOL = {
   name: 'Champion Hankook Taekwondo',
   address: 'Unit 101B, Millbourne Market Mall, Edmonton, AB T6K 3L6, Canada',
   email: 'hankooktkd@gmail.com',
 };
+
+export const INTRO = [
+  'This agreement outlines the registration requirements, membership terms, payment policies, attendance rules, safety requirements, and responsibilities of students and parents/guardians at Champion Hankook Taekwondo (hereinafter referred to as “the Dojang”).',
+  'All terms are subject to applicable laws of Alberta and Canada.',
+];
 
 export const HEARD_FROM = ['Word of Mouth', 'Social Media', 'Search Engine', 'Flyer', 'Other'];
 
@@ -26,10 +31,10 @@ export const PLAN_CHOICES = [
 ];
 
 export const EMERGENCY_AUTH = [
-  'In the event of an injury or medical emergency, I authorize School staff to provide reasonable first aid within their training, contact emergency services when appropriate, and share necessary information with emergency responders.',
-  'The School will make reasonable efforts to contact the parent/guardian or emergency contact as soon as practicable.',
+  'In the event of an injury or medical emergency, I authorize the Dojang’s staff to provide reasonable first aid within their training, contact emergency services when appropriate, and share necessary information with emergency responders.',
+  'The Dojang will make reasonable efforts to contact the parent/guardian or emergency contact as soon as practicable.',
   'This authorization does not replace consent required by law for medical treatment.',
-  'Parents/guardians are responsible for informing the School of significant changes affecting the student’s safe participation.',
+  'Parents/guardians are responsible for informing the Dojang of significant changes affecting the student’s safe participation.',
 ];
 
 // Parts 5–12: the terms the family reads before signing. Each item is a
@@ -40,7 +45,7 @@ export const TERMS = [
     body: [
       'Champion Hankook Taekwondo offers monthly and three-month membership payment options.',
       'The guaranteed number of classes applies to each fully paid monthly service period. Additional regularly scheduled classes may be available depending on the calendar and program schedule.',
-      'The School will confirm the membership start date, monthly tuition, applicable taxes, total payment amount, payment date, next scheduled payment date and, if applicable, the three-month service end date.',
+      'The Dojang will confirm the membership start date, monthly tuition, applicable taxes, total payment amount, payment date, next scheduled payment date and, if applicable, the three-month service end date.',
     ],
   },
   {
@@ -62,7 +67,7 @@ export const TERMS = [
       'All membership cancellation requests must be submitted by email only. Members wishing to cancel their membership must send a written cancellation request to hankooktkd@gmail.com.',
       'The cancellation request must be received at least 14 calendar days before the next scheduled payment date. The request must include the student’s full name and requested cancellation date.',
       'Verbal requests, phone calls, text messages, WhatsApp messages, or in-person notifications will not be accepted as official membership cancellation requests, except where another cancellation method is required by applicable law.',
-      'The School will confirm receipt of the cancellation request by email.',
+      'The Dojang will confirm receipt of the cancellation request by email.',
       'Cancellation Timing: If the request is received at least 14 calendar days before the next scheduled payment date, the upcoming membership renewal will be cancelled. If the request is received fewer than 14 calendar days before the next scheduled payment date, the upcoming renewal may proceed according to the agreed membership terms, subject to applicable law and payment authorization rules.',
       'Refunds After Payment: Tuition payments already processed are generally non-refundable for voluntary cancellation. For three-month memberships, cancellation ordinarily takes effect at the end of the paid three-month service period. The 14-day cancellation notice requirement applies to the next scheduled renewal.',
       'Members retain all cancellation, refund, and payment authorization rights provided by applicable law. The 14-day membership cancellation requirement does not restrict a member’s right to revoke a PAD authorization under applicable payment rules.',
@@ -75,7 +80,7 @@ export const TERMS = [
       '7.2 Non-PAD Members: Members who do not select PAD must pay tuition for three months in advance. The following payment methods are accepted:',
       { list: ['Cash', 'Debit Card', 'E-transfer'] },
       'Payment must be completed before the start of each three-month membership period. Members are responsible for making their next three-month payment by the applicable renewal date. No automatic bank withdrawal will occur without a separate PAD authorization.',
-      '7.3 Overdue Payments: Tuition must be paid by the agreed payment date. If payment is overdue or unsuccessful, the School may temporarily suspend class participation after providing reasonable notice and an opportunity to resolve the outstanding balance.',
+      '7.3 Overdue Payments: Tuition must be paid by the agreed payment date. If payment is overdue or unsuccessful, the Dojang may temporarily suspend class participation after providing reasonable notice and an opportunity to resolve the outstanding balance.',
       '7.4 Re-Registration Fee: A $20 re-registration fee applies when a student’s membership has ended or been cancelled and the student subsequently registers again. The fee does not apply to an active membership or a temporary payment issue resolved before membership termination.',
       '7.5 Additional Fees: Belt testing, tournaments, coaching fees, uniforms, private lessons, and special events are not included in regular tuition unless expressly stated. Applicable fees will be disclosed before purchase or registration.',
     ],
@@ -83,7 +88,7 @@ export const TERMS = [
   {
     title: 'Part 8 — Attendance & Make-up Class Policy',
     body: [
-      'Students are expected to attend their scheduled classes regularly. If a student cannot attend a class, parents/guardians should notify the School in advance whenever reasonably possible.',
+      'Students are expected to attend their scheduled classes regularly. If a student cannot attend a class, parents/guardians should notify the Dojang in advance whenever reasonably possible.',
       '8.1 Personal Absences:',
       {
         list: [
@@ -95,19 +100,19 @@ export const TERMS = [
           'Personal vacations and scheduling conflicts do not extend the paid membership period.',
         ],
       },
-      '8.2 School Closures & Guaranteed Classes: The School guarantees the following number of classes per fully paid monthly service period:',
+      '8.2 Dojang Closures & Guaranteed Classes: The Dojang guarantees the following number of classes per fully paid monthly service period:',
       { list: ['2 classes per week: 8 classes', '3 classes per week: 12 classes', '4 classes per week: 16 classes'] },
-      'If a School closure, statutory holiday, or School-initiated cancellation prevents a student from receiving the guaranteed number of classes, the School will schedule appropriate make-up classes. The School will aim to provide these make-up classes within 60 calendar days of the affected class date.',
-      'Make-up classes arranged due to School closures are separate from personal absence make-ups and do not require payment for an additional membership period. The School will provide reasonable scheduling options appropriate to the student’s age and training level.',
-      'If the School cannot reasonably provide the guaranteed classes or suitable make-up opportunities, an appropriate adjustment or remedy will be provided in accordance with applicable law.',
+      'If a Dojang closure, statutory holiday, or Dojang-initiated cancellation prevents a student from receiving the guaranteed number of classes, the Dojang will schedule appropriate make-up classes. The Dojang will aim to provide these make-up classes within 60 calendar days of the affected class date.',
+      'Make-up classes arranged due to Dojang closures are separate from personal absence make-ups and do not require payment for an additional membership period. The Dojang will provide reasonable scheduling options appropriate to the student’s age and training level.',
+      'If the Dojang cannot reasonably provide the guaranteed classes or suitable make-up opportunities, an appropriate adjustment or remedy will be provided in accordance with applicable law.',
     ],
   },
   {
     title: 'Part 9 — Class Schedule & Program Changes',
     body: [
-      'The School may make reasonable adjustments to class schedules, instructors, or training groups for operational, educational, or safety reasons.',
+      'The Dojang may make reasonable adjustments to class schedules, instructors, or training groups for operational, educational, or safety reasons.',
       'Reasonable advance notice of material changes will be provided whenever practicable.',
-      'If a material change substantially affects the School’s ability to provide the agreed training services, the School will discuss appropriate alternatives or adjustments with the member, subject to applicable law.',
+      'If a material change substantially affects the Dojang’s ability to provide the agreed training services, the Dojang will discuss appropriate alternatives or adjustments with the member, subject to applicable law.',
     ],
   },
   {
@@ -121,17 +126,17 @@ export const TERMS = [
           'Use protective equipment when required.',
           'Avoid unsafe, aggressive, or inappropriate behaviour.',
           'Report injuries or unsafe conditions promptly.',
-          'Follow the School’s safety and training rules.',
+          'Follow the Dojang’s safety and training rules.',
         ],
       },
-      'The School may take reasonable disciplinary action, including temporary suspension or termination of membership, for serious or repeated misconduct. Disciplinary decisions will consider the circumstances, student age, seriousness of the conduct, and safety of others.',
+      'The Dojang may take reasonable disciplinary action, including temporary suspension or termination of membership, for serious or repeated misconduct. Disciplinary decisions will consider the circumstances, student age, seriousness of the conduct, and safety of others.',
     ],
   },
   {
     title: 'Part 11 — Acknowledgment of Risks',
     body: [
       'Taekwondo is a physical activity involving kicking, striking, sparring, falling, stretching, and other movements that may result in injury. Potential risks include bruises, sprains, fractures, concussions, and other injuries, including serious injuries.',
-      'I understand that participation involves inherent risks even when reasonable safety precautions are taken. I agree to follow the School’s safety instructions and inform instructors of relevant limitations or injuries.',
+      'I understand that participation involves inherent risks even when reasonable safety precautions are taken. I agree to follow the Dojang’s safety instructions and inform instructors of relevant limitations or injuries.',
       'For a minor student, I consent to the student’s participation in training activities appropriate to their age, ability, and registered program.',
       'This acknowledgment does not waive rights or legal protections that cannot lawfully be waived, including rights belonging to a minor.',
       'Any separate release of liability for an adult participant must be reviewed and signed independently.',
@@ -143,17 +148,17 @@ export const TERMS = [
       'Champion Hankook Taekwondo collects and uses personal information reasonably necessary for student registration, communication, billing, attendance management, safety, and administration.',
       'Relevant information may be shared with authorized staff, payment providers, insurers, or emergency responders where reasonably necessary and legally permitted.',
       'Personal information will be protected using reasonable security measures and retained only as long as reasonably required for legitimate business or legal purposes.',
-      'Members may contact the School to request access to their personal information, request corrections, or ask questions about privacy practices. Privacy Contact: Champion Hankook Taekwondo — hankooktkd@gmail.com',
+      'Members may contact the Dojang to request access to their personal information, request corrections, or ask questions about privacy practices. Privacy Contact: Champion Hankook Taekwondo — hankooktkd@gmail.com',
     ],
   },
 ];
 
 export const PHOTO_NOTE = [
-  'The School may photograph or record classes, events, and student activities.',
+  'The Dojang may photograph or record classes, events, and student activities.',
   'Choosing NO will not affect the student’s eligibility to register or participate in regular classes.',
-  'Consent may be withdrawn for future promotional use by contacting the School in writing. The School will take reasonable steps to stop future use and remove material under its control where reasonably practicable. Previously distributed materials or third-party copies may not be fully retrievable.',
+  'Consent may be withdrawn for future promotional use by contacting the Dojang in writing. The Dojang will take reasonable steps to stop future use and remove material under its control where reasonably practicable. Previously distributed materials or third-party copies may not be fully retrievable.',
 ];
-export const PHOTO_YES = 'YES, I consent to the use of the student’s identifiable photographs and videos for the School’s website, social media, printed promotional materials, and related promotional publications.';
+export const PHOTO_YES = 'YES, I consent to the use of the student’s identifiable photographs and videos for the Dojang’s website, social media, printed promotional materials, and related promotional publications.';
 export const PHOTO_NO = 'NO, I do not consent to the use of the student’s identifiable photographs or videos for promotional purposes.';
 
 export const ACKNOWLEDGMENTS = [
