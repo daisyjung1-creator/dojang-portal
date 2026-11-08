@@ -11,6 +11,7 @@ import WelcomeEmailModal from '../../components/WelcomeEmailModal';
 import { allClassNames } from '../../lib/classes';
 import { suggestedTuition } from '../students/StudentsPage';
 import CustomerPicker from '../invoices/CustomerPicker';
+import OnlineRegistrations, { kidName } from './OnlineRegistrations';
 
 // Parent / family details — entered once for all the children.
 function emptyFamily() {
@@ -51,6 +52,60 @@ export default function RegisterPage() {
   const [recent, setRecent] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [welcomeFor, setWelcomeFor] = useState(null); // array of students
+  // The online registration (from /join) currently loaded into the form.
+  const [fromOnline, setFromOnline] = useState(null);
+  const [onlineReload, setOnlineReload] = useState(0);
+
+  // Fill the form from an online registration. The parent's class picks come
+  // in as they chose them; change anything before saving.
+  function loadOnline(r) {
+    const f = r.family || {};
+    const email = (f.email || '').trim().toLowerCase();
+    const match = email && customers.find((c) => c.active !== false && String(c.email || '').toLowerCase().split(/[,;\s]+/).includes(email));
+    setFamily({
+      existing_customer_id: match ? match.id : '',
+      guardian_name: f.guardian_name || '',
+      guardian_phone: f.phone || '',
+      guardian_email: f.email || '',
+      address: [f.address, f.postal].filter(Boolean).join(', '),
+      emergency_name: f.emergency_name || '',
+      emergency_phone: f.emergency_phone || '',
+      payment_type: String(r.plan || '').includes('PAD') ? 'preauth' : 'manual',
+    });
+    const start = r.start_date || todayISO();
+    const perWeek = ['2', '3', '4'].includes(r.frequency) ? r.frequency : '';
+    setKids(
+      (r.kids || []).map((k) => {
+        const notes = [
+          `Online registration ${String(r.created_at).slice(0, 10)}${r.adult_student ? ' (adult student)' : ''}.`,
+          k.medical ? `Medical: ${k.medical_detail}` : 'Medical: none',
+          k.instructions ? `Emergency instructions: ${k.instructions}` : '',
+          `Photo/video consent: ${r.photo_consent ? 'Yes' : 'NO'}`,
+          !r.adult_student && f.relationship ? `Guardian: ${f.relationship}` : '',
+          f.emergency_relationship ? `Emergency contact: ${f.emergency_relationship}` : '',
+          r.frequency === 'other' ? `Program: ${r.other_program}` : '',
+          f.heard ? `Heard about us: ${f.heard === 'Other' ? f.heard_other || 'Other' : f.heard}` : '',
+        ].filter(Boolean).join('\n');
+        return {
+          ...emptyChild(),
+          name: kidName(k),
+          dob: k.dob || '',
+          class_name: k.class_name || '',
+          class_days: k.class_days && k.class_days.length ? k.class_days : null,
+          classes_per_week: perWeek ? Number(perWeek) : '',
+          plan: r.plan === 'Monthly PAD' ? '1 Month' : '3 Months',
+          tuition: perWeek ? suggestedTuition(Number(perWeek), r.plan === 'Monthly PAD' ? '1 Month' : '3 Months') : '',
+          enroll_date: start,
+          billing_start_date: start,
+          notes,
+        };
+      })
+    );
+    setFromOnline({ id: r.id, names: (r.kids || []).map(kidName).join(', '), family: match ? match.name : null });
+    setFormError('');
+    setSuccess('');
+    setTimeout(() => document.getElementById('enroll-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  }
 
   useEffect(() => {
     // Picks up a draft handed off from a converted trial booking, if any.
@@ -155,6 +210,11 @@ export default function RegisterPage() {
     if (customerId && family.payment_type) {
       await supabase.from('customers').update({ payment_type: family.payment_type }).eq('id', customerId);
     }
+    if (fromOnline) {
+      await supabase.from('registrations').update({ status: 'approved', student_ids: created.map((c) => c.id), handled_at: new Date().toISOString() }).eq('id', fromOnline.id);
+      setFromOnline(null);
+      setOnlineReload((n) => n + 1);
+    }
     setSaving(false);
     setRecent((prev) => [...created.slice().reverse(), ...prev]);
     setSuccess(created.length === 1 ? `${created[0].name} registered.` : `${created.map((c) => c.name.split(' ')[0]).join(', ')} registered as one family.`);
@@ -175,7 +235,18 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      <div style={{ ...styles.card, padding: 20, marginBottom: 20, maxWidth: 680 }}>
+      <OnlineRegistrations onLoad={loadOnline} reloadKey={onlineReload} />
+
+      <div id="enroll-form" style={{ ...styles.card, padding: 20, marginBottom: 20, maxWidth: 680 }}>
+        {fromOnline && (
+          <div style={{ background: '#EAF1F7', border: '1px solid #C5D6E6', color: '#1E4566', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ flex: 1 }}>
+              Online registration loaded: <b>{fromOnline.names}</b>. Check the classes, set the tuition, then Register.
+              {fromOnline.family && <> Matched existing family <b>{fromOnline.family}</b> by email.</>}
+            </span>
+            <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => { setFromOnline(null); setFamily(emptyFamily()); setKids([emptyChild()]); }}>Clear</button>
+          </div>
+        )}
         {success && (
           <div style={{ background: '#E8F1E9', border: '1px solid #BFDCC3', color: '#2A5A30', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{success}</span>

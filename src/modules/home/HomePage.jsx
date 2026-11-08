@@ -82,6 +82,7 @@ export default function HomePage({ setActiveTab }) {
       { data: leads },
       { data: makeups },
       { data: slips },
+      { data: regs },
       { data: emps },
       { data: n },
       s,
@@ -99,6 +100,7 @@ export default function HomePage({ setActiveTab }) {
       supabase.from('leads').select('id, student_name, guardian_name, phone, inquiry_date, status').eq('status', 'New Inquiry'),
       supabase.from('makeup_records').select('*').eq('status', 'reserved').gte('reservation_date', today),
       supabase.from('payslips').select('employee_id, pay_date, cpp, ei, tax, emailed_at').gte('pay_date', addDaysISO(today, -70)),
+      supabase.from('registrations').select('id, kids').eq('status', 'new'),
       supabase.from('payroll_employees').select('id, name, email'),
       supabase.from('dashboard_notes').select('*').order('created_at'),
       loadSettings(),
@@ -139,6 +141,7 @@ export default function HomePage({ setActiveTab }) {
       leads: leads || [],
       makeups: makeups || [],
       slips: slips || [],
+      regs: regs || [],
       empById: Object.fromEntries((emps || []).map((e) => [e.id, e])),
       trackStart: trackingStart(recent || []),
       recordsBy: (recent || []).reduce((m, r) => ((m[r.student_id] = m[r.student_id] || []).push(r), m), {}),
@@ -224,6 +227,17 @@ export default function HomePage({ setActiveTab }) {
           ? frequent.slice(0, 6).map((x) => `${x.s.name} (${x.came}/${x.expected})`).join(', ') + (frequent.length > 6 ? '…' : '')
           : notSeen.slice(0, 6).map((x) => x.s.name).join(', ') + (notSeen.length > 6 ? '…' : ''),
       });
+    // Families who registered online, waiting to be enrolled
+    if (d.regs.length) {
+      const names = d.regs.flatMap((r) => (r.kids || []).map((k) => `${k.first || ''} ${k.last || ''}`.trim()));
+      out.push({
+        icon: UserPlus,
+        tab: 'register',
+        tone: 'warn',
+        title: `${d.regs.length} online registration${d.regs.length === 1 ? '' : 's'} to review`,
+        detail: names.slice(0, 5).join(', ') + (names.length > 5 ? '…' : '') + ' — confirm classes and tuition in Enrollment.',
+      });
+    }
     // New leads to call back
     if (d.leads.length)
       out.push({

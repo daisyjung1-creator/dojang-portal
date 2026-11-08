@@ -21,10 +21,14 @@ import TestingPage from './modules/testing/TestingPage';
 import PayrollPage from './modules/payroll/PayrollPage';
 import ConfirmSendHost from './components/ConfirmSend';
 import HomePage from './modules/home/HomePage';
+import JoinPage from './modules/join/JoinPage';
 
 export default function App() {
   const { session, loading, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState(null); // null = start page (Home for admins)
+
+  // Public registration form — no login needed.
+  if (window.location.pathname.replace(/\/+$/, '') === '/join') return <JoinPage />;
 
   if (loading) {
     return <div style={{ padding: 40, color: '#5B5F56' }}>Loading...</div>;
