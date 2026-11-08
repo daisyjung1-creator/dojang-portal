@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, Mail, Link2, MessageSquare } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Mail, Link2, MessageSquare, Copy } from 'lucide-react';
 import { TRIAL_LINK, JOIN_LINK } from '../leads/LeadMessageModal';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
@@ -137,18 +137,28 @@ export default function TryoutsPage({ setActiveTab }) {
           <h1 style={styles.title}>Trials</h1>
           <p style={styles.subtitle}>{tryouts.length} trial bookings</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="dp-btn" title={TRIAL_LINK} onClick={async () => { try { await navigator.clipboard.writeText(TRIAL_LINK); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', TRIAL_LINK); } }}>
-            {copied ? <Check size={15} /> : <Link2 size={15} />} {copied ? 'Copied' : 'Copy booking link'}
+        <button className="dp-btn dp-btn-primary" onClick={openAdd}>
+          <Plus size={15} /> Add Booking
+        </button>
+      </div>
+
+      {/* The link families use to book a free trial themselves */}
+      <div style={{ ...styles.card, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <Link2 size={18} style={{ color: '#BF1C21' }} />
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>Online trial booking link</div>
+          <a href={TRIAL_LINK} target="_blank" rel="noreferrer" style={{ fontSize: 15, color: '#1E4566', wordBreak: 'break-all' }}>{TRIAL_LINK}</a>
+          <div style={{ fontSize: 12, color: '#8A8D84', marginTop: 2 }}>
+            Families pick a date themselves · up to {settings.trial_capacity ?? 3} trials per class · next {settings.trial_days_ahead ?? 21} days · bookings show below as “Booked online” and in Leads
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button className="dp-btn" onClick={async () => { try { await navigator.clipboard.writeText(TRIAL_LINK); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', TRIAL_LINK); } }}>
+            {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy link'}
           </button>
-          <button className="dp-btn dp-btn-primary" onClick={openAdd}>
-            <Plus size={15} /> Add Booking
-          </button>
+          <a className="dp-btn" href={TRIAL_LINK} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open</a>
         </div>
       </div>
-      <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '-6px 0 12px' }}>
-        Families can book a free trial themselves at {TRIAL_LINK} — up to {settings.trial_capacity ?? 3} trials per class, next {settings.trial_days_ahead ?? 21} days. Online bookings show here as “Booked online” and in Leads.
-      </p>
 
       <div style={styles.filterBar}>
         <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
