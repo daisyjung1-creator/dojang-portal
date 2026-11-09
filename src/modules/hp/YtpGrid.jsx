@@ -8,12 +8,20 @@ const COL_W = 36;
 const NUMBER_ROWS = [
   { key: 'volume_pct', label: 'Volume %', heat: true },
   { key: 'intensity_pct', label: 'Intensity %', heat: true },
-  { key: 'physical_pct', label: 'Physical %' },
-  { key: 'technique_pct', label: 'Technique %' },
-  { key: 'tactical_pct', label: 'Tactical %' },
-  { key: 'mental_pct', label: 'Mental %' },
+  { key: 'physical_pct', label: 'Physical %', factor: true },
+  { key: 'technique_pct', label: 'Technique %', factor: true },
+  { key: 'tactical_pct', label: 'Tactical %', factor: true },
+  { key: 'mental_pct', label: 'Mental %', factor: true },
   { key: 'hours_planned', label: 'Planned hours' },
 ];
+
+// Performance factors that are filled in but don't add up to 100%.
+function factorOff(w) {
+  const vals = ['physical_pct', 'technique_pct', 'tactical_pct', 'mental_pct'].map((k) => w[k]);
+  if (vals.every((v) => v == null)) return false;
+  const sum = vals.reduce((s, v) => s + (v == null ? 0 : Number(v)), 0);
+  return sum !== 0 && sum !== 100;
+}
 
 function fmt(v) {
   if (v == null) return '';
@@ -21,7 +29,7 @@ function fmt(v) {
   return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, '');
 }
 
-export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek }) {
+export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek, editMode = false, onEdit }) {
   const scrollRef = useRef(null);
   const { weeks, events, rows } = plan;
 
@@ -33,17 +41,24 @@ export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek }) {
   const monthRuns = useMemo(() => runs(weeks, (w) => monthLabel(w.week_start)), [weeks]);
   const phaseRuns = useMemo(() => runs(weeks, (w) => w.phase || ''), [weeks]);
 
-  // Open on this week (a couple of weeks of context to its left).
+  // Open on this week (a couple of weeks of context to its left) — only when a plan is first shown,
+  // so saving a change doesn't jump the table back.
+  const planId = weeks[0]?.plan_id;
+  const scrolledFor = useRef(null);
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && nowWeek) el.scrollLeft = Math.max(0, (nowWeek - 3) * COL_W);
-  }, [nowWeek, plan]);
+    if (!el || scrolledFor.current === planId) return;
+    scrolledFor.current = planId;
+    if (nowWeek) el.scrollLeft = Math.max(0, (nowWeek - 3) * COL_W);
+  }, [nowWeek, planId]);
+
+  const edit = (type, payload) => editMode && onEdit && onEdit(type, payload);
 
   const colClass = (w) =>
     ['ytp-c', w === nowWeek ? 'ytp-now' : '', w === selectedWeek ? 'ytp-sel' : ''].join(' ');
 
   return (
-    <div className="ytp-scroll" ref={scrollRef}>
+    <div className={`ytp-scroll${editMode ? ' ytp-editing' : ''}`} ref={scrollRef}>
       <style>{CSS}</style>
       <table className="ytp-table" style={{ width: LABEL_W + weeks.length * COL_W }}>
         <colgroup>
@@ -74,7 +89,11 @@ export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek }) {
           <tr className="ytp-events">
             <th className="ytp-label">Events</th>
             {weeks.map((w) => (
-              <td key={w.week_no} className={colClass(w.week_no)} onClick={() => onSelectWeek(w.week_no)}>
+              <td
+                key={w.week_no}
+                className={`${colClass(w.week_no)} ytp-tap`}
+                onClick={() => (editMode ? edit('events', w.week_no) : onSelectWeek(w.week_no))}
+              >
                 <div className="ytp-evstack">
                   {(eventsByWeek[w.week_no] || []).map((e) => {
                     const k = KIND_STYLE[e.kind] || KIND_STYLE.other;
@@ -97,36 +116,54 @@ export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek }) {
           </tr>
           <tr className="ytp-phase">
             <th className="ytp-label">Phase</th>
-            {phaseRuns.map((r) => {
-              const s = PHASE_STYLE[r.key] || { bg: '#FFFFFF', fg: '#20241F', short: '' };
-              return (
-                <td key={r.start} colSpan={r.span} style={{ background: s.bg, color: s.fg }} title={r.key}>
-                  {r.span >= 3 ? r.key : s.short}
-                </td>
-              );
-            })}
+            {editMode
+              ? weeks.map((w) => {
+                  const s = PHASE_STYLE[w.phase] || { bg: '#FFFFFF', fg: '#8A8D84', short: '+' };
+                  return (
+                    <td key={w.week_no} className="ytp-tap" style={{ background: s.bg, color: s.fg }} title={w.phase || 'No phase'}
+                      onClick={() => edit('phase', w.week_no)}>
+                      {s.short}
+                    </td>
+                  );
+                })
+              : phaseRuns.map((r) => {
+                  const s = PHASE_STYLE[r.key] || { bg: '#FFFFFF', fg: '#20241F', short: '' };
+                  return (
+                    <td key={r.start} colSpan={r.span} style={{ background: s.bg, color: s.fg }} title={r.key}>
+                      {r.span >= 3 ? r.key : s.short}
+                    </td>
+                  );
+                })}
           </tr>
 
           {AREAS.map((area) => {
             const areaRows = rows.filter((r) => r.area === area.id);
-            if (!areaRows.length) return null;
+            if (!areaRows.length && !editMode) return null;
             return (
               <React.Fragment key={area.id}>
                 <tr className="ytp-section">
-                  <th className="ytp-label">{area.label}</th>
+                  <th className="ytp-label">
+                    {area.label}
+                    {editMode && (
+                      <button type="button" className="ytp-add" onClick={() => edit('addRow', area.id)}>+ Add</button>
+                    )}
+                  </th>
                   <td colSpan={weeks.length} />
                 </tr>
                 {areaRows.map((r) => (
                   <tr key={r.id} className="ytp-skill">
-                    <th className="ytp-label" title={r.name}>{r.name}</th>
+                    <th className={`ytp-label${editMode ? ' ytp-tap' : ''}`} title={r.name} onClick={() => edit('row', r)}>
+                      {r.name}{editMode && <span className="ytp-pen">✎</span>}
+                    </th>
                     {weeks.map((w) => {
                       const code = r.cells[w.week_no];
                       const s = code && CODE_STYLE[code];
                       return (
                         <td
                           key={w.week_no}
-                          className={colClass(w.week_no)}
+                          className={`${colClass(w.week_no)}${editMode ? ' ytp-tap' : ''}`}
                           title={code ? `${r.name} · week ${w.week_no}: ${CODE_LABELS[code]}` : undefined}
+                          onClick={() => edit('cell', { row: r, weekNo: w.week_no })}
                         >
                           {code && (
                             <span className="ytp-code" style={{ background: s.bg, color: s.fg }}>
@@ -153,7 +190,12 @@ export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek }) {
                 const v = w[nr.key];
                 const heat = nr.heat && v != null ? `rgba(232,112,42,${(Number(v) / 100) * 0.55})` : undefined;
                 return (
-                  <td key={w.week_no} className={colClass(w.week_no)} style={heat ? { background: heat } : undefined}>
+                  <td
+                    key={w.week_no}
+                    className={`${colClass(w.week_no)}${editMode ? ' ytp-tap' : ''}${nr.factor && factorOff(w) ? ' ytp-warn' : ''}`}
+                    style={heat ? { background: heat } : undefined}
+                    onClick={() => edit('numbers', w)}
+                  >
                     {fmt(v)}
                   </td>
                 );
@@ -216,6 +258,12 @@ const CSS = `
 .ytp-weekno td.ytp-now button { background: ${HP_ORANGE}; color: #fff; font-weight: 700; }
 .ytp-table td.ytp-sel:not(.ytp-now) { background-color: rgba(32,36,31,0.05); }
 .ytp-weekno td.ytp-sel:not(.ytp-now) button { background: #20241F; color: #fff; }
+.ytp-editing .ytp-tap { cursor: pointer; }
+.ytp-editing td.ytp-tap:hover, .ytp-editing th.ytp-tap:hover { outline: 2px solid ${HP_ORANGE}; outline-offset: -2px; }
+.ytp-editing .ytp-skill td.ytp-tap:empty::after { content: '+'; color: #D8D3C4; }
+.ytp-pen { color: ${HP_ORANGE}; margin-left: 6px; font-size: 11px; }
+.ytp-add { all: unset; cursor: pointer; margin-left: 8px; color: ${HP_ORANGE}; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 12px; }
+td.ytp-warn { background: #FFF1C9 !important; }
 .ytp-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; font-size: 12.5px; color: #45483F; }
 .ytp-legend > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .ytp-legend strong { color: #20241F; min-width: 84px; }

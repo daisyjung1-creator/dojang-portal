@@ -117,3 +117,76 @@ export async function loadPlan(planId) {
   });
   return { weeks, events, rows: rows.map((r) => ({ ...r, cells: byRow[r.id] || {} })) };
 }
+
+// ── Saving (every change is saved right away) ─────────────────────────
+
+export function weekRange(from, to) {
+  const [a, b] = from <= to ? [from, to] : [to, from];
+  return Array.from({ length: b - a + 1 }, (_, i) => a + i);
+}
+
+/** Set one code on several weeks of a row; code null clears them. */
+export async function setCells(rowId, weekNos, code) {
+  if (!code) {
+    await must(supabase.from('ytp_cells').delete().eq('row_id', rowId).in('week_no', weekNos));
+    return;
+  }
+  await must(supabase.from('ytp_cells').upsert(
+    weekNos.map((w) => ({ row_id: rowId, week_no: w, code })),
+    { onConflict: 'row_id,week_no' },
+  ));
+}
+
+export async function updateWeeks(planId, weekNos, patch) {
+  await must(supabase.from('ytp_weeks').update(patch).eq('plan_id', planId).in('week_no', weekNos));
+}
+
+// Events. With applyAll, the same event (same name + week before the change) in every
+// plan of the season is changed too; a new event is added to every plan.
+async function seasonPlanIds(planId) {
+  const [plan] = await must(supabase.from('ytp_plans').select('season_id').eq('id', planId));
+  const plans = await must(supabase.from('ytp_plans').select('id').eq('season_id', plan.season_id));
+  return plans.map((p) => p.id);
+}
+
+async function matchingEventIds(event, applyAll) {
+  if (!applyAll) return [event.id];
+  const planIds = await seasonPlanIds(event.plan_id);
+  const same = await must(supabase.from('ytp_events').select('id')
+    .in('plan_id', planIds).eq('name', event.name).eq('week_no', event.week_no));
+  return [...new Set([event.id, ...same.map((e) => e.id)])];
+}
+
+export async function addEvent(planId, fields, applyAll) {
+  const planIds = applyAll ? await seasonPlanIds(planId) : [planId];
+  await must(supabase.from('ytp_events').insert(planIds.map((id) => ({ ...fields, plan_id: id }))));
+}
+
+export async function updateEvent(event, fields, applyAll) {
+  const ids = await matchingEventIds(event, applyAll);
+  await must(supabase.from('ytp_events').update(fields).in('id', ids));
+}
+
+export async function deleteEvent(event, applyAll) {
+  const ids = await matchingEventIds(event, applyAll);
+  await must(supabase.from('ytp_events').delete().in('id', ids));
+}
+
+// Rows (skills / abilities)
+export async function addRow(planId, area, name, sort) {
+  await must(supabase.from('ytp_rows').insert({ plan_id: planId, area, name, sort }));
+}
+
+export async function renameRow(rowId, name) {
+  await must(supabase.from('ytp_rows').update({ name }).eq('id', rowId));
+}
+
+export async function deleteRow(rowId) {
+  await must(supabase.from('ytp_rows').delete().eq('id', rowId));
+}
+
+/** Swap the order of two rows. */
+export async function swapRows(a, b) {
+  await must(supabase.from('ytp_rows').update({ sort: b.sort }).eq('id', a.id));
+  await must(supabase.from('ytp_rows').update({ sort: a.sort }).eq('id', b.id));
+}

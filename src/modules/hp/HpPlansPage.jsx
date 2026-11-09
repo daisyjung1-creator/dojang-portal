@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, CalendarDays } from 'lucide-react';
+import { ChevronLeft, CalendarDays, Pencil, Check } from 'lucide-react';
 import { styles } from '../../lib/uiStyles';
 import YtpGrid, { YtpLegend } from './YtpGrid';
-import { AREAS, CODE_LABELS, currentWeekNo, loadOverview, loadPlan, nextEvent, shortDate } from './ytpData';
+import { AREAS, CODE_LABELS, currentWeekNo, loadOverview, loadPlan, nextEvent, shortDate, swapRows } from './ytpData';
+import { AddRowEditor, CellEditor, EventsEditor, NumbersEditor, PhaseEditor, RowEditor } from './YtpEditors';
 import { HP_FONT, HP_ORANGE, PHASE_STYLE } from './ytpTheme';
 
 function weeksAway(n) {
@@ -108,11 +109,17 @@ function AthletePlan({ athlete, season, nowWeek, onBack }) {
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState('');
   const [selectedWeek, setSelectedWeek] = useState(nowWeek || 1);
+  const [editMode, setEditMode] = useState(false);
+  const [editing, setEditing] = useState(null); // { type, payload }
 
+  const reload = () => loadPlan(athlete.plan.id).then(setPlan).catch((e) => setError(e.message || String(e)));
   useEffect(() => {
     setPlan(null);
-    loadPlan(athlete.plan.id).then(setPlan).catch((e) => setError(e.message || String(e)));
+    reload();
   }, [athlete.plan.id]);
+
+  const close = () => setEditing(null);
+  const saved = () => { setEditing(null); reload(); };
 
   return (
     <>
@@ -126,13 +133,32 @@ function AthletePlan({ athlete, season, nowWeek, onBack }) {
             {[athlete.category, athlete.level, season && `Season ${season.name}`].filter(Boolean).join(' · ')}
           </p>
         </div>
+        {plan && (
+          <button
+            type="button"
+            className={`dp-btn${editMode ? ' dp-btn-primary' : ''}`}
+            onClick={() => setEditMode(!editMode)}
+            style={editMode ? { background: HP_ORANGE, borderColor: HP_ORANGE, color: '#fff' } : undefined}
+          >
+            {editMode ? <><Check size={16} /> Done</> : <><Pencil size={15} /> Edit</>}
+          </button>
+        )}
       </div>
+      {editMode && (
+        <div style={{ background: '#FDF0E6', border: `1px solid ${HP_ORANGE}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#6B3410', marginBottom: 12 }}>
+          Edit mode — tap any cell, phase, event, number or row name to change it. Changes save right away.
+        </div>
+      )}
       {error && <div style={{ ...styles.card, padding: 16, color: '#9A2B2B' }}>Couldn't load the plan: {error}</div>}
       {!plan && !error && <div style={{ color: '#5B5F56' }}>Loading...</div>}
       {plan && (
         <>
           <WeekSummary plan={plan} weekNo={selectedWeek} nowWeek={nowWeek} />
-          <YtpGrid plan={plan} nowWeek={nowWeek} selectedWeek={selectedWeek} onSelectWeek={setSelectedWeek} />
+          <YtpGrid
+            plan={plan} nowWeek={nowWeek} selectedWeek={selectedWeek} onSelectWeek={setSelectedWeek}
+            editMode={editMode} onEdit={(type, payload) => setEditing({ type, payload })}
+          />
+          {editing && <PlanEditor plan={plan} planId={athlete.plan.id} editing={editing} onClose={close} onSaved={saved} />}
           <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 2px 0' }}>
             Swipe sideways to see the whole season. Tap a week number to see that week above.
           </p>
@@ -196,4 +222,36 @@ function WeekSummary({ plan, weekNo, nowWeek }) {
       )}
     </div>
   );
+}
+
+function PlanEditor({ plan, planId, editing, onClose, onSaved }) {
+  const { type, payload } = editing;
+  const common = { weeks: plan.weeks, onClose, onSaved };
+  if (type === 'cell') return <CellEditor row={payload.row} weekNo={payload.weekNo} {...common} />;
+  if (type === 'phase') return <PhaseEditor planId={planId} weekNo={payload} {...common} />;
+  if (type === 'numbers') return <NumbersEditor planId={planId} week={payload} {...common} />;
+  if (type === 'events') return <EventsEditor planId={planId} weekNo={payload} events={plan.events} {...common} />;
+  if (type === 'row') {
+    const same = plan.rows.filter((r) => r.area === payload.area);
+    const i = same.findIndex((r) => r.id === payload.id);
+    return (
+      <RowEditor
+        row={payload} canUp={i > 0} canDown={i < same.length - 1}
+        onMove={(dir) => swapRows(payload, same[i + dir])}
+        onClose={onClose} onSaved={onSaved}
+      />
+    );
+  }
+  if (type === 'addRow') {
+    const area = AREAS.find((a) => a.id === payload);
+    return (
+      <AddRowEditor
+        planId={planId} area={payload} areaLabel={area.label}
+        nextSort={Math.max(0, ...plan.rows.map((r) => r.sort)) + 1}
+        existing={plan.rows.filter((r) => r.area === payload).map((r) => r.name)}
+        onClose={onClose} onSaved={onSaved}
+      />
+    );
+  }
+  return null;
 }
