@@ -4,7 +4,7 @@
 --   hp_athletes   one row per HP athlete (optionally linked to students for attendance)
 --   ytp_seasons   e.g. '2026-27', starts Monday 2026-09-07, 52 weeks
 --   ytp_plans     one plan per athlete per season
---   ytp_weeks     week-level numbers: phase, volume/intensity %, performance-factor %, planned sessions
+--   ytp_weeks     week-level numbers: phase, volume/intensity %, performance-factor %, planned training hours
 --   ytp_events    competitions, camps, testing weeks, breaks (per plan)
 --   ytp_rows      the plan's rows: physical abilities, technical / tactical skills, mental skills
 --   ytp_cells     the code in one row for one week
@@ -54,7 +54,7 @@ create table if not exists ytp_weeks (
   technique_pct numeric check (technique_pct between 0 and 100),
   tactical_pct numeric check (tactical_pct between 0 and 100),
   mental_pct numeric check (mental_pct between 0 and 100),
-  sessions_planned numeric check (sessions_planned >= 0),
+  hours_planned numeric check (hours_planned >= 0),  -- "sess/week" row in the Excel = hours
   note text,
   primary key (plan_id, week_no)
 );
@@ -85,6 +85,13 @@ create table if not exists ytp_cells (
   code text not null check (code in ('I', 'D', 'C', 'R', 'M', 'X')),
   primary key (row_id, week_no)
 );
+
+-- If an earlier copy of this file already created sessions_planned, rename it.
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_name = 'ytp_weeks' and column_name = 'sessions_planned') then
+    alter table ytp_weeks rename column sessions_planned to hours_planned;
+  end if;
+end $$;
 
 create index if not exists ytp_events_plan_idx on ytp_events (plan_id, week_no);
 create index if not exists ytp_rows_plan_idx on ytp_rows (plan_id, sort);

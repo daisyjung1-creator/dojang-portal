@@ -7,7 +7,7 @@ insert into ytp_seasons (name, start_date, weeks) values ('2026-27', '2026-09-07
 -- ── Winter Somoso (Audrey sheet) ──
 insert into hp_athletes (sheet_name, display_name, category, level) values ('Audrey', 'Winter Somoso', 'Cadet Female -47kg', 'National') on conflict (sheet_name) do nothing;
 insert into ytp_plans (athlete_id, season_id) select (select id from hp_athletes where sheet_name = 'Audrey'), id from ytp_seasons where name = '2026-27' on conflict (athlete_id, season_id) do nothing;
-insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, physical_pct, technique_pct, tactical_pct, mental_pct, sessions_planned) values
+insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, physical_pct, technique_pct, tactical_pct, mental_pct, hours_planned) values
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Audrey') and season_id = (select id from ytp_seasons where name = '2026-27')), 1, '2026-09-07', 'Transition', 0, 0, 0, 0, 0, 0, 0),
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Audrey') and season_id = (select id from ytp_seasons where name = '2026-27')), 2, '2026-09-14', 'General Prep', 80, 20, 80, 20, 0, 0, 13),
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Audrey') and season_id = (select id from ytp_seasons where name = '2026-27')), 3, '2026-09-21', 'General Prep', 80, 20, 70, 30, 0, 0, 10),
@@ -103,7 +103,7 @@ insert into ytp_cells (row_id, week_no, code) select (select id from ytp_rows wh
 -- ── Maddie Harbinson (Maddie sheet) ──
 insert into hp_athletes (sheet_name, display_name, category, level) values ('Maddie', 'Maddie Harbinson', 'Junior Female -52kg', 'National') on conflict (sheet_name) do nothing;
 insert into ytp_plans (athlete_id, season_id) select (select id from hp_athletes where sheet_name = 'Maddie'), id from ytp_seasons where name = '2026-27' on conflict (athlete_id, season_id) do nothing;
-insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, physical_pct, technique_pct, tactical_pct, mental_pct, sessions_planned) values
+insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, physical_pct, technique_pct, tactical_pct, mental_pct, hours_planned) values
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Maddie') and season_id = (select id from ytp_seasons where name = '2026-27')), 1, '2026-09-07', 'General Prep', 80, 20, 80, 20, 0, 0, 0),
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Maddie') and season_id = (select id from ytp_seasons where name = '2026-27')), 2, '2026-09-14', 'General Prep', 80, 20, 80, 20, 0, 0, 13),
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Maddie') and season_id = (select id from ytp_seasons where name = '2026-27')), 3, '2026-09-21', 'General Prep', 80, 20, 70, 30, 0, 0, 10),
@@ -200,7 +200,7 @@ insert into ytp_cells (row_id, week_no, code) select (select id from ytp_rows wh
 -- ── Daniel Esguerra (Daniel sheet) ──
 insert into hp_athletes (sheet_name, display_name, category, level) values ('Daniel', 'Daniel Esguerra', 'Junior Male -49kg', 'National') on conflict (sheet_name) do nothing;
 insert into ytp_plans (athlete_id, season_id) select (select id from hp_athletes where sheet_name = 'Daniel'), id from ytp_seasons where name = '2026-27' on conflict (athlete_id, season_id) do nothing;
-insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, physical_pct, technique_pct, tactical_pct, mental_pct, sessions_planned) values
+insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, physical_pct, technique_pct, tactical_pct, mental_pct, hours_planned) values
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Daniel') and season_id = (select id from ytp_seasons where name = '2026-27')), 1, '2026-09-07', 'Transition', 0, 0, 0, 0, 0, 0, 0),
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Daniel') and season_id = (select id from ytp_seasons where name = '2026-27')), 2, '2026-09-14', 'General Prep', 80, 20, 80, 20, 0, 0, 13),
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Daniel') and season_id = (select id from ytp_seasons where name = '2026-27')), 3, '2026-09-21', 'General Prep', 80, 20, 70, 30, 0, 0, 10),
@@ -291,10 +291,10 @@ insert into ytp_cells (row_id, week_no, code) select (select id from ytp_rows wh
 insert into ytp_rows (plan_id, area, name, sort) values ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Daniel') and season_id = (select id from ytp_seasons where name = '2026-27')), 'mental', 'Goal Setting', 11) on conflict (plan_id, area, name) do nothing;
 insert into ytp_cells (row_id, week_no, code) select (select id from ytp_rows where plan_id = (select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'Daniel') and season_id = (select id from ytp_seasons where name = '2026-27')) and area = 'mental' and name = 'Goal Setting'), v.w, v.c from (values (13, 'X'), (20, 'X'), (24, 'X'), (30, 'X')) as v(w, c) on conflict (row_id, week_no) do nothing;
 
--- ── David (David sheet) ──
-insert into hp_athletes (sheet_name, display_name, category, level) values ('David', 'David', 'Junior Male -73kg', 'National') on conflict (sheet_name) do nothing;
+-- ── David Sanmor (David sheet) ──
+insert into hp_athletes (sheet_name, display_name, category, level) values ('David', 'David Sanmor', 'Junior Male -73kg', 'National') on conflict (sheet_name) do nothing;
 insert into ytp_plans (athlete_id, season_id) select (select id from hp_athletes where sheet_name = 'David'), id from ytp_seasons where name = '2026-27' on conflict (athlete_id, season_id) do nothing;
-insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, physical_pct, technique_pct, tactical_pct, mental_pct, sessions_planned) values
+insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, physical_pct, technique_pct, tactical_pct, mental_pct, hours_planned) values
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'David') and season_id = (select id from ytp_seasons where name = '2026-27')), 1, '2026-09-07', 'Transition', 0, 0, 0, 0, 0, 0, 0),
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'David') and season_id = (select id from ytp_seasons where name = '2026-27')), 2, '2026-09-14', 'General Prep', 80, 20, 80, 20, 0, 0, 13),
   ((select id from ytp_plans where athlete_id = (select id from hp_athletes where sheet_name = 'David') and season_id = (select id from ytp_seasons where name = '2026-27')), 3, '2026-09-21', 'General Prep', 80, 20, 70, 30, 0, 0, 10),

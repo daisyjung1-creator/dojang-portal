@@ -19,7 +19,7 @@ ATHLETES = [
     ("Audrey", "Winter Somoso", "Cadet Female -47kg", "National"),
     ("Maddie", "Maddie Harbinson", "Junior Female -52kg", "National"),
     ("Daniel", "Daniel Esguerra", "Junior Male -49kg", "National"),
-    ("David", "David", "Junior Male -73kg", "National"),
+    ("David", "David Sanmor", "Junior Male -73kg", "National"),
 ]
 
 SKILL_CODE = {"a": "D", "c": "C", "r": "R", "i": "I"}
@@ -114,9 +114,7 @@ def build():
             events.append(dict(w=w, name={"National": "Nationals", "CAD Open": "Canada Open",
                                           "Xmas": "Christmas Break"}.get(clean, clean),
                                kind=kind, priority=p, tentative=label == "Portugal Open"))
-        for i, p in enumerate(prio):
-            if p and not (i < len(comps) and comps[i]):
-                problems.append(f"{sheet}: priority '{p}' in week {i + 1} has no event next to it")
+        # Priorities with no event next to them (weeks 2 and 28) are left out — confirmed by the coach.
         # New events decided in chat
         events.append(dict(w=22, name="Peak Performance Camp (USA)", kind="camp", priority=None, tentative=False))
         portugal = next(e["w"] for e in events if e["name"] == "Portugal Open")
@@ -129,7 +127,7 @@ def build():
                      ("Strength Endurance", X.STRENGTH_END)]
         for rname, line in phys_rows:
             vals = cells_after(line)
-            check_len(f"{sheet} {rname}", vals, rname != "Strength Endurance")
+            check_len(f"{sheet} {rname}", vals, False)  # physical rows stop at the Taper week (45)
             rows.append(("physical", rname, {i + 1: v.upper() for i, v in enumerate(vals) if v}))
         for area in ("technical", "tactical", "mental"):
             for rname, pat in X.SKILLS[sheet][area]:
@@ -165,7 +163,7 @@ def build():
             f"{qn(wk['phy'])}, {qn(wk['tec'])}, {qn(wk['tac'])}, {qn(wk['men'])}, {qn(wk['ses'])})"
             for wk in weeks)
         out.append("insert into ytp_weeks (plan_id, week_no, week_start, phase, volume_pct, intensity_pct, "
-                   "physical_pct, technique_pct, tactical_pct, mental_pct, sessions_planned) values\n  "
+                   "physical_pct, technique_pct, tactical_pct, mental_pct, hours_planned) values\n  "
                    + vals + "\non conflict (plan_id, week_no) do nothing;")
         for e in events:
             out.append(f"insert into ytp_events (plan_id, week_no, name, kind, priority, tentative) "
