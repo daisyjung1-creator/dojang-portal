@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, CalendarDays, Pencil, Check } from 'lucide-react';
 import { styles } from '../../lib/uiStyles';
 import YtpGrid, { YtpLegend } from './YtpGrid';
+import WeeklyCheck from './WeeklyCheck';
 import { AREAS, CODE_LABELS, currentWeekNo, loadOverview, loadPlan, nextEvent, shortDate, swapRows } from './ytpData';
 import { AddRowEditor, CellEditor, EventsEditor, NumbersEditor, PhaseEditor, RowEditor } from './YtpEditors';
 import { HP_FONT, HP_ORANGE, PHASE_STYLE } from './ytpTheme';
@@ -26,6 +27,7 @@ export default function HpPlansPage() {
   const [overview, setOverview] = useState(null);
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState(null);
+  const [tab, setTab] = useState('athletes');
 
   useEffect(() => {
     loadOverview().then(setOverview).catch((e) => setError(e.message || String(e)));
@@ -40,7 +42,27 @@ export default function HpPlansPage() {
       {error && <div style={{ ...styles.card, padding: 16, color: '#9A2B2B', marginBottom: 14 }}>Couldn't load HP plans: {error}</div>}
       {!overview && !error && <div style={{ color: '#5B5F56' }}>Loading...</div>}
       {overview && !selected && (
-        <AthleteList overview={overview} nowWeek={nowWeek} onOpen={setSelectedId} />
+        <>
+          <div style={styles.header}>
+            <div>
+              <h1 style={styles.title}>HP Plans</h1>
+              <p style={styles.subtitle}>
+                {season ? `Season ${season.name}` : 'No season yet'}
+                {nowWeek ? ` · Week ${nowWeek} of ${season.weeks}` : ''}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #DEDACC' }}>
+            {[['athletes', 'Athletes'], ['weekly', 'Weekly Check']].map(([id, l]) => (
+              <button key={id} type="button" onClick={() => setTab(id)} style={{
+                all: 'unset', cursor: 'pointer', padding: '8px 14px', fontSize: 14, fontWeight: tab === id ? 600 : 400,
+                color: tab === id ? '#20241F' : '#5B5F56', borderBottom: `2px solid ${tab === id ? HP_ORANGE : 'transparent'}`, marginBottom: -1,
+              }}>{l}</button>
+            ))}
+          </div>
+          {tab === 'athletes' && <AthleteList overview={overview} nowWeek={nowWeek} onOpen={setSelectedId} />}
+          {tab === 'weekly' && season && <WeeklyCheck overview={overview} nowWeek={nowWeek} />}
+        </>
       )}
       {overview && selected && (
         <AthletePlan athlete={selected} season={season} nowWeek={nowWeek} onBack={() => setSelectedId(null)} />
@@ -50,18 +72,9 @@ export default function HpPlansPage() {
 }
 
 function AthleteList({ overview, nowWeek, onOpen }) {
-  const { season, athletes } = overview;
+  const { athletes } = overview;
   return (
     <>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>HP Plans</h1>
-          <p style={styles.subtitle}>
-            {season ? `Season ${season.name}` : 'No season yet'}
-            {nowWeek ? ` · Week ${nowWeek} of ${season.weeks}` : ''}
-          </p>
-        </div>
-      </div>
       {!athletes.length && <div style={{ ...styles.card, padding: 16, color: '#5B5F56' }}>No HP athletes yet.</div>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
         {athletes.map((a) => {

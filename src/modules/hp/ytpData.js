@@ -190,3 +190,72 @@ export async function swapRows(a, b) {
   await must(supabase.from('ytp_rows').update({ sort: b.sort }).eq('id', a.id));
   await must(supabase.from('ytp_rows').update({ sort: a.sort }).eq('id', b.id));
 }
+
+// ── Weekly tracking ───────────────────────────────────────────────────
+
+export async function loadTrackingBase() {
+  const [schedule, classMap] = await Promise.all([
+    must(supabase.from('class_schedule').select('class_name, weekday, start_time, end_time').eq('active', true)),
+    must(supabase.from('ytp_class_map').select('*').order('class_name')),
+  ]);
+  return { schedule, classMap };
+}
+
+/** Attendance, individual sessions and coach checks for one week (Mon..Sun). */
+export async function loadWeekTracking({ athletes, weekStart, weekEnd, weekNo, rowIds }) {
+  const studentIds = athletes.map((a) => a.student_id).filter(Boolean);
+  const athleteIds = athletes.map((a) => a.id);
+  const [attendance, sessions, checks] = await Promise.all([
+    studentIds.length
+      ? must(supabase.from('attendance').select('student_id, date, class_name, status, minutes')
+        .in('student_id', studentIds).gte('date', weekStart).lte('date', weekEnd))
+      : [],
+    athleteIds.length
+      ? must(supabase.from('ytp_sessions').select('*').in('athlete_id', athleteIds)
+        .gte('date', weekStart).lte('date', weekEnd).order('date'))
+      : [],
+    rowIds.length
+      ? must(supabase.from('ytp_checks').select('*').in('row_id', rowIds).eq('week_no', weekNo))
+      : [],
+  ]);
+  return { attendance, sessions, checks };
+}
+
+export async function setCheck(rowId, weekNo, status, note) {
+  if (!status) {
+    await must(supabase.from('ytp_checks').delete().eq('row_id', rowId).eq('week_no', weekNo));
+    return;
+  }
+  await must(supabase.from('ytp_checks').upsert(
+    { row_id: rowId, week_no: weekNo, status, note: note || null, updated_at: new Date().toISOString() },
+    { onConflict: 'row_id,week_no' },
+  ));
+}
+
+export async function addSession(fields) {
+  await must(supabase.from('ytp_sessions').insert(fields));
+}
+
+export async function deleteSession(id) {
+  await must(supabase.from('ytp_sessions').delete().eq('id', id));
+}
+
+export async function saveClassMap(className, abilities) {
+  await must(supabase.from('ytp_class_map').upsert(
+    { class_name: className, abilities, updated_at: new Date().toISOString() },
+    { onConflict: 'class_name' },
+  ));
+}
+
+/** Replace a row's codes on the given weeks with the new cells (used by extend / advance). */
+export async function applyRowChange(rowId, newCells, changedWeeks) {
+  const clear = changedWeeks.filter((w) => !newCells[w]);
+  const set = changedWeeks.filter((w) => newCells[w]);
+  if (clear.length) await must(supabase.from('ytp_cells').delete().eq('row_id', rowId).in('week_no', clear));
+  if (set.length) {
+    await must(supabase.from('ytp_cells').upsert(
+      set.map((w) => ({ row_id: rowId, week_no: w, code: newCells[w] })),
+      { onConflict: 'row_id,week_no' },
+    ));
+  }
+}
