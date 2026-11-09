@@ -16,7 +16,7 @@ WEEKS = 52
 FIRST_WEEK_COL = 3  # column C = week 1
 
 # Weeks 50-52 in the Excel are "General Prep" for next season.
-# "excel" keeps them as they are; "transition" turns them into Transition weeks with no training data.
+# "excel" keeps them as they are (coach's decision); "transition" turns them into Transition weeks.
 LAST_WEEKS_MODE = "excel"
 
 ATHLETES = [
@@ -88,8 +88,7 @@ def skill_rows(ws, sheet):
         if not name and not any(vals):
             continue
         if not name:
-            name = f"Unnamed skill (row {r})"
-            problems.append(f"{sheet}: row {r} has codes but no skill name")
+            continue  # rows with codes but no skill name are dropped (coach's decision)
         area = areas[area_i]
         cells = {}
         for i, v in enumerate(vals):
