@@ -1,0 +1,4 @@
+
+# YTP seed has athletes' personal plans — never commit it (repo is public)
+supabase/migrations/045_ytp_seed.sql
+*.xlsx
