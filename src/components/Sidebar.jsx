@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import BrandMark from './BrandMark';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X } from 'lucide-react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Target, Menu, X } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 
@@ -12,6 +12,7 @@ export const ALL_TABS = [
   { id: 'register', label: 'Enrollment', icon: UserPlus, adminOnly: true },
   { id: 'attendance', label: 'Attendance', icon: ClipboardCheck, adminOnly: false },
   { id: 'testing', label: 'Belt Testing', icon: Award, adminOnly: true },
+  { id: 'hp', label: 'HP Plans', icon: Target, adminOnly: true },
   { id: 'billing', label: 'Billing', icon: Wallet, adminOnly: true },
   { id: 'email', label: 'Email', icon: Mail, adminOnly: true },
   { id: 'invoices', label: 'Invoices', icon: FileText, adminOnly: true, section: 'Invoicing' },
