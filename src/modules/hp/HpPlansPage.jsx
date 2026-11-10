@@ -6,6 +6,7 @@ import WeeklyCheck from './WeeklyCheck';
 import FitnessTests from './FitnessTests';
 import TestsPanel from './TestsPanel';
 import WeightPanel, { WeightChip, todayIso } from './WeightPanel';
+import CompetitionsPanel from './CompetitionsPanel';
 import { keyCompetitions, loadWeights, weightStatus } from './hpWeight';
 import { AREAS, CODE_LABELS, currentWeekNo, loadOverview, loadPlan, nextEvent, shortDate, swapRows } from './ytpData';
 import { AddRowEditor, CellEditor, EventsEditor, NumbersEditor, PhaseEditor, RowEditor } from './YtpEditors';
@@ -188,7 +189,7 @@ function AthletePlan({ athlete, season, nowWeek, onBack, onAthleteChanged }) {
         )}
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, borderBottom: '1px solid #DEDACC' }}>
-        {[['plan', 'Plan'], ['tests', 'Tests'], ['weight', 'Weight']].map(([id, l]) => (
+        {[['plan', 'Plan'], ['tests', 'Tests'], ['weight', 'Weight'], ['comps', 'Competitions']].map(([id, l]) => (
           <button key={id} type="button" onClick={() => { setView(id); setEditMode(false); }} style={{
             all: 'unset', cursor: 'pointer', padding: '8px 14px', fontSize: 14, fontWeight: view === id ? 600 : 400,
             color: view === id ? '#20241F' : '#5B5F56', borderBottom: `2px solid ${view === id ? HP_ORANGE : 'transparent'}`, marginBottom: -1,
@@ -196,6 +197,9 @@ function AthletePlan({ athlete, season, nowWeek, onBack, onAthleteChanged }) {
         ))}
       </div>
       {view === 'tests' && <TestsPanel studentId={athlete.student_id} />}
+      {view === 'comps' && (plan
+        ? <CompetitionsPanel athlete={athlete} plan={plan} />
+        : <div style={{ color: '#5B5F56' }}>Loading...</div>)}
       {view === 'weight' && (plan
         ? <WeightPanel athlete={athlete} plan={plan} onAthleteChanged={onAthleteChanged} />
         : <div style={{ color: '#5B5F56' }}>Loading...</div>)}
