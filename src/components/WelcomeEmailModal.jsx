@@ -16,13 +16,12 @@ export default function WelcomeEmailModal({ student, students: many, onClose, on
   const [state, setState] = useState(null);
 
   useEffect(() => {
-    supabase
-      .from('invoice_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle()
-      .then(({ data: st }) => {
-        const s = st || {};
+    Promise.all([
+      supabase.from('invoice_settings').select('*').eq('id', 1).maybeSingle(),
+      supabase.from('class_schedule').select('class_name, weekday, start_time, end_time').eq('active', true).order('weekday').order('start_time'),
+    ]).then(([{ data: st }, { data: schedule }]) => {
+        // The class days and times go into {classes}.
+        const s = { ...(st || {}), schedule: schedule || [] };
         setState({
           to: student.guardian_email || '',
           subject: fillFamilyWelcome(s.welcome_subject || 'Welcome to {business}, {student}!', students, s),
