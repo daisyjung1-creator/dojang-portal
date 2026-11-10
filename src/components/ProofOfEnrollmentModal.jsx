@@ -44,7 +44,7 @@ function downloadBase64(b64, filename) {
 export default function ProofOfEnrollmentModal({ student, onClose }) {
   const today = todayISO();
   const start0 = billingAnchor(student) ? currentCycleStart(student, today) : student.enroll_date || today;
-  const [f, setF] = useState({ start: start0, months: 3, end: periodEnd(start0, 3), amount: '', tuition: '', classes: '', to: student.guardian_email || '', note: '' });
+  const [f, setF] = useState({ start: start0, months: 12, end: periodEnd(start0, 12), amount: '', tuition: '', classes: '', to: student.guardian_email || '', note: '' });
   const [gst, setGst] = useState(5);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(null);

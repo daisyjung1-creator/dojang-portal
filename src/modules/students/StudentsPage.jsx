@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX, FileText } from 'lucide-react';
 import ProofOfEnrollmentModal from '../../components/ProofOfEnrollmentModal';
+import StudentProfileModal from './StudentProfileModal';
 import CancellationModal from './CancellationModal';
 import { REREGISTRATION_FEE } from '../../lib/tuitionBilling';
 import { fillSubsidyTemplate, DEFAULT_SUBSIDY_SUBJECT } from '../../lib/subsidyReminder';
@@ -70,6 +71,7 @@ export default function StudentsPage() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [cancelFor, setCancelFor] = useState(null);
   const [poeFor, setPoeFor] = useState(null);
+  const [profileId, setProfileId] = useState(null);
   const [reactivateFor, setReactivateFor] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -431,7 +433,7 @@ export default function StudentsPage() {
                 <th>Phone</th>
                 <th>Plan</th>
                 <th>Next billing</th>
-                {isAdmin && <th style={{ width: 160 }}></th>}
+                {isAdmin && <th style={{ width: 50 }}></th>}
               </tr>
             </thead>
             <tbody>
@@ -441,7 +443,13 @@ export default function StudentsPage() {
                 return (
                   <tr key={s.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
-                      {s.name}
+                      <button
+                        onClick={() => setProfileId(s.id)}
+                        title="Open student profile"
+                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 500, color: '#20241F', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }}
+                      >
+                        {s.name}
+                      </button>
                       <StudentFlags s={s} style={{ marginLeft: 6 }} />
                       {s.status === 'withdrawn' && (
                         <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Withdrawn</span>
@@ -486,29 +494,9 @@ export default function StudentsPage() {
                     </td>
                     {isAdmin && (
                       <td>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button
-                            className="dp-btn"
-                            style={{ padding: '4px 8px', fontSize: 12 }}
-                            onClick={() => (s.status === 'withdrawn' ? setReactivateFor(s) : setStudentStatus(s.id, 'withdrawn'))}
-                          >
-                            {s.status === 'withdrawn' ? 'Reactivate' : 'Withdraw'}
-                          </button>
-                          {s.status !== 'withdrawn' && (
-                            <button aria-label="Membership cancellation" title="Membership cancellation (email request, 14-day rule)" className="dp-btn" style={{ padding: 6, ...(s.billing_end_date ? { color: '#9A2B2B', borderColor: '#E4B8B8' } : {}) }} onClick={() => setCancelFor(s)}>
-                              <CalendarX size={14} />
-                            </button>
-                          )}
-                          {s.status !== 'withdrawn' && (
-                            <button aria-label="Proof of enrollment" title="Proof of enrollment (KidSport) — download or email" className="dp-btn" style={{ padding: 6 }} onClick={() => setPoeFor(s)}>
-                              <FileText size={14} />
-                            </button>
-                          )}
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                           <button aria-label="Edit" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(s)}>
                             <Pencil size={14} />
-                          </button>
-                          <button aria-label="Delete" className="dp-btn dp-btn-danger" style={{ padding: 6 }} onClick={() => setConfirmDeleteId(s.id)}>
-                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
@@ -715,6 +703,28 @@ export default function StudentsPage() {
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
+
+      {profileId && (() => {
+        const ps = students.find((x) => x.id === profileId);
+        if (!ps) return null;
+        const close = () => setProfileId(null);
+        return (
+          <StudentProfileModal
+            student={ps}
+            isAdmin={isAdmin}
+            family={families[ps.customer_id]}
+            siblings={ps.customer_id ? (siblingsBy[ps.customer_id] || []).filter((x) => x.id !== ps.id) : []}
+            onClose={close}
+            onEdit={() => { close(); openEdit(ps); }}
+            onPoe={() => setPoeFor(ps)}
+            onCancel={() => setCancelFor(ps)}
+            onWelcome={() => setWelcomeFor(ps)}
+            onWithdraw={() => setStudentStatus(ps.id, 'withdrawn')}
+            onReactivate={() => setReactivateFor(ps)}
+            onDelete={() => { close(); setConfirmDeleteId(ps.id); }}
+          />
+        );
+      })()}
 
       {poeFor && <ProofOfEnrollmentModal student={poeFor} onClose={() => setPoeFor(null)} />}
 
