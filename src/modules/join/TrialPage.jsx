@@ -5,7 +5,7 @@ import logoImg from '../../assets/logo.png';
 import { Page, Section, Label, Row, In, Area, Chip, C, box, btn, linkBtn } from './JoinPage';
 
 // Public trial-class booking (no login): /trial
-// 10 and under → Beginner (Tue/Thu 4:30), 11 and up → Intermediate B (Mon/Wed
+// 10 and under → Beginner (Tue/Thu 4:30), 11 → Beginner or Intermediate B, 12+ → Intermediate B (Mon/Wed
 // 4:30). Families pick a date; the booking becomes a lead + a trial in the
 // portal and a confirmation email goes out (the dojang gets a copy).
 
@@ -17,6 +17,7 @@ const trialClasses = (k) => {
   if (!k.experience) return [];
   if (Number(k.age) >= 12) return ['Intermediate B']; // 12 and up: Intermediate B
   if (k.experience === 'Color belt') return ['Intermediate A'];
+  if (Number(k.age) === 11) return ['Beginner', 'Intermediate B']; // 11, no experience: family picks
   return [classForAge(k.age)].filter(Boolean);
 };
 const shortClass = (c) => c.replace('Advance ', '');
@@ -130,7 +131,7 @@ export default function TrialPage() {
 
       <Section n="1" title="Who's coming?">
         <div style={{ fontSize: 13.5, color: C.soft, marginBottom: 12, lineHeight: 1.5 }}>
-          New students: <b>10 and under</b> — Beginner, Tue &amp; Thu 4:30–5:20 pm · <b>11 and up</b> — Intermediate B, Mon &amp; Wed 4:30–5:20 pm · <b>12 and up</b>: Intermediate B · Color belts under 12: Intermediate A · Black belts: Advance classes
+          New students: <b>10 and under</b> — Beginner, Tue &amp; Thu 4:30–5:20 pm · <b>11</b> — Beginner or Intermediate B · <b>12 and up</b> — Intermediate B, Mon &amp; Wed 4:30–5:20 pm · Color belts under 12: Intermediate A · Black belts: Advance classes
         </div>
         {kids.map((k, i) => {
           const classes = k.age === '' ? [] : trialClasses(k);
@@ -152,6 +153,9 @@ export default function TrialPage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {EXPERIENCE.map((x) => <Chip key={x.value} on={k.experience === x.value} onClick={() => setKid(i, { experience: x.value, date: '', cls: '' })}>{x.label}</Chip>)}
               </div>
+              {k.experience === 'None' && Number(k.age) === 11 && (
+                <div style={{ fontSize: 13.5, color: C.green, margin: '-4px 0 12px' }}>At 11, {k.name.trim().split(' ')[0] || 'your child'} can try Beginner (Tue &amp; Thu 4:30) or Intermediate B (Mon &amp; Wed 4:30) — pick any date below.</div>
+              )}
               {(k.experience === 'Black belt' || (k.experience === 'Color belt' && Number(k.age) < 12)) && (
                 <div style={{ fontSize: 13.5, color: C.green, margin: '-4px 0 12px' }}>{k.experience === 'Black belt' ? 'Great! Pick an Advance class below (Poomsae or Sparring).' : 'Great! Pick an Intermediate A class below.'} We'll confirm the best class for {k.name.trim().split(' ')[0] || 'your child'}'s level.</div>
               )}
