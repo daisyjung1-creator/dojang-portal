@@ -35,7 +35,7 @@ insert into fit_test_items (key, category, name, unit, sides, better, sort, note
   ('hip_ir',           'Mobility',        'Hip IR',                       '°',       true,  'higher', 320, 'Internal rotation.'),
   ('hip_er',           'Mobility',        'Hip ER',                       '°',       true,  'higher', 330, 'External rotation.'),
   ('kick_10s',         'Taekwondo Speed', '10-sec Kick',                  'kicks',   true,  'higher', 400, 'Count valid kicks in 10 seconds.'),
-  ('steps',            'Footwork',        'Back & Front Steps',           null,      true,  null,     500, 'Choose one protocol and use it consistently.'),
+  ('steps',            'Footwork',        'Back & Front Steps',           'count',   true,  'higher', 500, 'Choose one protocol and use it consistently.'),
   ('hop4',             'Power',           'Hop 4',                        'sec',     true,  'lower',  600, 'Use the same method each test.'),
   ('vertical_jump',    'Power',           'Vertical Jump',                'cm',      false, 'higher', 610, 'Use the same jump protocol each test.'),
   ('ybal_ant',         'Balance',         'Y-Balance Anterior',           'cm',      true,  'higher', 700, null),
