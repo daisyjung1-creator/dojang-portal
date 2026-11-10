@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import BrandMark from './BrandMark';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X } from 'lucide-react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X, KeyRound, Sun } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 
 export const ALL_TABS = [
   { id: 'home', label: 'Home', icon: LayoutDashboard, adminOnly: true },
+  { id: 'today', label: 'Today', icon: Sun, staffOnly: true, staff: true },
   { id: 'students', label: 'Students', icon: Users, adminOnly: true },
   { id: 'leads', label: 'Leads', icon: PhoneCall, adminOnly: true },
   { id: 'tryouts', label: 'Trials', icon: CalendarPlus, adminOnly: true, staff: true },
@@ -21,12 +22,13 @@ export const ALL_TABS = [
   { id: 'payroll', label: 'Payroll', icon: Banknote, adminOnly: true },
   { id: 'inventory', label: 'Inventory', icon: Package, adminOnly: true },
   { id: 'invoice-settings', label: 'Invoice Settings', icon: Settings, adminOnly: true },
+  { id: 'staff-logins', label: 'Staff Logins', icon: KeyRound, adminOnly: true },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab }) {
   const { isAdmin, signOut } = useAuth();
   // Staff logins (e.g. the front-desk iPad) only get Attendance and Trials.
-  const tabs = ALL_TABS.filter((t) => isAdmin || t.staff);
+  const tabs = ALL_TABS.filter((t) => (isAdmin ? !t.staffOnly : t.staff));
   // On a phone the sidebar becomes a top bar; the menu slides in from the left.
   const [open, setOpen] = useState(false);
   const current = ALL_TABS.find((t) => t.id === activeTab);

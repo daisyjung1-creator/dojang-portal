@@ -21,6 +21,8 @@ import TestingPage from './modules/testing/TestingPage';
 import PayrollPage from './modules/payroll/PayrollPage';
 import ConfirmSendHost from './components/ConfirmSend';
 import HomePage from './modules/home/HomePage';
+import StaffHomePage from './modules/home/StaffHomePage';
+import StaffLoginsPage from './modules/staff/StaffLoginsPage';
 import JoinPage from './modules/join/JoinPage';
 import TrialPage from './modules/join/TrialPage';
 
@@ -43,9 +45,9 @@ export default function App() {
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
-  const adminOnlyTabs = ['home', 'students', 'email', 'leads', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings'];
-  const startTab = activeTab || (isAdmin ? 'home' : 'attendance');
-  const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'attendance' : startTab;
+  const adminOnlyTabs = ['home', 'students', 'email', 'leads', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
+  const startTab = activeTab || (isAdmin ? 'home' : 'today');
+  const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'today' : isAdmin && startTab === 'today' ? 'home' : startTab;
 
   return (
     <div className="dp-shell" style={styles.shell}>
@@ -53,6 +55,8 @@ export default function App() {
       <ConfirmSendHost />
       <div className="dp-main" style={styles.main}>
         {isAdmin && effectiveTab === 'home' && <HomePage setActiveTab={setActiveTab} />}
+        {!isAdmin && effectiveTab === 'today' && <StaffHomePage setActiveTab={setActiveTab} />}
+        {isAdmin && effectiveTab === 'staff-logins' && <StaffLoginsPage />}
         {isAdmin && effectiveTab === 'students' && <StudentsPage />}
         {effectiveTab === 'attendance' && <AttendancePage />}
         {isAdmin && effectiveTab === 'leads' && <LeadsPage setActiveTab={setActiveTab} />}

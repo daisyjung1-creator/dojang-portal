@@ -1,6 +1,6 @@
 import StudentFlags from '../../components/StudentFlags';
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleCheck, CircleX, CalendarClock, CalendarX, BarChart3, Mail, Plus, Trash2, Check, Plane, Copy, User, AlertTriangle } from 'lucide-react';
+import { CircleCheck, CircleX, CalendarClock, CalendarX, BarChart3, Mail, Plus, Trash2, Check, Plane, Copy, User, AlertTriangle, Phone } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { MAKEUP_STATUSES } from '../../lib/constants';
@@ -38,6 +38,7 @@ export default function AttendancePage() {
   const [sortBy, setSortBy] = useState('class');
   const [historyStudentId, setHistoryStudentId] = useState('');
   const [statsFor, setStatsFor] = useState(null);
+  const [contactFor, setContactFor] = useState(null);
   const [email, setEmail] = useState(null);
   const [pkgModal, setPkgModal] = useState(null);
   const [sessionModal, setSessionModal] = useState(null);
@@ -606,6 +607,9 @@ export default function AttendancePage() {
                               <button className="dp-btn" title="Attendance summary" aria-label="Attendance summary" style={{ padding: 3, border: 'none', background: 'none' }} onClick={() => setStatsFor(s)}>
                                 <BarChart3 size={14} color="#5B5F56" />
                               </button>
+                              <button className="dp-btn" title="Parent / emergency contact" aria-label="Contact" style={{ padding: 3, border: 'none', background: 'none' }} onClick={() => setContactFor(s)}>
+                                <Phone size={14} color="#5B5F56" />
+                              </button>
                             </div>
                           </td>
                           <td className="dp-hide-sm">{className}</td>
@@ -1029,6 +1033,26 @@ export default function AttendancePage() {
           </>
         );
       })()}
+
+      {contactFor && (
+        <Modal title={`Contact — ${contactFor.name}`} maxWidth={420} onClose={() => setContactFor(null)} footer={<button className="dp-btn" onClick={() => setContactFor(null)}>Close</button>}>
+          {[
+            ['Parent / guardian', contactFor.guardian_name, contactFor.guardian_phone],
+            ['Emergency contact', contactFor.emergency_name, contactFor.emergency_phone],
+          ].map(([label, name, phone]) => (
+            <div key={label} style={{ border: '1px solid #E4E6DF', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+              <div style={{ fontSize: 11.5, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 500, margin: '2px 0' }}>{name || '—'}</div>
+              {phone ? (
+                <a href={`tel:${String(phone).replace(/[^0-9+]/g, '')}`} className="dp-btn" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', padding: '5px 12px', textDecoration: 'none', fontSize: 14 }}><Phone size={14} /> {phone}</a>
+              ) : <span style={{ fontSize: 13, color: '#8A8D84' }}>No phone on file</span>}
+            </div>
+          ))}
+          {String(contactFor.medical || '').trim() && (
+            <p style={{ background: '#FBEAEA', color: '#9A2B2B', borderRadius: 8, padding: '8px 12px', fontSize: 13, margin: 0 }}><b>Medical:</b> {contactFor.medical}</p>
+          )}
+        </Modal>
+      )}
 
       {statsFor && (
         <Modal title={`Attendance — ${statsFor.name}`} maxWidth={640} onClose={() => setStatsFor(null)} footer={<button className="dp-btn" onClick={() => setStatsFor(null)}>Close</button>}>

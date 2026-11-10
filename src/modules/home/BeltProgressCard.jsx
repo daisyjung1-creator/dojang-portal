@@ -35,7 +35,7 @@ function phaseItem(label, cur) {
   return '';
 }
 
-export default function BeltProgressCard({ students, schedule, settings, today, setActiveTab, onSaved }) {
+export default function BeltProgressCard({ students, schedule, settings, today, setActiveTab, onSaved, readOnly = false }) {
   const [tests, setTests] = useState(null);
   const [curriculum, setCurriculum] = useState([]);
   const [att, setAtt] = useState([]);
@@ -107,7 +107,7 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
     setEdit(null);
   }
 
-  const action = (
+  const action = readOnly ? null : (
     <div style={{ display: 'flex', gap: 6 }}>
       <button className="dp-btn" style={smallBtn} onClick={() => setEdit({ list: pacing.map((p) => ({ ...p })), cycle: cycleWeeks, error: '' })}><Pencil size={11} /> Pacing</button>
       <button className="dp-btn" style={smallBtn} onClick={() => setActiveTab('testing')}>Testing</button>
@@ -146,7 +146,7 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
                 <span style={{ fontSize: 15, fontWeight: 600 }}>Next test not scheduled</span>
                 <span style={{ fontSize: 13, color: '#5B5F56' }}>
                   — pacing assumes about {shortDay(info.end)} ({cycleWeeks} weeks after {info.prev ? shortDay(info.prev.test_date) : 'now'}).{' '}
-                  <button style={linkBtn} onClick={() => setActiveTab('testing')}>Set the date</button>
+                  {!readOnly && <button style={linkBtn} onClick={() => setActiveTab('testing')}>Set the date</button>}
                 </span>
               </>
             )}
