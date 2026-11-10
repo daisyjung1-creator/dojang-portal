@@ -9,6 +9,7 @@ import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmailComposeModal from '../../components/EmailComposeModal';
+import { useAuth } from '../../auth/AuthContext';
 import { fillTemplate, tryoutVars, timeLabel } from '../../lib/emailTemplates';
 
 // Trials are usually at 4:30 pm (changeable in Invoice Settings).
@@ -17,6 +18,7 @@ function emptyForm(time = '16:30') {
 }
 
 export default function TryoutsPage({ setActiveTab }) {
+  const { isAdmin } = useAuth();
   const [tryouts, setTryouts] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
@@ -245,7 +247,7 @@ export default function TryoutsPage({ setActiveTab }) {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        {t.status !== 'Converted' && (
+                        {isAdmin && t.status !== 'Converted' && (
                           <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => convertToRegistration(t)}>
                             To Enrollment
                           </button>
@@ -253,9 +255,11 @@ export default function TryoutsPage({ setActiveTab }) {
                         <button aria-label="Edit" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(t)}>
                           <Pencil size={14} />
                         </button>
-                        <button aria-label="Delete" className="dp-btn dp-btn-danger" style={{ padding: 6 }} onClick={() => setConfirmDeleteId(t.id)}>
-                          <Trash2 size={14} />
-                        </button>
+                        {isAdmin && (
+                          <button aria-label="Delete" className="dp-btn dp-btn-danger" style={{ padding: 6 }} onClick={() => setConfirmDeleteId(t.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

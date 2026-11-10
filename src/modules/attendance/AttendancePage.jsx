@@ -533,9 +533,9 @@ export default function AttendancePage() {
               <option value="name">Name</option>
             </select>
             <div style={{ flex: 1 }} />
-            <button className="dp-btn" onClick={() => setDayOff({ date: checkinDate, all: true, class_name: classes[0] || '', reason: 'Holiday', other: '', removeManual: true, msg: '' })}>
+            {isAdmin && <button className="dp-btn" onClick={() => setDayOff({ date: checkinDate, all: true, class_name: classes[0] || '', reason: 'Holiday', other: '', removeManual: true, msg: '' })}>
               <CalendarX size={14} /> Day off / no classes
-            </button>
+            </button>}
             <button className="dp-btn" onClick={() => setAbsenceModal({ student_id: '', from: checkinDate, to: checkinDate, kind: 'excused', note: '', skip: {}, msg: '' })}>
               <CalendarClock size={14} /> Report absence ahead
             </button>
@@ -552,7 +552,7 @@ export default function AttendancePage() {
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#EEF0F3', border: '1px solid #D5DAE2', color: '#3A4250', borderRadius: 8, padding: '9px 14px', marginBottom: 10, fontSize: 13.5 }}>
                     <CalendarX size={15} />
                     <span style={{ flex: 1 }}><b>No {c.class_name ? c.class_name : 'classes'} on {formatDate(c.date)}</b>{c.reason ? ` — ${c.reason}` : ''}. Nobody is marked absent.</span>
-                    <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setConfirm({ msg: `Undo the day off on ${formatDate(c.date)}? Classes will be expected again.`, run: () => undoDayOff(c) })}>Undo</button>
+                    {isAdmin && <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setConfirm({ msg: `Undo the day off on ${formatDate(c.date)}? Classes will be expected again.`, run: () => undoDayOff(c) })}>Undo</button>}
                   </div>
                 ))}
                 {upcoming.length > 0 && (

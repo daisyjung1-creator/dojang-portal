@@ -43,9 +43,9 @@ export default function App() {
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
-  const adminOnlyTabs = ['home', 'email', 'leads', 'tryouts', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings'];
-  const startTab = activeTab || (isAdmin ? 'home' : 'students');
-  const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'students' : startTab;
+  const adminOnlyTabs = ['home', 'students', 'email', 'leads', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings'];
+  const startTab = activeTab || (isAdmin ? 'home' : 'attendance');
+  const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'attendance' : startTab;
 
   return (
     <div className="dp-shell" style={styles.shell}>
@@ -53,10 +53,10 @@ export default function App() {
       <ConfirmSendHost />
       <div className="dp-main" style={styles.main}>
         {isAdmin && effectiveTab === 'home' && <HomePage setActiveTab={setActiveTab} />}
-        {effectiveTab === 'students' && <StudentsPage />}
+        {isAdmin && effectiveTab === 'students' && <StudentsPage />}
         {effectiveTab === 'attendance' && <AttendancePage />}
         {isAdmin && effectiveTab === 'leads' && <LeadsPage setActiveTab={setActiveTab} />}
-        {isAdmin && effectiveTab === 'tryouts' && <TryoutsPage setActiveTab={setActiveTab} />}
+        {effectiveTab === 'tryouts' && <TryoutsPage setActiveTab={setActiveTab} />}
         {isAdmin && effectiveTab === 'register' && <RegisterPage />}
         {isAdmin && effectiveTab === 'testing' && <TestingPage />}
         {isAdmin && effectiveTab === 'payroll' && <PayrollPage />}

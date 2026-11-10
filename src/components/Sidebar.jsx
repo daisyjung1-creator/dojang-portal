@@ -6,11 +6,11 @@ import { useAuth } from '../auth/AuthContext';
 
 export const ALL_TABS = [
   { id: 'home', label: 'Home', icon: LayoutDashboard, adminOnly: true },
-  { id: 'students', label: 'Students', icon: Users, adminOnly: false },
+  { id: 'students', label: 'Students', icon: Users, adminOnly: true },
   { id: 'leads', label: 'Leads', icon: PhoneCall, adminOnly: true },
-  { id: 'tryouts', label: 'Trials', icon: CalendarPlus, adminOnly: true },
+  { id: 'tryouts', label: 'Trials', icon: CalendarPlus, adminOnly: true, staff: true },
   { id: 'register', label: 'Enrollment', icon: UserPlus, adminOnly: true },
-  { id: 'attendance', label: 'Attendance', icon: ClipboardCheck, adminOnly: false },
+  { id: 'attendance', label: 'Attendance', icon: ClipboardCheck, adminOnly: true, staff: true },
   { id: 'testing', label: 'Belt Testing', icon: Award, adminOnly: true },
   { id: 'billing', label: 'Billing', icon: Wallet, adminOnly: true },
   { id: 'email', label: 'Email', icon: Mail, adminOnly: true },
@@ -25,7 +25,8 @@ export const ALL_TABS = [
 
 export default function Sidebar({ activeTab, setActiveTab }) {
   const { isAdmin, signOut } = useAuth();
-  const tabs = ALL_TABS.filter((t) => isAdmin || !t.adminOnly);
+  // Staff logins (e.g. the front-desk iPad) only get Attendance and Trials.
+  const tabs = ALL_TABS.filter((t) => isAdmin || t.staff);
   // On a phone the sidebar becomes a top bar; the menu slides in from the left.
   const [open, setOpen] = useState(false);
   const current = ALL_TABS.find((t) => t.id === activeTab);
