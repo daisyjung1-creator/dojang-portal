@@ -1,7 +1,8 @@
 import StudentFlags from '../../components/StudentFlags';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX } from 'lucide-react';
+import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX, FileText } from 'lucide-react';
+import ProofOfEnrollmentModal from '../../components/ProofOfEnrollmentModal';
 import CancellationModal from './CancellationModal';
 import { REREGISTRATION_FEE } from '../../lib/tuitionBilling';
 import { fillSubsidyTemplate, DEFAULT_SUBSIDY_SUBJECT } from '../../lib/subsidyReminder';
@@ -68,6 +69,7 @@ export default function StudentsPage() {
   const [beltFilter, setBeltFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('active');
   const [cancelFor, setCancelFor] = useState(null);
+  const [poeFor, setPoeFor] = useState(null);
   const [reactivateFor, setReactivateFor] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -497,6 +499,11 @@ export default function StudentsPage() {
                               <CalendarX size={14} />
                             </button>
                           )}
+                          {s.status !== 'withdrawn' && (
+                            <button aria-label="Proof of enrollment" title="Proof of enrollment (KidSport) — download or email" className="dp-btn" style={{ padding: 6 }} onClick={() => setPoeFor(s)}>
+                              <FileText size={14} />
+                            </button>
+                          )}
                           <button aria-label="Edit" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(s)}>
                             <Pencil size={14} />
                           </button>
@@ -708,6 +715,8 @@ export default function StudentsPage() {
           {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
+
+      {poeFor && <ProofOfEnrollmentModal student={poeFor} onClose={() => setPoeFor(null)} />}
 
       {cancelFor && (
         <CancellationModal

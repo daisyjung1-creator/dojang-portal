@@ -8,6 +8,8 @@ import { proposeInvoices, invoiceHeader, familyName, isBillable, tuitionLines, i
 import { loadSettings, loadCustomers, saveInvoice, queueEmail, fetchAll, payInvoicesInFull, usePaymentMethods, applyCredit } from '../invoices/api';
 import { StatusPill } from '../invoices/InvoicesPage';
 import InvoicePreview from '../invoices/InvoicePreview';
+import InvoiceDocument from '../invoices/InvoiceDocument';
+import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 const tag = (text, c) => (
@@ -36,6 +38,7 @@ export default function BillingPage() {
   const [busy, setBusy] = useState('');
   const [flash, setFlash] = useState('');
   const [previewId, setPreviewId] = useState(null);
+  const [draft, setDraft] = useState(null);
   const [confirm, setConfirm] = useState(null);
 
   useEffect(() => {
@@ -206,8 +209,7 @@ export default function BillingPage() {
 
   // Invoice one student's current (or next) cycle now. Siblings with the same
   // billing date who aren't invoiced yet go on the same invoice.
-  function createOne(r) {
-    const due = r.toInvoice;
+  function draftGroup(r, due) {
     const together = r.family && !r.family.separate_invoices;
     const kids = students.filter(
       (x) =>
@@ -217,7 +219,22 @@ export default function BillingPage() {
         (currentCycleStart(x, due) === due)
     );
     const lines = kids.sort((a, b) => a.name.localeCompare(b.name)).flatMap((x) => tuitionLines(x, due, settings));
-    setConfirm({ mode: 'manual', list: [{ key: 'one', customer: r.family || null, students: kids, due_date: due, lines, totals: calcTotals(lines, settings.gst_rate ?? 5) }] });
+    return { key: 'one', customer: r.family || null, students: kids.length ? kids : [r.s], due_date: due, lines, totals: calcTotals(lines, settings.gst_rate ?? 5) };
+  }
+
+  function createOne(r) {
+    setConfirm({ mode: 'manual', list: [draftGroup(r, r.toInvoice)] });
+  }
+
+  // Click a student: the invoice still to be made (as a draft), or else the
+  // latest real one.
+  function openStudent(r) {
+    if (r.s.billing_exempt) return setFlash(`${r.s.name} is staff — no invoices.`);
+    if (isBillable(r.s) && r.toInvoice) return setDraft({ r, g: draftGroup(r, r.toInvoice) });
+    const inv = r.nextInv || r.cycleInv;
+    if (inv) return setPreviewId(inv.id);
+    if (isBillable(r.s) && r.next) return setDraft({ r, g: draftGroup(r, r.next) });
+    setFlash(`${r.s.name} has no billing date or tuition set yet.`);
   }
 
   if (loading || !settings) return <p style={{ color: '#5B5F56' }}>Loading…</p>;
@@ -348,7 +365,11 @@ export default function BillingPage() {
               const s = r.s;
               return (
                 <tr key={s.id} className="dp-row" style={{ opacity: s.billing_exempt ? 0.6 : 1 }}>
-                  <td style={{ fontWeight: 500 }}>{s.name}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    <button className="dp-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 500, color: '#20241F', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => openStudent(r)}>
+                      {s.name}
+                    </button>
+                  </td>
                   <td style={{ fontSize: 12.5, color: '#5B5F56' }}>
                     {r.family?.name || '—'}
                     {isManual(r.family) && tag('pays manually', BLUE)}
@@ -423,6 +444,34 @@ export default function BillingPage() {
           }}
         />
       )}
+
+      {draft && (() => {
+        const g = draft.g;
+        const h = invoiceHeader(g, settings, today);
+        const invoice = { ...h, invoice_number: 'DRAFT', subtotal: g.totals.subtotal, gst_amount: g.totals.gst, total: g.totals.total, amount_paid: 0 };
+        return (
+          <Modal
+            title={`Invoice preview — ${familyName(g)} · ${formatDate(g.due_date)}`}
+            maxWidth={860}
+            onClose={() => setDraft(null)}
+            footer={
+              <>
+                <span style={{ marginRight: 'auto', fontSize: 12.5, color: '#854F0B' }}>Draft — not created yet{g.students.length > 1 ? ` · ${g.students.length} siblings on one invoice` : ''}</span>
+                <button className="dp-btn" onClick={() => setDraft(null)}>Close</button>
+                {draft.r.toInvoice === g.due_date && (
+                  <button className="dp-btn dp-btn-primary" onClick={() => { setDraft(null); setConfirm({ mode: 'manual', list: [g] }); }}>
+                    <FileText size={14} /> Create this invoice
+                  </button>
+                )}
+              </>
+            }
+          >
+            <div style={{ border: '1px solid #E4E6DF', borderRadius: 8, overflow: 'hidden' }}>
+              <InvoiceDocument invoice={invoice} lines={g.lines} settings={settings} />
+            </div>
+          </Modal>
+        );
+      })()}
 
       {previewId && (
         <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onEdit={() => setFlash('To edit, open the invoice from the Invoices page.')} onPay={() => setFlash('Use "Mark paid" above, or Apply Payment on the Invoices page.')} onChanged={loadAll} />

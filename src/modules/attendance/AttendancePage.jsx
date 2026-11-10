@@ -5,7 +5,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { MAKEUP_STATUSES } from '../../lib/constants';
 import { todayISO, computeMakeupWindow, addDaysISO } from '../../lib/billingDates';
-import { splitClasses, allClassNames, inClass, DOJANG_CLASSES, comesOn } from '../../lib/classes';
+import { splitClasses, allClassNames, inClass, DOJANG_CLASSES, comesOn, weeklyPlan } from '../../lib/classes';
 import { ATTENDANCE_KINDS, studentSummary, weekCount, lastAttended, minutesLabel, absenceAlerts, trackingStart, NOT_SEEN_DAYS, REGULAR_WINDOW, COMP_WINDOW } from '../../lib/attendanceStats';
 import { fillTemplate, makeupVars, studentVars } from '../../lib/emailTemplates';
 import { formatDate } from '../../lib/invoiceUtils';
@@ -28,6 +28,7 @@ export default function AttendancePage() {
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [makeupRecords, setMakeupRecords] = useState([]);
+  const [makeupAsk, setMakeupAsk] = useState(null);
   const [payments, setPayments] = useState([]);
   const [packages, setPackages] = useState([]);
   const [settings, setSettings] = useState({});
@@ -109,7 +110,7 @@ export default function AttendancePage() {
     const unlimited = inClass(studentMap[studentId] || {}, 'Comp Team');
     // Only an excused absence gets a makeup class.
     if (status === 'excused' && !unlimited) {
-      await createOrUpdateMakeupRecord(studentId, date, className);
+      return await createOrUpdateMakeupRecord(studentId, date, className);
     } else {
       // Present / double / private / vacation: no makeup owed for this class.
       await supabase.from('makeup_records').delete().eq('student_id', studentId).eq('absence_date', date).eq('class_name', className);
@@ -128,7 +129,7 @@ export default function AttendancePage() {
 
   async function createOrUpdateMakeupRecord(studentId, absenceDate, className) {
     const already = makeupRecords.find((m) => m.student_id === studentId && m.absence_date === absenceDate && m.class_name === className);
-    if (already) return;
+    if (already) return already.status === 'pending' ? already : null;
     const student = studentMap[studentId];
     if (!student) return;
     const { nextBillingDate, paidPeriodEnd, tentativeExpiration } = computeMakeupWindow(student, absenceDate);
@@ -148,7 +149,31 @@ export default function AttendancePage() {
       status: 'pending',
     };
     const { data, error } = await supabase.from('makeup_records').insert(record).select();
-    if (!error) setMakeupRecords((prev) => [...prev, data[0]]);
+    if (error) return null;
+    setMakeupRecords((prev) => [...prev, data[0]]);
+    return data[0];
+  }
+
+  // Right after an Excused (told-us-ahead) absence: offer to book the makeup.
+  function askMakeup(records) {
+    const list = records.filter(Boolean);
+    if (!list.length) return;
+    setMakeupAsk(list.map((m) => ({ m, date: '', cls: m.class_name })));
+  }
+
+  // Upcoming class times (from today up to the makeup's expiry) for a class.
+  function upcomingTimes(className, until, limit = 6) {
+    const out = [];
+    for (let d = todayISO(); d <= (until || addDaysISO(todayISO(), 30)) && out.length < limit; d = addDaysISO(d, 1)) {
+      const dow = new Date(d + 'T00:00:00').getDay();
+      schedule.filter((c) => c.active !== false && c.weekday === dow && c.class_name === className).forEach((c) => out.push({ date: d, start: c.start_time }));
+    }
+    return out;
+  }
+
+  async function saveMakeupAsk() {
+    for (const it of makeupAsk) if (it.date) await setMakeupReservation(it.m.id, it.date, it.cls || it.m.class_name);
+    setMakeupAsk(null);
   }
 
   async function setMakeupReservation(makeupId, reservationDate, reservationClassName) {
@@ -227,11 +252,13 @@ export default function AttendancePage() {
     const st = studentMap[f.student_id];
     const picks = scheduledClasses(st, f.from, f.to).filter((x) => f.skip[`${x.date}|${x.class_name}`] !== true);
     if (!st || !picks.length) return setAbsenceModal({ ...f, msg: 'Choose a student and at least one class.' });
+    const made = [];
     for (const x of picks) {
-      await setAttendanceStatus(st.id, x.date, x.class_name, f.kind);
+      made.push(await setAttendanceStatus(st.id, x.date, x.class_name, f.kind));
       if (f.note) await supabase.from('attendance').update({ note: f.note }).eq('student_id', st.id).eq('date', x.date).eq('class_name', x.class_name);
     }
     setAbsenceModal(null);
+    if (f.kind === 'excused') askMakeup(made);
   }
 
   // Undo a makeup / drop-in check-in: the makeup goes back to "not scheduled".
@@ -532,7 +559,7 @@ export default function AttendancePage() {
                             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
                               {kindButton('present', st === 'present', () => setAttendanceStatus(s.id, checkinDate, className, 'present'), <CircleCheck size={13} />)}
                               {kindButton('absent', st === 'absent', () => setAttendanceStatus(s.id, checkinDate, className, 'absent'), <CircleX size={13} />)}
-                              {kindButton('excused', st === 'excused', () => setAttendanceStatus(s.id, checkinDate, className, 'excused'), <CalendarClock size={13} />)}
+                              {kindButton('excused', st === 'excused', async () => askMakeup([await setAttendanceStatus(s.id, checkinDate, className, 'excused')]), <CalendarClock size={13} />)}
                               {kindButton('double', st === 'double', () => setAttendanceStatus(s.id, checkinDate, className, 'double'), <Copy size={13} />)}
                               {kindButton('private', st === 'private', () => setAttendanceStatus(s.id, checkinDate, className, 'private', record?.minutes || 30), <User size={13} />)}
                               {st === 'private' && (
@@ -621,7 +648,7 @@ export default function AttendancePage() {
           {!historyStudentId ? (
             <div style={styles.card}><p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Select a student.</p></div>
           ) : (
-            <StudentAttendance student={studentMap[historyStudentId]} records={recordsBy[historyStudentId] || []} packages={packagesBy[historyStudentId] || []} onClear={(r) => setConfirm({ msg: `Remove the ${formatDate(r.date)} ${r.class_name} record?`, run: () => clearAttendance(r) })} />
+            <StudentAttendance student={studentMap[historyStudentId]} schedule={schedule} records={recordsBy[historyStudentId] || []} packages={packagesBy[historyStudentId] || []} onClear={(r) => setConfirm({ msg: `Remove the ${formatDate(r.date)} ${r.class_name} record?`, run: () => clearAttendance(r) })} />
           )}
         </>
       )}
@@ -951,7 +978,7 @@ export default function AttendancePage() {
 
       {statsFor && (
         <Modal title={`Attendance — ${statsFor.name}`} maxWidth={640} onClose={() => setStatsFor(null)} footer={<button className="dp-btn" onClick={() => setStatsFor(null)}>Close</button>}>
-          <StudentAttendance student={statsFor} records={recordsBy[statsFor.id] || []} packages={packagesBy[statsFor.id] || []} compact />
+          <StudentAttendance student={statsFor} schedule={schedule} records={recordsBy[statsFor.id] || []} packages={packagesBy[statsFor.id] || []} compact />
         </Modal>
       )}
 
@@ -1138,6 +1165,53 @@ export default function AttendancePage() {
         </Modal>
       )}
 
+      {makeupAsk && (
+        <Modal
+          title="Schedule the makeup class now?"
+          maxWidth={520}
+          onClose={() => setMakeupAsk(null)}
+          footer={
+            <>
+              <button className="dp-btn" onClick={() => setMakeupAsk(null)}>Not now</button>
+              <button className="dp-btn dp-btn-primary" disabled={!makeupAsk.some((x) => x.date)} onClick={saveMakeupAsk}><Check size={15} /> Book makeup</button>
+            </>
+          }
+        >
+          <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 10px' }}>
+            Excused absence saved — a makeup class was created. Pick a date now, or leave it and book it later under <b>Makeup Classes</b>.
+          </p>
+          {makeupAsk.map((it, i) => {
+            const st = studentMap[it.m.student_id];
+            const set = (patch) => setMakeupAsk(makeupAsk.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+            const times = upcomingTimes(it.cls, it.m.expiration_date);
+            return (
+              <div key={it.m.id} style={{ border: '1px solid #E4E6DF', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{st?.name || 'Student'}</div>
+                <div style={{ fontSize: 12.5, color: '#5B5F56', marginBottom: 8 }}>
+                  Missing {new Date(it.m.absence_date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })} · {it.m.class_name} — use by {formatDate(it.m.expiration_date)}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <input type="date" className="dp-input" style={{ padding: '5px 8px', fontSize: 13 }} value={it.date} max={it.m.expiration_date || undefined} onChange={(e) => set({ date: e.target.value })} />
+                  <select className="dp-select" style={{ padding: '5px 6px', fontSize: 13 }} value={it.cls} onChange={(e) => set({ cls: e.target.value, date: '' })}>
+                    {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                {times.length > 0 && (
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
+                    {times.map((t) => (
+                      <button key={t.date + t.start} type="button" className="dp-btn" style={{ padding: '3px 9px', fontSize: 12, ...(it.date === t.date ? { background: '#20241F', color: '#fff', borderColor: '#20241F' } : {}) }} onClick={() => set({ date: t.date })}>
+                        {new Date(t.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })} {String(t.start || '').slice(0, 5)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {it.date && it.m.expiration_date && it.date > it.m.expiration_date && <div style={{ fontSize: 11.5, color: '#9A2B2B', marginTop: 4 }}>After it expires — must be within 30 days.</div>}
+              </div>
+            );
+          })}
+        </Modal>
+      )}
+
       {confirm && (
         <ConfirmDialog
           message={confirm.msg}
@@ -1154,8 +1228,17 @@ export default function AttendancePage() {
 }
 
 // Month + billing-cycle counts, private-lesson balance and the record list.
-function StudentAttendance({ student, records, packages, compact, onClear }) {
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const shortTime = (t) => {
+  const [h, m] = String(t || '').split(':').map(Number);
+  if (Number.isNaN(h)) return '';
+  return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')}`;
+};
+
+function StudentAttendance({ student, records, packages, compact, onClear, schedule = [] }) {
   if (!student) return null;
+  const plan = weeklyPlan(student, schedule);
+  const planDays = new Set(plan.map((c) => c.weekday));
   const sum = studentSummary(student, records, packages);
   const sorted = records.slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   const box = (title, p) => (
@@ -1194,6 +1277,18 @@ function StudentAttendance({ student, records, packages, compact, onClear }) {
       <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>
         {inClass(student, 'Comp Team') ? 'Comp Team — unlimited classes (no makeups needed)' : student.classes_per_week ? `${student.classes_per_week} classes per week` : 'Classes per week not set (Students → Edit)'} · last class {sum.lastAttended ? formatDate(sum.lastAttended) : '—'}
       </p>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '0 0 10px', fontSize: 12.5 }}>
+        <span style={{ color: '#5B5F56' }}>Every week:</span>
+        {plan.length === 0 ? (
+          <span style={{ color: '#8A8D84' }}>no class days set</span>
+        ) : (
+          plan.map((c) => (
+            <span key={c.id || `${c.weekday}${c.class_name}${c.start_time}`} style={{ background: '#EEF2EA', color: '#2A5A30', borderRadius: 999, padding: '3px 10px', fontWeight: 500 }}>
+              {WD[c.weekday]} {shortTime(c.start_time)} · {c.class_name}
+            </span>
+          ))
+        )}
+      </div>
       <div style={styles.card}>
         {sorted.length === 0 ? (
           <p style={{ padding: 16, color: '#5B5F56', fontSize: 13.5 }}>No attendance records.</p>
@@ -1212,7 +1307,10 @@ function StudentAttendance({ student, records, packages, compact, onClear }) {
                 const k = ATTENDANCE_KINDS[r.status] || ATTENDANCE_KINDS.present;
                 return (
                   <tr key={r.id} className="dp-row">
-                    <td>{r.date}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-block', width: 34, fontWeight: 600, color: planDays.size && !planDays.has(new Date(r.date + 'T00:00:00').getDay()) ? '#854F0B' : '#20241F' }}>{WD[new Date(r.date + 'T00:00:00').getDay()]}</span>
+                      {r.date}
+                    </td>
                     <td>{r.class_name}{r.is_makeup ? ' (makeup)' : ''}{r.auto ? ' · auto' : ''}{r.note ? <span style={{ color: '#8A8D84' }}> · {r.note}</span> : null}</td>
                     <td style={{ color: k.color }}>{k.label}{r.status === 'private' ? ` · ${r.minutes || 30} min` : ''}</td>
                     {onClear && (

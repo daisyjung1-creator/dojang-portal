@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, AlertTriangle, CalendarDays, Wallet, Clock, Award, Cake, UserPlus, Banknote, StickyNote, CircleCheck, Mail } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, AlertTriangle, CalendarDays, Wallet, Clock, Award, Cake, UserPlus, Banknote, StickyNote, CircleCheck, Mail, Users } from 'lucide-react';
+import { DEFAULT_MEETINGS, isMeetingDay, time12 } from '../../lib/meetings';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { todayISO, addDaysISO, currentCycleStart, nextDueDate, billingAnchor, daysUntil } from '../../lib/billingDates';
@@ -9,6 +10,9 @@ import { money, formatDate } from '../../lib/invoiceUtils';
 import { fetchAll, loadSettings } from '../invoices/api';
 import { absenceAlerts, trackingStart, NOT_SEEN_DAYS } from '../../lib/attendanceStats';
 import InvoicePreview from '../invoices/InvoicePreview';
+import { GREEN, BLUE, RED, AMBER, PURPLE, GREY, smallBtn, linkBtn, Tag, Card, Empty } from './homeUi';
+import BeltProgressCard from './BeltProgressCard';
+import MeetingsCard from './MeetingsCard';
 
 // Home: what matters today at a glance — today's classes, who is billed
 // today, overdue invoices, a calendar with notes, and anything coming up
@@ -211,6 +215,13 @@ export default function HomePage({ setActiveTab }) {
         detail: `${d.entries.length} testing${forms ? ` · ${forms} form${forms === 1 ? '' : 's'} not received` : ' · all forms in'}${notice ? ` · ${notice} notice${notice === 1 ? '' : 's'} not sent` : ''}`,
       });
     }
+    // Staff meetings today / tomorrow
+    (settings?.meetings?.length ? settings.meetings : DEFAULT_MEETINGS).forEach((m) => {
+      [today, addDaysISO(today, 1)].forEach((date) => {
+        if (isMeetingDay(m, date))
+          out.push({ icon: Users, tab: 'home', tone: date === today ? 'warn' : 'info', title: `${m.name} ${date === today ? 'today' : 'tomorrow'} at ${time12(m.time)}`, detail: 'Post the reminder to the WhatsApp group (Staff meetings card).' });
+      });
+    });
     // Trials in the next 7 days
     const trials = d.tryouts.filter((t) => t.date >= today && t.date <= addDaysISO(today, 7) && (t.status || 'Scheduled') === 'Scheduled');
     if (trials.length)
@@ -330,7 +341,7 @@ export default function HomePage({ setActiveTab }) {
     if (unsent.length)
       out.push({ icon: Mail, tab: 'payroll', tone: 'info', title: `${unsent.length} payslip${unsent.length === 1 ? '' : 's'} not emailed yet`, detail: `${unsent.map((s) => d.empById[s.employee_id]?.name || '?').join(', ')} — pay date ${shortDay(latest)}` });
     return out;
-  }, [d, notes]);
+  }, [d, notes, settings]);
 
   // ── Notes ────────────────────────────────────────────────────────────────
   async function addNote(date, text, reset) {
@@ -410,6 +421,8 @@ export default function HomePage({ setActiveTab }) {
             )}
           </Card>
 
+          <BeltProgressCard students={d.students} schedule={d.schedule} settings={settings} today={today} setActiveTab={setActiveTab} onSaved={setSettings} />
+
           <Card title="Billing today" icon={Wallet} action={<button className="dp-btn" style={smallBtn} onClick={() => setActiveTab('billing')}>Billing</button>}>
             {billToday.length === 0 ? (
               <Empty>Nobody's billing date is today.</Empty>
@@ -461,6 +474,7 @@ export default function HomePage({ setActiveTab }) {
 
         {/* ── Right column ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <MeetingsCard settings={settings} today={today} onSaved={setSettings} />
           {headsUp.length > 0 && (
             <Card title="Coming up" icon={CircleCheck}>
               <div style={{ padding: '4px 0' }}>
@@ -514,19 +528,6 @@ export default function HomePage({ setActiveTab }) {
 }
 
 // ── Pieces ─────────────────────────────────────────────────────────────────
-const GREEN = ['#2A5A30', '#E8F1E9', '#BFDCC3'];
-const BLUE = ['#1E4566', '#E6F0F6', '#B9D3E4'];
-const RED = ['#9A2B2B', '#FBEAEA', '#EBC3C3'];
-const AMBER = ['#854F0B', '#FAEEDA', '#F0D9A8'];
-const PURPLE = ['#4B3A86', '#EEEAF6', '#D2C9EA'];
-const GREY = ['#5B5F56', '#F1EFE7', '#DEDACC'];
-const smallBtn = { padding: '2px 10px', fontSize: 12 };
-const linkBtn = { background: 'none', border: 'none', padding: '0 6px 0 0', color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' };
-
-function Tag({ c, children }) {
-  return <span style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap', fontWeight: 400 }}>{children}</span>;
-}
-
 function Metric({ label, value, sub, tone, onClick }) {
   const color = tone === 'bad' ? '#9A2B2B' : tone === 'good' ? '#2A5A30' : '#20241F';
   return (
@@ -537,21 +538,6 @@ function Metric({ label, value, sub, tone, onClick }) {
     </button>
   );
 }
-
-function Card({ title, icon: Icon, action, tone, children }) {
-  return (
-    <div style={{ ...styles.card, ...(tone === 'bad' ? { borderColor: '#EBC3C3' } : {}) }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderBottom: '1px solid #EDEAE0' }}>
-        {Icon && <Icon size={15} color={tone === 'bad' ? '#9A2B2B' : '#5B5F56'} />}
-        <span style={{ fontSize: 14, fontWeight: 600, flex: 1, color: tone === 'bad' ? '#9A2B2B' : '#20241F' }}>{title}</span>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-const Empty = ({ children }) => <p style={{ padding: '12px 14px', margin: 0, fontSize: 13, color: '#8A8D84' }}>{children}</p>;
 
 function Line({ icon: Icon, c, children }) {
   return (
