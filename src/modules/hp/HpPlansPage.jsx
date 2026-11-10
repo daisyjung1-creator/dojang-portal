@@ -3,6 +3,8 @@ import { ChevronLeft, CalendarDays, Pencil, Check } from 'lucide-react';
 import { styles } from '../../lib/uiStyles';
 import YtpGrid, { YtpLegend } from './YtpGrid';
 import WeeklyCheck from './WeeklyCheck';
+import FitnessTests from './FitnessTests';
+import TestsPanel from './TestsPanel';
 import { AREAS, CODE_LABELS, currentWeekNo, loadOverview, loadPlan, nextEvent, shortDate, swapRows } from './ytpData';
 import { AddRowEditor, CellEditor, EventsEditor, NumbersEditor, PhaseEditor, RowEditor } from './YtpEditors';
 import { HP_FONT, HP_ORANGE, PHASE_STYLE } from './ytpTheme';
@@ -53,7 +55,7 @@ export default function HpPlansPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #DEDACC' }}>
-            {[['athletes', 'Athletes'], ['weekly', 'Weekly Check']].map(([id, l]) => (
+            {[['athletes', 'Athletes'], ['weekly', 'Weekly Check'], ['tests', 'Fitness Tests']].map(([id, l]) => (
               <button key={id} type="button" onClick={() => setTab(id)} style={{
                 all: 'unset', cursor: 'pointer', padding: '8px 14px', fontSize: 14, fontWeight: tab === id ? 600 : 400,
                 color: tab === id ? '#20241F' : '#5B5F56', borderBottom: `2px solid ${tab === id ? HP_ORANGE : 'transparent'}`, marginBottom: -1,
@@ -62,6 +64,7 @@ export default function HpPlansPage() {
           </div>
           {tab === 'athletes' && <AthleteList overview={overview} nowWeek={nowWeek} onOpen={setSelectedId} />}
           {tab === 'weekly' && season && <WeeklyCheck overview={overview} nowWeek={nowWeek} />}
+          {tab === 'tests' && <FitnessTests />}
         </>
       )}
       {overview && selected && (
@@ -123,6 +126,7 @@ function AthletePlan({ athlete, season, nowWeek, onBack }) {
   const [error, setError] = useState('');
   const [selectedWeek, setSelectedWeek] = useState(nowWeek || 1);
   const [editMode, setEditMode] = useState(false);
+  const [view, setView] = useState('plan');
   const [editing, setEditing] = useState(null); // { type, payload }
 
   const reload = () => loadPlan(athlete.plan.id).then(setPlan).catch((e) => setError(e.message || String(e)));
@@ -146,7 +150,7 @@ function AthletePlan({ athlete, season, nowWeek, onBack }) {
             {[athlete.category, athlete.level, season && `Season ${season.name}`].filter(Boolean).join(' · ')}
           </p>
         </div>
-        {plan && (
+        {plan && view === 'plan' && (
           <button
             type="button"
             className={`dp-btn${editMode ? ' dp-btn-primary' : ''}`}
@@ -157,14 +161,23 @@ function AthletePlan({ athlete, season, nowWeek, onBack }) {
           </button>
         )}
       </div>
-      {editMode && (
+      <div style={{ display: 'flex', gap: 4, marginBottom: 14, borderBottom: '1px solid #DEDACC' }}>
+        {[['plan', 'Plan'], ['tests', 'Tests']].map(([id, l]) => (
+          <button key={id} type="button" onClick={() => { setView(id); setEditMode(false); }} style={{
+            all: 'unset', cursor: 'pointer', padding: '8px 14px', fontSize: 14, fontWeight: view === id ? 600 : 400,
+            color: view === id ? '#20241F' : '#5B5F56', borderBottom: `2px solid ${view === id ? HP_ORANGE : 'transparent'}`, marginBottom: -1,
+          }}>{l}</button>
+        ))}
+      </div>
+      {view === 'tests' && <TestsPanel studentId={athlete.student_id} />}
+      {view === 'plan' && editMode && (
         <div style={{ background: '#FDF0E6', border: `1px solid ${HP_ORANGE}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#6B3410', marginBottom: 12 }}>
           Edit mode — tap any cell, phase, event, number or row name to change it. Changes save right away.
         </div>
       )}
       {error && <div style={{ ...styles.card, padding: 16, color: '#9A2B2B' }}>Couldn't load the plan: {error}</div>}
-      {!plan && !error && <div style={{ color: '#5B5F56' }}>Loading...</div>}
-      {plan && (
+      {view === 'plan' && !plan && !error && <div style={{ color: '#5B5F56' }}>Loading...</div>}
+      {view === 'plan' && plan && (
         <>
           <WeekSummary plan={plan} weekNo={selectedWeek} nowWeek={nowWeek} />
           <YtpGrid
