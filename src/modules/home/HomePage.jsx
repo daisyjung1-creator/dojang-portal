@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2, AlertTriangle, CalendarDays, Wallet, Clock, Award, Cake, UserPlus, Banknote, StickyNote, CircleCheck, Mail, Users } from 'lucide-react';
-import { DEFAULT_MEETINGS, isMeetingDay, time12 } from '../../lib/meetings';
+import { DEFAULT_MEETINGS, isMeetingDay, time12, meetingMessage, whatsappLink } from '../../lib/meetings';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { todayISO, addDaysISO, currentCycleStart, nextDueDate, billingAnchor, daysUntil } from '../../lib/billingDates';
@@ -215,13 +215,6 @@ export default function HomePage({ setActiveTab }) {
         detail: `${d.entries.length} testing${forms ? ` · ${forms} form${forms === 1 ? '' : 's'} not received` : ' · all forms in'}${notice ? ` · ${notice} notice${notice === 1 ? '' : 's'} not sent` : ''}`,
       });
     }
-    // Staff meetings today / tomorrow
-    (settings?.meetings?.length ? settings.meetings : DEFAULT_MEETINGS).forEach((m) => {
-      [today, addDaysISO(today, 1)].forEach((date) => {
-        if (isMeetingDay(m, date))
-          out.push({ icon: Users, tab: 'home', tone: date === today ? 'warn' : 'info', title: `${m.name} ${date === today ? 'today' : 'tomorrow'} at ${time12(m.time)}`, detail: 'Post the reminder to the WhatsApp group (Staff meetings card).' });
-      });
-    });
     // Trials in the next 7 days
     const trials = d.tryouts.filter((t) => t.date >= today && t.date <= addDaysISO(today, 7) && (t.status || 'Scheduled') === 'Scheduled');
     if (trials.length)
@@ -368,6 +361,29 @@ export default function HomePage({ setActiveTab }) {
     .filter(([date]) => date > today && date <= addDaysISO(today, 7))
     .sort(([a], [b]) => (a < b ? -1 : 1));
   const sel = dayItems(day);
+
+  // Things to do or know about today, most urgent first.
+  const todayItems = [];
+  const tomorrow = addDaysISO(today, 1);
+  (settings?.meetings?.length ? settings.meetings : DEFAULT_MEETINGS).forEach((m) => {
+    if (isMeetingDay(m, today)) todayItems.push({ tone: 'warn', text: `${m.name} today at ${time12(m.time)} — post the reminder to the WhatsApp group`, href: whatsappLink(meetingMessage(m, today, today)), label: 'Post to WhatsApp' });
+    if (isMeetingDay(m, tomorrow)) todayItems.push({ tone: 'info', text: `${m.name} tomorrow at ${time12(m.time)} — post the reminder to the WhatsApp group`, href: whatsappLink(meetingMessage(m, tomorrow, today)), label: 'Post to WhatsApp' });
+  });
+  if (d.test && d.test.test_date === today) todayItems.push({ tone: 'warn', text: `${d.test.title || 'Belt testing'} today`, tab: 'testing', label: 'Testing' });
+  if (d.test && d.test.test_date === tomorrow) todayItems.push({ tone: 'info', text: `${d.test.title || 'Belt testing'} tomorrow`, tab: 'testing', label: 'Testing' });
+  const trialsToday = d.tryouts.filter((t) => t.date === today && (t.status || 'Scheduled') === 'Scheduled');
+  if (trialsToday.length) todayItems.push({ tone: 'info', text: `Trial class${trialsToday.length === 1 ? '' : 'es'}: ${trialsToday.map((t) => `${t.student_name}${t.time ? ' ' + t12(t.time) : ''}${t.class_name ? ` (${t.class_name})` : ''}`).join(', ')}`, tab: 'tryouts', label: 'Trials' });
+  if (d.toText.length) todayItems.push({ tone: 'warn', text: `Text ${d.toText.length} trial confirmation${d.toText.length === 1 ? '' : 's'} (phone only)`, tab: 'tryouts', label: 'Trials' });
+  if (billToday.length) todayItems.push({ tone: 'info', text: `Billing today: ${billToday.map((x) => x.name).join(', ')}`, tab: 'billing', label: 'Billing' });
+  if (d.regs.length) todayItems.push({ tone: 'warn', text: `${d.regs.length} online registration${d.regs.length === 1 ? '' : 's'} to review`, tab: 'register', label: 'Enrollment' });
+  const mkToday = d.makeups.filter((m) => m.reservation_date === today);
+  if (mkToday.length) todayItems.push({ tone: 'info', text: `Makeup today: ${mkToday.map((m) => `${studentById[m.student_id]?.name || '?'} (${m.reservation_class_name})`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
+  const expToday = d.expiring.filter((m) => m.expiration_date === today);
+  if (expToday.length) todayItems.push({ tone: 'warn', text: `Makeup expires today: ${expToday.map((m) => studentById[m.student_id]?.name || '?').join(', ')}`, tab: 'attendance', label: 'Attendance' });
+  const bdayToday = d.students.filter((x) => x.dob && String(x.dob).slice(5) === today.slice(5));
+  if (bdayToday.length) todayItems.push({ tone: 'good', text: `Birthday today 🎉 ${bdayToday.map((x) => x.name).join(', ')}`, tab: 'students', label: 'Students' });
+  notes.filter((n) => n.note_date === today && !n.done).forEach((n) => todayItems.push({ tone: 'info', text: `Note: ${n.body}` }));
+  todayItems.sort((a, b) => (a.tone === 'warn' ? 0 : 1) - (b.tone === 'warn' ? 0 : 1));
   const generalNotes = notes.filter((n) => !n.note_date);
   const presentIn = (c) => new Set(d.att.filter((a) => a.class_name === c && a.status === 'present').map((a) => a.student_id)).size;
 
@@ -381,9 +397,11 @@ export default function HomePage({ setActiveTab }) {
         <button className="dp-btn" onClick={load}>Refresh</button>
       </div>
 
+      {/* Today: what to do / what's happening */}
+      <TodayPanel items={todayItems} classesLine={todayClasses.length ? `${todayClasses.filter((c) => !c.cancelled).length} classes · ${t12(todayClasses[0].start_time)} – ${t12(todayClasses[todayClasses.length - 1].end_time)}${todayClasses.some((c) => c.cancelled) ? ` · ${todayClasses.filter((c) => c.cancelled).length} cancelled` : ''}` : 'No classes today'} setActiveTab={setActiveTab} />
+
       {/* At a glance */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 18 }}>
-        <Metric label="Classes today" value={todayClasses.filter((c) => !c.cancelled).length} sub={todayClasses.some((c) => c.cancelled) ? `${todayClasses.filter((c) => c.cancelled).length} cancelled` : todayClasses.length ? `${t12(todayClasses[0].start_time)} – ${t12(todayClasses[todayClasses.length - 1].end_time)}` : 'No classes'} onClick={() => setActiveTab('attendance')} />
         <Metric label="Billing today" value={billToday.length} sub={billToday.length ? money(billToday.reduce((t, s) => t + Number(s.tuition || 0), 0)) + ' tuition' : 'Nobody today'} onClick={() => setActiveTab('billing')} />
         <Metric label="Overdue" value={money(overdueTotal)} sub={`${overdue.length} invoice${overdue.length === 1 ? '' : 's'}`} tone={overdue.length ? 'bad' : 'good'} onClick={() => document.getElementById('home-overdue')?.scrollIntoView({ behavior: 'smooth' })} />
         <Metric label="Active students" value={d.students.length} sub={`${d.students.filter(isBillable).length} billed monthly`} onClick={() => setActiveTab('students')} />
@@ -528,6 +546,32 @@ export default function HomePage({ setActiveTab }) {
 }
 
 // ── Pieces ─────────────────────────────────────────────────────────────────
+function TodayPanel({ items, classesLine, setActiveTab }) {
+  return (
+    <div style={{ ...styles.card, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', borderBottom: items.length ? '1px solid #EDEAE0' : 'none', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 600 }}>Today</span>
+        <span style={{ fontSize: 12.5, color: '#8A8D84' }}>{classesLine}</span>
+        {!items.length && <span style={{ fontSize: 13, color: '#2A5A30', marginLeft: 'auto' }}>Nothing extra today 👍</span>}
+      </div>
+      {items.map((it, i) => {
+        const col = it.tone === 'warn' ? '#854F0B' : it.tone === 'good' ? '#2A5A30' : '#20241F';
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: i < items.length - 1 ? '1px solid #F1EFE7' : 'none', flexWrap: 'wrap' }}>
+            <span style={{ width: 7, height: 7, borderRadius: 99, background: it.tone === 'warn' ? '#D9962B' : it.tone === 'good' ? '#4F9A58' : '#B9B6AA', flexShrink: 0 }} />
+            <span style={{ flex: '1 1 220px', fontSize: 13.5, color: col, fontWeight: it.tone === 'warn' ? 500 : 400 }}>{it.text}</span>
+            {it.href ? (
+              <a className="dp-btn" style={{ padding: '3px 10px', fontSize: 12, textDecoration: 'none', background: '#E8F5EC', borderColor: '#BFDCC3', color: '#1F6B3A' }} href={it.href} target="_blank" rel="noreferrer">{it.label}</a>
+            ) : it.tab ? (
+              <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setActiveTab(it.tab)}>{it.label}</button>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Metric({ label, value, sub, tone, onClick }) {
   const color = tone === 'bad' ? '#9A2B2B' : tone === 'good' ? '#2A5A30' : '#20241F';
   return (
