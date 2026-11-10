@@ -5,6 +5,8 @@ import YtpGrid, { YtpLegend } from './YtpGrid';
 import WeeklyCheck from './WeeklyCheck';
 import FitnessTests from './FitnessTests';
 import TestsPanel from './TestsPanel';
+import WeightPanel, { WeightChip, todayIso } from './WeightPanel';
+import { keyCompetitions, loadWeights, weightStatus } from './hpWeight';
 import { AREAS, CODE_LABELS, currentWeekNo, loadOverview, loadPlan, nextEvent, shortDate, swapRows } from './ytpData';
 import { AddRowEditor, CellEditor, EventsEditor, NumbersEditor, PhaseEditor, RowEditor } from './YtpEditors';
 import { HP_FONT, HP_ORANGE, PHASE_STYLE } from './ytpTheme';
@@ -31,9 +33,12 @@ export default function HpPlansPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState('athletes');
 
-  useEffect(() => {
-    loadOverview().then(setOverview).catch((e) => setError(e.message || String(e)));
-  }, []);
+  const [weights, setWeights] = useState([]);
+  const reloadOverview = () => loadOverview().then((o) => {
+    setOverview(o);
+    return loadWeights(o.athletes.map((a) => a.id)).then(setWeights);
+  }).catch((e) => setError(e.message || String(e)));
+  useEffect(() => { reloadOverview(); }, []);
 
   const season = overview?.season;
   const nowWeek = season ? currentWeekNo(season.start_date, season.weeks) : null;
@@ -62,19 +67,20 @@ export default function HpPlansPage() {
               }}>{l}</button>
             ))}
           </div>
-          {tab === 'athletes' && <AthleteList overview={overview} nowWeek={nowWeek} onOpen={setSelectedId} />}
+          {tab === 'athletes' && <AthleteList overview={overview} weights={weights} nowWeek={nowWeek} onOpen={setSelectedId} />}
           {tab === 'weekly' && season && <WeeklyCheck overview={overview} nowWeek={nowWeek} />}
           {tab === 'tests' && <FitnessTests />}
         </>
       )}
       {overview && selected && (
-        <AthletePlan athlete={selected} season={season} nowWeek={nowWeek} onBack={() => setSelectedId(null)} />
+        <AthletePlan athlete={selected} season={season} nowWeek={nowWeek} onAthleteChanged={reloadOverview}
+          onBack={() => { setSelectedId(null); reloadOverview(); }} />
       )}
     </div>
   );
 }
 
-function AthleteList({ overview, nowWeek, onOpen }) {
+function AthleteList({ overview, weights, nowWeek, onOpen }) {
   const { athletes } = overview;
   return (
     <>
@@ -83,6 +89,10 @@ function AthleteList({ overview, nowWeek, onOpen }) {
         {athletes.map((a) => {
           const week = a.weeks.find((w) => w.week_no === nowWeek);
           const next = nextEvent(a.events, nowWeek);
+          const mine = weights.filter((w) => w.athlete_id === a.id);
+          const ws = a.weight_limit && mine.length
+            ? weightStatus(mine, keyCompetitions(a.events, a.weeks.map((w) => ({ ...w, week_start: weekStartOf(a, w.week_no) }))), Number(a.weight_limit), todayIso())
+            : null;
           return (
             <button
               key={a.id}
@@ -112,6 +122,13 @@ function AthleteList({ overview, nowWeek, onOpen }) {
                   </span>
                 ) : 'No upcoming events'}
               </div>
+              {ws?.latest && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#45483F' }}>
+                  Weight <b>{Number(ws.latest.weight_kg)} kg</b>
+                  <span style={{ color: '#8A8D84' }}>/ {Number(a.weight_limit)}</span>
+                  <WeightChip result={ws} />
+                </div>
+              )}
               {!a.plan && <div style={{ fontSize: 12, color: '#8A8D84' }}>No plan for this season</div>}
             </button>
           );
@@ -121,7 +138,16 @@ function AthleteList({ overview, nowWeek, onOpen }) {
   );
 }
 
-function AthletePlan({ athlete, season, nowWeek, onBack }) {
+// Overview weeks carry only week_no + phase; the Monday comes from the season start.
+function weekStartOf(athlete, weekNo) {
+  const start = athlete.seasonStart;
+  if (!start) return null;
+  const [y, m, d] = start.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d) + (weekNo - 1) * 7 * 86400000);
+  return t.toISOString().slice(0, 10);
+}
+
+function AthletePlan({ athlete, season, nowWeek, onBack, onAthleteChanged }) {
   const [plan, setPlan] = useState(null);
   const [error, setError] = useState('');
   const [selectedWeek, setSelectedWeek] = useState(nowWeek || 1);
@@ -162,7 +188,7 @@ function AthletePlan({ athlete, season, nowWeek, onBack }) {
         )}
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, borderBottom: '1px solid #DEDACC' }}>
-        {[['plan', 'Plan'], ['tests', 'Tests']].map(([id, l]) => (
+        {[['plan', 'Plan'], ['tests', 'Tests'], ['weight', 'Weight']].map(([id, l]) => (
           <button key={id} type="button" onClick={() => { setView(id); setEditMode(false); }} style={{
             all: 'unset', cursor: 'pointer', padding: '8px 14px', fontSize: 14, fontWeight: view === id ? 600 : 400,
             color: view === id ? '#20241F' : '#5B5F56', borderBottom: `2px solid ${view === id ? HP_ORANGE : 'transparent'}`, marginBottom: -1,
@@ -170,6 +196,9 @@ function AthletePlan({ athlete, season, nowWeek, onBack }) {
         ))}
       </div>
       {view === 'tests' && <TestsPanel studentId={athlete.student_id} />}
+      {view === 'weight' && (plan
+        ? <WeightPanel athlete={athlete} plan={plan} onAthleteChanged={onAthleteChanged} />
+        : <div style={{ color: '#5B5F56' }}>Loading...</div>)}
       {view === 'plan' && editMode && (
         <div style={{ background: '#FDF0E6', border: `1px solid ${HP_ORANGE}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#6B3410', marginBottom: 12 }}>
           Edit mode — tap any cell, phase, event, number or row name to change it. Changes save right away.

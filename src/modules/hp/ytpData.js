@@ -92,6 +92,7 @@ export async function loadOverview() {
       const plan = seasonPlans.find((p) => p.athlete_id === a.id) || null;
       return {
         ...a,
+        seasonStart: season?.start_date || null,
         plan,
         weeks: plan ? weeks.filter((w) => w.plan_id === plan.id) : [],
         events: plan ? events.filter((e) => e.plan_id === plan.id) : [],
