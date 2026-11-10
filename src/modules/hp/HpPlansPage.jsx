@@ -7,6 +7,7 @@ import FitnessTests from './FitnessTests';
 import TestsPanel from './TestsPanel';
 import WeightPanel, { WeightChip, todayIso } from './WeightPanel';
 import CompetitionsPanel from './CompetitionsPanel';
+import TaperChecklists from './TaperChecklists';
 import { keyCompetitions, loadWeights, weightStatus } from './hpWeight';
 import { AREAS, CODE_LABELS, currentWeekNo, loadOverview, loadPlan, nextEvent, shortDate, swapRows } from './ytpData';
 import { AddRowEditor, CellEditor, EventsEditor, NumbersEditor, PhaseEditor, RowEditor } from './YtpEditors';
@@ -61,7 +62,7 @@ export default function HpPlansPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #DEDACC' }}>
-            {[['athletes', 'Athletes'], ['weekly', 'Weekly Check'], ['tests', 'Fitness Tests']].map(([id, l]) => (
+            {[['athletes', 'Athletes'], ['weekly', 'Weekly Check'], ['tests', 'Fitness Tests'], ['taper', 'Taper']].map(([id, l]) => (
               <button key={id} type="button" onClick={() => setTab(id)} style={{
                 all: 'unset', cursor: 'pointer', padding: '8px 14px', fontSize: 14, fontWeight: tab === id ? 600 : 400,
                 color: tab === id ? '#20241F' : '#5B5F56', borderBottom: `2px solid ${tab === id ? HP_ORANGE : 'transparent'}`, marginBottom: -1,
@@ -71,6 +72,7 @@ export default function HpPlansPage() {
           {tab === 'athletes' && <AthleteList overview={overview} weights={weights} nowWeek={nowWeek} onOpen={setSelectedId} />}
           {tab === 'weekly' && season && <WeeklyCheck overview={overview} nowWeek={nowWeek} />}
           {tab === 'tests' && <FitnessTests />}
+          {tab === 'taper' && <TaperChecklists overview={overview} nowWeek={nowWeek} />}
         </>
       )}
       {overview && selected && (
