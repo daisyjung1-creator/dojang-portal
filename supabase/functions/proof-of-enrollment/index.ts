@@ -3,7 +3,7 @@
 // Builds a one-page "Proof of Enrollment" letter (for KidSport and other
 // funding applications): club name, child's name, program dates and the total
 // registration cost. Called from the portal by a signed-in admin with
-//   { student_id, start, end, amount, program?, note?, action: 'pdf' | 'email', to? }
+//   { student_id, start, end, amount, tuition?, classes?, program?, note?, action: 'pdf' | 'email', to? }
 // 'pdf' returns { pdf (base64), filename }; 'email' also sends it to the
 // guardian (copy to the dojang) and returns the same.
 
@@ -37,7 +37,7 @@ function toBase64(bytes: Uint8Array) {
   return btoa(bin);
 }
 
-export async function buildPoePdf(o: { s: Record<string, any>; student: Record<string, any>; start: string; end: string; amount: number; program: string; note?: string; classes?: string }) {
+export async function buildPoePdf(o: { s: Record<string, any>; student: Record<string, any>; start: string; end: string; amount: number; program: string; note?: string; classes?: string; tuition?: string }) {
   const { s, student } = o;
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -102,6 +102,7 @@ export async function buildPoePdf(o: { s: Record<string, any>; student: Record<s
   rows.push(['Program', pdfSafe(o.program)]);
   if (o.classes) rows.push(['Classes', pdfSafe(o.classes)]);
   rows.push(['Program dates', `${fdate(o.start)} - ${fdate(o.end)}`]);
+  if (o.tuition) rows.push(['Tuition', pdfSafe(o.tuition)]);
   rows.push(['Total registration cost', `${money(o.amount)} CAD (GST included)`]);
   if (student.guardian_name) rows.push(['Parent / guardian', pdfSafe(student.guardian_name)]);
 
@@ -147,7 +148,7 @@ Deno.serve(async (req) => {
     if (!student) return json({ error: 'Student not found' }, 404);
     const s = settings || {};
     const program = String(b.program || 'Taekwondo');
-    const bytes = await buildPoePdf({ s, student, start: b.start, end: b.end, amount: Number(b.amount) || 0, program, note: b.note ? String(b.note) : '', classes: b.classes ? String(b.classes) : '' });
+    const bytes = await buildPoePdf({ s, student, start: b.start, end: b.end, amount: Number(b.amount) || 0, program, note: b.note ? String(b.note) : '', classes: b.classes ? String(b.classes) : '', tuition: b.tuition ? String(b.tuition) : '' });
     const pdf = toBase64(bytes);
     const filename = `Proof of Enrollment - ${student.name}.pdf`.replace(/[\\/:*?"<>|]/g, '');
 

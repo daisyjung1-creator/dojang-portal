@@ -44,7 +44,7 @@ function downloadBase64(b64, filename) {
 export default function ProofOfEnrollmentModal({ student, onClose }) {
   const today = todayISO();
   const start0 = billingAnchor(student) ? currentCycleStart(student, today) : student.enroll_date || today;
-  const [f, setF] = useState({ start: start0, months: 3, end: periodEnd(start0, 3), amount: '', classes: '', to: student.guardian_email || '', note: '' });
+  const [f, setF] = useState({ start: start0, months: 3, end: periodEnd(start0, 3), amount: '', tuition: '', classes: '', to: student.guardian_email || '', note: '' });
   const [gst, setGst] = useState(5);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(null);
@@ -53,6 +53,14 @@ export default function ProofOfEnrollmentModal({ student, onClose }) {
   const monthly = perPlan / planMonths(student);
   const calc = (months, rate = gst) => Math.round(monthly * months * (1 + rate / 100) * 100) / 100;
 
+  // "$157.50 per month (GST included)" — what the family pays each billing period.
+  const tuitionText = (rate = gst) => {
+    if (!perPlan) return '';
+    const n = planMonths(student);
+    const each = money(Math.round(perPlan * (1 + rate / 100) * 100) / 100);
+    return `${each} ${n === 1 ? 'per month' : `every ${n} months`} (GST included)`;
+  };
+
   useEffect(() => {
     Promise.all([
       supabase.from('invoice_settings').select('gst_rate').eq('id', 1).maybeSingle(),
@@ -60,7 +68,7 @@ export default function ProofOfEnrollmentModal({ student, onClose }) {
     ]).then(([{ data: s }, { data: sched }]) => {
       const rate = s?.gst_rate ?? 5;
       setGst(rate);
-      setF((p) => ({ ...p, classes: classesText(student, sched || []), amount: p.amount === '' && monthly ? String(calc(p.months, rate)) : p.amount }));
+      setF((p) => ({ ...p, classes: classesText(student, sched || []), tuition: p.tuition || tuitionText(rate), amount: p.amount === '' && monthly ? String(calc(p.months, rate)) : p.amount }));
     });
   }, [student.id]);
 
@@ -80,7 +88,7 @@ export default function ProofOfEnrollmentModal({ student, onClose }) {
     setBusy(action);
     setMsg(null);
     const { data, error } = await supabase.functions.invoke('proof-of-enrollment', {
-      body: { action, student_id: student.id, start: f.start, end: f.end, amount: Number(f.amount) || 0, classes: f.classes.trim(), note: f.note.trim(), to: f.to.trim(), program: 'Taekwondo' },
+      body: { action, student_id: student.id, start: f.start, end: f.end, amount: Number(f.amount) || 0, tuition: f.tuition.trim(), classes: f.classes.trim(), note: f.note.trim(), to: f.to.trim(), program: 'Taekwondo' },
     });
     setBusy('');
     let err = data?.error || null;
@@ -125,7 +133,10 @@ export default function ProofOfEnrollmentModal({ student, onClose }) {
           <input type="date" className="dp-input" value={f.end} disabled={!!f.months} onChange={(e) => set({ end: e.target.value })} />
         </Field>
       </div>
-      <Field label="Total registration cost (incl. GST)">
+      <Field label="Tuition (shown on the letter)">
+        <input className="dp-input" style={{ width: '100%' }} placeholder="e.g. $157.50 per month (GST included)" value={f.tuition} onChange={(e) => set({ tuition: e.target.value })} />
+      </Field>
+      <Field label="Total registration cost for these dates (incl. GST)">
         <input type="number" step="0.01" className="dp-input" style={{ width: 160 }} value={f.amount} onChange={(e) => set({ amount: e.target.value })} />
         {monthly > 0 && f.months > 0 && (
           <span style={{ fontSize: 12, color: '#8A8D84', marginLeft: 8 }}>
