@@ -230,10 +230,10 @@ export default function BillingPage() {
   // latest real one.
   function openStudent(r) {
     if (r.s.billing_exempt) return setFlash(`${r.s.name} is staff — no invoices.`);
-    if (isBillable(r.s) && r.toInvoice) return setDraft({ r, g: draftGroup(r, r.toInvoice) });
+    if (isBillable(r.s) && r.toInvoice) return setDraft({ g: draftGroup(r, r.toInvoice), mode: 'manual' });
     const inv = r.nextInv || r.cycleInv;
     if (inv) return setPreviewId(inv.id);
-    if (isBillable(r.s) && r.next) return setDraft({ r, g: draftGroup(r, r.next) });
+    if (isBillable(r.s) && r.next) return setDraft({ g: draftGroup(r, r.next), mode: r.toInvoice === r.next ? 'manual' : null });
     setFlash(`${r.s.name} has no billing date or tuition set yet.`);
   }
 
@@ -269,7 +269,7 @@ export default function BillingPage() {
           <Empty>No manual-pay invoices to send right now.</Empty>
         ) : (
           <>
-            <ProposalTable list={manualProps} selected={selected} setSelected={setSelected} settings={settings} />
+            <ProposalTable list={manualProps} selected={selected} setSelected={setSelected} settings={settings} onOpen={(p) => setDraft({ g: p, mode: 'manual' })} />
             <ActionBar>
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
                 <input type="checkbox" checked={emailNow} onChange={(e) => setEmailNow(e.target.checked)} /> Email them to families
@@ -303,7 +303,7 @@ export default function BillingPage() {
           <Empty>No card charges due today.</Empty>
         ) : (
           <>
-            <ProposalTable list={preauthProps} selected={selected} setSelected={setSelected} settings={settings} />
+            <ProposalTable list={preauthProps} selected={selected} setSelected={setSelected} settings={settings} onOpen={(p) => setDraft({ g: p, mode: 'preauth' })} />
             <ActionBar>
               <span style={{ fontSize: 12.5, color: '#5B5F56' }}>After charging the cards: creates each invoice and records it as paid. No invoice email is sent.</span>
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
@@ -458,9 +458,9 @@ export default function BillingPage() {
               <>
                 <span style={{ marginRight: 'auto', fontSize: 12.5, color: '#854F0B' }}>Draft — not created yet{g.students.length > 1 ? ` · ${g.students.length} siblings on one invoice` : ''}</span>
                 <button className="dp-btn" onClick={() => setDraft(null)}>Close</button>
-                {draft.r.toInvoice === g.due_date && (
-                  <button className="dp-btn dp-btn-primary" onClick={() => { setDraft(null); setConfirm({ mode: 'manual', list: [g] }); }}>
-                    <FileText size={14} /> Create this invoice
+                {draft.mode && (
+                  <button className="dp-btn dp-btn-primary" onClick={() => { setDraft(null); setConfirm({ mode: draft.mode, list: [g] }); }}>
+                    <FileText size={14} /> {draft.mode === 'preauth' ? 'Record this card payment' : 'Create this invoice'}
                   </button>
                 )}
               </>
@@ -537,7 +537,7 @@ function InvoiceList({ list, onOpen, sel, setSel }) {
   );
 }
 
-function ProposalTable({ list, selected, setSelected, settings }) {
+function ProposalTable({ list, selected, setSelected, settings, onOpen }) {
   return (
     <table className="dp-table">
       <thead>
@@ -557,8 +557,11 @@ function ProposalTable({ list, selected, setSelected, settings }) {
               {formatDate(p.due_date)}
               {p.past && tag('already passed', GREY)}
             </td>
-            <td>{familyName(p)}{p.manual && !p.customer?.email && tag('no email', GREY)}</td>
-            <td style={{ fontSize: 12.5, color: '#5B5F56' }}>
+            <td>
+              <button style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#20241F', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => onOpen(p)}>{familyName(p)}</button>
+              {p.manual && !p.customer?.email && tag('no email', GREY)}
+            </td>
+            <td style={{ fontSize: 12.5, color: '#5B5F56', cursor: 'pointer' }} title="Preview invoice" onClick={() => onOpen(p)}>
               {p.lines.map((l) => (l.line_kind === 'tuition' ? l.description.split(' — ')[0] : null)).filter(Boolean).join(', ')}
               {p.lines.some((l) => l.line_kind === 'discount') && tag(`-${settings.family_discount_pct ?? 20}%`, PURPLE)}
               {p.lines.some((l) => l.line_kind === 'subsidy') && tag('subsidy', GREEN)}
