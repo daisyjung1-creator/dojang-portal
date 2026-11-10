@@ -118,7 +118,10 @@ export default function StudentsPage() {
     setModalOpen(true);
   }
 
-  function openEdit(student) {
+  function openEdit(picked) {
+    // Always edit the stored record (lists like the subsidy alert add helper
+    // fields such as "days" that aren't columns).
+    const student = students.find((x) => x.id === picked.id) || picked;
     setEditingId(student.id);
     const f = { ...emptyForm(), ...student, payment_type: families[student.customer_id]?.payment_type || 'preauth' };
     Object.keys(f).forEach((k) => f[k] === null && (f[k] = ''));
@@ -150,6 +153,7 @@ export default function StudentsPage() {
     delete cleaned.created_at;
     delete cleaned.customer_id; // the family link is managed by the database
     delete cleaned.payment_type; // stored on the family (customer)
+    delete cleaned.days; // helper value from the subsidy alert, not a column
     const payload = {
       ...cleaned,
       name: form.name.trim(),
