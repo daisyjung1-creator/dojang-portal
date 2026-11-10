@@ -1,6 +1,6 @@
 import StudentFlags from '../../components/StudentFlags';
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleCheck, CircleX, CalendarClock, BarChart3, Mail, Plus, Trash2, Check, Plane, Copy, User, AlertTriangle } from 'lucide-react';
+import { CircleCheck, CircleX, CalendarClock, CalendarX, BarChart3, Mail, Plus, Trash2, Check, Plane, Copy, User, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { MAKEUP_STATUSES } from '../../lib/constants';
@@ -49,6 +49,7 @@ export default function AttendancePage() {
   const [schedMsg, setSchedMsg] = useState('');
   const [walkInModal, setWalkInModal] = useState(null);
   const [absenceModal, setAbsenceModal] = useState(null);
+  const [dayOff, setDayOff] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -409,6 +410,33 @@ export default function AttendancePage() {
     ...(isAdmin ? [{ id: 'schedule', label: 'Class Schedule' }] : []),
   ];
 
+  // No classes that day (holiday, belt testing…): nobody is expected, nothing
+  // is marked absent. For a day that already passed, the automatic absences
+  // (and, if ticked, absences/excused entered by hand with their makeups) go.
+  async function saveDayOff() {
+    const f = dayOff;
+    if (!f.date) return setDayOff({ ...f, msg: 'Pick a date.' });
+    const cls = f.all ? null : f.class_name;
+    if (!cls && !f.all) return setDayOff({ ...f, msg: 'Pick a class.' });
+    const reason = (f.reason === 'Other' ? f.other : f.reason).trim() || null;
+    const { data, error } = await supabase.from('class_cancellations').insert({ date: f.date, class_name: cls, reason }).select().single();
+    if (error) return setDayOff({ ...f, msg: error.message });
+    setCancellations((prev) => [...prev, data]);
+    const hit = (r) => r.date === f.date && (!cls || r.class_name === cls);
+    const recs = attendance.filter((r) => hit(r) && (r.auto ? r.status === 'absent' : f.removeManual && ['absent', 'excused'].includes(r.status)));
+    if (recs.length) await supabase.from('attendance').delete().in('id', recs.map((r) => r.id));
+    const mks = makeupRecords.filter((m) => m.absence_date === f.date && (!cls || m.class_name === cls) && m.status === 'pending' && recs.some((r) => r.student_id === m.student_id && r.class_name === m.class_name));
+    if (mks.length) await supabase.from('makeup_records').delete().in('id', mks.map((m) => m.id));
+    setAttendance((prev) => prev.filter((r) => !recs.some((x) => x.id === r.id)));
+    setMakeupRecords((prev) => prev.filter((m) => !mks.some((x) => x.id === m.id)));
+    setDayOff(null);
+  }
+
+  async function undoDayOff(c) {
+    await supabase.from('class_cancellations').delete().eq('id', c.id);
+    setCancellations((prev) => prev.filter((x) => x.id !== c.id));
+  }
+
   async function cancelClass(date, className) {
     const { data } = await supabase.from('class_cancellations').insert({ date, class_name: className }).select().single();
     if (data) setCancellations((prev) => [...prev, data]);
@@ -505,6 +533,9 @@ export default function AttendancePage() {
               <option value="name">Name</option>
             </select>
             <div style={{ flex: 1 }} />
+            <button className="dp-btn" onClick={() => setDayOff({ date: checkinDate, all: true, class_name: classes[0] || '', reason: 'Holiday', other: '', removeManual: true, msg: '' })}>
+              <CalendarX size={14} /> Day off / no classes
+            </button>
             <button className="dp-btn" onClick={() => setAbsenceModal({ student_id: '', from: checkinDate, to: checkinDate, kind: 'excused', note: '', skip: {}, msg: '' })}>
               <CalendarClock size={14} /> Report absence ahead
             </button>
@@ -512,6 +543,29 @@ export default function AttendancePage() {
               <Plus size={14} /> Makeup / drop-in
             </button>
           </div>
+          {(() => {
+            const off = cancellations.filter((c) => c.date === checkinDate);
+            const upcoming = cancellations.filter((c) => c.date >= todayISO() && c.date !== checkinDate).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 6);
+            return (
+              <>
+                {off.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#EEF0F3', border: '1px solid #D5DAE2', color: '#3A4250', borderRadius: 8, padding: '9px 14px', marginBottom: 10, fontSize: 13.5 }}>
+                    <CalendarX size={15} />
+                    <span style={{ flex: 1 }}><b>No {c.class_name ? c.class_name : 'classes'} on {formatDate(c.date)}</b>{c.reason ? ` — ${c.reason}` : ''}. Nobody is marked absent.</span>
+                    <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setConfirm({ msg: `Undo the day off on ${formatDate(c.date)}? Classes will be expected again.`, run: () => undoDayOff(c) })}>Undo</button>
+                  </div>
+                ))}
+                {upcoming.length > 0 && (
+                  <div style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>
+                    Coming days off:{' '}
+                    {upcoming.map((c, i) => (
+                      <span key={c.id}>{i ? ' · ' : ''}<button style={{ background: 'none', border: 'none', padding: 0, color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' }} onClick={() => setCheckinDate(c.date)}>{new Date(c.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}</button>{c.class_name ? ` (${c.class_name})` : ''}{c.reason ? ` ${c.reason}` : ''}</span>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <div style={styles.card}>
             {checkinList.length === 0 && makeupGuests.length === 0 ? (
               <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No matching students.</p>
@@ -955,13 +1009,13 @@ export default function AttendancePage() {
             </div>
             {cancellations.length > 0 && (
               <div style={{ ...styles.card, marginTop: 14 }}>
-                <p style={{ ...styles.metricLabel, padding: '12px 12px 0', margin: 0 }}>Cancelled classes (last 30 days)</p>
+                <p style={{ ...styles.metricLabel, padding: '12px 12px 0', margin: 0 }}>Days off & cancelled classes</p>
                 <table className="dp-table">
                   <tbody>
                     {cancellations.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).map((c) => (
                       <tr key={c.id}>
                         <td>{formatDate(c.date)}</td>
-                        <td>{c.class_name || 'All classes'}</td>
+                        <td>{c.class_name || 'All classes'}{c.reason ? <span style={{ color: '#8A8D84' }}> · {c.reason}</span> : null}</td>
                         <td style={{ width: 40 }}>
                           <button className="dp-btn dp-btn-danger" style={{ padding: 4 }} aria-label="Undo" title="Undo cancellation" onClick={async () => { await supabase.from('class_cancellations').delete().eq('id', c.id); setCancellations((prev) => prev.filter((x) => x.id !== c.id)); }}><Trash2 size={13} /></button>
                         </td>
@@ -992,6 +1046,62 @@ export default function AttendancePage() {
           }}
         />
       )}
+
+      {dayOff && (() => {
+        const f = dayOff;
+        const cls = f.all ? null : f.class_name;
+        const hit = (r) => r.date === f.date && (!cls || r.class_name === cls);
+        const auto = attendance.filter((r) => hit(r) && r.auto && r.status === 'absent').length;
+        const manual = attendance.filter((r) => hit(r) && !r.auto && ['absent', 'excused'].includes(r.status)).length;
+        const set = (patch) => setDayOff({ ...f, ...patch, msg: '' });
+        return (
+          <Modal
+            title="Day off / no classes"
+            maxWidth={480}
+            onClose={() => setDayOff(null)}
+            footer={
+              <>
+                <button className="dp-btn" onClick={() => setDayOff(null)}>Cancel</button>
+                <button className="dp-btn dp-btn-primary" onClick={saveDayOff}><Check size={15} /> Save day off</button>
+              </>
+            }
+          >
+            <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>No attendance that day: nobody is expected or marked absent, and trial bookings skip it.</p>
+            <Field label="Date"><input type="date" className="dp-input" value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>
+            <Field label="Which classes">
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 13.5 }}><input type="radio" checked={f.all} onChange={() => set({ all: true })} /> All classes</label>
+                <label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 13.5 }}><input type="radio" checked={!f.all} onChange={() => set({ all: false })} /> One class</label>
+                {!f.all && (
+                  <select className="dp-select" value={f.class_name} onChange={(e) => set({ class_name: e.target.value })}>
+                    {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+              </div>
+            </Field>
+            <Field label="Reason">
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['Holiday', 'Belt testing', 'Tournament', 'Other'].map((r) => (
+                  <button key={r} type="button" className="dp-btn" style={{ padding: '4px 10px', fontSize: 12.5, ...(f.reason === r ? { background: '#20241F', color: '#fff', borderColor: '#20241F' } : {}) }} onClick={() => set({ reason: r })}>{r}</button>
+                ))}
+              </div>
+              {f.reason === 'Other' && <input className="dp-input" style={{ width: '100%', marginTop: 6 }} placeholder="e.g. Remembrance Day" value={f.other} onChange={(e) => set({ other: e.target.value })} />}
+            </Field>
+            {(auto > 0 || manual > 0) && (
+              <div style={{ background: '#FAEEDA', border: '1px solid #F0D9A8', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#854F0B' }}>
+                {auto > 0 && <div>{auto} automatic absence{auto === 1 ? '' : 's'} on this day will be removed.</div>}
+                {manual > 0 && (
+                  <label style={{ display: 'flex', gap: 6, alignItems: 'flex-start', marginTop: auto ? 4 : 0 }}>
+                    <input type="checkbox" checked={f.removeManual} onChange={(e) => set({ removeManual: e.target.checked })} style={{ marginTop: 3 }} />
+                    <span>Also remove {manual} absent / excused record{manual === 1 ? '' : 's'} entered by hand (and their unused makeups).</span>
+                  </label>
+                )}
+              </div>
+            )}
+            {f.msg && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{f.msg}</p>}
+          </Modal>
+        );
+      })()}
 
       {absenceModal && (() => {
         const st = studentMap[absenceModal.student_id];
