@@ -106,16 +106,36 @@ export async function buildPoePdf(o: { s: Record<string, any>; student: Record<s
   rows.push(['Total registration cost', `${money(o.amount)} CAD (GST included)`]);
   if (student.guardian_name) rows.push(['Parent / guardian', pdfSafe(student.guardian_name)]);
 
-  const rowH = 26;
-  page.drawRectangle({ x: M, y: y - rows.length * rowH + 6, width: W - 2 * M, height: rows.length * rowH + 4, borderColor: hair, borderWidth: 1 });
-  rows.forEach(([k, v], i) => {
-    const yy = y - i * rowH - 12;
+  // Values wrap inside the box; each row is as tall as its text.
+  const valX = M + 170, valW = W - M - 12 - valX;
+  const split = (t: string, f: any, size: number) => {
+    const out: string[] = [];
+    let line = '';
+    for (const w of t.split(/\s+/)) {
+      const tt = line ? line + ' ' + w : w;
+      if (f.widthOfTextAtSize(tt, size) > valW && line) { out.push(line); line = w; } else line = tt;
+    }
+    if (line) out.push(line);
+    return out.length ? out : [''];
+  };
+  const laid = rows.map(([k, v]) => {
     const isCost = k.startsWith('Total');
-    page.drawText(k, { x: M + 14, y: yy, size: 10, font, color: mute });
-    page.drawText(v, { x: M + 180, y: yy, size: isCost ? 12 : 11, font: isCost || k === "Child's name" ? bold : font, color: ink });
-    if (i < rows.length - 1) page.drawLine({ start: { x: M + 10, y: yy - 9 }, end: { x: W - M - 10, y: yy - 9 }, thickness: 0.5, color: hair });
+    const size = isCost ? 12 : 11;
+    const f = isCost || k === "Child's name" ? bold : font;
+    const lines = split(v, f, size);
+    return { k, lines, size, f, h: 12 + lines.length * (size + 4) };
   });
-  y -= rows.length * rowH + 30;
+  const boxH = laid.reduce((n, r) => n + r.h, 0) + 4;
+  page.drawRectangle({ x: M, y: y - boxH, width: W - 2 * M, height: boxH, borderColor: hair, borderWidth: 1 });
+  let ry = y - 2;
+  laid.forEach((r, i) => {
+    const top = ry - 8;
+    page.drawText(r.k, { x: M + 14, y: top - 10, size: 10, font, color: mute });
+    r.lines.forEach((ln, j) => page.drawText(ln, { x: valX, y: top - r.size + 1 - j * (r.size + 4), size: r.size, font: r.f, color: ink }));
+    ry -= r.h;
+    if (i < laid.length - 1) page.drawLine({ start: { x: M + 10, y: ry }, end: { x: W - M - 10, y: ry }, thickness: 0.5, color: hair });
+  });
+  y -= boxH + 30;
 
   if (o.note) { wrap(o.note, 10.5, font, ink); y -= 8; }
   wrap('If you need any further information, please contact us at the phone number or email above.', 10.5, font, ink);
