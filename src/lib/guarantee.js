@@ -54,8 +54,9 @@ export function classesInPeriod(s, schedule, cancels, start, end) {
 
 // Students whose current or upcoming service period (starting within
 // `aheadDays`) has fewer classes than guaranteed because of closures.
-// makeups: makeup_records rows (reserved/completed) — ones booked inside the
-// period count towards it.
+// Only closures count — classes the student missed on their own don't.
+// makeups: makeup_records rows (reserved/completed); ones made up for a
+// closed day count towards the period.
 export function guaranteeShortfalls({ students, schedule, cancels, makeups = [], today, aheadDays = 21 }) {
   const out = [];
   for (const s of students) {
@@ -69,7 +70,8 @@ export function guaranteeShortfalls({ students, schedule, cancels, makeups = [],
       if ((s.enroll_date && s.enroll_date > p.start) || (s.billing_end_date && s.billing_end_date < p.end) || onHold(s, p.start) || onHold(s, p.end)) continue;
       const c = classesInPeriod(s, schedule, cancels, p.start, p.end);
       if (!c.lost || c.available >= need) continue;
-      const booked = makeups.filter((m) => m.student_id === s.id && m.status !== 'pending' && m.reservation_date && m.reservation_date >= p.start && m.reservation_date <= p.end).length;
+      // Only make-ups for the closed days count; make-ups for the student's own absences don't.
+      const booked = makeups.filter((m) => m.student_id === s.id && m.status !== 'pending' && c.lostDates.includes(m.absence_date)).length;
       const short = need - c.available - booked;
       if (short > 0) out.push({ student: s, ...p, need, ...c, booked, short });
     }

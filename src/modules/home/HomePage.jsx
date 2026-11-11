@@ -117,7 +117,7 @@ export default function HomePage({ setActiveTab }) {
       supabase.from('dashboard_notes').select('*').order('created_at'),
       loadSettings(),
       fetchAll(() => supabase.from('attendance').select('student_id, date, class_name, status').gte('date', addDaysISO(today, -90))),
-      supabase.from('makeup_records').select('student_id, reservation_date, status').in('status', ['reserved', 'completed']).gte('reservation_date', from),
+      supabase.from('makeup_records').select('student_id, absence_date, status').in('status', ['reserved', 'completed']).gte('absence_date', from),
     ]);
     // Status of the tuition invoices for nearby billing dates.
     const tl = (lines || []).filter((l) => l.line_kind === 'tuition');
@@ -578,7 +578,7 @@ function ShortfallModal({ list, onClose, onAttendance }) {
   return (
     <Modal title="Short of guaranteed classes" maxWidth={720} onClose={onClose} footer={<><button className="dp-btn" onClick={onClose}>Close</button><button className="dp-btn dp-btn-primary" onClick={() => { onClose(); onAttendance(); }}>Go to Attendance</button></>}>
       <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>
-        The agreement guarantees 8 / 12 / 16 classes per monthly service period (2 / 3 / 4 a week). Closures (Day off) leave these students with fewer of their regular classes, so the Dojang owes make-ups. Make-ups booked inside the period already count.
+        The agreement guarantees 8 / 12 / 16 classes per monthly service period (2 / 3 / 4 a week). Closures (Day off) leave these students with fewer of their regular classes, so the Dojang owes make-ups. Only closures count — classes a student missed on their own don't. Make-ups already booked for a closed day count.
       </p>
       <div style={{ overflowX: 'auto' }}>
         <table className="dp-table">
