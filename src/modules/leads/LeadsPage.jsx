@@ -104,6 +104,10 @@ export default function LeadsPage({ setActiveTab }) {
     let submitError;
     const { kids: _k, ...rest } = form;
     const row = { ...rest, children: kids.length ? kids : null, student_name: joinNames(names) || null, guardian_name: String(form.guardian_name || '').trim() || null, student_age: kids[0]?.age ?? null };
+    // Empty fields (e.g. no consult date yet) are saved as blank, not "".
+    Object.keys(row).forEach((k) => {
+      if (typeof row[k] === 'string' && !row[k].trim()) row[k] = null;
+    });
     if (editingId) ({ error: submitError } = await supabase.from('leads').update(row).eq('id', editingId));
     else ({ error: submitError } = await supabase.from('leads').insert(row));
     if (submitError) {
