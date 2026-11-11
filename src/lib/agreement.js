@@ -2,7 +2,7 @@
 // Shown on the public /join form and printed with each online registration.
 // Change AGREEMENT_VERSION whenever the wording changes, so each signed
 // registration records which version the family agreed to.
-export const AGREEMENT_VERSION = '2026-11-g';
+export const AGREEMENT_VERSION = '2026-11-h';
 
 export const SCHOOL = {
   name: 'Champion Hankook Taekwondo',
@@ -141,6 +141,7 @@ export const TERMS = [
       'The Dojang may make reasonable adjustments to class schedules, instructors, or training groups for operational, educational, or safety reasons.',
       'Reasonable advance notice of material changes will be provided whenever practicable.',
       'If a material change substantially affects the Dojang’s ability to provide the agreed training services, the Dojang will discuss appropriate alternatives or adjustments with the member, subject to applicable law.',
+      '**Holiday closures:** The Dojang is **closed on all Alberta general holidays** — New Year’s Day, Family Day, Good Friday, Victoria Day, Canada Day, Labour Day, Thanksgiving Day, Remembrance Day and Christmas Day — and also on **Easter Monday, Heritage Day, the National Day for Truth and Reconciliation, Boxing Day, Christmas Eve and New Year’s Eve**. Other closures (such as belt testing days) will be announced by email at least 14 days in advance.',
       '**Changes to this agreement:** The Dojang may update these terms with **at least 30 days’ written notice by email**. The updated terms apply to the membership after that date; members who do not agree may cancel under Part 6.',
     ],
   },
