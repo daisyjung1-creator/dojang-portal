@@ -6,6 +6,7 @@ import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import StatementModal from './StatementModal';
+import YearReceiptsModal from './YearReceiptsModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, downloadCSV, localISO } from '../../lib/invoiceUtils';
 import { loadCustomers, fetchAll } from './api';
@@ -37,6 +38,7 @@ export default function CustomersPage() {
   const [onlyOwing, setOnlyOwing] = useState(false);
   const [modal, setModal] = useState(null); // {form, id, studentIds}
   const [statementFor, setStatementFor] = useState(null);
+  const [yearFor, setYearFor] = useState(null);
   const [importState, setImportState] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [flash, setFlash] = useState('');
@@ -222,6 +224,7 @@ export default function CustomersPage() {
           <p style={styles.subtitle}>Families and payers you invoice · total owing {money(totalOwing)}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button className="dp-btn" onClick={() => setYearFor(customers)} title="Receipts of fees paid in a year, for taxes — print or email all families"><FileText size={15} /> Year-end receipts</button>
           <button className="dp-btn" onClick={createFromStudents} title="Create a customer for each guardian of an unlinked student"><Users size={15} /> From Students</button>
           <button className="dp-btn" onClick={() => fileRef.current?.click()}><Upload size={15} /> Import</button>
           <button className="dp-btn" onClick={exportCSV}><Download size={15} /> Export</button>
@@ -379,6 +382,7 @@ export default function CustomersPage() {
       )}
 
       {statementFor && <StatementModal customer={statementFor} onClose={() => setStatementFor(null)} />}
+      {yearFor && <YearReceiptsModal customers={yearFor} onClose={() => setYearFor(null)} />}
     </>
   );
 }

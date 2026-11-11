@@ -6,6 +6,7 @@ import Field from '../../components/Field';
 import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { loadSettings } from './api';
 import { confirmSend } from '../../components/ConfirmSend';
+import YearReceiptsModal from './YearReceiptsModal';
 
 // Account statement for a family (optionally one child) between two dates:
 // every invoice and payment, with totals — print it or email it.
@@ -21,6 +22,7 @@ export default function StatementModal({ customer, student = null, onClose }) {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [to_, setTo_] = useState(customer?.email || student?.guardian_email || '');
+  const [yearly, setYearly] = useState(false);
 
   useEffect(() => {
     loadSettings().then((s) => setSettings(s || {}));
@@ -132,6 +134,7 @@ export default function StatementModal({ customer, student = null, onClose }) {
       onClose={onClose}
       footer={
         <>
+          <button className="dp-btn" style={{ marginRight: 'auto' }} disabled={!customer?.id} onClick={() => setYearly(true)} title="Receipt of fees paid in a year, for taxes">Year-end receipt</button>
           <button className="dp-btn" onClick={onClose}>Close</button>
           <button className="dp-btn" disabled={!data} onClick={print}><Printer size={14} /> Print / PDF</button>
           <button className="dp-btn dp-btn-primary" disabled={!data || busy || !to_.trim()} onClick={email}><Mail size={14} /> Email</button>
@@ -178,6 +181,7 @@ export default function StatementModal({ customer, student = null, onClose }) {
         </>
       )}
       {msg && <p style={{ fontSize: 13, color: msg.startsWith('Emailed') ? '#2A5A30' : '#9A2B2B', margin: '8px 0 0' }}>{msg}</p>}
+      {yearly && <YearReceiptsModal customers={[{ ...customer, email: to_.trim() || customer.email }]} student={student} onClose={() => setYearly(false)} />}
     </Modal>
   );
 }
