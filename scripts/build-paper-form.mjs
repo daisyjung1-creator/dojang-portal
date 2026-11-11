@@ -1,6 +1,6 @@
 // Builds public/enrollment-form.pdf — the paper version of the /join
 // registration (same agreement wording, src/lib/agreement.js) for families
-// who register in person, plus the Pre-Authorized Credit Card form.
+// who register in person.
 //
 //   NODE_PATH=/path/to/node_modules node scripts/build-paper-form.mjs
 //
@@ -224,7 +224,7 @@ y -= 2;
 text('Membership & payment', M, y - 9, 8.5, B);
 y -= 15;
 checks(A.PLAN_CHOICES.map((p) => [p.label, p.note]));
-para(`${A.GST_NOTE} Pre-authorized credit card payments need the Credit Card Authorization (last page).`, { size: 8, color: MUTE });
+para(A.GST_NOTE, { size: 8, color: MUTE });
 y -= 2;
 row([['Preferred start date', 1], ['', 2]]);
 
@@ -281,50 +281,6 @@ page.drawLine({ start: { x: ax + 100, y: y - 30 }, end: { x: W - M - 10, y: y - 
 text('Date', ax, y - 44, 7.5, F, MUTE);
 page.drawLine({ start: { x: ax + 100, y: y - 46 }, end: { x: W - M - 10, y: y - 46 }, thickness: 0.5, color: HAIR });
 y -= 62;
-
-// ───────────── Credit card authorization ─────────────
-newPage();
-y -= 4;
-page.drawRectangle({ x: M, y, width: 26, height: 3, color: RED });
-y -= 24;
-text('Pre-Authorized Credit Card Authorization', M, y, 17, B);
-y -= 14;
-text('Only for Monthly or Three-Month Pre-Authorized Credit Card memberships (Part 7.1).', M, y, 8.5, F, MUTE);
-y -= 18;
-row([['Student name(s)', 1]]);
-row([['Cardholder name (as shown on the card)', 1.4], ['Phone', 0.8]]);
-need(30);
-text('Card type', M, y - 9, 8.5);
-y -= 14;
-checks([['Visa', ''], ['Mastercard', ''], ['Other: __________', '']], { cols: 3 });
-// card number boxes
-need(46);
-text('Card number', M, y - 8, 7.5, F, MUTE);
-y -= 12;
-for (let i = 0; i < 16; i++) {
-  const gx = M + i * 22 + Math.floor(i / 4) * 10;
-  page.drawRectangle({ x: gx, y: y - 22, width: 19, height: 20, borderColor: INK, borderWidth: 0.6 });
-}
-y -= 32;
-row([['Expiry (MM/YY)', 0.7], ['Billing address & postal code of the card', 2]]);
-need(34);
-text('Charge', M, y - 9, 8.5);
-y -= 14;
-checks([['Monthly', ''], ['Every three months', '']], { cols: 2 });
-row([['Amount each time (before 5% GST)', 1], ['First charge date', 1]]);
-y -= 4;
-[
-  'I authorize Champion Hankook Taekwondo to charge the credit card above for the tuition shown, plus GST, on each payment date until I cancel my membership as set out in Part 6 of the agreement.',
-  'I understand that cancelling the membership and cancelling this credit card authorization are separate: to stop the charges I will tell the Dojang by email at hankooktkd@gmail.com. Changes to the tuition amount will be emailed at least 30 days before they apply (Part 7.6).',
-  'For your security, do not write the card’s 3-digit security code (CVV) on this form — the Dojang will ask for it in person or by phone when setting up the payment, and does not keep it.',
-].forEach((t) => { para(t, { size: 8.6 }); y -= 3; });
-y -= 6;
-row([['Cardholder signature', 1.4], ['Date', 0.6]], 36);
-need(60);
-y -= 6;
-page.drawRectangle({ x: M, y: y - 40, width: W - 2 * M, height: 40, color: SOFT });
-text('FOR THE DOJANG', M + 10, y - 13, 7, B, MUTE);
-text('Set up in card terminal by ____________________   Date ____________   Last 4 digits ________   (shred card number section after setup)', M + 10, y - 28, 7.5, F, MUTE);
 
 // Page numbers
 pages.forEach((p, i) => {
