@@ -190,7 +190,11 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
                 {s.subsidy && (
                   <Row k="Subsidy">
                     {(s.subsidy_name || 'Subsidy').trim()}{s.subsidy_amount ? ` ${money(s.subsidy_amount)}/mo` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}
-                    {Number(s.subsidy_total) > 0 && subUsed != null && <div style={{ color: '#2A5A30' }}>{money(Math.max(Number(s.subsidy_total) - subUsed, 0))} of {money(s.subsidy_total)} left</div>}
+                    {s.subsidy_status === 'pending' && <div style={{ color: '#854F0B' }}>Waiting for approval{s.subsidy_applied_on ? ` — applied ${formatDate(s.subsidy_applied_on)}` : ''}</div>}
+                    {s.subsidy_status === 'denied' && <div style={{ color: '#9A2B2B' }}>Not approved{s.subsidy_applied_on ? ` (applied ${formatDate(s.subsidy_applied_on)})` : ''}</div>}
+                    {s.subsidy_status === 'approved' && s.subsidy_applied_on && <div style={{ color: '#5B5F56' }}>Approved — applied {formatDate(s.subsidy_applied_on)}</div>}
+                    {!s.subsidy_status && s.subsidy_applied_on && <div style={{ color: '#5B5F56' }}>Applied {formatDate(s.subsidy_applied_on)}</div>}
+                    {Number(s.subsidy_total) > 0 && subUsed != null && <div style={{ color: '#2A5A30' }}>{money(Math.max(Number(s.subsidy_total) - subUsed, 0))} left of the {money(s.subsidy_total)} grant</div>}
                   </Row>
                 )}
                 {family?.credit > 0.004 && <Row k="Family credit">{money(family.credit)}</Row>}

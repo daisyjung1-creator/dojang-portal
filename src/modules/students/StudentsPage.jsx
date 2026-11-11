@@ -146,7 +146,7 @@ export default function StudentsPage() {
       setFormError('These emails don’t look right: ' + bad.join(', '));
       return;
     }
-    if (form.subsidy && !form.subsidy_end_date) {
+    if (form.subsidy && !form.subsidy_end_date && form.subsidy_status !== 'pending') {
       setFormError('Please enter when the subsidy ends.');
       return;
     }
@@ -178,6 +178,8 @@ export default function StudentsPage() {
       subsidy_end_date: form.subsidy ? blank(form.subsidy_end_date) : null,
       subsidy_total: form.subsidy && form.subsidy_total !== '' && form.subsidy_total != null ? Number(form.subsidy_total) : null,
       subsidy_start_date: form.subsidy && form.subsidy_total ? blank(form.subsidy_start_date) : null,
+      subsidy_applied_on: form.subsidy ? blank(form.subsidy_applied_on) : null,
+      subsidy_status: form.subsidy ? blank(form.subsidy_status) : null,
     };
     let submitError;
     if (editingId) {
@@ -498,7 +500,8 @@ export default function StudentsPage() {
                       {s.family_discount && <Badge c={['#4B3A86', '#EEEAF6', '#D2C9EA']} title="Big family discount">Family -20%</Badge>}
                       {families[s.customer_id]?.credit > 0.004 && <Badge c={['#2A5A30', '#E8F1E9', '#BFDCC3']} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
                       {onHold(s, todayISO()) && <span title={s.hold_reason || ''} style={{ marginLeft: 6, fontSize: 10.5, color: '#3A4250', border: '1px solid #D5DAE2', background: '#EEF0F3', borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>On hold until {s.hold_until}</span>}
-                      {s.subsidy && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
+                      {s.subsidy && s.subsidy_status === 'pending' && <span title={`Applied ${s.subsidy_applied_on || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#854F0B', border: '1px solid #F0D9A8', background: '#FAEEDA', borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{(s.subsidy_name || 'Subsidy').trim()} — waiting</span>}
+                      {s.subsidy && s.subsidy_status !== 'pending' && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
                     </td>
                     <td>
                       {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: '#9A2B2B', fontSize: 12.5 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
@@ -695,6 +698,22 @@ export default function StudentsPage() {
                 </Field>
               </div>
               <div style={styles.formRow}>
+                <Field label="Applied on">
+                  <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_applied_on || ''} onChange={(e) => setForm({ ...form, subsidy_applied_on: e.target.value })} />
+                </Field>
+                <Field label="Approval">
+                  <select className="dp-select" style={{ width: '100%' }} value={form.subsidy_status || ''} onChange={(e) => setForm({ ...form, subsidy_status: e.target.value })}>
+                    <option value="">Not tracked</option>
+                    <option value="pending">Waiting for approval</option>
+                    <option value="approved">Approved</option>
+                    <option value="denied">Not approved</option>
+                  </select>
+                </Field>
+              </div>
+              {form.subsidy_status && form.subsidy_status !== 'approved' && (
+                <p style={{ fontSize: 12, color: '#854F0B', margin: '-4px 0 10px' }}>Nothing comes off tuition invoices until it's marked Approved.</p>
+              )}
+              <div style={styles.formRow}>
                 <Field label="Grant total ($) — e.g. KidSport 300">
                   <input type="number" className="dp-input" style={{ width: '100%' }} placeholder="300" value={form.subsidy_total ?? ''} onChange={(e) => setForm({ ...form, subsidy_total: e.target.value, subsidy_start_date: form.subsidy_start_date || todayISO() })} />
                 </Field>
@@ -702,7 +721,7 @@ export default function StudentsPage() {
                   <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_start_date || ''} onChange={(e) => setForm({ ...form, subsidy_start_date: e.target.value })} />
                 </Field>
               </div>
-              <Field label="Subsidy ends" required>
+              <Field label="Subsidy ends" required={form.subsidy_status !== 'pending'}>
                 <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_end_date || ''} onChange={(e) => setForm({ ...form, subsidy_end_date: e.target.value })} />
               </Field>
               <p style={{ fontSize: 12, color: '#5B5F56', margin: '-4px 0 12px' }}>

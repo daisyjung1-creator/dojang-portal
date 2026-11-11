@@ -87,7 +87,7 @@ export function tuitionLines(student, cycleStart, settings = {}) {
     });
   }
   const left = subsidyLeft(student);
-  if (student.subsidy && Number(student.subsidy_amount) > 0 && (!student.subsidy_end_date || cycleStart <= student.subsidy_end_date) && left !== 0) {
+  if (student.subsidy && (!student.subsidy_status || student.subsidy_status === 'approved') && Number(student.subsidy_amount) > 0 && (!student.subsidy_end_date || cycleStart <= student.subsidy_end_date) && left !== 0) {
     const months = three ? 3 : 1;
     const name = (student.subsidy_name || 'Subsidy').trim();
     let amt = round2(Number(student.subsidy_amount) * months);
