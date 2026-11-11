@@ -380,6 +380,15 @@ export default function HomePage({ setActiveTab }) {
   if (mkToday.length) todayItems.push({ tone: 'info', text: `Makeup today: ${mkToday.map((m) => `${studentById[m.student_id]?.name || '?'} (${m.reservation_class_name})`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
   const expToday = d.expiring.filter((m) => m.expiration_date === today);
   if (expToday.length) todayItems.push({ tone: 'warn', text: `Makeup expires today: ${expToday.map((m) => studentById[m.student_id]?.name || '?').join(', ')}`, tab: 'attendance', label: 'Attendance' });
+  // Subsidy applications still waiting for approval 30+ days after applying.
+  const waitingSubs = d.students.filter((x) => x.subsidy && x.subsidy_status === 'pending' && x.subsidy_applied_on && x.subsidy_applied_on <= addDaysISO(today, -30));
+  if (waitingSubs.length)
+    todayItems.push({
+      tone: 'warn',
+      text: `Subsidy waiting 30+ days for approval: ${waitingSubs.map((x) => `${x.name} (${(x.subsidy_name || 'Subsidy').trim()}, applied ${new Date(x.subsidy_applied_on + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })})`).join(', ')} — check with the family`,
+      tab: 'students',
+      label: 'Students',
+    });
   const bdayToday = d.students.filter((x) => x.dob && String(x.dob).slice(5) === today.slice(5));
   if (bdayToday.length) todayItems.push({ tone: 'good', text: `Birthday today 🎉 ${bdayToday.map((x) => x.name).join(', ')}`, tab: 'students', label: 'Students' });
   notes.filter((n) => n.note_date === today && !n.done).forEach((n) => todayItems.push({ tone: 'info', text: `Note: ${n.body}` }));
