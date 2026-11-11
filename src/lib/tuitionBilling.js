@@ -10,10 +10,22 @@
 // invoices". Big-family discount and subsidy lines are added automatically.
 
 import { billingAnchor, currentCycleStart, nextDueDate, addDaysISO } from './billingDates';
-import { round2, calcTotals, formatDate } from './invoiceUtils';
+import { round2, calcTotals, formatDate, money } from './invoiceUtils';
 import { splitClasses } from './classes';
 
 export const REREGISTRATION_FEE = 20;
+
+// On hold (휴관) on this date: a break with a return date.
+export function onHold(s, iso) {
+  return !!(s && s.hold_until && iso <= s.hold_until && iso >= (s.hold_from || iso));
+}
+
+// What's left of a subsidy grant (e.g. KidSport $300) before this invoice.
+// student._subsidyUsed is filled in by the Billing page from earlier invoices.
+export function subsidyLeft(s) {
+  if (!s || !(Number(s.subsidy_total) > 0)) return null;
+  return round2(Math.max(Number(s.subsidy_total) - Number(s._subsidyUsed || 0), 0));
+}
 
 // Students who get tuition invoices.
 export function isBillable(s) {
@@ -31,7 +43,8 @@ export function cyclesInWindow(student, today, leadDays = 7, graceDays = 7) {
   for (let i = 0; i < 6 && d <= to; i++) {
     // Membership cancelled: nothing after the last paid day.
     if (student.billing_end_date && d > student.billing_end_date) break;
-    if (d >= from) out.push(d);
+    // On hold (휴관): that cycle isn't billed.
+    if (d >= from && !onHold(student, d)) out.push(d);
     d = nextDueDate(student, d);
   }
   return out;
@@ -73,16 +86,23 @@ export function tuitionLines(student, cycleStart, settings = {}) {
       taxable: true,
     });
   }
-  if (student.subsidy && Number(student.subsidy_amount) > 0 && (!student.subsidy_end_date || cycleStart <= student.subsidy_end_date)) {
+  const left = subsidyLeft(student);
+  if (student.subsidy && Number(student.subsidy_amount) > 0 && (!student.subsidy_end_date || cycleStart <= student.subsidy_end_date) && left !== 0) {
     const months = three ? 3 : 1;
+    const name = (student.subsidy_name || 'Subsidy').trim();
+    let amt = round2(Number(student.subsidy_amount) * months);
+    if (left != null) amt = Math.min(amt, left);
+    // With a grant total: show the balance left and how long it's good for.
+    const balance = left != null ? ` · ${money(left - amt)} of ${money(student.subsidy_total)} left` : '';
+    const until = student.subsidy_end_date ? ` · until ${formatDate(student.subsidy_end_date)}` : '';
     lines.push({
       student_id: student.id,
       cycle_start: cycleStart,
       line_kind: 'subsidy',
-      item_name: student.subsidy_name || 'Subsidy',
-      description: `${student.subsidy_name || 'Subsidy'} — ${firstName(student.name)}${months > 1 ? ` (${months} months)` : ''}`,
+      item_name: name,
+      description: `${name} — ${firstName(student.name)}${months > 1 ? ` (${months} months)` : ''}${balance}${until}`,
       quantity: 1,
-      unit_price: -round2(Number(student.subsidy_amount) * months),
+      unit_price: -amt,
       taxable: false,
     });
   }

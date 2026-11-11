@@ -4,6 +4,9 @@ import * as XLSX from 'xlsx';
 import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX, FileText } from 'lucide-react';
 import ProofOfEnrollmentModal from '../../components/ProofOfEnrollmentModal';
 import StudentProfileModal from './StudentProfileModal';
+import HoldModal from './HoldModal';
+import StatementModal from '../invoices/StatementModal';
+import { onHold } from '../../lib/tuitionBilling';
 import CancellationModal from './CancellationModal';
 import { REREGISTRATION_FEE } from '../../lib/tuitionBilling';
 import { fillSubsidyTemplate, DEFAULT_SUBSIDY_SUBJECT } from '../../lib/subsidyReminder';
@@ -72,6 +75,8 @@ export default function StudentsPage() {
   const [cancelFor, setCancelFor] = useState(null);
   const [poeFor, setPoeFor] = useState(null);
   const [profileId, setProfileId] = useState(null);
+  const [holdFor, setHoldFor] = useState(null);
+  const [statementFor, setStatementFor] = useState(null);
   const [reactivateFor, setReactivateFor] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -101,7 +106,7 @@ export default function StudentsPage() {
     setLoading(true);
     const [{ data, error: fetchError }, { data: fams }, { data: credits }] = await Promise.all([
       supabase.from('students').select('*').order('name'),
-      supabase.from('customers').select('id, name, payment_type'),
+      supabase.from('customers').select('id, name, payment_type, email'),
       supabase.from('customer_credit').select('customer_id, credit').neq('credit', 0),
     ]);
     if (fetchError) setError('Could not load the student list.');
@@ -171,6 +176,8 @@ export default function StudentsPage() {
       subsidy_name: form.subsidy ? blank(form.subsidy_name) : null,
       subsidy_amount: form.subsidy && form.subsidy_amount !== '' ? Number(form.subsidy_amount) : null,
       subsidy_end_date: form.subsidy ? blank(form.subsidy_end_date) : null,
+      subsidy_total: form.subsidy && form.subsidy_total !== '' && form.subsidy_total != null ? Number(form.subsidy_total) : null,
+      subsidy_start_date: form.subsidy && form.subsidy_total ? blank(form.subsidy_start_date) : null,
     };
     let submitError;
     if (editingId) {
@@ -490,6 +497,7 @@ export default function StudentsPage() {
                       {s.classes_per_week ? <Badge c={['#5B5F56', '#F1EFE7', '#DEDACC']}>{s.classes_per_week}x/wk</Badge> : null}
                       {s.family_discount && <Badge c={['#4B3A86', '#EEEAF6', '#D2C9EA']} title="Big family discount">Family -20%</Badge>}
                       {families[s.customer_id]?.credit > 0.004 && <Badge c={['#2A5A30', '#E8F1E9', '#BFDCC3']} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
+                      {onHold(s, todayISO()) && <span title={s.hold_reason || ''} style={{ marginLeft: 6, fontSize: 10.5, color: '#3A4250', border: '1px solid #D5DAE2', background: '#EEF0F3', borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>On hold until {s.hold_until}</span>}
                       {s.subsidy && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
                     </td>
                     <td>
@@ -682,13 +690,26 @@ export default function StudentsPage() {
                     {Array.from(new Set(['KidSport', ...students.map((s) => s.subsidy_name).filter(Boolean)])).map((n) => <option key={n} value={n} />)}
                   </datalist>
                 </Field>
-                <Field label="Amount / month ($)">
-                  <input type="number" className="dp-input" style={{ width: '100%' }} value={form.subsidy_amount ?? ''} onChange={(e) => setForm({ ...form, subsidy_amount: e.target.value })} />
+                <Field label="Taken off each month ($)">
+                  <input type="number" className="dp-input" style={{ width: '100%' }} placeholder="25" value={form.subsidy_amount ?? ''} onChange={(e) => setForm({ ...form, subsidy_amount: e.target.value })} />
+                </Field>
+              </div>
+              <div style={styles.formRow}>
+                <Field label="Grant total ($) — e.g. KidSport 300">
+                  <input type="number" className="dp-input" style={{ width: '100%' }} placeholder="300" value={form.subsidy_total ?? ''} onChange={(e) => setForm({ ...form, subsidy_total: e.target.value, subsidy_start_date: form.subsidy_start_date || todayISO() })} />
+                </Field>
+                <Field label="Grant starts">
+                  <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_start_date || ''} onChange={(e) => setForm({ ...form, subsidy_start_date: e.target.value })} />
                 </Field>
               </div>
               <Field label="Subsidy ends" required>
                 <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_end_date || ''} onChange={(e) => setForm({ ...form, subsidy_end_date: e.target.value })} />
               </Field>
+              <p style={{ fontSize: 12, color: '#5B5F56', margin: '-4px 0 12px' }}>
+                {Number(form.subsidy_total) > 0
+                  ? `Each tuition invoice takes off ${form.subsidy_amount ? '$' + form.subsidy_amount : 'the monthly amount'} until the $${form.subsidy_total} is used up or the end date passes. The invoice shows how much is left and until when.`
+                  : 'Add a grant total to track the balance (it shows on each invoice).'}
+              </p>
             </div>
           )}
           <Field label="Medical conditions, allergies or limitations (shown to coaches in attendance)">
@@ -721,6 +742,8 @@ export default function StudentsPage() {
             onClose={close}
             onEdit={() => { close(); openEdit(ps); }}
             onPoe={() => setPoeFor(ps)}
+            onHold={() => setHoldFor(ps)}
+            onStatement={() => setStatementFor(ps)}
             onCancel={() => setCancelFor(ps)}
             onWelcome={() => setWelcomeFor(ps)}
             onWithdraw={() => setStudentStatus(ps.id, 'withdrawn')}
@@ -729,6 +752,19 @@ export default function StudentsPage() {
           />
         );
       })()}
+
+      {statementFor && <StatementModal customer={families[statementFor.customer_id] || null} student={statementFor} onClose={() => setStatementFor(null)} />}
+
+      {holdFor && (
+        <HoldModal
+          student={holdFor}
+          onClose={() => setHoldFor(null)}
+          onSaved={(data) => {
+            setStudents((prev) => prev.map((x) => (x.id === data.id ? { ...x, ...data } : x)));
+            setHoldFor(null);
+          }}
+        />
+      )}
 
       {poeFor && <ProofOfEnrollmentModal student={poeFor} onClose={() => setPoeFor(null)} />}
 

@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import MessagePreview from './MessagePreview';
 import { confirmSend } from '../../components/ConfirmSend';
+import { money } from '../../lib/invoiceUtils';
 
 // Every email the portal has sent (or tried to): invoices, reminders,
 // receipts, welcome, makeup, absence check, trial, grant reminders, group emails.
@@ -25,6 +26,7 @@ const kindOf = (q) => (q.type === 'invoice' && q.payload?.reminder ? 'reminder' 
 export default function EmailLog({ onReuse }) {
   const [rows, setRows] = useState([]);
   const [names, setNames] = useState({});
+  const [payInfo, setPayInfo] = useState({});
   const [invNums, setInvNums] = useState({});
   const [loading, setLoading] = useState(true);
   const [kind, setKind] = useState('all');
@@ -42,17 +44,38 @@ export default function EmailLog({ onReuse }) {
     setLoading(true);
     const { data } = await supabase.from('email_queue').select('*').order('created_at', { ascending: false }).limit(500);
     const list = data || [];
-    const sids = [...new Set(list.map((r) => r.student_id).filter(Boolean))];
-    const iids = [...new Set(list.map((r) => r.payload?.invoice_id).filter(Boolean))];
+    // Receipts / refunds only carry the payment id: look up its invoice and
+    // the students on it, so every row says who it was for.
+    const pids = [...new Set(list.map((r) => r.payload?.payment_id).filter(Boolean))];
+    const rids = [...new Set(list.map((r) => r.payload?.refund_id).filter(Boolean))];
+    const [{ data: pays }, { data: refs }] = await Promise.all([
+      pids.length ? supabase.from('invoice_payments').select('id, invoice_id, customer_id, amount').in('id', pids) : { data: [] },
+      rids.length ? supabase.from('invoice_refunds').select('id, invoice_id, customer_id, amount').in('id', rids) : { data: [] },
+    ]);
+    const payBy = Object.fromEntries([...(pays || []), ...(refs || [])].map((p) => [p.id, p]));
+    const invOf = (r) => r.payload?.invoice_id || payBy[r.payload?.payment_id || r.payload?.refund_id]?.invoice_id || null;
+    const iids = [...new Set(list.map(invOf).filter(Boolean))];
+    const cids = [...new Set([...(pays || []), ...(refs || [])].map((p) => p.customer_id).filter(Boolean))];
     const bids = [...new Set(list.map((r) => r.broadcast_id).filter(Boolean))];
-    const [{ data: st }, { data: inv }, { data: bc }] = await Promise.all([
-      sids.length ? supabase.from('students').select('id, name').in('id', sids) : { data: [] },
+    const [{ data: inv }, { data: lines }, { data: custs }, { data: bc }] = await Promise.all([
       iids.length ? supabase.from('invoices').select('id, invoice_number, customer_name').in('id', iids) : { data: [] },
+      iids.length ? supabase.from('invoice_lines').select('invoice_id, student_id').in('invoice_id', iids).not('student_id', 'is', null) : { data: [] },
+      cids.length ? supabase.from('customers').select('id, name').in('id', cids) : { data: [] },
       bids.length ? supabase.from('email_broadcasts').select('id, subject, message, audience').in('id', bids) : { data: [] },
     ]);
+    const sids = [...new Set([...list.map((r) => r.student_id), ...(lines || []).map((l) => l.student_id)].filter(Boolean))];
+    const { data: st } = sids.length ? await supabase.from('students').select('id, name').in('id', sids) : { data: [] };
+    const nameBy = Object.fromEntries((st || []).map((x) => [x.id, x.name]));
+    const kidsByInv = {};
+    (lines || []).forEach((l) => {
+      const n = nameBy[l.student_id];
+      if (n) (kidsByInv[l.invoice_id] ||= new Set()).add(n);
+    });
+    const custBy = Object.fromEntries((custs || []).map((c) => [c.id, c.name]));
     setBroadcasts(Object.fromEntries((bc || []).map((b) => [b.id, b])));
-    setNames(Object.fromEntries((st || []).map((s) => [s.id, s.name])));
-    setInvNums(Object.fromEntries((inv || []).map((i) => [i.id, i])));
+    setNames(nameBy);
+    setInvNums(Object.fromEntries((inv || []).map((i) => [i.id, { ...i, kids: kidsByInv[i.id] ? [...kidsByInv[i.id]].join(', ') : '' }])));
+    setPayInfo(Object.fromEntries(Object.values(payBy).map((p) => [p.id, { ...p, customer_name: custBy[p.customer_id] || '' }])));
     setRows(list);
     setLoading(false);
   }
@@ -61,12 +84,18 @@ export default function EmailLog({ onReuse }) {
     if (r.payload?.subject) return r.payload.subject;
     const inv = invNums[r.payload?.invoice_id];
     if (r.type === 'invoice') return `${r.payload?.reminder ? 'Reminder — ' : ''}Invoice #${inv?.invoice_number ?? '?'}`;
-    if (r.type === 'receipt') return 'Payment receipt';
-    if (r.type === 'refund') return 'Refund confirmation';
+    const p = payInfo[r.payload?.payment_id || r.payload?.refund_id];
+    const inv2 = invNums[p?.invoice_id];
+    const tail = [p ? money(p.amount) : '', inv2 ? `Invoice #${inv2.invoice_number}` : ''].filter(Boolean).join(' · ');
+    if (r.type === 'receipt') return `Payment receipt${tail ? ' — ' + tail : ''}`;
+    if (r.type === 'refund') return `Refund confirmation${tail ? ' — ' + tail : ''}`;
     return '';
   }
   function whoOf(r) {
-    return names[r.student_id] || invNums[r.payload?.invoice_id]?.customer_name || '';
+    if (names[r.student_id]) return names[r.student_id];
+    const p = payInfo[r.payload?.payment_id || r.payload?.refund_id];
+    const inv = invNums[r.payload?.invoice_id || p?.invoice_id];
+    return inv?.kids || inv?.customer_name || p?.customer_name || '';
   }
   // Emails whose text was written in the portal (group emails, makeup, absence…)
   // can be opened and reused. Group emails reuse the original with {guardian}.

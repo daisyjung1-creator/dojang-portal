@@ -5,6 +5,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
+import StatementModal from './StatementModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, downloadCSV, localISO } from '../../lib/invoiceUtils';
 import { loadCustomers, fetchAll } from './api';
@@ -377,64 +378,8 @@ export default function CustomersPage() {
         </Modal>
       )}
 
-      {statementFor && <Statement customer={statementFor} onClose={() => setStatementFor(null)} />}
+      {statementFor && <StatementModal customer={statementFor} onClose={() => setStatementFor(null)} />}
     </>
   );
 }
 
-// Customer statement: every invoice and payment, with a running balance.
-function Statement({ customer, onClose }) {
-  const [rows, setRows] = useState(null);
-  useEffect(() => {
-    (async () => {
-      const [{ data: inv }, { data: pay }, { data: ref }] = await Promise.all([
-        supabase.from('invoice_summary').select('*').eq('customer_id', customer.id).eq('voided', false),
-        supabase.from('invoice_payments').select('*, invoices(invoice_number)').eq('customer_id', customer.id),
-        supabase.from('invoice_refunds').select('*, invoices(invoice_number)').eq('customer_id', customer.id),
-      ]);
-      const list = [
-        ...(inv || []).map((i) => ({ date: i.invoice_date, kind: 'Invoice', ref: i.is_opening_balance ? 'Opening balance' : '#' + i.invoice_number, charge: Number(i.total), credit: 0, status: i.status, key: 'i' + i.id })),
-        // A refund credits the invoice and pays the money back, so it doesn't change what's owed.
-        ...(ref || []).map((r) => ({ date: r.refund_date, kind: 'Refund', ref: `Refund #${r.refund_number}${r.invoices ? ' → #' + r.invoices.invoice_number : ''}`, method: r.method, charge: -Number(r.amount), credit: -Number(r.amount), key: 'r' + r.id })),
-        ...(pay || []).map((p) => ({ date: p.payment_date, kind: 'Payment', ref: `Receipt #${p.receipt_number}${p.invoices ? ' → #' + p.invoices.invoice_number : ''}`, method: p.method, charge: 0, credit: Number(p.amount), key: 'p' + p.id })),
-      ].sort((a, b) => (a.date === b.date ? (a.kind === 'Invoice' ? -1 : 1) : a.date < b.date ? -1 : 1));
-      let bal = 0;
-      list.forEach((r) => (r.balance = bal = bal + r.charge - r.credit));
-      setRows(list.reverse());
-    })();
-  }, [customer.id]);
-
-  return (
-    <Modal title={`Statement — ${customer.name}`} onClose={onClose} maxWidth={760}>
-      {!rows ? (
-        <p style={{ fontSize: 14, color: '#5B5F56' }}>Loading…</p>
-      ) : rows.length === 0 ? (
-        <p style={{ fontSize: 14, color: '#5B5F56' }}>No invoices or payments yet.</p>
-      ) : (
-        <table className="dp-table">
-          <thead>
-            <tr><th>Date</th><th>Type</th><th>Ref</th><th style={{ textAlign: 'right' }}>Charge</th><th style={{ textAlign: 'right' }}>Payment</th><th style={{ textAlign: 'right' }}>Balance</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key}>
-                <td>{formatDate(r.date)}</td>
-                <td>{r.kind === 'Invoice' ? <>Invoice <StatusPill status={r.status} /></> : <>{r.kind} <span style={{ color: '#8A8D84' }}>· {r.method}</span></>}</td>
-                <td>{r.ref}</td>
-                {r.kind === 'Refund' ? (
-                  <td colSpan={2} style={{ textAlign: 'right', color: '#4B3A86' }}>{money(-r.charge)} paid back</td>
-                ) : (
-                  <>
-                    <td style={{ textAlign: 'right' }}>{r.charge ? money(r.charge) : ''}</td>
-                    <td style={{ textAlign: 'right' }}>{r.credit ? money(r.credit) : ''}</td>
-                  </>
-                )}
-                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(r.balance)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </Modal>
-  );
-}

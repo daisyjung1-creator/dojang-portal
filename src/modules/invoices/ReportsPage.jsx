@@ -3,7 +3,9 @@ import { Download } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { money, downloadCSV } from '../../lib/invoiceUtils';
-import { fetchAll } from './api';
+import { fetchAll, loadSettings } from './api';
+import ItemLookup from './ItemLookup';
+import InvoicePreview from './InvoicePreview';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -15,6 +17,8 @@ export default function ReportsPage() {
   const [refs, setRefs] = useState([]);
   const [owing, setOwing] = useState([]);
   const [selMonth, setSelMonth] = useState(new Date().getMonth());
+  const [previewId, setPreviewId] = useState(null);
+  const [lookupSettings, setLookupSettings] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -97,6 +101,9 @@ export default function ReportsPage() {
           <button className="dp-btn" onClick={exportCSV}><Download size={15} /> Export</button>
         </div>
       </div>
+
+      <ItemLookup onOpenInvoice={async (id) => { if (!lookupSettings) setLookupSettings(await loadSettings()); setPreviewId(id); }} />
+      {previewId && lookupSettings && <InvoicePreview invoiceId={previewId} settings={lookupSettings} onClose={() => setPreviewId(null)} onEdit={() => {}} onPay={() => {}} onChanged={() => {}} />}
 
       <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
         <Metric label={`${MONTHS[selMonth]} net sales (before GST)`} value={money(sel.netSales)} note={sel.refundSales ? `${money(sel.subtotal)} sales − ${money(sel.refundSales)} refunds` : ''} />

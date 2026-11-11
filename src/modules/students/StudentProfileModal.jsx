@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pencil, FileText, CalendarX, Mail, Trash2, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { Pencil, FileText, CalendarX, Mail, Trash2, Eye, EyeOff, Copy, Check, PauseCircle, Receipt } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Modal from '../../components/Modal';
 import StudentFlags from '../../components/StudentFlags';
@@ -36,7 +36,7 @@ const BB_FIELDS = [
 ];
 const isBlack = (belt) => /black belt|dan|poom/i.test(String(belt || ''));
 
-export default function StudentProfileModal({ student: s, family, siblings = [], isAdmin, onClose, onEdit, onPoe, onCancel, onWithdraw, onReactivate, onDelete, onWelcome }) {
+export default function StudentProfileModal({ student: s, family, siblings = [], isAdmin, onClose, onEdit, onPoe, onHold, onStatement, onCancel, onWithdraw, onReactivate, onDelete, onWelcome }) {
   const [schedule, setSchedule] = useState([]);
   const [att, setAtt] = useState(null);
   const [bb, setBb] = useState(null); // saved black belt record
@@ -44,6 +44,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const [show, setShow] = useState({});
   const [copied, setCopied] = useState('');
   const [msg, setMsg] = useState('');
+  const [subUsed, setSubUsed] = useState(null);
 
   useEffect(() => {
     const from = addDaysISO(todayISO(), -365);
@@ -51,7 +52,11 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
       supabase.from('class_schedule').select('*').eq('active', true),
       supabase.from('attendance').select('date, class_name, status').eq('student_id', s.id).gte('date', from).order('date', { ascending: false }),
       isAdmin ? supabase.from('student_black_belt').select('*').eq('student_id', s.id).maybeSingle() : Promise.resolve({ data: null }),
-    ]).then(([{ data: sc }, { data: a }, { data: b }]) => {
+      isAdmin && Number(s.subsidy_total) > 0
+        ? supabase.from('invoice_lines').select('amount, cycle_start, invoices!inner(voided)').eq('student_id', s.id).eq('line_kind', 'subsidy')
+        : Promise.resolve({ data: null }),
+    ]).then(([{ data: sc }, { data: a }, { data: b }, { data: sub }]) => {
+      if (sub) setSubUsed(sub.filter((l) => !l.invoices?.voided && (!s.subsidy_start_date || !l.cycle_start || l.cycle_start >= s.subsidy_start_date)).reduce((n, l) => n - Number(l.amount || 0), 0));
       setSchedule(sc || []);
       setAtt(a || []);
       setBb(b || null);
@@ -104,10 +109,12 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
               <button className="dp-btn" style={btn} onClick={onReactivate}>Reactivate</button>
             ) : (
               <>
+                <button className="dp-btn" style={btn} onClick={onHold}><PauseCircle size={13} /> {s.hold_until && s.hold_until >= todayISO() ? 'Hold ✓' : 'Hold'}</button>
                 <button className="dp-btn" style={btn} onClick={onWithdraw}>Withdraw</button>
                 <button className="dp-btn" style={{ ...btn, ...(s.billing_end_date ? { color: '#9A2B2B', borderColor: '#E4B8B8' } : {}) }} onClick={onCancel}><CalendarX size={13} /> Cancellation</button>
                 <button className="dp-btn" style={btn} disabled={!s.guardian_email} onClick={onWelcome}><Mail size={13} /> Welcome email{s.welcome_sent_at ? ' ✓' : ''}</button>
                 <button className="dp-btn" style={btn} onClick={onPoe}><FileText size={13} /> Proof of enrollment</button>
+                <button className="dp-btn" style={btn} onClick={onStatement}><Receipt size={13} /> Statement</button>
               </>
             )}
             <button className="dp-btn dp-btn-primary" style={btn} onClick={onEdit}><Pencil size={13} /> Edit</button>
@@ -123,6 +130,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
         {age != null && <span style={{ fontSize: 13, color: '#5B5F56' }}>{age} years old</span>}
         <StudentFlags s={s} />
         {withdrawn && <Pill c="#5B5F56" bg="#F1EFE7">Withdrawn{s.withdrawn_date ? ` ${formatDate(s.withdrawn_date)}` : ''}</Pill>}
+        {s.hold_until && s.hold_until >= todayISO() && <Pill c="#3A4250" bg="#EEF0F3">On hold {s.hold_from && s.hold_from > todayISO() ? `from ${formatDate(s.hold_from)} ` : ''}until {formatDate(s.hold_until)}{s.hold_reason ? ` — ${s.hold_reason}` : ''}</Pill>}
         {s.billing_end_date && !withdrawn && <Pill c="#9A2B2B" bg="#FBEAEA">Membership ends {formatDate(s.billing_end_date)}</Pill>}
       </div>
 
@@ -179,7 +187,12 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
                 <Row k="Pays by">{family?.payment_type === 'manual' ? 'Manual (debit / cash / e-transfer)' : 'Pre-authorized credit card'}</Row>
                 <Row k="Next billing">{s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? formatDate(next) : '—'}</Row>
                 {s.family_discount && <Row k="Discount">Big family −20%</Row>}
-                {s.subsidy && <Row k="Subsidy">{s.subsidy_name || 'Subsidy'}{s.subsidy_amount ? ` ${money(s.subsidy_amount)}/mo` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}</Row>}
+                {s.subsidy && (
+                  <Row k="Subsidy">
+                    {(s.subsidy_name || 'Subsidy').trim()}{s.subsidy_amount ? ` ${money(s.subsidy_amount)}/mo` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}
+                    {Number(s.subsidy_total) > 0 && subUsed != null && <div style={{ color: '#2A5A30' }}>{money(Math.max(Number(s.subsidy_total) - subUsed, 0))} of {money(s.subsidy_total)} left</div>}
+                  </Row>
+                )}
                 {family?.credit > 0.004 && <Row k="Family credit">{money(family.credit)}</Row>}
                 {s.reregistration_fee_due && <Row k="Next invoice">+ $20 re-registration fee</Row>}
               </>

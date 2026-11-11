@@ -52,7 +52,7 @@ export default function BillingPage() {
       loadSettings(),
       loadCustomers(),
       supabase.from('students').select('*').order('name'),
-      fetchAll(() => supabase.from('invoice_lines').select('invoice_id, student_id, cycle_start, line_kind').not('cycle_start', 'is', null).gte('cycle_start', since)),
+      fetchAll(() => supabase.from('invoice_lines').select('invoice_id, student_id, cycle_start, line_kind, amount').not('cycle_start', 'is', null).gte('cycle_start', since)),
     ]);
     const ids = Array.from(new Set((lines || []).map((l) => l.invoice_id)));
     let invs = [];
@@ -66,9 +66,18 @@ export default function BillingPage() {
       const inv = byId[l.invoice_id];
       if (inv && !inv.voided && l.line_kind === 'tuition') map[`${l.student_id}|${l.cycle_start}`] = inv;
     });
+    // Subsidy grants (KidSport…): how much has been used on live invoices.
+    const used = {};
+    (lines || []).forEach((l) => {
+      const inv = byId[l.invoice_id];
+      if (!inv || inv.voided || l.line_kind !== 'subsidy') return;
+      const stu = (st || []).find((x) => x.id === l.student_id);
+      if (!stu || (stu.subsidy_start_date && l.cycle_start < stu.subsidy_start_date)) return;
+      used[l.student_id] = (used[l.student_id] || 0) - Number(l.amount || 0);
+    });
     setSettings(s);
     setCustomers(c);
-    setStudents(st || []);
+    setStudents((st || []).map((x) => (used[x.id] ? { ...x, _subsidyUsed: used[x.id] } : x)));
     setCycleInvoices(map);
     setTuitionInvoices(invs.filter((i) => !i.voided));
     setLoading(false);

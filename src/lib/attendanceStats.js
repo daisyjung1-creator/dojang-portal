@@ -115,6 +115,8 @@ export function absenceAlerts(students, recordsBy, { schedule = [], cancellation
   const below = [];
   students
     .filter((s) => !s.billing_exempt && (s.status || 'active') !== 'withdrawn')
+    // On hold (휴관) now or within the look-back window: not "missing".
+    .filter((s) => !(s.hold_until && s.hold_until >= since && (s.hold_from || since) <= today))
     .forEach((s) => {
       const recs = recordsBy[s.id] || [];
       const last = lastAttended(recs);

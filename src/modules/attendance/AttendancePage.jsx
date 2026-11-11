@@ -7,7 +7,7 @@ import { MAKEUP_STATUSES } from '../../lib/constants';
 import { todayISO, computeMakeupWindow, addDaysISO } from '../../lib/billingDates';
 import { splitClasses, allClassNames, inClass, DOJANG_CLASSES, comesOn, weeklyPlan } from '../../lib/classes';
 import { ATTENDANCE_KINDS, studentSummary, weekCount, lastAttended, minutesLabel, absenceAlerts, trackingStart, NOT_SEEN_DAYS, REGULAR_WINDOW, COMP_WINDOW } from '../../lib/attendanceStats';
-import { fillTemplate, makeupVars, studentVars } from '../../lib/emailTemplates';
+import { fillTemplate, makeupVars, studentVars, combinedMakeupEmail } from '../../lib/emailTemplates';
 import { formatDate } from '../../lib/invoiceUtils';
 import { useAuth } from '../../auth/AuthContext';
 import Modal from '../../components/Modal';
@@ -273,9 +273,40 @@ export default function AttendancePage() {
   }
 
   // ── Emails ─────────────────────────────────────────────────────────────
+  // Open makeups (not done, not expired) of the same family as m.
+  function familyMakeups(m) {
+    const s = studentMap[m.student_id];
+    const key = (x) => x?.customer_id || (x?.guardian_email || '').toLowerCase() || x?.id;
+    return makeupRecords.filter((x) => {
+      if (x.status === 'completed' || (x.status === 'pending' && x.expiration_date && x.expiration_date < todayISO())) return false;
+      const xs = studentMap[x.student_id];
+      return xs && key(xs) === key(s);
+    });
+  }
+
   function openMakeupEmail(m) {
     const s = studentMap[m.student_id];
     if (!s) return;
+    const all = familyMakeups(m);
+    if (all.length > 1) {
+      const c = combinedMakeupEmail(all, studentMap, settings);
+      setEmail({
+        title: `Makeup classes email — ${[...new Set(all.map((x) => studentMap[x.student_id]?.name))].join(', ')}`,
+        type: 'makeup',
+        to: s.guardian_email || '',
+        subject: c.subject,
+        message: c.message,
+        studentId: s.id,
+        payload: { makeup_record_ids: all.map((x) => x.id) },
+        note: `${all.length} makeups in one email (all open makeups for this family).`,
+        onSent: async (at) => {
+          const ids = all.map((x) => x.id);
+          await supabase.from('makeup_records').update({ emailed_at: at }).in('id', ids);
+          setMakeupRecords((prev) => prev.map((x) => (ids.includes(x.id) ? { ...x, emailed_at: at } : x)));
+        },
+      });
+      return;
+    }
     const reserved = m.status === 'reserved' && m.reservation_date;
     const vars = makeupVars(m, s, settings);
     setEmail({
@@ -337,7 +368,8 @@ export default function AttendancePage() {
 
   // ── Lists ─────────────────────────────────────────────────────────────
   const checkinList = useMemo(() => {
-    const list = students.flatMap((s) => {
+    // Students on hold (휴관) that day aren't expected.
+    const list = students.filter((s) => !(s.hold_until && checkinDate <= s.hold_until && checkinDate >= (s.hold_from || checkinDate))).flatMap((s) => {
       const cls = splitClasses(s.class_name);
       return (cls.length ? cls : ['Unassigned']).filter((c) => checkinClass === 'all' || c === checkinClass).map((c) => ({ ...s, _class: c }));
     });
@@ -345,7 +377,7 @@ export default function AttendancePage() {
       if (sortBy === 'class' && a._class !== b._class) return classOrder(a._class) - classOrder(b._class) || a._class.localeCompare(b._class);
       return a.name.localeCompare(b.name) || classOrder(a._class) - classOrder(b._class);
     });
-  }, [students, checkinClass, sortBy]);
+  }, [students, checkinClass, sortBy, checkinDate]);
 
   const makeupGuests = makeupRecords.filter(
     (m) =>
@@ -779,7 +811,7 @@ export default function AttendancePage() {
                             <div style={{ display: 'flex', gap: 4 }}>
                               {student && m.status !== 'completed' && (
                                 <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} disabled={!student.guardian_email} title={student.guardian_email ? (m.status === 'reserved' ? 'Email the booked makeup date' : 'Email the expiry date') : 'No guardian email'} onClick={() => openMakeupEmail(m)}>
-                                  <Mail size={12} /> Email{m.emailed_at ? ' ✓' : ''}
+                                  <Mail size={12} /> Email{(() => { const n = familyMakeups(m).length; return n > 1 ? ` all ${n}` : ''; })()}{m.emailed_at ? ' ✓' : ''}
                                 </button>
                               )}
                               {m.status !== 'completed' && (

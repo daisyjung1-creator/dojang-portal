@@ -56,3 +56,37 @@ export const TEMPLATE_HELP = {
   tryout: '{student} {student_full} {date} {time} {class} {address} {phone} {business}',
   reminder: '{customer} {number} {total} {balance} {due_date} {business}',
 };
+
+// One email for several open makeups of the same family (siblings too).
+export function combinedMakeupEmail(list, studentsById, settings = {}) {
+  const kids = [...new Set(list.map((m) => studentsById[m.student_id]).filter(Boolean))];
+  const guardian = kids[0]?.guardian_name || 'Parent/Guardian';
+  const names = kids.map((s) => first(s.name));
+  const who = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0] || '';
+  const day = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }) : '');
+  const rows = list
+    .slice()
+    .sort((a, b) => (a.absence_date < b.absence_date ? -1 : 1))
+    .map((m) => {
+      const s = studentsById[m.student_id];
+      const lead = kids.length > 1 ? `${first(s?.name)}: ` : '';
+      const booked = m.status === 'reserved' && m.reservation_date;
+      return `• ${lead}missed ${day(m.absence_date)} (${m.class_name}) — ${booked ? `booked for ${day(m.reservation_date)} (${m.reservation_class_name || m.class_name})` : `use by ${day(m.expiration_date)}`}`;
+    });
+  const open = list.some((m) => !(m.status === 'reserved' && m.reservation_date));
+  return {
+    subject: `Makeup classes for ${who}`,
+    message: [
+      `Hello ${guardian},`,
+      '',
+      `Here are ${who}'s makeup classes:`,
+      '',
+      ...rows,
+      '',
+      open ? 'A makeup can be taken in any suitable class before its "use by" date. Please let us know which days work for you and we\'ll book them in.' : 'See you on the mat!',
+      '',
+      'Best Regards,',
+      'Master Daisy',
+    ].join('\n'),
+  };
+}
