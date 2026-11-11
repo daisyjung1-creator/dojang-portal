@@ -13,6 +13,8 @@ import InvoicePreview from '../invoices/InvoicePreview';
 import { GREEN, BLUE, RED, AMBER, PURPLE, GREY, smallBtn, linkBtn, Tag, Card, Empty } from './homeUi';
 import BeltProgressCard from './BeltProgressCard';
 import MeetingsCard from './MeetingsCard';
+import Modal from '../../components/Modal';
+import { guaranteeShortfalls } from '../../lib/guarantee';
 
 // Home: what matters today at a glance — today's classes, who is billed
 // today, overdue invoices, a calendar with notes, and anything coming up
@@ -64,6 +66,7 @@ export default function HomePage({ setActiveTab }) {
   const [general, setGeneral] = useState('');
   const [previewId, setPreviewId] = useState(null);
   const [settings, setSettings] = useState(null);
+  const [showShort, setShowShort] = useState(false);
 
   useEffect(() => {
     load();
@@ -93,6 +96,7 @@ export default function HomePage({ setActiveTab }) {
       { data: n },
       s,
       { data: recent },
+      { data: mkPeriod },
     ] = await Promise.all([
       supabase.from('students').select('*').order('name'),
       supabase.from('customers').select('id, name, payment_type'),
@@ -113,6 +117,7 @@ export default function HomePage({ setActiveTab }) {
       supabase.from('dashboard_notes').select('*').order('created_at'),
       loadSettings(),
       fetchAll(() => supabase.from('attendance').select('student_id, date, class_name, status').gte('date', addDaysISO(today, -90))),
+      supabase.from('makeup_records').select('student_id, reservation_date, status').in('status', ['reserved', 'completed']).gte('reservation_date', from),
     ]);
     // Status of the tuition invoices for nearby billing dates.
     const tl = (lines || []).filter((l) => l.line_kind === 'tuition');
@@ -154,6 +159,7 @@ export default function HomePage({ setActiveTab }) {
       toText: toText || [],
       empById: Object.fromEntries((emps || []).map((e) => [e.id, e])),
       trackStart: trackingStart(recent || []),
+      mkPeriod: mkPeriod || [],
       recordsBy: (recent || []).reduce((m, r) => ((m[r.student_id] = m[r.student_id] || []).push(r), m), {}),
     });
   }
@@ -170,6 +176,8 @@ export default function HomePage({ setActiveTab }) {
     });
     return byDay;
   }, [d, month]);
+
+  const shortfalls = useMemo(() => (d ? guaranteeShortfalls({ students: d.students, schedule: d.schedule, cancels: d.cancels, makeups: d.mkPeriod, today }) : []), [d]);
 
   const studentById = useMemo(() => Object.fromEntries((d?.students || []).map((s) => [s.id, s])), [d]);
 
@@ -389,6 +397,14 @@ export default function HomePage({ setActiveTab }) {
       tab: 'students',
       label: 'Students',
     });
+  // Closures leave someone below the guaranteed classes (8/12/16) this or next service period.
+  if (shortfalls.length)
+    todayItems.push({
+      tone: 'warn',
+      text: `${shortfalls.length} student${shortfalls.length === 1 ? ' is' : 's are'} short of guaranteed classes because of closures — book make-ups: ${shortfalls.slice(0, 6).map((x) => `${x.student.name} (${x.short} short)`).join(', ')}${shortfalls.length > 6 ? '…' : ''}`,
+      onClick: () => setShowShort(true),
+      label: 'Details',
+    });
   const bdayToday = d.students.filter((x) => x.dob && String(x.dob).slice(5) === today.slice(5));
   if (bdayToday.length) todayItems.push({ tone: 'good', text: `Birthday today 🎉 ${bdayToday.map((x) => x.name).join(', ')}`, tab: 'students', label: 'Students' });
   notes.filter((n) => n.note_date === today && !n.done).forEach((n) => todayItems.push({ tone: 'info', text: `Note: ${n.body}` }));
@@ -407,6 +423,7 @@ export default function HomePage({ setActiveTab }) {
       </div>
 
       {/* Today: what to do / what's happening */}
+      {showShort && <ShortfallModal list={shortfalls} onClose={() => setShowShort(false)} onAttendance={() => setActiveTab('attendance')} />}
       <TodayPanel items={todayItems} classesLine={todayClasses.length ? `${todayClasses.filter((c) => !c.cancelled).length} classes · ${t12(todayClasses[0].start_time)} – ${t12(todayClasses[todayClasses.length - 1].end_time)}${todayClasses.some((c) => c.cancelled) ? ` · ${todayClasses.filter((c) => c.cancelled).length} cancelled` : ''}` : 'No classes today'} setActiveTab={setActiveTab} />
 
       {/* At a glance */}
@@ -555,6 +572,38 @@ export default function HomePage({ setActiveTab }) {
 }
 
 // ── Pieces ─────────────────────────────────────────────────────────────────
+const md = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+
+function ShortfallModal({ list, onClose, onAttendance }) {
+  return (
+    <Modal title="Short of guaranteed classes" maxWidth={720} onClose={onClose} footer={<><button className="dp-btn" onClick={onClose}>Close</button><button className="dp-btn dp-btn-primary" onClick={() => { onClose(); onAttendance(); }}>Go to Attendance</button></>}>
+      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>
+        The agreement guarantees 8 / 12 / 16 classes per monthly service period (2 / 3 / 4 a week). Closures (Day off) leave these students with fewer of their regular classes, so the Dojang owes make-ups. Make-ups booked inside the period already count.
+      </p>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dp-table">
+          <thead>
+            <tr><th>Student</th><th>Service period</th><th style={{ textAlign: 'right' }}>Guaranteed</th><th style={{ textAlign: 'right' }}>Classes left</th><th>Closed</th><th style={{ textAlign: 'right' }}>Booked</th><th style={{ textAlign: 'right' }}>Short</th></tr>
+          </thead>
+          <tbody>
+            {list.map((x) => (
+              <tr key={x.student.id + x.start}>
+                <td style={{ fontWeight: 500 }}>{x.student.name}<div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>{x.student.classes_per_week}x/week · {x.student.class_name}</div></td>
+                <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{md(x.start)} – {md(x.end)}</td>
+                <td style={{ textAlign: 'right' }}>{x.need}</td>
+                <td style={{ textAlign: 'right' }}>{x.available}</td>
+                <td style={{ fontSize: 12 }}>{x.lostDates.map(md).join(', ')}</td>
+                <td style={{ textAlign: 'right' }}>{x.booked || '—'}</td>
+                <td style={{ textAlign: 'right', fontWeight: 600, color: '#9A2B2B' }}>{x.short}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Modal>
+  );
+}
+
 function TodayPanel({ items, classesLine, setActiveTab }) {
   return (
     <div style={{ ...styles.card, marginBottom: 12 }}>
@@ -571,6 +620,8 @@ function TodayPanel({ items, classesLine, setActiveTab }) {
             <span style={{ flex: '1 1 220px', fontSize: 13.5, color: col, fontWeight: it.tone === 'warn' ? 500 : 400 }}>{it.text}</span>
             {it.href ? (
               <a className="dp-btn" style={{ padding: '3px 10px', fontSize: 12, textDecoration: 'none', background: '#E8F5EC', borderColor: '#BFDCC3', color: '#1F6B3A' }} href={it.href} target="_blank" rel="noreferrer">{it.label}</a>
+            ) : it.onClick ? (
+              <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={it.onClick}>{it.label}</button>
             ) : it.tab ? (
               <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setActiveTab(it.tab)}>{it.label}</button>
             ) : null}
