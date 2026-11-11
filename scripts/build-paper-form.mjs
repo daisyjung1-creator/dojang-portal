@@ -218,6 +218,9 @@ async function build(TS) {
   text('How did you hear about us?', M, y - 8, 7.8);
   checks(A.HEARD_FROM.map((h) => (h === 'Other' ? 'Other: ____________' : h)), { x0: M + width('How did you hear about us?', 7.8) + 10, size: 7.8 });
 
+  section(3, 'Emergency authorization');
+  para(A.EMERGENCY_AUTH.join(' '), { size: 6.9, lh: 1.22 });
+
   section(4, 'Membership — please choose (full terms on the back)');
   text('Classes per week', M, y - 8, 7.8, B);
   y -= 12;
@@ -241,8 +244,6 @@ async function build(TS) {
   checks([['NO', '— do not use the student’s identifiable photos or videos for promotion.']], { size: 8 });
   para(`${A.PHOTO_NOTE[0]} ${A.PHOTO_NOTE[1]} ${A.PHOTO_NOTE[2]}`, { size: 6.4, color: MUTE, lh: 1.2 });
 
-  section(3, 'Emergency authorization');
-  para(A.EMERGENCY_AUTH.join(' '), { size: 6.9, lh: 1.22 });
   const page1Bottom = y;
 
   // ═════════════ Page 2 — terms + signature ═════════════
