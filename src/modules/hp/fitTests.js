@@ -122,3 +122,39 @@ export async function saveNote(studentId, testDate, note) {
     { onConflict: 'student_id,test_date' },
   ));
 }
+
+// ── Managing the test list ───────────────────────────────────────────
+
+/** All items (hidden ones too) with how many results each has. */
+export async function loadAllItems() {
+  const [items, results] = await Promise.all([
+    must(supabase.from('fit_test_items').select('*').order('sort')),
+    must(supabase.from('fit_test_results').select('item_key').limit(20000)),
+  ]);
+  const counts = {};
+  results.forEach((r) => { counts[r.item_key] = (counts[r.item_key] || 0) + 1; });
+  return items.map((i) => ({ ...i, resultCount: counts[i.key] || 0 }));
+}
+
+/** A stable key for a new item, e.g. "Hop Test 2" → "hop_test_2" (made unique). */
+export function makeKey(name, existingKeys) {
+  const base = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'test';
+  let key = base;
+  let n = 2;
+  while (existingKeys.includes(key)) key = `${base}_${n++}`;
+  return key;
+}
+
+export async function addItem(fields) {
+  await must(supabase.from('fit_test_items').insert(fields));
+}
+
+export async function updateItem(key, fields) {
+  await must(supabase.from('fit_test_items').update(fields).eq('key', key));
+}
+
+/** Swap the order of two items. */
+export async function swapItems(a, b) {
+  await must(supabase.from('fit_test_items').update({ sort: b.sort }).eq('key', a.key));
+  await must(supabase.from('fit_test_items').update({ sort: a.sort }).eq('key', b.key));
+}

@@ -5,6 +5,7 @@ import {
   columnsFor, fmtValue, loadDateResults, loadTestBase, parseValue, saveNote, saveResult, sideKey,
 } from './fitTests';
 import { HP_ORANGE } from './ytpTheme';
+import ManageTests from './ManageTests';
 
 const NAME_W = 170;
 const COL_W = 74;
@@ -26,11 +27,12 @@ export default function FitnessTests() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [hpOnly, setHpOnly] = useState(false);
+  const [managing, setManaging] = useState(false);
 
   const fail = (e) => setError(e.message || String(e));
-  useEffect(() => {
-    loadTestBase().then((b) => { setBase(b); setTestDate(b.dates[0] || ''); }).catch(fail);
-  }, []);
+  const loadBase = (keepDate) => loadTestBase()
+    .then((b) => { setBase(b); if (!keepDate) setTestDate(b.dates[0] || ''); }).catch(fail);
+  useEffect(() => { loadBase(false); }, []);
   useEffect(() => {
     if (!testDate) return;
     setData(null);
@@ -50,6 +52,7 @@ export default function FitnessTests() {
 
   if (error) return <div style={{ ...styles.card, padding: 16, color: '#9A2B2B' }}>Couldn't load tests: {error}</div>;
   if (!base) return <div style={{ color: '#5B5F56' }}>Loading...</div>;
+  if (managing) return <ManageTests onBack={() => { setManaging(false); setData(null); loadBase(true); if (testDate) loadDateResults(testDate).then(setData).catch(fail); }} />;
 
   const dates = testDate && !base.dates.includes(testDate) ? [testDate, ...base.dates] : base.dates;
   const students = base.students.filter((s) => !hpOnly || /(^|,\s*)HP(\s*,|$)/.test(s.class_name || ''));
@@ -74,6 +77,7 @@ export default function FitnessTests() {
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, marginLeft: 'auto' }}>
           <input type="checkbox" checked={hpOnly} onChange={(e) => setHpOnly(e.target.checked)} /> HP athletes only
         </label>
+        <button className="dp-btn" onClick={() => setManaging(true)}>Manage tests</button>
       </div>
       <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '0 0 10px' }}>
         {students.length} active Comp Team students. Each box saves when you leave it. Type "full" for a full front split (saved as 0).
