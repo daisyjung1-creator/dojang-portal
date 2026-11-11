@@ -17,7 +17,7 @@ export function leadKids(lead) {
 const joinNames = (names) => (names.length <= 1 ? names[0] || '' : names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1]);
 
 function emptyForm() {
-  return { student_name: '', guardian_name: '', phone: '', email: '', student_age: '', source: 'Phone', inquiry_date: todayISO(), consult_date: '', status: 'New Inquiry', notes: '', linked_student_id: null };
+  return { student_name: '', guardian_name: '', phone: '', email: '', student_age: '', source: 'Phone', inquiry_date: todayISO(), status: 'New Inquiry', notes: '', linked_student_id: null };
 }
 
 export default function LeadsPage({ setActiveTab }) {
@@ -104,7 +104,7 @@ export default function LeadsPage({ setActiveTab }) {
     let submitError;
     const { kids: _k, ...rest } = form;
     const row = { ...rest, children: kids.length ? kids : null, student_name: joinNames(names) || null, guardian_name: String(form.guardian_name || '').trim() || null, student_age: kids[0]?.age ?? null };
-    // Empty fields (e.g. no consult date yet) are saved as blank, not "".
+    // Empty fields are saved as blank, not "".
     Object.keys(row).forEach((k) => {
       if (typeof row[k] === 'string' && !row[k].trim()) row[k] = null;
     });
@@ -225,7 +225,6 @@ export default function LeadsPage({ setActiveTab }) {
                 <th>Phone</th>
                 <th>Source</th>
                 <th>Inquiry Date</th>
-                <th>Consult Date</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -251,7 +250,6 @@ export default function LeadsPage({ setActiveTab }) {
                     </td>
                     <td>{l.source}</td>
                     <td>{l.inquiry_date || '—'}</td>
-                    <td>{l.consult_date || '—'}</td>
                     <td>
                       <select
                         className="dp-select"
@@ -388,9 +386,6 @@ export default function LeadsPage({ setActiveTab }) {
             </Field>
           </div>
           <div style={styles.formRow}>
-            <Field label="Consult Date">
-              <input type="date" className="dp-input" style={{ width: '100%' }} value={form.consult_date || ''} onChange={(e) => setForm({ ...form, consult_date: e.target.value })} />
-            </Field>
             <Field label="Status">
               <select className="dp-select" style={{ width: '100%' }} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 {LEAD_STATUSES.map((s) => (
