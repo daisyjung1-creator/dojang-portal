@@ -15,6 +15,24 @@ export default function YearReceiptsModal({ customers, student = null, onClose }
   const [settings, setSettings] = useState({});
   const [data, setData] = useState(null);
   const [sel, setSel] = useState({});
+  const [items, setItems] = useState([]);
+  const [exclude, setExclude] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('yearReceipt:exclude') || '[]');
+    } catch (_e) {
+      return [];
+    }
+  });
+  const [showItems, setShowItems] = useState(false);
+  const toggleItem = (name) => {
+    const next = exclude.includes(name) ? exclude.filter((x) => x !== name) : [...exclude, name];
+    setExclude(next);
+    try {
+      localStorage.setItem('yearReceipt:exclude', JSON.stringify(next));
+    } catch (_e) {
+      /* storage unavailable */
+    }
+  };
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const single = customers.length === 1;
@@ -25,11 +43,12 @@ export default function YearReceiptsModal({ customers, student = null, onClose }
 
   useEffect(() => {
     setData(null);
-    loadYearReceipts(customers, year, student?.id || null).then((r) => {
+    loadYearReceipts(customers, year, student?.id || null, exclude).then(({ receipts: r, items: its }) => {
+      setItems(its);
       setData(r);
       setSel(Object.fromEntries(Object.values(r).filter((x) => x.paid > 0.004 && x.customer.email).map((x) => [x.customer.id, true])));
     });
-  }, [year, customers.length, student?.id]);
+  }, [year, customers.length, student?.id, exclude.join('|')]);
 
   const list = useMemo(() => (data ? Object.values(data).filter((r) => single || r.paid > 0.004).sort((a, b) => a.customer.name.localeCompare(b.customer.name)) : []), [data]);
   const chosen = list.filter((r) => (single ? true : sel[r.customer.id]));
@@ -96,6 +115,22 @@ export default function YearReceiptsModal({ customers, student = null, onClose }
           <button key={y} type="button" className="dp-btn" style={{ padding: '4px 12px', fontSize: 13, ...(y === year ? { background: '#20241F', color: '#fff', borderColor: '#20241F' } : {}) }} onClick={() => setYear(y)}>{y}</button>
         ))}
         <span style={{ fontSize: 12, color: '#8A8D84' }}>Jan 1 – Dec 31 · money actually paid (minus refunds), GST included</span>
+      </div>
+      <div style={{ fontSize: 12.5, margin: '-4px 0 10px' }}>
+        <button type="button" style={{ background: 'none', border: 'none', padding: 0, color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' }} onClick={() => setShowItems(!showItems)}>
+          {exclude.length ? `Included items: all except ${exclude.join(', ')}` : 'Included items: all'} ({showItems ? 'hide' : 'change'})
+        </button>
+        {showItems && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 6, padding: '8px 10px', background: '#FAF8F2', border: '1px solid #EDEAE0', borderRadius: 8 }}>
+            {items.length === 0 && <span style={{ color: '#8A8D84' }}>No items this year.</span>}
+            {items.map((it) => (
+              <label key={it} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                <input type="checkbox" checked={!exclude.includes(it)} onChange={() => toggleItem(it)} /> {it}
+              </label>
+            ))}
+            <div style={{ width: '100%', fontSize: 11.5, color: '#8A8D84' }}>Untick events or merchandise (e.g. Movie Night, T-shirts) to keep them off the receipts. Remembered for next time.</div>
+          </div>
+        )}
       </div>
       {!data ? (
         <p style={{ fontSize: 13, color: '#5B5F56' }}>Loading…</p>

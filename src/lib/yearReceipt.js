@@ -8,11 +8,14 @@ import { money, formatDate, round2 } from './invoiceUtils';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // customers: [{ id, name, email }] → { [customer_id]: receipt }
-export async function loadYearReceipts(customers, year, onlyStudentId = null) {
+// exclude: item names to leave out (e.g. Movie Night). Returns { receipts, items }
+// where items lists every item name found that year.
+export async function loadYearReceipts(customers, year, onlyStudentId = null, exclude = []) {
+  const skip = new Set(exclude);
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
   const ids = customers.map((c) => c.id);
-  if (!ids.length) return {};
+  if (!ids.length) return { receipts: {}, items: [] };
   const chunk = (arr, n = 150) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
   let pays = [];
   let refs = [];
@@ -37,7 +40,7 @@ export async function loadYearReceipts(customers, year, onlyStudentId = null) {
   for (const part of chunk(invIds)) {
     const [{ data: i }, { data: l }] = await Promise.all([
       supabase.from('invoices').select('id, invoice_number, total, gst_amount, customer_id').in('id', part),
-      supabase.from('invoice_lines').select('invoice_id, student_id, amount, taxable').in('invoice_id', part),
+      supabase.from('invoice_lines').select('invoice_id, student_id, amount, taxable, item_name, description').in('invoice_id', part),
     ]);
     invs = invs.concat(i || []);
     lines = lines.concat(l || []);
@@ -59,13 +62,15 @@ export async function loadYearReceipts(customers, year, onlyStudentId = null) {
   const linesBy = {};
   lines.forEach((l) => (linesBy[l.invoice_id] ||= []).push(l));
 
+  const itemOf = (l) => String(l.item_name || l.description || 'Other').trim();
+  const items = [...new Set(lines.map(itemOf))].sort((a, b) => a.localeCompare(b));
   // Share of an invoice that belongs to each child (by line amounts).
   const shares = (invId) => {
     const ls = linesBy[invId] || [];
     const tot = ls.reduce((n, l) => n + Number(l.amount || 0), 0);
     const by = {};
     ls.forEach((l) => {
-      const k = l.student_id || '_family';
+      const k = skip.has(itemOf(l)) ? '_excluded' : l.student_id || '_family';
       by[k] = (by[k] || 0) + Number(l.amount || 0);
     });
     return Object.entries(by).map(([k, v]) => [k, tot ? v / tot : 0]);
@@ -80,16 +85,17 @@ export async function loadYearReceipts(customers, year, onlyStudentId = null) {
       const inv = invBy[invId];
       const parts = invId ? shares(invId) : [['_family', 1]];
       parts.forEach(([k, f]) => {
-        if (onlyStudentId && k !== onlyStudentId) return;
+        if (k === '_excluded' || (onlyStudentId && k !== onlyStudentId)) return;
         kids[k] = round2((kids[k] || 0) + sign * amount * f);
       });
-      const mine = onlyStudentId ? parts.filter(([k]) => k === onlyStudentId).reduce((n, [, f]) => n + f, 0) : 1;
+      const mine = parts.filter(([k]) => k !== '_excluded' && (!onlyStudentId || k === onlyStudentId)).reduce((n, [, f]) => n + f, 0);
       paid = round2(paid + sign * amount * mine);
+      return round2(amount * mine);
       if (inv && Number(inv.total) > 0) gst = round2(gst + sign * amount * mine * (Number(inv.gst_amount) / Number(inv.total)));
     };
     const myPays = pays.filter((p) => p.customer_id === c.id);
     // Money that went to account credit (overpayment) isn't a fee paid yet.
-    myPays.forEach((p) => add(Number(p.amount) - Number(p.credit_amount || 0), p.invoice_id));
+    const counted = myPays.map((p) => ({ ...p, counted: add(Number(p.amount) - Number(p.credit_amount || 0), p.invoice_id) }));
     refs.filter((r) => r.customer_id === c.id).forEach((r) => add(Number(r.amount), r.invoice_id, -1));
     const children = Object.entries(kids)
       .filter(([, v]) => Math.abs(v) > 0.004)
@@ -102,12 +108,13 @@ export async function loadYearReceipts(customers, year, onlyStudentId = null) {
       children,
       paid,
       gst,
-      payments: myPays.sort((a, b) => (a.payment_date < b.payment_date ? -1 : 1)),
+      // Only the part of each payment that counts on this receipt.
+      payments: counted.filter((p) => p.counted > 0.004).map((p) => ({ ...p, amount: p.counted, credit_amount: 0 })).sort((a, b) => (a.payment_date < b.payment_date ? -1 : 1)),
       first: myPays[0]?.payment_date || null,
       last: myPays[myPays.length - 1]?.payment_date || null,
     };
   }
-  return out;
+  return { receipts: out, items };
 }
 
 export function yearReceiptHtml(r, s = {}, { pageBreak = false } = {}) {
