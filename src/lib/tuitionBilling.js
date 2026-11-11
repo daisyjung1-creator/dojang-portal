@@ -93,14 +93,15 @@ export function tuitionLines(student, cycleStart, settings = {}) {
     let amt = round2(Number(student.subsidy_amount) * months);
     if (left != null) amt = Math.min(amt, left);
     // With a grant total: show the balance left and how long it's good for.
-    const balance = left != null ? ` · ${money(left - amt)} of ${money(student.subsidy_total)} left` : '';
-    const until = student.subsidy_end_date ? ` · until ${formatDate(student.subsidy_end_date)}` : '';
+    // e.g. "KidSport for Adonis — $100.00 left of the $148.00 grant after this invoice (good until Dec 31, 2026)"
+    const balance = left != null ? ` — ${money(left - amt)} left of the ${money(student.subsidy_total)} grant after this invoice` : '';
+    const until = student.subsidy_end_date ? (left != null ? ` (good until ${formatDate(student.subsidy_end_date)})` : ` — until ${formatDate(student.subsidy_end_date)}`) : '';
     lines.push({
       student_id: student.id,
       cycle_start: cycleStart,
       line_kind: 'subsidy',
       item_name: name,
-      description: `${name} — ${firstName(student.name)}${months > 1 ? ` (${months} months)` : ''}${balance}${until}`,
+      description: `${name} for ${firstName(student.name)}${months > 1 ? ` (${months} months)` : ''}${balance}${until}`,
       quantity: 1,
       unit_price: -amt,
       taxable: false,
