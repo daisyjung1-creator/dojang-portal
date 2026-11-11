@@ -135,7 +135,7 @@ export function yearReceiptText(r, s = {}) {
     '',
     `Total paid in ${r.year}: ${money(r.paid)} (includes GST of ${money(r.gst)}${s.gst_number ? `, GST # ${s.gst_number}` : ''})`,
     '',
-    'If you need a printed or PDF copy, just reply to this email.',
+    'Your receipt is attached as a PDF.',
     '',
     'Best Regards,',
     'Master Daisy',

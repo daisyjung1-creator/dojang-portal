@@ -43,17 +43,36 @@ export default function YearReceiptsModal({ customers, student = null, onClose }
   async function email() {
     const rs = (single ? list : chosen).filter((r) => r.customer.email && r.paid > 0.004);
     if (!rs.length) return setMsg('Nobody to email (no email address or nothing paid).');
-    if (!(await confirmSend({ what: `${year} receipt of fees paid`, to: rs.length === 1 ? rs[0].customer.email : `${rs.length} families`, note: 'Each family gets its own receipt by email.' }))) return;
+    if (!(await confirmSend({ what: `${year} receipt of fees paid`, to: rs.length === 1 ? rs[0].customer.email : `${rs.length} families`, note: 'Each family gets its own email with the receipt PDF attached.' }))) return;
     setBusy(true);
-    const rows = rs.map((r) => ({
-      type: 'broadcast',
-      recipient_email: r.customer.email,
+    const items = rs.map((r) => ({
+      to: r.customer.email,
       student_id: student?.id || null,
-      payload: { subject: `${year} receipt of taekwondo fees — ${student ? student.name : r.customer.name}`, message: yearReceiptText(r, settings) },
+      subject: `${year} receipt of taekwondo fees — ${student ? student.name : r.customer.name}`,
+      message: yearReceiptText(r, settings),
+      receipt: { year: r.year, customer: { name: student ? `${r.customer.name} (${student.name})` : r.customer.name }, children: r.children, paid: r.paid, gst: r.gst, payments: r.payments },
     }));
-    const { error } = await supabase.from('email_queue').insert(rows);
+    // A few at a time, so a long list never times out.
+    let sent = 0;
+    const failed = [];
+    for (let i = 0; i < items.length; i += 8) {
+      setMsg(`Sending… ${sent} of ${items.length}`);
+      const { data, error } = await supabase.functions.invoke('year-receipts', { body: { receipts: items.slice(i, i + 8) } });
+      if (error || data?.error) {
+        let m = data?.error || error.message;
+        try {
+          m = (await error?.context?.json())?.error || m;
+        } catch (_e) {
+          /* keep */
+        }
+        failed.push(m);
+        break;
+      }
+      sent += data.sent || 0;
+      failed.push(...(data.failed || []));
+    }
     setBusy(false);
-    setMsg(error ? error.message : `Emailed ${rs.length} receipt${rs.length === 1 ? '' : 's'}.`);
+    setMsg(`Emailed ${sent} receipt${sent === 1 ? '' : 's'} with the PDF attached.${failed.length ? ` Not sent: ${failed.join('; ')}` : ''}`);
   }
 
   const years = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2];
@@ -107,7 +126,7 @@ export default function YearReceiptsModal({ customers, student = null, onClose }
           </table>
         </div>
       )}
-      {msg && <p style={{ fontSize: 13, color: msg.startsWith('Emailed') ? '#2A5A30' : '#9A2B2B', margin: '8px 0 0' }}>{msg}</p>}
+      {msg && <p style={{ fontSize: 13, color: /^(Emailed|Sending)/.test(msg) && !msg.includes('Not sent') ? '#2A5A30' : '#9A2B2B', margin: '8px 0 0' }}>{msg}</p>}
     </Modal>
   );
 }
