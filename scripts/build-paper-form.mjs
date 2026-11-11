@@ -20,7 +20,8 @@ const TIMETABLE = [
   { time: '4:30 – 5:20', days: { 1: 'Intermediate B', 2: 'Beginner', 3: 'Intermediate B', 4: 'Beginner' } },
   { time: '5:00 – 5:50', days: { 5: 'Inter/Advance' } },
   { time: '5:30 – 6:20', days: { 1: 'Beg/Inter', 2: 'Intermediate A', 3: 'Beg/Inter', 4: 'Intermediate A' } },
-  { time: '6:30 – 7:30', days: { 1: 'Adv Poomsae', 2: 'Adv Sparring', 3: 'Adv Poomsae', 4: 'Adv Sparring', 5: 'Adv Poomsae' } },
+  { time: '6:00 – 7:30', days: { 5: 'Adv Poomsae' } },
+  { time: '6:30 – 7:30', days: { 1: 'Adv Poomsae', 2: 'Adv Sparring', 3: 'Adv Poomsae', 4: 'Adv Sparring' } },
 ];
 const CLASS_GUIDE = [
   ['Beginner', 'All ages · White – Green'],
