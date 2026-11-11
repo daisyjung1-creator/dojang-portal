@@ -17,13 +17,17 @@ export async function loadYearReceipts(customers, year, onlyStudentId = null) {
   let pays = [];
   let refs = [];
   let guardians = {};
+  const familyKids = {}; // customer_id → [{ id, name }]
   for (const part of chunk(ids)) {
     const [{ data: g }, { data: p }, { data: r }] = await Promise.all([
-      supabase.from('students').select('customer_id, guardian_name').in('customer_id', part),
+      supabase.from('students').select('id, name, dob, customer_id, guardian_name').in('customer_id', part),
       supabase.from('invoice_payments').select('id, invoice_id, customer_id, payment_date, method, amount, credit_amount, receipt_number').in('customer_id', part).gte('payment_date', from).lte('payment_date', to),
       supabase.from('invoice_refunds').select('id, invoice_id, customer_id, refund_date, amount, gst_amount').in('customer_id', part).gte('refund_date', from).lte('refund_date', to),
     ]);
-    (g || []).forEach((x) => x.guardian_name && !guardians[x.customer_id] && (guardians[x.customer_id] = x.guardian_name));
+    (g || []).forEach((x) => {
+      if (x.guardian_name && !guardians[x.customer_id]) guardians[x.customer_id] = x.guardian_name;
+      (familyKids[x.customer_id] ||= []).push(x);
+    });
     pays = pays.concat(p || []);
     refs = refs.concat(r || []);
   }
@@ -32,16 +36,26 @@ export async function loadYearReceipts(customers, year, onlyStudentId = null) {
   let lines = [];
   for (const part of chunk(invIds)) {
     const [{ data: i }, { data: l }] = await Promise.all([
-      supabase.from('invoices').select('id, invoice_number, total, gst_amount').in('id', part),
+      supabase.from('invoices').select('id, invoice_number, total, gst_amount, customer_id').in('id', part),
       supabase.from('invoice_lines').select('invoice_id, student_id, amount, taxable').in('invoice_id', part),
     ]);
     invs = invs.concat(i || []);
     lines = lines.concat(l || []);
   }
+  const invBy = Object.fromEntries(invs.map((i) => [i.id, i]));
+  // Lines not linked to a child (older / imported invoices, shop items): the
+  // child named in the description, or the only child in the family.
+  lines.forEach((l) => {
+    if (l.student_id) return;
+    const kids = familyKids[invBy[l.invoice_id]?.customer_id] || [];
+    const text = String(l.description || '').toLowerCase();
+    const named = kids.filter((k) => text.includes(String(k.name).split(' ')[0].toLowerCase()));
+    if (named.length === 1) l.student_id = named[0].id;
+    else if (kids.length === 1) l.student_id = kids[0].id;
+  });
   const sids = [...new Set(lines.map((l) => l.student_id).filter(Boolean))];
   const { data: st } = sids.length ? await supabase.from('students').select('id, name, dob, enroll_date').in('id', sids) : { data: [] };
   const studentBy = Object.fromEntries((st || []).map((x) => [x.id, x]));
-  const invBy = Object.fromEntries(invs.map((i) => [i.id, i]));
   const linesBy = {};
   lines.forEach((l) => (linesBy[l.invoice_id] ||= []).push(l));
 
@@ -79,7 +93,7 @@ export async function loadYearReceipts(customers, year, onlyStudentId = null) {
     refs.filter((r) => r.customer_id === c.id).forEach((r) => add(Number(r.amount), r.invoice_id, -1));
     const children = Object.entries(kids)
       .filter(([, v]) => Math.abs(v) > 0.004)
-      .map(([k, v]) => ({ id: k, name: k === '_family' ? 'Family items' : studentBy[k]?.name || 'Student', dob: studentBy[k]?.dob || null, amount: v }))
+      .map(([k, v]) => ({ id: k, name: k === '_family' ? 'Shared family fees (not for one child)' : studentBy[k]?.name || 'Student', dob: studentBy[k]?.dob || null, amount: v }))
       .sort((a, b) => (a.id === '_family' ? 1 : b.id === '_family' ? -1 : a.name.localeCompare(b.name)));
     out[c.id] = {
       customer: c,
