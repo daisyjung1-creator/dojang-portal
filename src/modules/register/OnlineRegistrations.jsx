@@ -47,6 +47,7 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button className="dp-btn" onClick={copy}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy form link'}</button>
           <a className="dp-btn" href="/join" target="_blank" rel="noreferrer">Open form</a>
+          <a className="dp-btn" href="/enrollment-form.pdf" target="_blank" rel="noreferrer" title="Print for families who register in person">Paper form (PDF)</a>
         </span>
       </div>
       <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 10, wordBreak: 'break-all' }}>{JOIN_URL} — send this to new families (email, text, QR code).</div>
