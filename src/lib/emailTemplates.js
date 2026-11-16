@@ -105,12 +105,12 @@ If ${v.student} would like to keep training, we would love to have ${v.student} 
 ${joinLink}
 Paper forms are also available at the Dojang.
 
-New students who start with a three-month membership receive a free uniform. If cost is a concern, the KidSport grant may be able to help, and we are happy to provide proof of enrollment.
+We also have a few options that make getting started easier, such as a free uniform with a three-month membership and help with KidSport grant applications. If you are interested, just ask us for details.
 
 If you have any questions, or would like ${v.student} to try another class first, just reply to this email${v.phone ? ` or call us at ${v.phone}` : ''}.
 
 Master Daisy
 ${v.business}`;
-  const text = `Hi ${guardian}, this is Master Daisy from ${v.business}. Thank you for bringing ${v.student} to the trial class! We hope ${v.student} had fun. If ${v.student} would like to keep training, we would love to have ${v.student} join us${cls}. Register online: ${joinLink} (paper forms at the Dojang too). New students on a three-month membership get a free uniform. Any questions? Just reply here.`;
+  const text = `Hi ${guardian}, this is Master Daisy from ${v.business}. Thank you for bringing ${v.student} to the trial class! We hope ${v.student} had fun. If ${v.student} would like to keep training, we would love to have ${v.student} join us${cls}. Register online: ${joinLink} (paper forms at the Dojang too). We also have a few options to make getting started easier (free uniform, KidSport help) — just ask if you're interested!`;
   return { subject, message, text };
 }
