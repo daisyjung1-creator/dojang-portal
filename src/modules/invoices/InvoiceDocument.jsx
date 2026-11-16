@@ -11,6 +11,10 @@ const FAINT = '#999999';
 const HAIR = '#E0E0E0';
 const RED = '#BF1C21';
 
+// Shown first under "How to pay" for families on pre-authorized card payments
+// (same wording as the emailed PDF in send-emails/invoiceDocs.ts).
+export const PREAUTH_PAY_LINE = 'Pre-authorized card on file: reply to the invoice email to approve charging this amount to your card.';
+
 const labelStyle = { fontSize: 9, fontWeight: 700, color: FAINT, textTransform: 'uppercase', letterSpacing: '0.08em' };
 
 export default function InvoiceDocument({ invoice, lines, payments = [], refunds = [], settings }) {
@@ -26,6 +30,7 @@ export default function InvoiceDocument({ invoice, lines, payments = [], refunds
   const td = { padding: '11px 0', borderBottom: `1px solid ${HAIR}`, fontSize: 12.5, verticalAlign: 'top' };
   const title = invoice.voided ? 'Void' : 'Invoice';
   const contact = [s.phone, s.email].filter(Boolean).join('  ·  ');
+  const preauth = invoice.payment_type === 'preauth' && balance > 0.004 && !invoice.voided;
 
   return (
     <div className="invoice-doc" style={{ background: '#fff', color: INK, padding: '44px 52px 28px', fontFamily: 'Helvetica, "Helvetica Neue", Arial, sans-serif', maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 980 }}>
@@ -113,10 +118,11 @@ export default function InvoiceDocument({ invoice, lines, payments = [], refunds
       </div>
 
       <div style={{ maxWidth: 440, marginTop: 30, fontSize: 12, lineHeight: 1.5 }}>
-        {s.payment_instructions && (
+        {(s.payment_instructions || preauth) && (
           <div style={{ marginBottom: 14 }}>
             <div style={labelStyle}>How to pay</div>
-            <div style={{ whiteSpace: 'pre-line', marginTop: 4 }}>{s.payment_instructions}</div>
+            {preauth && <div style={{ marginTop: 4, fontWeight: 700 }}>{PREAUTH_PAY_LINE}</div>}
+            {s.payment_instructions && <div style={{ whiteSpace: 'pre-line', marginTop: 4 }}>{s.payment_instructions}</div>}
           </div>
         )}
         {invoice.notes && (

@@ -98,7 +98,7 @@ async function loadSettings() {
 async function sendInvoice(record: any) {
   const invoiceId = record.payload?.invoice_id;
   const [{ data: inv }, { data: lines }, { data: rawPayments }, { data: refunds }, { data: credits }, s] = await Promise.all([
-    supabase.from('invoices').select('*, customers(cc_email)').eq('id', invoiceId).single(),
+    supabase.from('invoices').select('*, customers(cc_email, payment_type)').eq('id', invoiceId).single(),
     supabase.from('invoice_lines').select('*').eq('invoice_id', invoiceId).order('position'),
     supabase.from('invoice_payments').select('*').eq('invoice_id', invoiceId),
     supabase.from('invoice_refunds').select('*').eq('invoice_id', invoiceId),

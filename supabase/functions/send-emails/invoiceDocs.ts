@@ -15,6 +15,9 @@ const pdfSafe = (s: any) =>
   String(s ?? '').replace(/\u2013/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u2026/g, '...').replace(/[^\x20-\x7E\u00A0-\u00FF\u2014]/g, '');
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
+// Shown first under "How to pay" for families on pre-authorized card payments.
+export const PREAUTH_PAY_LINE = 'Pre-authorized card on file: reply to the invoice email to approve charging this amount to your card.';
+
 export function fillTemplate(tpl: string, inv: Invoice, s: Settings, balance: number) {
   return (tpl || '')
     .replaceAll('{customer}', inv.customer_name || '')
@@ -167,13 +170,16 @@ export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Pay
   y = boxTop - boxH - 34;
 
   // ── Payment, notes ─────────────────────────────────────────────────
-  const blocks: [string, string][] = [];
-  if (s.payment_instructions) blocks.push(['How to pay', s.payment_instructions]);
+  // [label, text, bold first part]
+  const blocks: [string, string, string?][] = [];
+  const preauth = (inv as any).customers?.payment_type === 'preauth' && balance > 0.004 && !(inv as any).voided;
+  if (s.payment_instructions || preauth) blocks.push(['How to pay', s.payment_instructions || '', preauth ? PREAUTH_PAY_LINE : '']);
   if (inv.notes) blocks.push(['Notes', inv.notes]);
   if (s.invoice_footer) blocks.push(['', s.invoice_footer]);
-  for (const [k, v] of blocks) {
+  for (const [k, v, first] of blocks) {
     if (k) { label(k, M, y); y -= 13; }
-    for (const l of wrap(v, 330, 9)) { text(l, M, y, { size: 9, color: k ? ink : mute }); y -= 12; }
+    if (first) { for (const l of wrap(first, 330, 9, bold)) { text(l, M, y, { size: 9, f: bold }); y -= 12; } y -= 3; }
+    for (const l of wrap(v, 330, 9)) { if (!l && !v) continue; text(l, M, y, { size: 9, color: k ? ink : mute }); y -= 12; }
     y -= 10;
   }
 
@@ -353,6 +359,7 @@ export function invoiceEmailHtml(inv: Invoice, lines: Line[], s: Settings, messa
       <tr><td><b>Total</b></td><td style="text-align:right"><b>${money(inv.total)}</b></td></tr>
       <tr><td style="color:#9A2B2B"><b>Balance due</b></td><td style="text-align:right;color:#9A2B2B"><b>${money(balance)}</b></td></tr>
     </table>
+    ${(inv as any).customers?.payment_type === 'preauth' && balance > 0.004 ? `<p style="font-size:13px;margin-top:12px"><b>${esc(PREAUTH_PAY_LINE)}</b></p>` : ''}
     ${s.payment_instructions ? `<p style="font-size:13px;white-space:pre-line;margin-top:12px"><b>How to pay:</b> ${esc(s.payment_instructions)}</p>` : ''}
   </div>
   <p style="font-size:12px;color:#8A8D84;margin-top:16px">${esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
