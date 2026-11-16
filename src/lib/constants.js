@@ -37,6 +37,7 @@ export const TRYOUT_STATUSES = [
   { value: 'Attended', bg: '#E8F1E9', text: '#2A5A30', border: '#BFDCC3' },
   { value: 'No-show', bg: '#FBEAEA', text: '#9A2B2B', border: '#E4B8B8' },
   { value: 'Converted', bg: '#FAEEDA', text: '#854F0B', border: '#F0D9A8' },
+  { value: 'Not joining', bg: '#F1EFE7', text: '#5B5F56', border: '#DEDACC' },
 ];
 
 export const MAKEUP_STATUSES = {

@@ -90,3 +90,27 @@ export function combinedMakeupEmail(list, studentsById, settings = {}) {
     ].join('\n'),
   };
 }
+
+// Follow-up after a trial class for families who haven't joined yet.
+export function trialFollowup(t, settings, joinLink) {
+  const v = tryoutVars(t, settings);
+  const guardian = first(t.guardian_name) || 'there';
+  const cls = t.class_name ? ` in our ${t.class_name} class` : '';
+  const subject = `${v.student}'s taekwondo trial — would you like to join?`;
+  const message = `Hi ${guardian},
+
+Thank you for bringing ${v.student} to the free trial class at ${v.business}. We hope ${v.student} had fun!
+
+If ${v.student} would like to keep training, we would love to have ${v.student} join us${cls}. You can register online here:
+${joinLink}
+Paper forms are also available at the Dojang.
+
+New students who start with a three-month membership receive a free uniform. If cost is a concern, the KidSport grant may be able to help, and we are happy to provide proof of enrollment.
+
+If you have any questions, or would like ${v.student} to try another class first, just reply to this email${v.phone ? ` or call us at ${v.phone}` : ''}.
+
+Master Daisy
+${v.business}`;
+  const text = `Hi ${guardian}, this is Master Daisy from ${v.business}. Thank you for bringing ${v.student} to the trial class! We hope ${v.student} had fun. If ${v.student} would like to keep training, we would love to have ${v.student} join us${cls}. Register online: ${joinLink} (paper forms at the Dojang too). New students on a three-month membership get a free uniform. Any questions? Just reply here.`;
+  return { subject, message, text };
+}

@@ -10,7 +10,11 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmailComposeModal from '../../components/EmailComposeModal';
 import { useAuth } from '../../auth/AuthContext';
-import { fillTemplate, tryoutVars, timeLabel } from '../../lib/emailTemplates';
+import { fillTemplate, tryoutVars, timeLabel, trialFollowup } from '../../lib/emailTemplates';
+
+const norm = (n) => String(n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const daysAgo = (iso) => { const n = Math.round((new Date(todayISO() + 'T12:00:00') - new Date(iso + 'T12:00:00')) / 864e5); return n === 1 ? 'yesterday' : `${n} days ago`; };
 
 // Trials are usually at 4:30 pm (changeable in Invoice Settings).
 function emptyForm(time = '16:30') {
@@ -29,12 +33,15 @@ export default function TryoutsPage({ setActiveTab }) {
   const [settings, setSettings] = useState({});
   const [email, setEmail] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [studentNames, setStudentNames] = useState(null);
+  const [showFollow, setShowFollow] = useState(true);
   // This site's own /trial page (so the preview site links to the preview form).
   const bookingLink = `${window.location.origin}/trial`;
 
   useEffect(() => {
     fetchTryouts();
     supabase.from('invoice_settings').select('*').eq('id', 1).maybeSingle().then(({ data }) => setSettings(data || {}));
+    if (isAdmin) supabase.from('students').select('name').then(({ data }) => setStudentNames(new Set((data || []).map((x) => norm(x.name)))));
   }, []);
 
   const defaultTime = (settings.default_tryout_time || '16:30').slice(0, 5);
@@ -132,6 +139,30 @@ export default function TryoutsPage({ setActiveTab }) {
     setActiveTab('register');
   }
 
+  // Came to a trial (or the day has passed and nobody updated it) but isn't a student yet.
+  const notJoined = useMemo(() => {
+    if (!studentNames) return [];
+    const today = todayISO();
+    return tryouts
+      .filter((t) => t.date && t.date < today && (t.status === 'Attended' || t.status === 'Scheduled') && !studentNames.has(norm(t.student_name)))
+      .filter((t) => t.date >= addDays(today, -90))
+      .sort((a, b) => (a.followup_sent_at ? 1 : 0) - (b.followup_sent_at ? 1 : 0) || b.date.localeCompare(a.date));
+  }, [tryouts, studentNames]);
+  const waiting = notJoined.filter((t) => !t.followup_sent_at).length;
+
+  function openFollowEmail(t) {
+    const f = trialFollowup(t, settings, JOIN_LINK);
+    setEmail({ title: `Follow-up — ${t.student_name}`, type: 'broadcast', to: t.guardian_email || '', subject: f.subject, message: f.message, payload: { tryout_id: t.id }, followupId: t.id, note: t.followup_sent_at ? `A follow-up was already sent on ${t.followup_sent_at.slice(0, 10)}.` : '' });
+  }
+  function followSmsHref(t) {
+    const phone = String(t.guardian_phone || '').replace(/[^\d+]/g, '');
+    return `sms:${phone}${/iPhone|iPad|Mac/i.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(trialFollowup(t, settings, JOIN_LINK).text)}`;
+  }
+  async function markFollowed(id, at = new Date().toISOString()) {
+    await supabase.from('tryouts').update({ followup_sent_at: at }).eq('id', id);
+    setTryouts((prev) => prev.map((x) => (x.id === id ? { ...x, followup_sent_at: at } : x)));
+  }
+
   const filtered = useMemo(() => tryouts.filter((t) => statusFilter === 'all' || t.status === statusFilter), [tryouts, statusFilter]);
   const statusMeta = (status) => TRYOUT_STATUSES.find((s) => s.value === status) || TRYOUT_STATUSES[0];
 
@@ -164,6 +195,62 @@ export default function TryoutsPage({ setActiveTab }) {
           <a className="dp-btn" href={bookingLink} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open</a>
         </div>
       </div>
+
+      {isAdmin && notJoined.length > 0 && (
+        <div style={{ ...styles.card, padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Tried a class, not joined yet ({notJoined.length})</div>
+              <div style={{ fontSize: 12, color: '#8A8D84' }}>
+                Trials in the last 90 days with no student record. {waiting ? `${waiting} not followed up yet — ` : 'All followed up. '}ask if they'd like to join (email or text).
+              </div>
+            </div>
+            <button className="dp-btn" style={{ fontSize: 12.5 }} onClick={() => setShowFollow(!showFollow)}>{showFollow ? 'Hide' : 'Show'}</button>
+          </div>
+          {showFollow && (
+            <div style={{ overflowX: 'auto', marginTop: 10 }}>
+              <table className="dp-table">
+                <thead>
+                  <tr><th>Student</th><th>Parent</th><th>Trial</th><th>Follow-up</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {notJoined.map((t) => (
+                    <tr key={t.id} className="dp-row">
+                      <td style={{ fontWeight: 500 }}>
+                        {t.student_name}
+                        {t.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84' }}> · {t.student_age}y</span>}
+                        {t.status === 'Scheduled' && <div style={{ fontSize: 11, color: '#854F0B', fontWeight: 400 }}>Status not updated — did they come?</div>}
+                      </td>
+                      <td style={{ fontSize: 13 }}>{t.guardian_name || '—'}<div style={{ fontSize: 11.5, color: '#8A8D84' }}>{t.guardian_phone || ''}</div></td>
+                      <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{t.date} · {t.class_name || '—'}<div style={{ fontSize: 11.5, color: '#8A8D84' }}>{daysAgo(t.date)}</div></td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                          {t.guardian_email && (
+                            <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => openFollowEmail(t)}><Mail size={12} /> Email</button>
+                          )}
+                          {t.guardian_phone && (
+                            <a className="dp-btn" style={{ padding: '3px 8px', fontSize: 12, textDecoration: 'none' }} href={followSmsHref(t)} title="Opens your phone's messages with the follow-up written" onClick={() => markFollowed(t.id)}>
+                              <MessageSquare size={12} /> Text
+                            </a>
+                          )}
+                          {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12, color: '#8A8D84' }}>No contact</span>}
+                          {t.followup_sent_at && <span style={{ fontSize: 11.5, color: '#2A5A30' }}>Sent ✓ {t.followup_sent_at.slice(5, 10).replace('-', '/')}</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => convertToRegistration(t)}>To Enrollment</button>
+                          <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} title="Not interested — take off this list" onClick={() => setStatus(t.id, 'Not joining')}>Not joining</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={styles.filterBar}>
         <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -356,7 +443,12 @@ export default function TryoutsPage({ setActiveTab }) {
         <EmailComposeModal
           draft={email}
           onClose={() => setEmail(null)}
-          onSent={async () => {
+          onSent={async (at) => {
+            if (email.followupId) {
+              await markFollowed(email.followupId, at);
+              setEmail(null);
+              return;
+            }
             await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', email.tryoutId);
             setEmail(null);
             fetchTryouts();
