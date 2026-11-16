@@ -114,7 +114,32 @@ export async function payInvoicesInFull(invoices, method, paymentDate, emailRece
   return done;
 }
 
+export const DEFAULT_PREAUTH_NOTE =
+  'Your account is set up for pre-authorized credit card payments. If you would like us to charge the amount due ({balance}) to the credit card on file, please reply to this email to approve, and we will process the payment and send you a receipt. If you would rather pay another way (cash, debit or e-transfer), just let us know.';
+
+// Invoice emails to families on pre-authorized card payments get an extra
+// paragraph asking them to reply if they'd like the card on file charged.
+async function withPreauthNote(payload) {
+  if (!payload?.invoice_id || payload.reminder || payload.message) return payload;
+  const { data: inv } = await supabase.from('invoice_summary').select('customer_id, balance').eq('id', payload.invoice_id).maybeSingle();
+  if (!inv?.customer_id || Number(inv.balance) <= 0.004) return payload;
+  const [{ data: c }, { data: s }] = await Promise.all([
+    supabase.from('customers').select('payment_type').eq('id', inv.customer_id).maybeSingle(),
+    supabase.from('invoice_settings').select('email_message, preauth_note').eq('id', 1).maybeSingle(),
+  ]);
+  if ((c?.payment_type || 'preauth') !== 'preauth') return payload;
+  const note = (s?.preauth_note ?? DEFAULT_PREAUTH_NOTE).trim();
+  if (!note) return payload;
+  const base = s?.email_message || 'Hi {customer},\n\nPlease find your invoice #{number} attached. Amount due: {balance}.\n\nThank you!';
+  // Put the note before the sign-off when the template ends with one.
+  const parts = base.split(/\n\s*\n/);
+  const last = parts[parts.length - 1];
+  const message = parts.length > 1 && last.length < 80 ? [...parts.slice(0, -1), note, last].join('\n\n') : `${base}\n\n${note}`;
+  return { ...payload, message, preauth_note: true };
+}
+
 export async function queueEmail(type, recipient, payload) {
+  if (type === 'invoice') payload = await withPreauthNote(payload);
   const { error } = await supabase.from('email_queue').insert({ type, recipient_email: recipient, payload });
   if (error) throw error;
 }

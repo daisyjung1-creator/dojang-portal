@@ -5,7 +5,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import { money } from '../../lib/invoiceUtils';
-import { loadSettings, clearPaymentMethodsCache, loadInvoiceFull, saveInvoice } from './api';
+import { loadSettings, clearPaymentMethodsCache, loadInvoiceFull, saveInvoice, DEFAULT_PREAUTH_NOTE } from './api';
 import { WELCOME_PLACEHOLDERS } from '../../lib/welcomeEmail';
 import { PAYMENT_METHODS } from '../../lib/invoiceUtils';
 import { TEMPLATE_HELP } from '../../lib/emailTemplates';
@@ -217,6 +217,10 @@ export default function InvoiceSettingsPage() {
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.email_subject || ''} onChange={set('email_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={5} style={{ width: '100%' }} value={s.email_message || ''} onChange={set('email_message')} /></Field>
           <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>You can use {'{customer}'}, {'{number}'}, {'{total}'}, {'{balance}'}, {'{due_date}'}, {'{business}'}.</p>
+          <Field label="Extra paragraph for pre-authorized card families">
+            <textarea className="dp-input" rows={4} style={{ width: '100%' }} value={s.preauth_note ?? DEFAULT_PREAUTH_NOTE} onChange={set('preauth_note')} />
+          </Field>
+          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>Added to the invoice email when the family pays by pre-authorized credit card and the invoice has an amount due (e.g. belt test fees, uniforms). Leave empty to turn it off.</p>
           <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Sports grant (subsidy) reminder email</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.subsidy_reminder_subject || ''} onChange={set('subsidy_reminder_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={9} style={{ width: '100%' }} value={s.subsidy_reminder_message || ''} onChange={set('subsidy_reminder_message')} /></Field>
