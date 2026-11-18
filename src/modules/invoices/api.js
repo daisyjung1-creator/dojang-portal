@@ -41,6 +41,10 @@ export async function loadInvoiceFull(id) {
     const { data: c } = await supabase.from('customers').select('payment_type').eq('id', invoice.customer_id).maybeSingle();
     invoice.payment_type = c?.payment_type || null;
   }
+  if (invoice) {
+    const { data: t } = await supabase.from('invoices').select('pay_token').eq('id', invoice.id).maybeSingle();
+    invoice.pay_token = t?.pay_token || null;
+  }
   return { invoice, lines: lines || [], payments: payments || [], refunds: refunds || [], credits: credits || [] };
 }
 

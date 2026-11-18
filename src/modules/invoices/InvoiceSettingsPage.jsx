@@ -221,6 +221,7 @@ export default function InvoiceSettingsPage() {
             <textarea className="dp-input" rows={4} style={{ width: '100%' }} value={s.preauth_note ?? DEFAULT_PREAUTH_NOTE} onChange={set('preauth_note')} />
           </Field>
           <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>Added to the invoice email when the family pays by pre-authorized credit card and the invoice has an amount due (e.g. belt test fees, uniforms). Leave empty to turn it off.</p>
+          <OnlinePaySettings s={s} setS={setS} />
           <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Sports grant (subsidy) reminder email</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.subsidy_reminder_subject || ''} onChange={set('subsidy_reminder_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={9} style={{ width: '100%' }} value={s.subsidy_reminder_message || ''} onChange={set('subsidy_reminder_message')} /></Field>
@@ -320,6 +321,36 @@ export default function InvoiceSettingsPage() {
           </tbody>
         </table>
       </div>
+    </>
+  );
+}
+
+// Online card payments (TD Online Mart "Pay now").
+function OnlinePaySettings({ s, setS }) {
+  const [test, setTest] = useState('');
+  async function runTest() {
+    setTest('Testing…');
+    const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'selftest' } });
+    if (error || !data) return setTest('Could not reach the payment function.');
+    setTest(data.ok ? `Connected — TD test account approved a $1.00 test charge (no real money).${data.live_secrets_set ? ' Live account keys are set.' : ' Live account keys are NOT set.'}` : `Not approved: ${data.message || data.error || 'unknown error'}`);
+  }
+  return (
+    <>
+      <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Online card payments (Pay now)</p>
+      <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+        <input type="checkbox" checked={!!s.online_pay} onChange={(e) => setS({ ...s, online_pay: e.target.checked })} /> Let families pay invoices online by credit card (TD Online Mart)
+      </label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+        <select className="dp-select" value={s.online_pay_mode || 'test'} onChange={(e) => setS({ ...s, online_pay_mode: e.target.value })}>
+          <option value="test">Test mode — TD test account, test cards only</option>
+          <option value="live">Live — real card payments</option>
+        </select>
+        <button type="button" className="dp-btn" onClick={runTest}>Test connection</button>
+      </div>
+      {test && <p style={{ fontSize: 12.5, color: /^Connected/.test(test) ? '#2A5A30' : '#9A2B2B', margin: '0 0 6px' }}>{test}</p>}
+      <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>
+        Each invoice gets a secure "Pay now" link (Invoices → open an invoice → Copy pay link). In Live mode the invoice email also gets a Pay now button. Payments are recorded automatically and the receipt is emailed. Card numbers go straight to TD and are never stored in the portal.
+      </p>
     </>
   );
 }

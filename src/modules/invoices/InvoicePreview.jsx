@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, Mail, Pencil, Wallet, Ban, Trash2, RotateCcw } from 'lucide-react';
+import { Printer, Mail, Pencil, Wallet, Ban, Trash2, RotateCcw, Link2 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -93,6 +93,23 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
             <button className="dp-btn" onClick={() => onEdit(data)}><Pencil size={14} /> Edit</button>
             <button className="dp-btn" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
             <button className="dp-btn" onClick={sendEmail}><Mail size={14} /> Email</button>
+            {invoice.pay_token && !invoice.voided && Number(invoice.balance) > 0.004 && (
+              <button
+                className="dp-btn"
+                title="Secure link where the family can pay this invoice by credit card"
+                onClick={async () => {
+                  const url = `${window.location.origin}/pay/${invoice.pay_token}`;
+                  try {
+                    await navigator.clipboard.writeText(url);
+                    setMsg('Pay link copied — paste it into a text or email: ' + url);
+                  } catch (_e) {
+                    setMsg('Pay link: ' + url);
+                  }
+                }}
+              >
+                <Link2 size={14} /> Copy pay link
+              </button>
+            )}
             {refundable > 0.005 && onRefund && (
               <button className="dp-btn" onClick={() => onRefund(invoice, refundable)}><RotateCcw size={14} /> Refund</button>
             )}

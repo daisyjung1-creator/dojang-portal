@@ -1,0 +1,204 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { supabase } from '../../supabaseClient';
+import { SCHOOL } from '../../lib/agreement';
+import { Page, In, C, box, btn } from './JoinPage';
+
+// Public "Pay now" page for one invoice: /pay/<pay_token>
+// Card fields are Worldline Custom Checkout iframes (TD Online Mart), so the
+// card number goes straight to the gateway; we only get a one-time token,
+// which the td-pay edge function charges for the invoice balance.
+
+const SCRIPTS = ['https://libs.bam.shift4api.net/customcheckout/2/customcheckout.js', 'https://libs.na.bambora.com/customcheckout/1/customcheckout.js'];
+const money = (n) => '$' + Number(n || 0).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fdate = (iso) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
+
+function loadScript(i = 0) {
+  if (window.customcheckout) return Promise.resolve();
+  if (i >= SCRIPTS.length) return Promise.reject(new Error('The secure card form could not load.'));
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = SCRIPTS[i];
+    s.onload = () => (window.customcheckout ? resolve() : loadScript(i + 1).then(resolve, reject));
+    s.onerror = () => loadScript(i + 1).then(resolve, reject);
+    document.head.appendChild(s);
+  });
+}
+
+async function call(body) {
+  const { data, error } = await supabase.functions.invoke('td-pay', { body });
+  if (error) {
+    let msg = error.message;
+    try {
+      const j = await error.context.json();
+      return j;
+    } catch (_e) {
+      return { error: msg };
+    }
+  }
+  return data;
+}
+
+export default function PayPage({ token }) {
+  const [inv, setInv] = useState(null);
+  const [err, setErr] = useState('');
+  const [name, setName] = useState('');
+  const [ready, setReady] = useState({});
+  const [fieldErr, setFieldErr] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(null);
+  const cc = useRef(null);
+
+  useEffect(() => {
+    document.title = `Pay invoice · ${SCHOOL.name}`;
+    call({ action: 'invoice', pay_token: token }).then((d) => {
+      if (d?.error) setErr(d.error);
+      else {
+        setInv(d);
+        setName(d.customer || '');
+      }
+    });
+  }, [token]);
+
+  const canPay = inv && inv.enabled && inv.balance > 0.004;
+
+  useEffect(() => {
+    if (!canPay || cc.current) return;
+    loadScript()
+      .then(() => {
+        const c = window.customcheckout();
+        cc.current = c;
+        const style = { style: { base: { fontSize: '16px', color: C.ink, fontFamily: 'Helvetica, Arial, sans-serif' }, error: { color: C.red } } };
+        const fields = [
+          ['card-number', { ...style, placeholder: '1234 5678 9012 3456', brands: ['visa', 'mastercard', 'amex'] }],
+          ['expiry', { ...style, placeholder: 'MM / YY' }],
+          ['cvv', { ...style, placeholder: 'CVV' }],
+        ];
+        fields.forEach(([f, o]) => c.create(f, o).mount('#cc-' + f));
+        c.on('complete', (e) => {
+          setReady((r) => ({ ...r, [e.field]: true }));
+          setFieldErr((r) => ({ ...r, [e.field]: '' }));
+        });
+        c.on('empty', (e) => setReady((r) => ({ ...r, [e.field]: !e.empty ? r[e.field] : false })));
+        c.on('error', (e) => {
+          setReady((r) => ({ ...r, [e.field]: false }));
+          setFieldErr((r) => ({ ...r, [e.field]: e.message }));
+        });
+      })
+      .catch((e) => setErr(e.message));
+  }, [canPay]);
+
+  function pay() {
+    if (!cc.current || busy) return;
+    setBusy(true);
+    setErr('');
+    cc.current.createToken(async (result) => {
+      if (result.error || !result.token) {
+        setBusy(false);
+        setErr(result.error?.message || 'Please check the card details.');
+        return;
+      }
+      const r = await call({ action: 'pay', pay_token: token, token: result.token, name, email: inv.email });
+      setBusy(false);
+      if (r?.approved) setDone(r);
+      else setErr(r?.error || 'The payment did not go through. Please try again.');
+    });
+  }
+
+  const allReady = ready['card-number'] && ready.expiry && ready.cvv && name.trim();
+  const fieldBox = { border: '1px solid #D6D2C4', borderRadius: 9, padding: '11px 12px', background: '#fff', minHeight: 22 };
+  const lbl = { fontSize: 14, fontWeight: 600, margin: '4px 0 6px' };
+
+  return (
+    <Page subtitle="Pay your invoice">
+      {!inv && !err && <p style={{ color: C.soft }}>Loading…</p>}
+      {!inv && err && <div style={{ ...box, color: C.red }}>{err}</div>}
+      {inv && (
+        <>
+          {inv.mode === 'test' && (
+            <div style={{ ...box, background: '#FFF6E0', borderColor: '#F0D9A8', marginBottom: 14, fontSize: 13.5 }}>
+              <b>Test mode</b> — no real money is charged and nothing is recorded on the invoice. Use the test card 4030 0000 1000 1234, any future expiry, CVV 123.
+            </div>
+          )}
+          <div style={{ ...box, marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 13, color: C.faint }}>Invoice #{inv.number} · {fdate(inv.date)}</div>
+                <div style={{ fontSize: 17, fontWeight: 700, marginTop: 2 }}>{inv.customer}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 13, color: C.faint }}>Amount due</div>
+                <div style={{ fontSize: 26, fontWeight: 800 }}>{money(done ? 0 : inv.balance)}</div>
+              </div>
+            </div>
+            <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 12, paddingTop: 8 }}>
+              {inv.lines.map((l, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 14, padding: '4px 0' }}>
+                  <span>
+                    {l.name}
+                    {l.quantity !== 1 ? ` × ${l.quantity}` : ''}
+                    {l.description && <span style={{ color: C.soft }}> — {l.description}</span>}
+                  </span>
+                  <span style={{ whiteSpace: 'nowrap' }}>{money(l.amount)}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, color: C.soft, paddingTop: 4 }}>
+                <span>GST</span>
+                <span>{money(inv.gst)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5, fontWeight: 700, paddingTop: 4 }}>
+                <span>Total</span>
+                <span>{money(inv.total)}</span>
+              </div>
+            </div>
+          </div>
+
+          {done ? (
+            <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Thank you — payment received!</div>
+              <p style={{ fontSize: 14.5, margin: '8px 0 0', lineHeight: 1.55 }}>
+                {money(done.amount)} was charged{done.card ? ` to the card ending ${done.card}` : ''}.
+                {done.test ? ' (Test mode: approved by the TD test account; nothing was recorded on the invoice.)' : done.recorded ? ` Your receipt${done.receipt ? ` #${done.receipt}` : ''} has been emailed to you.` : ' The Dojang will send your receipt shortly.'}
+              </p>
+            </div>
+          ) : !inv.enabled ? (
+            <div style={box}>Online card payment isn't available right now. Please contact the Dojang at {SCHOOL.email}.</div>
+          ) : !(inv.balance > 0.004) ? (
+            <div style={{ ...box, color: C.green, fontWeight: 600 }}>This invoice is paid in full. Thank you!</div>
+          ) : (
+            <div style={box}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Pay by credit card</div>
+              <In label="Name on card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
+              <div style={lbl}>Card number</div>
+              <div id="cc-card-number" style={fieldBox} />
+              {fieldErr['card-number'] && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr['card-number']}</div>}
+              <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={lbl}>Expiry</div>
+                  <div id="cc-expiry" style={fieldBox} />
+                  {fieldErr.expiry && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr.expiry}</div>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={lbl}>CVV</div>
+                  <div id="cc-cvv" style={fieldBox} />
+                  {fieldErr.cvv && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr.cvv}</div>}
+                </div>
+              </div>
+              {err && <div style={{ color: C.red, fontSize: 14, marginTop: 12 }}>{err}</div>}
+              <button
+                type="button"
+                disabled={!allReady || busy}
+                onClick={pay}
+                style={{ ...btn, width: '100%', marginTop: 16, background: allReady && !busy ? C.ink : '#B9B6AC', color: '#fff', borderColor: 'transparent', fontWeight: 700, fontSize: 16 }}
+              >
+                {busy ? 'Processing…' : `Pay ${money(inv.balance)}`}
+              </button>
+              <p style={{ fontSize: 12, color: C.faint, margin: '10px 0 0', lineHeight: 1.5 }}>
+                Card details are entered on TD Online Mart's secure form and are never stored by the Dojang. A receipt is emailed after payment.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </Page>
+  );
+}
