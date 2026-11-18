@@ -10,6 +10,11 @@
 //   invoice  { pay_token }                     → invoice summary for the pay page (public)
 //   pay      { pay_token, token, name, email }  → charge the balance (public)
 //   selftest {}                                → $1.00 Worldline test-card charge on the TEST account (no real money)
+//   charge   { invoice_ids }                    → charge each family's saved card for the invoice balance (admin)
+//
+// "pay" with save_card: true saves the card as a Secure Payment Profile
+// (card on file, first_recurring) so later tuition can be charged with "charge"
+// (subsequent_recurring). Profiles need TD_PROFILES_PASSCODE / TD_TEST_PROFILES_PASSCODE.
 //
 // Secrets: TD_MERCHANT_ID, TD_PAYMENT_PASSCODE (live),
 //          TD_TEST_MERCHANT_ID, TD_TEST_PAYMENT_PASSCODE (test).
@@ -41,20 +46,117 @@ function creds(mode: string) {
   return { id: id.trim(), auth: 'Passcode ' + btoa(`${id.trim()}:${pass.trim()}`) };
 }
 
-// POST /payments; tries the new Shift4 host first, then the legacy Bambora one.
-async function gateway(mode: string, body: Record<string, unknown>) {
-  const { auth } = creds(mode);
+function profileAuth(mode: string) {
+  const live = mode === 'live';
+  const id = (Deno.env.get(live ? 'TD_MERCHANT_ID' : 'TD_TEST_MERCHANT_ID') || '').trim();
+  const pass = (Deno.env.get(live ? 'TD_PROFILES_PASSCODE' : 'TD_TEST_PROFILES_PASSCODE') || '').trim();
+  if (!id || !pass) throw new Error(`Saving cards isn't set up yet for the ${live ? 'live' : 'test'} account (Payment Profiles passcode missing).`);
+  return 'Passcode ' + btoa(`${id}:${pass}`);
+}
+
+// Calls the gateway; tries the new Shift4 host first, then the legacy Bambora one.
+async function api(path: string, method: string, auth: string, body?: Record<string, unknown>, timeoutMs = 20000) {
   let lastErr: unknown = null;
   for (const base of API_BASES) {
     try {
-      const res = await fetch(`${base}/payments`, { method: 'POST', headers: { Authorization: auth, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await res.json().catch(() => ({}));
-      return { ok: res.ok && String(data.approved) === '1', status: res.status, data };
+      const res = await fetch(`${base}${path}`, { method, headers: { Authorization: auth, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (_e) {
+        // Not JSON (e.g. an HTML 404 page): this host doesn't serve that path — try the next one.
+        console.log('gateway non-json', base, path, res.status, text.slice(0, 120));
+        lastErr = `${res.status} from ${base}${path}`;
+        continue;
+      }
+      return { status: res.status, okHttp: res.ok, data };
     } catch (e) {
-      lastErr = e; // network / DNS: try the next host
+      console.log('gateway error', base, path, String(e));
+      // Never re-send a payment or a new profile after a timeout: it may already have gone through.
+      if (path === '/payments') throw new Error('The payment gateway did not answer in time. Please check TD Online Mart before trying again.');
+      if (method === 'POST') throw Object.assign(new Error('timeout'), { timeout: true });
+      lastErr = e; // network / DNS / timeout: try the next host
     }
   }
   throw new Error('Could not reach the payment gateway: ' + String(lastErr));
+}
+async function gateway(mode: string, body: Record<string, unknown>) {
+  const r = await api('/payments', 'POST', creds(mode).auth, body);
+  return { ok: r.okHttp && String(r.data.approved) === '1', status: r.status, data: r.data };
+}
+const errMsg = (d: any, dflt: string) => d?.message || d?.details?.[0]?.message || dflt;
+const CARD_TYPE: Record<string, string> = { VI: 'Visa', MC: 'Mastercard', AM: 'Amex', NN: 'Discover' };
+
+// Saves the one-time card token as a Secure Payment Profile; returns its code and card details.
+async function saveProfile(mode: string, token: string, name: string, email: string, inv: any) {
+  const auth = profileAuth(mode);
+  // Our own profile code, so a slow/timed-out create can be checked afterwards.
+  const ourCode = (String(inv.customer_id || '').replace(/-/g, '').slice(0, 24) + Date.now().toString(36)).slice(0, 32).toUpperCase();
+  let r: any;
+  try {
+    r = await api('/profiles', 'POST', auth, {
+      customer_code: ourCode,
+      token: { name, code: token },
+      billing: { name, email_address: email || undefined },
+      comments: `${inv.customer_name || ''}`.slice(0, 100),
+      validate: false,
+    }, 45000);
+  } catch (e: any) {
+    if (!e?.timeout) throw e;
+    // The gateway was slow: see whether the profile was created anyway.
+    const chk = await api(`/profiles/${ourCode}`, 'GET', auth, undefined, 20000).catch(() => null);
+    if (!chk?.okHttp) throw new Error('The card could not be saved (the payment gateway did not answer). Nothing was charged — please try again.');
+    r = { okHttp: true, data: { customer_code: ourCode } };
+  }
+  const code = r.data?.customer_code;
+  if (!r.okHttp || !code) {
+    const m = errMsg(r.data, 'The card could not be saved.');
+    throw new Error(/duplicate/i.test(m) ? 'This card is already saved with the Dojang. Please pay without saving it, or contact the Dojang to update your saved card.' : m);
+  }
+  let card: any = {};
+  try {
+    const c = await api(`/profiles/${code}/cards`, 'GET', auth);
+    card = (c.data?.card || c.data?.cards || [])[0] || {};
+  } catch (_e) { /* details are nice-to-have */ }
+  const last4 = String(card.number || '').replace(/\D/g, '').slice(-4);
+  const exp = card.expiry_month && card.expiry_year ? `${String(card.expiry_month).padStart(2, '0')}/${String(card.expiry_year).slice(-2)}` : '';
+  return { code, last4, exp, type: CARD_TYPE[card.card_type] || card.card_type || '' };
+}
+
+// Records an approved charge on the invoice and emails the receipt.
+async function recordPayment(s: any, inv: any, t: any, amount: number, note: string, toEmail?: string) {
+  const methods: string[] = s.payment_methods || [];
+  const cardName = CARD_METHOD[t.card?.card_type] || '';
+  const method = note.startsWith('Saved card') && methods.includes('Pre-Authorized Credit Card') ? 'Pre-Authorized Credit Card' : cardName && methods.includes(cardName) ? cardName : 'Other';
+  const { data: pay, error } = await admin
+    .from('invoice_payments')
+    .insert({
+      invoice_id: inv.id,
+      customer_id: inv.customer_id || null,
+      payment_date: todayEdm(),
+      method,
+      amount,
+      reference: `${note} ${t.card?.last_four ? '···' + t.card.last_four : ''} auth ${t.auth_code || ''}`.trim(),
+      gateway_txn: String(t.id || ''),
+      notes: note,
+    })
+    .select()
+    .single();
+  if (error) {
+    console.error('record failed', inv.invoice_number, t.id, error);
+    if (s.email) await admin.from('email_queue').insert({ type: 'broadcast', recipient_email: s.email, payload: { subject: `[Action needed] Card payment for invoice #${inv.invoice_number} was charged but not recorded`, message: `Transaction ${t.id}, amount ${amount}. Please record it by hand in the portal.\n\n${error.message}` } });
+    return null;
+  }
+  const to = toEmail || inv.customer_email;
+  if (to) await admin.from('email_queue').insert({ type: 'receipt', recipient_email: to, payload: { payment_id: pay.id } });
+  return pay;
+}
+
+async function isAdminCaller(req: Request) {
+  const caller = createClient(URL_, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: req.headers.get('Authorization') || '' } } });
+  const { data } = await caller.rpc('is_admin');
+  return data === true;
 }
 
 async function loadSettings() {
@@ -105,6 +207,7 @@ Deno.serve(async (req) => {
         lines: (lines || []).map((l: any) => ({ name: l.item_name || l.description, description: l.item_name && l.item_name !== l.description ? l.description : '', quantity: Number(l.quantity), amount: r2(l.amount) })),
         enabled: !!s.online_pay,
         mode,
+        can_save: !!inv.customer_id && !!(Deno.env.get(mode === 'live' ? 'TD_PROFILES_PASSCODE' : 'TD_TEST_PROFILES_PASSCODE')),
       };
       if (b.action === 'invoice') return json(summary);
 
@@ -114,48 +217,99 @@ Deno.serve(async (req) => {
       const token = String(b.token || '');
       if (!token) return json({ error: 'Card details are missing.' }, 400);
       const name = String(b.name || inv.customer_name || '').slice(0, 64);
-      const r = await gateway(mode, {
-        order_number: `INV${inv.invoice_number}-${Date.now().toString(36)}`.slice(0, 30),
-        amount: balance,
-        payment_method: 'token',
-        token: { code: token, name, complete: true },
-        billing: { name, email_address: String(b.email || inv.customer_email || '').split(/[,;\s]/)[0] || undefined },
-        comments: `Invoice #${inv.invoice_number}`,
-      });
+      const email = String(b.email || inv.customer_email || '').split(/[,;\s]/)[0] || '';
+      const orderNo = `INV${inv.invoice_number}-${Date.now().toString(36)}`.slice(0, 30);
+      let saved: any = null;
+      let r;
+      if (b.save_card && inv.customer_id) {
+        // Save the card first, then make this payment the first one of the card-on-file series.
+        try {
+          saved = await saveProfile(mode, token, name, email, inv);
+        } catch (e) {
+          return json({ error: String((e as Error).message || e) }, 400);
+        }
+        r = await gateway(mode, {
+          order_number: orderNo,
+          amount: balance,
+          payment_method: 'payment_profile',
+          payment_profile: { customer_code: saved.code, card_id: 1, complete: true },
+          card_on_file: { type: 'first_recurring' },
+          comments: `Invoice #${inv.invoice_number}`,
+        });
+      } else {
+        r = await gateway(mode, {
+          order_number: orderNo,
+          amount: balance,
+          payment_method: 'token',
+          token: { code: token, name, complete: true },
+          billing: { name, email_address: email || undefined },
+          comments: `Invoice #${inv.invoice_number}`,
+        });
+      }
       if (!r.ok) {
         const msg = r.data?.message || r.data?.details?.[0]?.message || 'The card was declined.';
         console.log('declined', inv.invoice_number, r.status, JSON.stringify(r.data).slice(0, 300));
         return json({ error: `Payment not approved: ${msg}` }, 402);
       }
       const t = r.data;
-      // Test mode: the charge went to the TD test account only — don't touch the real books.
-      if (mode === 'test') return json({ ok: true, approved: true, recorded: false, test: true, transaction: t.id, amount: balance, card: t.card?.last_four || '', mode });
-      const methods: string[] = s.payment_methods || [];
-      const cardName = CARD_METHOD[t.card?.card_type] || '';
-      const method = cardName && methods.includes(cardName) ? cardName : 'Other';
-      const { data: pay, error } = await admin
-        .from('invoice_payments')
-        .insert({
-          invoice_id: inv.id,
-          customer_id: inv.customer_id || null,
-          payment_date: todayEdm(),
-          method,
-          amount: balance,
-          reference: `Online ${t.card?.last_four ? '···' + t.card.last_four : ''} auth ${t.auth_code || ''}`.trim(),
-          gateway_txn: String(t.id || ''),
-          notes: 'Paid online (Pay now)',
-        })
-        .select()
-        .single();
-      if (error) {
-        // The card was charged but we couldn't record it — tell the dojang loudly.
-        console.error('record failed', inv.invoice_number, t.id, error);
-        if (s.email) await admin.from('email_queue').insert({ type: 'broadcast', recipient_email: s.email, payload: { subject: `[Action needed] Online payment for invoice #${inv.invoice_number} was charged but not recorded`, message: `Transaction ${t.id}, amount ${balance}. Please record it by hand in the portal.\n\n${error.message}` } });
-        return json({ ok: true, approved: true, recorded: false, transaction: t.id, amount: balance });
+      if (saved) {
+        // Remember the saved card on the family (both modes, tagged with the mode).
+        await admin
+          .from('customers')
+          .update({
+            card_profile_code: saved.code,
+            card_profile_mode: mode,
+            card_series_id: t.card_on_file?.series_id ? String(t.card_on_file.series_id) : null,
+            card_last4: saved.last4 || t.card?.last_four || null,
+            card_expiry: saved.exp || null,
+            card_type: saved.type || CARD_TYPE[t.card?.card_type] || null,
+            card_saved_at: new Date().toISOString(),
+            card_consent: String(b.consent || '').slice(0, 2000) || null,
+            card_declined_at: null,
+            card_decline_message: null,
+            ...(mode === 'live' ? { payment_type: 'preauth' } : {}),
+          })
+          .eq('id', inv.customer_id);
       }
-      const to = inv.customer_email || b.email;
-      if (to) await admin.from('email_queue').insert({ type: 'receipt', recipient_email: to, payload: { payment_id: pay.id } });
-      return json({ ok: true, approved: true, recorded: true, receipt: pay.receipt_number, amount: balance, card: t.card?.last_four || '', mode });
+      // Test mode: the charge went to the TD test account only — don't touch the real books.
+      if (mode === 'test') return json({ ok: true, approved: true, recorded: false, test: true, saved: !!saved, transaction: t.id, amount: balance, card: t.card?.last_four || '', mode });
+      const pay = await recordPayment(s, inv, t, balance, saved ? 'Paid online, card saved for tuition' : 'Paid online (Pay now)', b.email);
+      if (!pay) return json({ ok: true, approved: true, recorded: false, transaction: t.id, amount: balance });
+      return json({ ok: true, approved: true, recorded: true, saved: !!saved, receipt: pay.receipt_number, amount: balance, card: t.card?.last_four || '', mode });
+    }
+
+    if (b.action === 'charge') {
+      if (!(await isAdminCaller(req))) return json({ error: 'Admins only' }, 403);
+      const ids: string[] = Array.isArray(b.invoice_ids) ? b.invoice_ids.slice(0, 100) : [];
+      const results: any[] = [];
+      for (const id of ids) {
+        const { data: inv } = await admin.from('invoice_summary').select('*').eq('id', id).maybeSingle();
+        if (!inv || inv.voided) { results.push({ id, error: 'Invoice not found' }); continue; }
+        const balance = r2(inv.balance);
+        if (!(balance > 0.004)) { results.push({ id, number: inv.invoice_number, skipped: 'already paid' }); continue; }
+        const { data: c } = await admin.from('customers').select('id, name, card_profile_code, card_profile_mode, card_series_id, card_declined_at').eq('id', inv.customer_id).maybeSingle();
+        if (!c?.card_profile_code || c.card_profile_mode !== mode) { results.push({ id, number: inv.invoice_number, customer: inv.customer_name, error: 'No saved card' }); continue; }
+        const r = await gateway(mode, {
+          order_number: `INV${inv.invoice_number}-${Date.now().toString(36)}`.slice(0, 30),
+          amount: balance,
+          payment_method: 'payment_profile',
+          payment_profile: { customer_code: c.card_profile_code, card_id: 1, complete: true },
+          card_on_file: c.card_series_id ? { type: 'subsequent_recurring', series_id: Number(c.card_series_id) || c.card_series_id } : { type: 'subsequent_recurring' },
+          comments: `Invoice #${inv.invoice_number} (tuition)`,
+        });
+        if (!r.ok) {
+          const msg = errMsg(r.data, 'Declined');
+          await admin.from('customers').update({ card_declined_at: new Date().toISOString(), card_decline_message: msg.slice(0, 300) }).eq('id', c.id);
+          results.push({ id, number: inv.invoice_number, customer: inv.customer_name, declined: msg });
+          continue;
+        }
+        const t = r.data;
+        if (c.card_declined_at) await admin.from('customers').update({ card_declined_at: null, card_decline_message: null }).eq('id', c.id);
+        if (mode === 'test') { results.push({ id, number: inv.invoice_number, customer: inv.customer_name, approved: true, test: true, amount: balance }); continue; }
+        const pay = await recordPayment(s, inv, t, balance, 'Saved card (automatic tuition)');
+        results.push({ id, number: inv.invoice_number, customer: inv.customer_name, approved: true, recorded: !!pay, amount: balance });
+      }
+      return json({ mode, results });
     }
 
     return json({ error: 'Unknown action' }, 400);

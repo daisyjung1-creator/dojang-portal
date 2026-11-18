@@ -9,6 +9,10 @@ import { Page, In, C, box, btn } from './JoinPage';
 // which the td-pay edge function charges for the invoice balance.
 
 const SCRIPTS = ['https://libs.bam.shift4api.net/customcheckout/2/customcheckout.js', 'https://libs.na.bambora.com/customcheckout/1/customcheckout.js'];
+// What the family agrees to when they tick "save this card" (same terms as the
+// paper Credit Card Pre-Authorized Payment Authorization).
+const SAVE_CONSENT =
+  'I authorize Champion Hankook Taekwondo to save this card with TD Online Mart and charge it for my tuition on each payment date until I cancel. Other purchases (belt testing, uniforms, events) are charged only after I approve the invoice by email. The Dojang gives at least 30 days\u2019 notice by email before the amount changes. Membership cancellation must be emailed to hankooktkd@gmail.com at least 14 days before the next payment date; cancelling this card authorization does not cancel the membership. A receipt is emailed after each charge.';
 const money = (n) => '$' + Number(n || 0).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fdate = (iso) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
 
@@ -46,6 +50,7 @@ export default function PayPage({ token }) {
   const [fieldErr, setFieldErr] = useState({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
+  const [saveCard, setSaveCard] = useState(false);
   const cc = useRef(null);
 
   useEffect(() => {
@@ -97,7 +102,7 @@ export default function PayPage({ token }) {
         setErr(result.error?.message || 'Please check the card details.');
         return;
       }
-      const r = await call({ action: 'pay', pay_token: token, token: result.token, name, email: inv.email });
+      const r = await call({ action: 'pay', pay_token: token, token: result.token, name, email: inv.email, save_card: saveCard, consent: saveCard ? `${SAVE_CONSENT} — agreed online by ${name} on ${new Date().toISOString()}` : '' });
       setBusy(false);
       if (r?.approved) setDone(r);
       else setErr(r?.error || 'The payment did not go through. Please try again.');
@@ -157,6 +162,7 @@ export default function PayPage({ token }) {
               <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Thank you — payment received!</div>
               <p style={{ fontSize: 14.5, margin: '8px 0 0', lineHeight: 1.55 }}>
                 {money(done.amount)} was charged{done.card ? ` to the card ending ${done.card}` : ''}.
+                {done.saved ? ' Your card is saved for automatic tuition — no need to do anything next month.' : ''}
                 {done.test ? ' (Test mode: approved by the TD test account; nothing was recorded on the invoice.)' : done.recorded ? ` Your receipt${done.receipt ? ` #${done.receipt}` : ''} has been emailed to you.` : ' The Dojang will send your receipt shortly.'}
               </p>
             </div>
@@ -183,6 +189,15 @@ export default function PayPage({ token }) {
                   {fieldErr.cvv && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr.cvv}</div>}
                 </div>
               </div>
+              {inv.can_save && (
+                <div style={{ marginTop: 14, padding: '12px 12px', border: `1px solid ${saveCard ? C.ink : C.line}`, borderRadius: 10, background: saveCard ? '#fff' : C.paper }}>
+                  <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 15, cursor: 'pointer', fontWeight: 600 }}>
+                    <input type="checkbox" checked={saveCard} onChange={(e) => setSaveCard(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2, flex: 'none' }} />
+                    Save this card for automatic monthly tuition
+                  </label>
+                  {saveCard && <p style={{ fontSize: 12.5, color: C.soft, lineHeight: 1.55, margin: '8px 0 0 28px' }}>{SAVE_CONSENT}</p>}
+                </div>
+              )}
               {err && <div style={{ color: C.red, fontSize: 14, marginTop: 12 }}>{err}</div>}
               <button
                 type="button"
@@ -190,7 +205,7 @@ export default function PayPage({ token }) {
                 onClick={pay}
                 style={{ ...btn, width: '100%', marginTop: 16, background: allReady && !busy ? C.ink : '#B9B6AC', color: '#fff', borderColor: 'transparent', fontWeight: 700, fontSize: 16 }}
               >
-                {busy ? 'Processing…' : `Pay ${money(inv.balance)}`}
+                {busy ? 'Processing…' : saveCard ? `Pay ${money(inv.balance)} and save card` : `Pay ${money(inv.balance)}`}
               </button>
               <p style={{ fontSize: 12, color: C.faint, margin: '10px 0 0', lineHeight: 1.5 }}>
                 Card details are entered on TD Online Mart's secure form and are never stored by the Dojang. A receipt is emailed after payment.

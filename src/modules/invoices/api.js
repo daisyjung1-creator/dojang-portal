@@ -38,8 +38,9 @@ export async function loadInvoiceFull(id) {
     supabase.from('credit_applications').select('*').eq('invoice_id', id).order('applied_date'),
   ]);
   if (invoice?.customer_id) {
-    const { data: c } = await supabase.from('customers').select('payment_type').eq('id', invoice.customer_id).maybeSingle();
+    const { data: c } = await supabase.from('customers').select('payment_type, card_profile_code, card_profile_mode, card_last4, card_type').eq('id', invoice.customer_id).maybeSingle();
     invoice.payment_type = c?.payment_type || null;
+    invoice.saved_card = c?.card_profile_code ? { mode: c.card_profile_mode, last4: c.card_last4, type: c.card_type } : null;
   }
   if (invoice) {
     const { data: t } = await supabase.from('invoices').select('pay_token').eq('id', invoice.id).maybeSingle();
@@ -224,4 +225,21 @@ export async function applyCredit(invoiceId, amount = null) {
   const { data, error } = await supabase.rpc('apply_customer_credit', { p_invoice: invoiceId, p_amount: amount });
   if (error) throw error;
   return Number(data || 0);
+}
+
+// Charge families' saved cards (TD Online Mart) for these invoices' balances.
+// Returns { mode, results: [{ id, number, customer, approved | declined | error, amount }] }.
+export async function chargeSavedCards(invoiceIds) {
+  const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'charge', invoice_ids: invoiceIds } });
+  if (error) {
+    let m = error.message;
+    try {
+      m = (await error.context.json())?.error || m;
+    } catch (_e) {
+      /* keep */
+    }
+    throw new Error(m);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
 }

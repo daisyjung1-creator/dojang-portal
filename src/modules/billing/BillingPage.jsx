@@ -5,7 +5,7 @@ import { styles } from '../../lib/uiStyles';
 import { todayISO, currentCycleStart, nextDueDate, billingAnchor, addDaysISO } from '../../lib/billingDates';
 import { money, formatDate, calcTotals } from '../../lib/invoiceUtils';
 import { proposeInvoices, invoiceHeader, familyName, isBillable, tuitionLines, isManual } from '../../lib/tuitionBilling';
-import { loadSettings, loadCustomers, saveInvoice, queueEmail, fetchAll, payInvoicesInFull, usePaymentMethods, applyCredit } from '../invoices/api';
+import { loadSettings, loadCustomers, saveInvoice, queueEmail, fetchAll, payInvoicesInFull, usePaymentMethods, applyCredit, chargeSavedCards } from '../invoices/api';
 import { StatusPill } from '../invoices/InvoicesPage';
 import InvoicePreview from '../invoices/InvoicePreview';
 import InvoiceDocument from '../invoices/InvoiceDocument';
@@ -144,12 +144,15 @@ export default function BillingPage() {
 
   // mode 'manual': create (+ email if ticked). mode 'preauth': create and
   // record the pre-authorized card charge on the billing date (no invoice email).
-  async function createInvoices(list, mode) {
+  async function createInvoices(list, runMode) {
     setBusy('create');
     let made = 0;
     let mailed = 0;
     let paid = 0;
     let creditUsed = 0;
+    const toCharge = []; // invoices for families with a saved card: charged through TD below
+    const payMode = settings?.online_pay_mode || 'test';
+    const canCharge = (cust) => settings?.online_pay && cust?.card_profile_code && cust.card_profile_mode === payMode;
     try {
       for (const p of list) {
         const header = invoiceHeader(p, settings, today);
@@ -167,19 +170,35 @@ export default function BillingPage() {
         }
         if (used) creditUsed += used;
         const left = Math.round((Number(inv.total) - used) * 100) / 100;
-        if (mode === 'preauth') {
-          if (left > 0.004) {
-            const card = methods.find((m) => /pre-?auth/i.test(m)) || methods[0];
-            await payInvoicesInFull([{ ...inv, balance: left }], card, p.due_date < today ? p.due_date : today, emailReceipts);
+        if (runMode === 'preauth') {
+          if (left > 0.004 && canCharge(p.customer)) toCharge.push(inv.id);
+          else {
+            if (left > 0.004) {
+              const card = methods.find((m) => /pre-?auth/i.test(m)) || methods[0];
+              await payInvoicesInFull([{ ...inv, balance: left }], card, p.due_date < today ? p.due_date : today, emailReceipts);
+            }
+            paid++;
           }
-          paid++;
         } else if (emailNow && p.manual !== false && header.customer_email && isManual(p.customer)) {
           await queueEmail('invoice', header.customer_email, { invoice_id: inv.id });
           mailed++;
         }
       }
-      const creditNote = creditUsed > 0.004 ? ` ${money(creditUsed)} of family credit used.` : '';
-      setFlash((mode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`) + creditNote);
+      // Saved cards: charge them now through TD Online Mart (records payment + emails receipt).
+      let cardNote = '';
+      if (toCharge.length) {
+        try {
+          const r = await chargeSavedCards(toCharge);
+          const ok = r.results.filter((x) => x.approved);
+          const bad = r.results.filter((x) => !x.approved);
+          paid += ok.length;
+          cardNote = ` Saved cards: ${ok.length} charged${r.mode === 'test' ? ' (TEST account — not recorded)' : ''}${bad.length ? `, ${bad.length} not charged (${bad.map((x) => `${x.customer}: ${x.declined || x.error}`).join('; ')}) — they stay unpaid below` : ''}.`;
+        } catch (e) {
+          cardNote = ` Saved cards were NOT charged: ${e.message}. The invoices stay unpaid below.`;
+        }
+      }
+      const creditNote = (creditUsed > 0.004 ? ` ${money(creditUsed)} of family credit used.` : '') + cardNote;
+      setFlash((runMode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`) + creditNote);
     } catch (e) {
       setFlash(`Stopped after ${made} invoices: ${e.message}`);
     }
@@ -314,7 +333,7 @@ export default function BillingPage() {
           <>
             <ProposalTable list={preauthProps} selected={selected} setSelected={setSelected} settings={settings} onOpen={(p) => setDraft({ g: p, mode: 'preauth' })} />
             <ActionBar>
-              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>After charging the cards: creates each invoice and records it as paid. No invoice email is sent.</span>
+              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>{settings?.online_pay ? 'Families marked "saved card" are charged through TD right away (payment recorded, receipt emailed). For the others, charge their cards in TD first — this creates each invoice and records it as paid.' : 'After charging the cards: creates each invoice and records it as paid. No invoice email is sent.'}</span>
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
                 <input type="checkbox" checked={emailReceipts} onChange={(e) => setEmailReceipts(e.target.checked)} /> Email receipts
               </label>
@@ -569,6 +588,7 @@ function ProposalTable({ list, selected, setSelected, settings, onOpen }) {
             <td>
               <button style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#20241F', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => onOpen(p)}>{familyName(p)}</button>
               {p.manual && !p.customer?.email && tag('no email', GREY)}
+              {p.customer?.card_profile_code && settings.online_pay && p.customer.card_profile_mode === (settings.online_pay_mode || 'test') && tag(`saved card ···${p.customer.card_last4 || ''}`, GREEN)}
             </td>
             <td style={{ fontSize: 12.5, color: '#5B5F56', cursor: 'pointer' }} title="Preview invoice" onClick={() => onOpen(p)}>
               {p.lines.map((l) => (l.line_kind === 'tuition' ? l.description.split(' — ')[0] : null)).filter(Boolean).join(', ')}

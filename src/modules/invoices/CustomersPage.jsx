@@ -345,6 +345,28 @@ export default function CustomersPage() {
                   {(f.payment_type || 'preauth') === 'preauth' && (
                     <a href="/preauth-form.pdf" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1E4566', display: 'inline-block', marginTop: 4 }}>Print the card pre-authorization form (PDF)</a>
                   )}
+                  {f.card_profile_code && (
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${f.card_declined_at ? '#E7B7B7' : '#CFE3D0'}`, background: f.card_declined_at ? '#FBEDEC' : '#F1F8F1', fontSize: 12.5 }}>
+                      <b>Saved card:</b> {f.card_type || 'Card'} ···{f.card_last4 || '????'}
+                      {f.card_expiry ? ` · exp ${f.card_expiry}` : ''}
+                      {f.card_profile_mode === 'test' ? ' · TEST account' : ''}
+                      {f.card_saved_at ? ` · saved ${String(f.card_saved_at).slice(0, 10)}` : ''}
+                      {f.card_declined_at && <div style={{ color: '#9A2B2B', marginTop: 2 }}>Last charge declined {String(f.card_declined_at).slice(0, 10)}: {f.card_decline_message}</div>}
+                      <button
+                        type="button"
+                        className="dp-btn"
+                        style={{ padding: '1px 8px', fontSize: 11.5, marginLeft: 8 }}
+                        onClick={async () => {
+                          if (!window.confirm('Remove the saved card from this family? Tuition will no longer be charged to it automatically.')) return;
+                          const clear = { card_profile_code: null, card_profile_mode: null, card_series_id: null, card_last4: null, card_expiry: null, card_type: null, card_saved_at: null, card_consent: null, card_declined_at: null, card_decline_message: null };
+                          await supabase.from('customers').update(clear).eq('id', f.id);
+                          set(clear);
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </Field>
                 <label style={{ fontSize: 13, display: 'flex', gap: 6, marginBottom: 6 }}>
                   <input type="checkbox" checked={!!f.separate_invoices} onChange={(e) => set({ separate_invoices: e.target.checked })} />

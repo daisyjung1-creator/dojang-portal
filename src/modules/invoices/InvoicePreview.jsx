@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, Mail, Pencil, Wallet, Ban, Trash2, RotateCcw, Link2 } from 'lucide-react';
+import { Printer, Mail, Pencil, Wallet, Ban, Trash2, RotateCcw, Link2, CreditCard } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import InvoiceDocument from './InvoiceDocument';
 import ReceiptPreview from './ReceiptPreview';
-import { loadInvoiceFull, queueEmail, loadCredit, applyCredit } from './api';
+import { loadInvoiceFull, queueEmail, loadCredit, applyCredit, chargeSavedCards } from './api';
 import { money, formatDate, INVOICE_STATUS_STYLES } from '../../lib/invoiceUtils';
 import { confirmSend } from '../../components/ConfirmSend';
 
@@ -26,6 +26,7 @@ export function PrintPortal({ children }) {
 export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, onPay, onRefund, onChanged }) {
   const [data, setData] = useState(null);
   const [msg, setMsg] = useState('');
+  const [charging, setCharging] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [receiptId, setReceiptId] = useState(null);
 
@@ -93,6 +94,29 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
             <button className="dp-btn" onClick={() => onEdit(data)}><Pencil size={14} /> Edit</button>
             <button className="dp-btn" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
             <button className="dp-btn" onClick={sendEmail}><Mail size={14} /> Email</button>
+            {invoice.saved_card && !invoice.voided && Number(invoice.balance) > 0.004 && (
+              <button
+                className="dp-btn"
+                disabled={charging}
+                title="Charge the card this family saved online (TD Online Mart)"
+                onClick={async () => {
+                  if (!window.confirm(`Charge ${money(invoice.balance)} to ${invoice.saved_card.type || 'card'} ···${invoice.saved_card.last4 || ''}${invoice.saved_card.mode === 'test' ? ' (TEST account)' : ''}?`)) return;
+                  setCharging(true);
+                  try {
+                    const r = await chargeSavedCards([invoice.id]);
+                    const x = r.results?.[0] || {};
+                    setMsg(x.approved ? (x.test ? `Test mode: approved by the TD test account (${money(x.amount)}). Nothing recorded.` : `Charged ${money(x.amount)} — payment recorded and receipt emailed.`) : `Not charged: ${x.declined || x.error || x.skipped || 'unknown'}`);
+                    await reload();
+                    onChanged && onChanged();
+                  } catch (e) {
+                    setMsg('Could not charge: ' + e.message);
+                  }
+                  setCharging(false);
+                }}
+              >
+                <CreditCard size={14} /> {charging ? 'Charging…' : `Charge saved card ···${invoice.saved_card.last4 || ''}`}
+              </button>
+            )}
             {invoice.pay_token && !invoice.voided && Number(invoice.balance) > 0.004 && (
               <button
                 className="dp-btn"

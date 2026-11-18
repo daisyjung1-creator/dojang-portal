@@ -15,6 +15,9 @@ const pdfSafe = (s: any) =>
   String(s ?? '').replace(/\u2013/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u2026/g, '...').replace(/[^\x20-\x7E\u00A0-\u00FF\u2014]/g, '');
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
+// Public portal address, for the invoice "Pay now" link (/pay/<pay_token>).
+const PORTAL_URL = 'https://dojang-portal.netlify.app';
+
 // Shown first under "How to pay" for families on pre-authorized card payments.
 export const PREAUTH_PAY_LINE = 'Pre-authorized card on file: reply to the invoice email to approve charging this amount to your card.';
 
@@ -347,8 +350,13 @@ export function invoiceEmailHtml(inv: Invoice, lines: Line[], s: Settings, messa
   const rows = lines
     .map((l) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #eee">${l.item_name ? '<b>' + esc(l.item_name) + '</b> ' : ''}${esc(l.description)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${Number(l.quantity)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${money(l.amount)}</td></tr>`)
     .join('');
+  // "Pay now" button once online card payments are live (Invoice Settings).
+  const payNow = s.online_pay && s.online_pay_mode === 'live' && balance > 0.004 && inv.pay_token && !inv.voided
+    ? `<p style="margin:18px 0 6px"><a href="${PORTAL_URL}/pay/${esc(inv.pay_token)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 22px;border-radius:8px">Pay ${money(balance)} now by credit card</a></p><p style="font-size:12px;color:#8A8D84;margin:0">Secure payment through TD Online Mart. Your receipt is emailed right away.</p>`
+    : '';
   return `<div style="font-family:Helvetica,Arial,sans-serif;color:#20241F;max-width:560px">
   <p style="white-space:pre-line">${esc(message)}</p>
+  ${payNow}
   <div style="border:1px solid #e5e2d8;border-radius:8px;padding:16px;margin-top:16px">
     <div style="font-weight:bold;font-size:15px">${esc(s.business_name)} — Invoice #${inv.invoice_number}</div>
     <div style="color:#5B5F56;font-size:13px;margin:4px 0 12px">${fdate(inv.invoice_date)}</div>

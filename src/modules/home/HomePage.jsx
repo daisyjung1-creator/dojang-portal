@@ -99,7 +99,7 @@ export default function HomePage({ setActiveTab }) {
       { data: mkPeriod },
     ] = await Promise.all([
       supabase.from('students').select('*').order('name'),
-      supabase.from('customers').select('id, name, payment_type'),
+      supabase.from('customers').select('id, name, payment_type, active, card_profile_code, card_last4, card_expiry, card_declined_at, card_decline_message'),
       supabase.from('class_schedule').select('*').eq('active', true).order('start_time'),
       supabase.from('attendance').select('student_id, class_name, status').eq('date', today),
       supabase.from('class_cancellations').select('*').gte('date', from).lte('date', far),
@@ -397,6 +397,24 @@ export default function HomePage({ setActiveTab }) {
       tab: 'students',
       label: 'Students',
     });
+  // Saved cards (online payments): declined charges and cards expiring soon.
+  {
+    const cards = Object.values(d.custById).filter((c) => c.card_profile_code && c.active !== false);
+    const declined = cards.filter((c) => c.card_declined_at);
+    if (declined.length)
+      todayItems.push({ tone: 'warn', text: `Saved card declined — ask for a new card or another payment: ${declined.map((c) => `${c.name} (···${c.card_last4 || ''}: ${c.card_decline_message || 'declined'})`).join(', ')}`, tab: 'customers', label: 'Families' });
+    const now = new Date();
+    const ym = (y, m) => y * 12 + m;
+    const soon = cards.filter((c) => {
+      const m = /^(\d{2})\/(\d{2})$/.exec(c.card_expiry || '');
+      if (!m) return false;
+      const exp = ym(2000 + Number(m[2]), Number(m[1]) - 1);
+      const cur = ym(now.getFullYear(), now.getMonth());
+      return exp >= cur && exp <= cur + 1;
+    });
+    if (soon.length)
+      todayItems.push({ tone: 'info', text: `Saved card expires this or next month — send them a pay link to save a new card: ${soon.map((c) => `${c.name} (···${c.card_last4 || ''}, ${c.card_expiry})`).join(', ')}`, tab: 'customers', label: 'Families' });
+  }
   // Closures leave someone below the guaranteed classes (8/12/16) this or next service period.
   if (shortfalls.length)
     todayItems.push({
