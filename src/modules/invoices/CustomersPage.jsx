@@ -342,6 +342,9 @@ export default function CustomersPage() {
                     <option value="preauth">Pre-authorized credit card (charged on the billing date, no advance emails)</option>
                     <option value="manual">Pays manually — debit / cash (invoice 7 days before + reminder 3 days before)</option>
                   </select>
+                  {(f.payment_type || 'preauth') === 'preauth' && (
+                    <a href="/preauth-form.pdf" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1E4566', display: 'inline-block', marginTop: 4 }}>Print the card pre-authorization form (PDF)</a>
+                  )}
                 </Field>
                 <label style={{ fontSize: 13, display: 'flex', gap: 6, marginBottom: 6 }}>
                   <input type="checkbox" checked={!!f.separate_invoices} onChange={(e) => set({ separate_invoices: e.target.checked })} />
