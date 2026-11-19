@@ -183,10 +183,18 @@ async function createRecurring(mode: string, o: { token: string; amount: number;
     rbFirstBilling: mmddyyyy(o.firstBilling),
     trnComments: (o.comments || '').slice(0, 200),
   });
+  // Accounts with "Require hash validation" on: hashValue = SHA-1 of the
+  // request string followed by the account's hash key (secret TD_HASH_KEY).
+  const hashKey = (Deno.env.get(live ? 'TD_HASH_KEY' : 'TD_TEST_HASH_KEY') || '').trim();
+  let bodyStr = form.toString();
+  if (hashKey) {
+    const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(bodyStr + hashKey));
+    bodyStr += '&hashValue=' + [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, '0')).join('');
+  }
   let lastErr: unknown = null;
   for (const host of RB_HOSTS) {
     try {
-      const res = await fetch(`${host}/scripts/process_transaction.asp`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString(), signal: AbortSignal.timeout(45000) });
+      const res = await fetch(`${host}/scripts/process_transaction.asp`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: bodyStr, signal: AbortSignal.timeout(45000) });
       const text = await res.text();
       if (!/trnApproved=|messageId=|rbAccountId=/i.test(text)) {
         console.log('rb non-api', host, res.status, text.slice(0, 160));
@@ -228,6 +236,20 @@ async function tuitionPlan(inv: any) {
     first = t2.toISOString().slice(0, 10);
   }
   return { amount, months, first };
+}
+
+// Automatic tuition is offered only to a new family (no payments yet and no
+// recurring account), so existing TD recurring accounts are never duplicated.
+// It is required when the family pays by pre-authorized credit card.
+async function autoOffer(inv: any) {
+  if (!inv.customer_id) return { plan: null, required: false };
+  const [{ data: c }, { count }] = await Promise.all([
+    admin.from('customers').select('payment_type, rb_account_id, card_profile_code').eq('id', inv.customer_id).maybeSingle(),
+    admin.from('invoice_payments').select('id', { count: 'exact', head: true }).eq('customer_id', inv.customer_id),
+  ]);
+  if (c?.rb_account_id || c?.card_profile_code || (count || 0) > 0) return { plan: null, required: false };
+  const plan = await tuitionPlan(inv);
+  return { plan, required: !!plan && (c?.payment_type || 'preauth') === 'preauth' };
 }
 
 async function isAdminCaller(req: Request) {
@@ -284,8 +306,10 @@ Deno.serve(async (req) => {
         lines: (lines || []).map((l: any) => ({ name: l.item_name || l.description, description: l.item_name && l.item_name !== l.description ? l.description : '', quantity: Number(l.quantity), amount: r2(l.amount) })),
         enabled: !!s.online_pay,
         mode,
-        auto: inv.customer_id ? await tuitionPlan(inv) : null,
       };
+      const offer = await autoOffer(inv);
+      (summary as any).auto = offer.plan;
+      (summary as any).auto_required = offer.required;
       if (b.action === 'invoice') return json(summary);
 
       // ── pay ──
@@ -293,6 +317,7 @@ Deno.serve(async (req) => {
       if (!(balance > 0.004)) return json({ error: 'This invoice is already paid. Thank you!', paid: true }, 400);
       const token = String(b.token || '');
       if (!token) return json({ error: 'Card details are missing.' }, 400);
+      if (offer.required && !(b.auto && b.rb_token)) return json({ error: 'Please tick "Pay tuition automatically with this card" — pre-authorized card memberships are charged automatically.' }, 400);
       const name = String(b.name || inv.customer_name || '').slice(0, 64);
       const email = String(b.email || inv.customer_email || '').split(/[,;\s]/)[0] || '';
       const orderNo = `INV${inv.invoice_number}-${Date.now().toString(36)}`.slice(0, 30);
@@ -331,8 +356,8 @@ Deno.serve(async (req) => {
       const t = r.data;
       // Automatic tuition: create a TD Recurring Billing account with the second token.
       let auto: any = null;
-      if (b.auto && b.rb_token && inv.customer_id) {
-        const plan = await tuitionPlan(inv);
+      if (b.auto && b.rb_token && offer.plan) {
+        const plan = offer.plan;
         if (plan) {
           try {
             const rb = await createRecurring(mode, { token: String(b.rb_token), amount: plan.amount, months: plan.months, firstBilling: plan.first, name, email, order: `RB${inv.invoice_number}-${Date.now().toString(36)}`, comments: `${inv.customer_name} tuition (portal)` });

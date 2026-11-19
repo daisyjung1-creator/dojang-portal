@@ -119,7 +119,7 @@ export default function PayPage({ token }) {
     })();
   }
 
-  const allReady = ready['card-number'] && ready.expiry && ready.cvv && name.trim();
+  const allReady = ready['card-number'] && ready.expiry && ready.cvv && name.trim() && (!inv?.auto_required || saveCard);
   const fieldBox = { border: '1px solid #D6D2C4', borderRadius: 9, padding: '11px 12px', background: '#fff', minHeight: 22 };
   const lbl = { fontSize: 14, fontWeight: 600, margin: '4px 0 6px' };
 
@@ -211,7 +211,8 @@ export default function PayPage({ token }) {
                       </span>
                     </span>
                   </label>
-                  {saveCard && <p style={{ fontSize: 12.5, color: C.soft, lineHeight: 1.55, margin: '8px 0 0 28px' }}>{SAVE_CONSENT}</p>}
+                  {(saveCard || inv.auto_required) && <p style={{ fontSize: 12.5, color: C.soft, lineHeight: 1.55, margin: '8px 0 0 28px' }}>{SAVE_CONSENT}</p>}
+                  {inv.auto_required && !saveCard && <p style={{ fontSize: 13, color: C.red, margin: '8px 0 0 28px', fontWeight: 600 }}>Required: your membership is paid by pre-authorized credit card. Please tick the box to agree to automatic tuition payments.</p>}
                 </div>
               )}
               {err && <div style={{ color: C.red, fontSize: 14, marginTop: 12 }}>{err}</div>}
