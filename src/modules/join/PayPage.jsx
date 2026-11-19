@@ -207,9 +207,11 @@ export default function PayPage({ token }) {
                   <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 15, cursor: 'pointer', fontWeight: 600 }}>
                     <input type="checkbox" checked={saveCard} onChange={(e) => setSaveCard(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2, flex: 'none' }} />
                     <span>
-                      Pay tuition automatically with this card
+                      {inv.auto.replace ? 'Use this card for future tuition' : 'Pay tuition automatically with this card'}
                       <span style={{ display: 'block', fontSize: 13, fontWeight: 400, color: C.soft, marginTop: 2 }}>
-                        {inv.auto_method === 'card'
+                        {inv.auto.replace
+                          ? `Replaces the card ending ${inv.auto.replace} for automatic tuition. Next charge on ${fdate(inv.auto.first)}.`
+                          : inv.auto_method === 'card'
                           ? `Your card is saved securely with TD. Tuition (currently ${money(inv.auto.amount)} ${inv.auto.months === 3 ? 'every 3 months' : 'a month'}, next on ${fdate(inv.auto.first)}) is charged to it on each billing date.`
                           : `${money(inv.auto.amount)} ${inv.auto.months === 3 ? 'every 3 months' : 'every month'}, starting ${fdate(inv.auto.first)}`}
                       </span>
@@ -226,7 +228,7 @@ export default function PayPage({ token }) {
                 onClick={pay}
                 style={{ ...btn, width: '100%', marginTop: 16, background: allReady && !busy ? C.ink : '#B9B6AC', color: '#fff', borderColor: 'transparent', fontWeight: 700, fontSize: 16 }}
               >
-                {busy ? 'Processing…' : saveCard ? `Pay ${money(inv.balance)} and set up automatic tuition` : `Pay ${money(inv.balance)}`}
+                {busy ? 'Processing…' : saveCard ? `Pay ${money(inv.balance)} and ${inv.auto?.replace ? 'save this card' : 'set up automatic tuition'}` : `Pay ${money(inv.balance)}`}
               </button>
               <p style={{ fontSize: 12, color: C.faint, margin: '10px 0 0', lineHeight: 1.5 }}>
                 Card details are entered on TD Online Mart's secure form and are never stored by the Dojang. A receipt is emailed after payment.

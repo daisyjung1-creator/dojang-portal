@@ -253,9 +253,14 @@ async function tuitionPlan(inv: any) {
 async function autoOffer(inv: any) {
   if (!inv.customer_id) return { plan: null, required: false };
   const [{ data: c }, { count }] = await Promise.all([
-    admin.from('customers').select('payment_type, rb_account_id, card_profile_code').eq('id', inv.customer_id).maybeSingle(),
+    admin.from('customers').select('payment_type, rb_account_id, card_profile_code, card_declined_at, card_last4').eq('id', inv.customer_id).maybeSingle(),
     admin.from('invoice_payments').select('id', { count: 'exact', head: true }).eq('customer_id', inv.customer_id),
   ]);
+  // Saved card was declined: offer to replace it with the card used now.
+  if (c?.card_profile_code && c.card_declined_at) {
+    const plan = await tuitionPlan(inv);
+    return { plan: plan ? { ...plan, replace: c.card_last4 || 'saved' } : null, required: false };
+  }
   if (c?.rb_account_id || c?.card_profile_code || (count || 0) > 0) return { plan: null, required: false };
   const plan = await tuitionPlan(inv);
   return { plan, required: !!plan && (c?.payment_type || 'preauth') === 'preauth' };
@@ -284,11 +289,11 @@ async function chargeOne(s: any, mode: string, id: string) {
   }
   if (!r.ok) {
     const msg = errMsg(r.data, 'Declined');
-    await admin.from('customers').update({ card_declined_at: new Date().toISOString(), card_decline_message: msg.slice(0, 300) }).eq('id', c.id);
+    await admin.from('customers').update({ card_declined_at: new Date().toISOString(), card_decline_message: msg.slice(0, 300), card_declined_invoice_id: id, card_decline_emailed_at: null, card_decline_reminded_at: null }).eq('id', c.id);
     return { id, number: inv.invoice_number, customer: inv.customer_name, declined: msg };
   }
   const t = r.data;
-  if (c.card_declined_at) await admin.from('customers').update({ card_declined_at: null, card_decline_message: null }).eq('id', c.id);
+  if (c.card_declined_at) await admin.from('customers').update({ card_declined_at: null, card_decline_message: null, card_declined_invoice_id: null, card_decline_emailed_at: null, card_decline_reminded_at: null }).eq('id', c.id);
   if (mode === 'test') return { id, number: inv.invoice_number, customer: inv.customer_name, approved: true, test: true, amount: balance };
   const pay = await recordPayment(s, inv, t, balance, 'Saved card (automatic tuition)');
   return { id, number: inv.invoice_number, customer: inv.customer_name, approved: true, recorded: !!pay, amount: balance };
@@ -508,6 +513,9 @@ Deno.serve(async (req) => {
             card_consent: String(b.consent || '').slice(0, 2000) || null,
             card_declined_at: null,
             card_decline_message: null,
+            card_declined_invoice_id: null,
+            card_decline_emailed_at: null,
+            card_decline_reminded_at: null,
             ...(mode === 'live' ? { payment_type: 'preauth' } : {}),
           })
           .eq('id', inv.customer_id);

@@ -7,7 +7,7 @@ import { todayISO, addDaysISO, currentCycleStart, nextDueDate, billingAnchor, da
 import { isBillable, isManual } from '../../lib/tuitionBilling';
 import { inClass } from '../../lib/classes';
 import { money, formatDate } from '../../lib/invoiceUtils';
-import { fetchAll, loadSettings } from '../invoices/api';
+import { fetchAll, loadSettings, queueEmail } from '../invoices/api';
 import { absenceAlerts, trackingStart, NOT_SEEN_DAYS } from '../../lib/attendanceStats';
 import InvoicePreview from '../invoices/InvoicePreview';
 import { GREEN, BLUE, RED, AMBER, PURPLE, GREY, smallBtn, linkBtn, Tag, Card, Empty } from './homeUi';
@@ -67,6 +67,7 @@ export default function HomePage({ setActiveTab }) {
   const [previewId, setPreviewId] = useState(null);
   const [settings, setSettings] = useState(null);
   const [showShort, setShowShort] = useState(false);
+  const [showDeclined, setShowDeclined] = useState(false);
 
   useEffect(() => {
     load();
@@ -99,7 +100,7 @@ export default function HomePage({ setActiveTab }) {
       { data: mkPeriod },
     ] = await Promise.all([
       supabase.from('students').select('*').order('name'),
-      supabase.from('customers').select('id, name, payment_type, active, card_profile_code, card_last4, card_expiry, card_declined_at, card_decline_message'),
+      supabase.from('customers').select('id, name, email, payment_type, active, card_profile_code, card_last4, card_expiry, card_declined_at, card_decline_message, card_declined_invoice_id, card_decline_emailed_at, card_decline_reminded_at'),
       supabase.from('class_schedule').select('*').eq('active', true).order('start_time'),
       supabase.from('attendance').select('student_id, class_name, status').eq('date', today),
       supabase.from('class_cancellations').select('*').gte('date', from).lte('date', far),
@@ -407,7 +408,7 @@ export default function HomePage({ setActiveTab }) {
     if (ok.length || bad.length) {
       const sum = ok.reduce((n, x) => n + Number(x.amount || 0), 0);
       todayItems.push({
-        tone: bad.length ? 'warn' : 'info',
+        tone: bad.length ? 'warn' : 'good',
         text: `Automatic tuition today: ${ok.length} charged${ok.length ? ` ($${sum.toFixed(2)})` : ''}${bad.length ? ` · ${bad.length} not charged — ${bad.map((x) => `${x.customer}${x.number ? ` #${x.number}` : ''}: ${x.declined || x.error}`).join(', ')}` : ''}`,
         tab: 'invoices',
         label: 'Invoices',
@@ -417,8 +418,17 @@ export default function HomePage({ setActiveTab }) {
   {
     const cards = Object.values(d.custById).filter((c) => c.card_profile_code && c.active !== false);
     const declined = cards.filter((c) => c.card_declined_at);
-    if (declined.length)
-      todayItems.push({ tone: 'warn', text: `Saved card declined — ask for a new card or another payment: ${declined.map((c) => `${c.name} (···${c.card_last4 || ''}: ${c.card_decline_message || 'declined'})`).join(', ')}`, tab: 'customers', label: 'Families' });
+    if (declined.length) {
+      const toEmail = declined.filter((c) => !c.card_decline_emailed_at).length;
+      const toRemind = declined.filter((c) => reminderDue(c, today)).length;
+      const todo = [toEmail ? `${toEmail} to email` : '', toRemind ? `${toRemind} reminder${toRemind === 1 ? '' : 's'} due` : ''].filter(Boolean).join(', ');
+      todayItems.push({
+        tone: 'warn',
+        text: `Saved card declined: ${declined.map((c) => `${c.name} (···${c.card_last4 || ''})`).join(', ')}${todo ? ` — ${todo}` : ''}`,
+        onClick: () => setShowDeclined(true),
+        label: 'Review',
+      });
+    }
     const now = new Date();
     const ym = (y, m) => y * 12 + m;
     const soon = cards.filter((c) => {
@@ -457,6 +467,7 @@ export default function HomePage({ setActiveTab }) {
       </div>
 
       {/* Today: what to do / what's happening */}
+      {showDeclined && <DeclinedModal cards={Object.values(d.custById).filter((c) => c.card_profile_code && c.card_declined_at)} today={today} onClose={() => setShowDeclined(false)} onChanged={load} />}
       {showShort && <ShortfallModal list={shortfalls} onClose={() => setShowShort(false)} onAttendance={() => setActiveTab('attendance')} />}
       <TodayPanel items={todayItems} classesLine={todayClasses.length ? `${todayClasses.filter((c) => !c.cancelled).length} classes · ${t12(todayClasses[0].start_time)} – ${t12(todayClasses[todayClasses.length - 1].end_time)}${todayClasses.some((c) => c.cancelled) ? ` · ${todayClasses.filter((c) => c.cancelled).length} cancelled` : ''}` : 'No classes today'} setActiveTab={setActiveTab} />
 
@@ -607,6 +618,117 @@ export default function HomePage({ setActiveTab }) {
 
 // ── Pieces ─────────────────────────────────────────────────────────────────
 const md = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+
+// Declined saved card: a reminder is due 3 days after the first email if still unpaid.
+const REMIND_AFTER_DAYS = 3;
+function reminderDue(c, today) {
+  if (!c.card_decline_emailed_at || c.card_decline_reminded_at) return false;
+  const sent = new Date(c.card_decline_emailed_at).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+  return addDaysISO(sent, REMIND_AFTER_DAYS) <= today;
+}
+const shortDate = (ts) => (ts ? new Date(ts).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', timeZone: 'America/Edmonton' }) : '');
+
+function declineEmail(c, inv, reminder) {
+  const amount = money(inv?.balance ?? 0);
+  const num = inv?.invoice_number ? ` (invoice #${inv.invoice_number})` : '';
+  const card = `the card ending in ${c.card_last4 || '····'}`;
+  const sign = 'Thank you,\nMaster Daisy\nChampion Hankook Taekwondo';
+  if (reminder)
+    return {
+      subject: 'Reminder: tuition payment still outstanding — Champion Hankook Taekwondo',
+      message: `Hi ${c.name},\n\nJust a friendly reminder that your tuition payment of ${amount}${num} is still outstanding — ${card} was declined on ${shortDate(c.card_declined_at)}.\n\nYou can pay securely online with another card using the button below, and choose to use it for future tuition at the same time.\n\nIf you've already taken care of this, thank you — please disregard this email. Questions? Just reply here.\n\n${sign}`,
+    };
+  return {
+    subject: "Tuition payment didn't go through — Champion Hankook Taekwondo",
+    message: `Hi ${c.name},\n\nWe tried to process your tuition payment of ${amount}${num} on ${shortDate(c.card_declined_at)} using ${card}, but it was declined by the bank${c.card_decline_message ? ` ("${c.card_decline_message}")` : ''}.\n\nThis often happens when a card has expired, been replaced, or reached its limit.\n\nYou can pay securely online with another card using the button below. When you pay, you can also choose to use the new card for future tuition, so you won't need to do anything next month.\n\nIf you've already sorted this out, or would prefer to pay at the front desk, please just reply to this email. Payment is due within 7 days.\n\n${sign}`,
+  };
+}
+
+// Declined saved cards: review and email the parent (first email, then one reminder).
+function DeclinedModal({ cards, today, onClose, onChanged }) {
+  const [invs, setInvs] = useState({});
+  const [edit, setEdit] = useState(null); // { c, reminder, subject, message }
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    const ids = cards.map((c) => c.card_declined_invoice_id).filter(Boolean);
+    if (!ids.length) return;
+    supabase.from('invoice_summary').select('id, invoice_number, balance, customer_email').in('id', ids).then(({ data }) => setInvs(Object.fromEntries((data || []).map((x) => [x.id, x]))));
+  }, []);
+  function open(c, reminder) {
+    setEdit({ c, reminder, ...declineEmail(c, invs[c.card_declined_invoice_id], reminder) });
+  }
+  async function send() {
+    const { c, reminder, subject, message } = edit;
+    const inv = invs[c.card_declined_invoice_id];
+    const to = c.email || inv?.customer_email;
+    if (!to) return setMsg(`No email address for ${c.name}.`);
+    setBusy(true);
+    try {
+      // Sent as the invoice email: the PDF is attached and the "Pay now" button is under the message.
+      await queueEmail('invoice', to, { invoice_id: c.card_declined_invoice_id, subject, message });
+      await supabase.from('customers').update(reminder ? { card_decline_reminded_at: new Date().toISOString() } : { card_decline_emailed_at: new Date().toISOString() }).eq('id', c.id);
+      setMsg(`${reminder ? 'Reminder' : 'Email'} sent to ${c.name}.`);
+      setEdit(null);
+      onChanged();
+    } catch (e) {
+      setMsg('Could not send: ' + e.message);
+    }
+    setBusy(false);
+  }
+  async function dismiss(c) {
+    await supabase.from('customers').update({ card_declined_at: null, card_decline_message: null, card_declined_invoice_id: null, card_decline_emailed_at: null, card_decline_reminded_at: null }).eq('id', c.id);
+    onChanged();
+  }
+  if (edit)
+    return (
+      <Modal title={`${edit.reminder ? 'Reminder' : 'Email'} to ${edit.c.name}`} maxWidth={640} onClose={() => setEdit(null)} footer={<><button className="dp-btn" onClick={() => setEdit(null)}>Back</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
+        <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
+        <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} />
+        <label style={{ fontSize: 12, color: '#5B5F56' }}>Message</label>
+        <textarea className="dp-input" style={{ width: '100%', minHeight: 300, fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.5 }} value={edit.message} onChange={(e) => setEdit({ ...edit, message: e.target.value })} />
+        <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 0 0' }}>The invoice PDF is attached and a "Pay now by credit card" button is added under the message.</p>
+        {msg && <p style={{ fontSize: 12.5, color: '#9A2B2B' }}>{msg}</p>}
+      </Modal>
+    );
+  return (
+    <Modal title="Saved card declined" maxWidth={760} onClose={onClose} footer={<button className="dp-btn" onClick={onClose}>Close</button>}>
+      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>Review and email the parent. The email has a Pay now link where they can pay with another card and make it their card for future tuition. A reminder is suggested {REMIND_AFTER_DAYS} days after the first email if it's still unpaid. Dismiss once it's sorted out another way.</p>
+      {msg && <p style={{ fontSize: 12.5, color: '#2A5A30' }}>{msg}</p>}
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dp-table">
+          <thead>
+            <tr><th>Family</th><th>Declined</th><th>Invoice</th><th>Email</th><th></th></tr>
+          </thead>
+          <tbody>
+            {cards.map((c) => {
+              const inv = invs[c.card_declined_invoice_id];
+              const unpaid = inv ? Number(inv.balance) > 0.004 : true;
+              return (
+                <tr key={c.id}>
+                  <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>···{c.card_last4} · {c.card_decline_message || 'declined'}</div></td>
+                  <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{shortDate(c.card_declined_at)}</td>
+                  <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{inv ? <>#{inv.invoice_number} · {unpaid ? money(inv.balance) : <span style={{ color: '#2A5A30' }}>paid</span>}</> : '—'}</td>
+                  <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {c.card_decline_emailed_at ? `Sent ${shortDate(c.card_decline_emailed_at)}` : <span style={{ color: '#854F0B' }}>Not sent</span>}
+                    {c.card_decline_reminded_at && <div>Reminder {shortDate(c.card_decline_reminded_at)}</div>}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    {c.card_declined_invoice_id && unpaid && !c.card_decline_emailed_at && <button className="dp-btn dp-btn-primary" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => open(c, false)}>Email parent</button>}
+                    {c.card_declined_invoice_id && unpaid && c.card_decline_emailed_at && !c.card_decline_reminded_at && (
+                      <button className={`dp-btn${reminderDue(c, today) ? ' dp-btn-primary' : ''}`} style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => open(c, true)}>Send reminder</button>
+                    )}{' '}
+                    <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => dismiss(c)}>Dismiss</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Modal>
+  );
+}
 
 function ShortfallModal({ list, onClose, onAttendance }) {
   return (
