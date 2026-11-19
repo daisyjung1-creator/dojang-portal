@@ -284,9 +284,10 @@ Deno.serve(async (req) => {
         order_number: 'TEST-' + Date.now().toString(36),
         amount: 1.0,
         payment_method: 'card',
-        card: { name: 'Portal Test', number: '4030000010001234', expiry_month: '12', expiry_year: '30', cvd: '123', complete: true },
+        // A different test number can be passed (still the TEST account — never real money).
+        card: { name: 'Portal Test', number: /^\d{13,19}$/.test(String(b.number || '')) ? String(b.number) : '4030000010001234', expiry_month: '12', expiry_year: '30', cvd: '123', complete: true },
       });
-      return json({ ok: r.ok, status: r.status, message: r.data?.message || r.data?.details?.[0]?.message || '', id: r.data?.id || null, live_secrets_set: !!(Deno.env.get('TD_MERCHANT_ID') && Deno.env.get('TD_PAYMENT_PASSCODE')), test_profiles_secret_set: !!Deno.env.get('TD_TEST_PROFILES_PASSCODE') });
+      return json({ card_type: r.data?.card?.card_type || null, ok: r.ok, status: r.status, message: r.data?.message || r.data?.details?.[0]?.message || '', id: r.data?.id || null, live_secrets_set: !!(Deno.env.get('TD_MERCHANT_ID') && Deno.env.get('TD_PAYMENT_PASSCODE')), test_profiles_secret_set: !!Deno.env.get('TD_TEST_PROFILES_PASSCODE') });
     }
 
     if (b.action === 'invoice' || b.action === 'pay') {
