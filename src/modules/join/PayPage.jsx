@@ -11,12 +11,12 @@ import { Page, In, C, box, btn } from './JoinPage';
 const SCRIPTS = ['https://libs.bam.shift4api.net/customcheckout/2/customcheckout.js', 'https://libs.na.bambora.com/customcheckout/1/customcheckout.js'];
 // What the family agrees to when they tick "save this card" (same terms as the
 // paper Credit Card Pre-Authorized Payment Authorization).
-const SAVE_CONSENT =
+export const SAVE_CONSENT =
   'I authorize Champion Hankook Taekwondo to charge this card through TD Online Mart for my tuition, in the amount and on the schedule shown, until I cancel. Other purchases (belt testing, uniforms, events) are charged only after I approve the invoice by email. The Dojang gives at least 30 days\u2019 notice by email before the amount changes. Membership cancellation must be emailed to hankooktkd@gmail.com at least 14 days before the next payment date; cancelling this card authorization does not cancel the membership. A receipt is emailed after each charge.';
-const money = (n) => '$' + Number(n || 0).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fdate = (iso) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
+export const money = (n) => '$' + Number(n || 0).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const fdate = (iso) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
 
-function loadScript(i = 0) {
+export function loadScript(i = 0) {
   if (window.customcheckout) return Promise.resolve();
   if (i >= SCRIPTS.length) return Promise.reject(new Error('The secure card form could not load.'));
   return new Promise((resolve, reject) => {
@@ -28,7 +28,7 @@ function loadScript(i = 0) {
   });
 }
 
-async function call(body) {
+export async function call(body) {
   const { data, error } = await supabase.functions.invoke('td-pay', { body });
   if (error) {
     let msg = error.message;

@@ -11,6 +11,8 @@
 //   pay      { pay_token, token, name, email }  → charge the balance (public)
 //   selftest {}                                → $1.00 Worldline test-card charge on the TEST account (no real money)
 //   charge   { invoice_ids }                    → charge each family's saved card for the invoice balance (admin)
+//   card_info { card_token }                    → family + next tuition for the "save your card" page (public)
+//   card_save { card_token, token, name }       → save the card as a Payment Profile, no charge (public)
 //   autobill {}                                 → daily automatic tuition (pg_cron): invoice + charge saved-card
 //                                                  families whose billing date is today (once a day, live only)
 //
@@ -29,7 +31,7 @@
 // invoice's pay link can be tried safely with Worldline's test cards.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { proposeInvoices, invoiceHeader, calcTotals, lineAmount, addDaysISO } from './billing.js';
+import { proposeInvoices, invoiceHeader, calcTotals, lineAmount, addDaysISO, isBillable, currentCycleStart, nextDueDate, tuitionLines } from './billing.js';
 
 const URL_ = Deno.env.get('SUPABASE_URL')!;
 const admin = createClient(URL_, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -281,7 +283,8 @@ async function chargeOne(s: any, mode: string, id: string) {
       amount: balance,
       payment_method: 'payment_profile',
       payment_profile: { customer_code: c.card_profile_code, card_id: 1, complete: true },
-      card_on_file: c.card_series_id ? { type: 'subsequent_recurring', series_id: Number(c.card_series_id) || c.card_series_id } : { type: 'subsequent_recurring' },
+      // A card saved without a payment (save-card link) starts its card-on-file series here.
+      card_on_file: c.card_series_id ? { type: 'subsequent_recurring', series_id: Number(c.card_series_id) || c.card_series_id } : { type: 'first_recurring' },
       comments: `Invoice #${inv.invoice_number} (tuition)`,
     });
   } catch (e) {
@@ -293,6 +296,7 @@ async function chargeOne(s: any, mode: string, id: string) {
     return { id, number: inv.invoice_number, customer: inv.customer_name, declined: msg };
   }
   const t = r.data;
+  if (!c.card_series_id && t.card_on_file?.series_id) await admin.from('customers').update({ card_series_id: String(t.card_on_file.series_id) }).eq('id', c.id);
   if (c.card_declined_at) await admin.from('customers').update({ card_declined_at: null, card_decline_message: null, card_declined_invoice_id: null, card_decline_emailed_at: null, card_decline_reminded_at: null }).eq('id', c.id);
   if (mode === 'test') return { id, number: inv.invoice_number, customer: inv.customer_name, approved: true, test: true, amount: balance };
   const pay = await recordPayment(s, inv, t, balance, 'Saved card (automatic tuition)');
@@ -305,7 +309,8 @@ async function chargeOne(s: any, mode: string, id: string) {
 async function autoBill(_s: any, mode: string, today: string, dry = false): Promise<any> {
   const { data: settings } = await admin.from('invoice_settings').select('*').eq('id', 1).single();
   const { data: custs } = await admin.from('customers').select('*').not('card_profile_code', 'is', null).eq('card_profile_mode', mode);
-  const cards = (custs || []).filter((c: any) => c.payment_type !== 'manual');
+  // Not until the admin confirms the family's old TD Recurring Billing account is closed.
+  const cards = (custs || []).filter((c: any) => c.payment_type !== 'manual' && !c.card_legacy_rb_pending);
   if (!cards.length) return dry ? [] : { charged: [], problems: [] };
   const { data: students } = await admin.from('students').select('*').in('customer_id', cards.map((c: any) => c.id));
   const st = students || [];
@@ -430,6 +435,81 @@ Deno.serve(async (req) => {
         card: { name: 'Portal Test', number: /^\d{13,19}$/.test(String(b.number || '')) ? String(b.number) : '4030000010001234', expiry_month: '12', expiry_year: '30', cvd: '123', complete: true },
       });
       return json({ card_type: r.data?.card?.card_type || null, ok: r.ok, status: r.status, message: r.data?.message || r.data?.details?.[0]?.message || '', id: r.data?.id || null, live_secrets_set: !!(Deno.env.get('TD_MERCHANT_ID') && Deno.env.get('TD_PAYMENT_PASSCODE')), test_profiles_secret_set: !!Deno.env.get('TD_TEST_PROFILES_PASSCODE'), live_profiles_secret_set: profilesReady('live') });
+    }
+
+    if (b.action === 'card_info' || b.action === 'card_save') {
+      if (!/^[0-9a-f-]{36}$/i.test(String(b.card_token || ''))) return json({ error: 'This link is not valid. Please contact the Dojang.' }, 404);
+      const { data: c } = await admin.from('customers').select('*').eq('card_link_token', b.card_token).maybeSingle();
+      if (!c || c.active === false) return json({ error: 'This link is not valid. Please contact the Dojang.' }, 404);
+      const { data: kids } = await admin.from('students').select('*').eq('customer_id', c.id);
+      const { data: settings } = await admin.from('invoice_settings').select('*').eq('id', 1).single();
+      const today = todayEdm();
+      // Next tuition: each billable student's next billing date (today counts).
+      const next: Record<string, any[]> = {};
+      for (const k of (kids || []).filter(isBillable)) {
+        const cur = currentCycleStart(k, today);
+        let d = cur === today ? cur : nextDueDate(k, today);
+        if (k.billing_end_date && d > k.billing_end_date) continue;
+        (next[d] = next[d] || []).push(k);
+      }
+      const upcoming = Object.entries(next)
+        .sort(([a], [bb]) => (a < bb ? -1 : 1))
+        .map(([date, ks]) => ({ date, students: ks.map((k: any) => k.name), total: calcTotals(ks.flatMap((k: any) => tuitionLines(k, date, settings || {})), settings?.gst_rate ?? 5).total }));
+      const info = {
+        business: s.business_name || 'Champion Hankook Taekwondo',
+        customer: c.name,
+        email: c.email || '',
+        upcoming,
+        saved: c.card_profile_code && c.card_profile_mode === mode ? { last4: c.card_last4, type: c.card_type } : null,
+        enabled: !!s.online_pay && profilesReady(mode),
+        mode,
+      };
+      if (b.action === 'card_info') return json(info);
+      if (!info.enabled) return json({ error: 'Saving a card online is not available right now. Please contact the Dojang.' }, 400);
+      const token = String(b.token || '');
+      if (!token) return json({ error: 'Card details are missing.' }, 400);
+      const blocked = await payBlocked(c.id);
+      if (blocked) return json({ error: blocked }, 429);
+      const name = String(b.name || c.name || '').slice(0, 64);
+      let saved: any;
+      try {
+        saved = await saveProfile(mode, token, name, String(c.email || '').split(/[,;\s]/)[0] || '', { customer_id: c.id, customer_name: c.name });
+      } catch (e) {
+        await logPayFail(s, { id: c.id, invoice_number: '(card link)' }, 'Card not saved: ' + String((e as Error).message || e));
+        return json({ error: String((e as Error).message || e) }, 400);
+      }
+      // A card that was already saved here (e.g. replacing one) needs no TD Recurring Billing check.
+      const legacy = !c.card_profile_code && !c.rb_account_id;
+      await admin
+        .from('customers')
+        .update({
+          card_profile_code: saved.code,
+          card_profile_mode: mode,
+          card_series_id: null,
+          card_last4: saved.last4 || null,
+          card_expiry: saved.exp || null,
+          card_type: saved.type || null,
+          card_saved_at: new Date().toISOString(),
+          card_consent: `${String(b.consent || '').slice(0, 1800)} — agreed online by ${name} on ${new Date().toISOString()}`,
+          card_declined_at: null,
+          card_decline_message: null,
+          card_declined_invoice_id: null,
+          card_decline_emailed_at: null,
+          card_decline_reminded_at: null,
+          card_legacy_rb_pending: legacy || !!c.card_legacy_rb_pending,
+          ...(mode === 'live' ? { payment_type: 'preauth' } : {}),
+        })
+        .eq('id', c.id);
+      if (s.email)
+        await admin.from('email_queue').insert({
+          type: 'broadcast',
+          recipient_email: s.email,
+          payload: {
+            subject: `Card saved online — ${c.name}`,
+            message: `${c.name} saved a card for automatic tuition (${saved.type || 'card'} ending ${saved.last4 || '????'}).${legacy ? `\n\nBefore their next billing date, close their old Recurring Billing account in TD Online Mart so they aren't charged twice, then tick "Old TD Recurring Billing is closed" on the family in the portal (Customers). Automatic charges start only after that.` : ''}`,
+          },
+        });
+      return json({ ok: true, saved: { last4: saved.last4, type: saved.type }, upcoming });
     }
 
     if (b.action === 'invoice' || b.action === 'pay') {

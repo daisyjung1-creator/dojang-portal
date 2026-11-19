@@ -100,7 +100,7 @@ export default function HomePage({ setActiveTab }) {
       { data: mkPeriod },
     ] = await Promise.all([
       supabase.from('students').select('*').order('name'),
-      supabase.from('customers').select('id, name, email, payment_type, active, card_profile_code, card_last4, card_expiry, card_declined_at, card_decline_message, card_declined_invoice_id, card_decline_emailed_at, card_decline_reminded_at'),
+      supabase.from('customers').select('id, name, email, payment_type, active, card_profile_code, card_last4, card_expiry, card_declined_at, card_decline_message, card_declined_invoice_id, card_decline_emailed_at, card_decline_reminded_at, card_legacy_rb_pending'),
       supabase.from('class_schedule').select('*').eq('active', true).order('start_time'),
       supabase.from('attendance').select('student_id, class_name, status').eq('date', today),
       supabase.from('class_cancellations').select('*').gte('date', from).lte('date', far),
@@ -418,6 +418,9 @@ export default function HomePage({ setActiveTab }) {
   {
     const cards = Object.values(d.custById).filter((c) => c.card_profile_code && c.active !== false);
     const declined = cards.filter((c) => c.card_declined_at);
+    const pendingRb = cards.filter((c) => c.card_legacy_rb_pending);
+    if (pendingRb.length)
+      todayItems.push({ tone: 'warn', text: `Card saved online — close the old TD Recurring Billing, then tick it on the family: ${pendingRb.map((c) => c.name).join(', ')}`, tab: 'customers', label: 'Families' });
     if (declined.length) {
       const toEmail = declined.filter((c) => !c.card_decline_emailed_at).length;
       const toRemind = declined.filter((c) => reminderDue(c, today)).length;

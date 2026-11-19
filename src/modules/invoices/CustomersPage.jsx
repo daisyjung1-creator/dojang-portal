@@ -10,6 +10,7 @@ import YearReceiptsModal from './YearReceiptsModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, downloadCSV, localISO } from '../../lib/invoiceUtils';
 import { loadCustomers, fetchAll } from './api';
+import { CardLinkButton } from './CardLink';
 import { StatusPill } from './InvoicesPage';
 
 const IMPORT_FIELDS = [
@@ -343,7 +344,10 @@ export default function CustomersPage() {
                     <option value="manual">Pays manually — debit / cash (invoice 7 days before + reminder 3 days before)</option>
                   </select>
                   {(f.payment_type || 'preauth') === 'preauth' && (
-                    <a href="/preauth-form.pdf" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1E4566', display: 'inline-block', marginTop: 4 }}>Print the card pre-authorization form (PDF)</a>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                      <a href="/preauth-form.pdf" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1E4566' }}>Print the card pre-authorization form (PDF)</a>
+                      {f.id && !f.card_profile_code && <CardLinkButton customer={f} onSent={(at) => set({ card_link_sent_at: at })} />}
+                    </div>
                   )}
                   {f.rb_account_id && (
                     <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid #CFE3D0', background: '#F1F8F1', fontSize: 12.5 }}>
@@ -362,13 +366,29 @@ export default function CustomersPage() {
                       {f.card_profile_mode === 'test' ? ' · TEST account' : ''}
                       {f.card_saved_at ? ` · saved ${String(f.card_saved_at).slice(0, 10)}` : ''}
                       {f.card_declined_at && <div style={{ color: '#9A2B2B', marginTop: 2 }}>Last charge declined {String(f.card_declined_at).slice(0, 10)}: {f.card_decline_message}</div>}
+                      {f.card_legacy_rb_pending && (
+                        <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 6, background: '#FFF6E0', border: '1px solid #F0D9A8', color: '#854F0B' }}>
+                          Saved through the card link. <b>Close this family's old Recurring Billing account in TD Online Mart</b> before their next billing date so they aren't charged twice — automatic charges from the portal start only after you tick this:
+                          <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, color: '#20241F', fontWeight: 600 }}>
+                            <input
+                              type="checkbox"
+                              onChange={async (e) => {
+                                if (!e.target.checked) return;
+                                await supabase.from('customers').update({ card_legacy_rb_pending: false }).eq('id', f.id);
+                                set({ card_legacy_rb_pending: false });
+                              }}
+                            />
+                            Old TD Recurring Billing is closed — start automatic tuition
+                          </label>
+                        </div>
+                      )}
                       <button
                         type="button"
                         className="dp-btn"
                         style={{ padding: '1px 8px', fontSize: 11.5, marginLeft: 8 }}
                         onClick={async () => {
                           if (!window.confirm('Remove the saved card from this family? Tuition will no longer be charged to it automatically.')) return;
-                          const clear = { card_profile_code: null, card_profile_mode: null, card_series_id: null, card_last4: null, card_expiry: null, card_type: null, card_saved_at: null, card_consent: null, card_declined_at: null, card_decline_message: null };
+                          const clear = { card_profile_code: null, card_profile_mode: null, card_series_id: null, card_last4: null, card_expiry: null, card_type: null, card_saved_at: null, card_consent: null, card_declined_at: null, card_decline_message: null, card_legacy_rb_pending: false };
                           await supabase.from('customers').update(clear).eq('id', f.id);
                           set(clear);
                         }}

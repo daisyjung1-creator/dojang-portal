@@ -10,6 +10,7 @@ import { StatusPill } from '../invoices/InvoicesPage';
 import InvoicePreview from '../invoices/InvoicePreview';
 import InvoiceDocument from '../invoices/InvoiceDocument';
 import Modal from '../../components/Modal';
+import { CardLinkButton } from '../invoices/CardLink';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 const tag = (text, c) => (
@@ -152,7 +153,8 @@ export default function BillingPage() {
     let creditUsed = 0;
     const toCharge = []; // invoices for families with a saved card: charged through TD below
     const payMode = settings?.online_pay_mode || 'test';
-    const canCharge = (cust) => settings?.online_pay && cust?.card_profile_code && cust.card_profile_mode === payMode;
+    // Not while the family's old TD Recurring Billing may still be charging them.
+    const canCharge = (cust) => settings?.online_pay && cust?.card_profile_code && cust.card_profile_mode === payMode && !cust.card_legacy_rb_pending;
     try {
       for (const p of list) {
         const header = invoiceHeader(p, settings, today);
@@ -588,7 +590,8 @@ function ProposalTable({ list, selected, setSelected, settings, onOpen }) {
             <td>
               <button style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#20241F', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => onOpen(p)}>{familyName(p)}</button>
               {p.manual && !p.customer?.email && tag('no email', GREY)}
-              {p.customer?.card_profile_code && settings.online_pay && p.customer.card_profile_mode === (settings.online_pay_mode || 'test') && tag(`saved card ···${p.customer.card_last4 || ''}`, GREEN)}
+              {p.customer?.card_profile_code && settings.online_pay && p.customer.card_profile_mode === (settings.online_pay_mode || 'test') && (p.customer.card_legacy_rb_pending ? tag('card saved — close old TD Recurring Billing first', GREY) : tag(`saved card ···${p.customer.card_last4 || ''}`, GREEN))}
+              {!p.manual && p.customer && !p.customer.card_profile_code && settings.online_pay && settings.online_pay_mode === 'live' && <CardLinkButton customer={p.customer} style={{ marginLeft: 6 }} onSent={(at) => { p.customer.card_link_sent_at = at; }} />}
             </td>
             <td style={{ fontSize: 12.5, color: '#5B5F56', cursor: 'pointer' }} title="Preview invoice" onClick={() => onOpen(p)}>
               {p.lines.map((l) => (l.line_kind === 'tuition' ? l.description.split(' — ')[0] : null)).filter(Boolean).join(', ')}

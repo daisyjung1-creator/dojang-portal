@@ -26,6 +26,7 @@ import StaffLoginsPage from './modules/staff/StaffLoginsPage';
 import JoinPage from './modules/join/JoinPage';
 import TrialPage from './modules/join/TrialPage';
 import PayPage from './modules/join/PayPage';
+import CardPage from './modules/join/CardPage';
 
 export default function App() {
   const { session, loading, isAdmin } = useAuth();
@@ -36,6 +37,7 @@ export default function App() {
   if (publicPath === '/join') return <JoinPage />;
   if (publicPath === '/trial') return <TrialPage />;
   if (publicPath.startsWith('/pay/')) return <PayPage token={publicPath.slice(5)} />;
+  if (publicPath.startsWith('/card/')) return <CardPage token={publicPath.slice(6)} />;
 
   if (loading) {
     return <div style={{ padding: 40, color: '#5B5F56' }}>Loading...</div>;

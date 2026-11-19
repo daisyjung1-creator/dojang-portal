@@ -100,7 +100,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                 disabled={charging}
                 title="Charge the card this family saved online (TD Online Mart)"
                 onClick={async () => {
-                  if (!window.confirm(`Charge ${money(invoice.balance)} to ${invoice.saved_card.type || 'card'} ···${invoice.saved_card.last4 || ''}${invoice.saved_card.mode === 'test' ? ' (TEST account)' : ''}?`)) return;
+                  if (!window.confirm(`${invoice.saved_card.legacyPending ? 'This family may still have an active TD Recurring Billing account — make sure it is closed or this charge could be a double charge.\n\n' : ''}Charge ${money(invoice.balance)} to ${invoice.saved_card.type || 'card'} ···${invoice.saved_card.last4 || ''}${invoice.saved_card.mode === 'test' ? ' (TEST account)' : ''}?`)) return;
                   setCharging(true);
                   try {
                     const r = await chargeSavedCards([invoice.id]);

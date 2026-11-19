@@ -38,9 +38,9 @@ export async function loadInvoiceFull(id) {
     supabase.from('credit_applications').select('*').eq('invoice_id', id).order('applied_date'),
   ]);
   if (invoice?.customer_id) {
-    const { data: c } = await supabase.from('customers').select('payment_type, card_profile_code, card_profile_mode, card_last4, card_type').eq('id', invoice.customer_id).maybeSingle();
+    const { data: c } = await supabase.from('customers').select('payment_type, card_profile_code, card_profile_mode, card_last4, card_type, card_legacy_rb_pending').eq('id', invoice.customer_id).maybeSingle();
     invoice.payment_type = c?.payment_type || null;
-    invoice.saved_card = c?.card_profile_code ? { mode: c.card_profile_mode, last4: c.card_last4, type: c.card_type } : null;
+    invoice.saved_card = c?.card_profile_code ? { mode: c.card_profile_mode, last4: c.card_last4, type: c.card_type, legacyPending: !!c.card_legacy_rb_pending } : null;
   }
   if (invoice) {
     const { data: t } = await supabase.from('invoices').select('pay_token').eq('id', invoice.id).maybeSingle();
