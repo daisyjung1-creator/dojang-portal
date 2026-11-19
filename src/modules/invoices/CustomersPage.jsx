@@ -345,6 +345,16 @@ export default function CustomersPage() {
                   {(f.payment_type || 'preauth') === 'preauth' && (
                     <a href="/preauth-form.pdf" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1E4566', display: 'inline-block', marginTop: 4 }}>Print the card pre-authorization form (PDF)</a>
                   )}
+                  {f.rb_account_id && (
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid #CFE3D0', background: '#F1F8F1', fontSize: 12.5 }}>
+                      <b>Automatic tuition (TD Recurring Billing):</b> account #{f.rb_account_id}
+                      {f.rb_amount ? ` · $${Number(f.rb_amount).toFixed(2)} ${Number(f.rb_months) === 3 ? 'every 3 months' : 'every month'}` : ''}
+                      {f.rb_first_billing ? ` · from ${f.rb_first_billing}` : ''}
+                      {f.rb_card_last4 ? ` · card ···${f.rb_card_last4}` : ''}
+                      {f.rb_mode === 'test' ? ' · TEST account' : ''}
+                      <div style={{ color: '#5B5F56', marginTop: 2 }}>Set up online by the family. Change the amount or cancel it in TD Online Mart → Recurring billing.</div>
+                    </div>
+                  )}
                   {f.card_profile_code && (
                     <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${f.card_declined_at ? '#E7B7B7' : '#CFE3D0'}`, background: f.card_declined_at ? '#FBEDEC' : '#F1F8F1', fontSize: 12.5 }}>
                       <b>Saved card:</b> {f.card_type || 'Card'} ···{f.card_last4 || '????'}

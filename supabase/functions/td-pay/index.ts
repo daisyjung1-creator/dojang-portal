@@ -12,6 +12,10 @@
 //   selftest {}                                → $1.00 Worldline test-card charge on the TEST account (no real money)
 //   charge   { invoice_ids }                    → charge each family's saved card for the invoice balance (admin)
 //
+// "pay" with auto: true (+ a second token rb_token) also creates a TD Recurring
+// Billing account for the tuition on this invoice, so TD charges it every
+// period from then on — the same way the dojang's existing recurring accounts work.
+//
 // "pay" with save_card: true saves the card as a Secure Payment Profile
 // (card on file, first_recurring) so later tuition can be charged with "charge"
 // (subsequent_recurring). Profiles need TD_PROFILES_PASSCODE / TD_TEST_PROFILES_PASSCODE.
@@ -153,6 +157,79 @@ async function recordPayment(s: any, inv: any, t: any, amount: number, note: str
   return pay;
 }
 
+// Recurring Billing (TD charges the card itself on a schedule). Uses the
+// legacy form API: process_transaction.asp with trnRecurring=1.
+const RB_HOSTS = ['https://api.bam.shift4api.net', 'https://api.na.bambora.com'];
+const mmddyyyy = (iso: string) => `${iso.slice(5, 7)}${iso.slice(8, 10)}${iso.slice(0, 4)}`;
+async function createRecurring(mode: string, o: { token: string; amount: number; months: number; firstBilling: string; name: string; email?: string; order: string; comments?: string }) {
+  const live = mode === 'live';
+  const id = (Deno.env.get(live ? 'TD_MERCHANT_ID' : 'TD_TEST_MERCHANT_ID') || '').trim();
+  const pass = (Deno.env.get(live ? 'TD_PAYMENT_PASSCODE' : 'TD_TEST_PAYMENT_PASSCODE') || '').trim();
+  const form = new URLSearchParams({
+    requestType: 'BACKEND',
+    merchant_id: id,
+    passcode: pass,
+    trnType: 'P',
+    trnOrderNumber: o.order.slice(0, 30),
+    trnAmount: o.amount.toFixed(2),
+    singleUseToken: o.token,
+    trnCardOwner: o.name.slice(0, 64),
+    ordName: o.name.slice(0, 64),
+    ordEmailAddress: o.email || '',
+    trnRecurring: '1',
+    rbBillingPeriod: 'M',
+    rbBillingIncrement: String(o.months),
+    rbCharge: '0',
+    rbFirstBilling: mmddyyyy(o.firstBilling),
+    trnComments: (o.comments || '').slice(0, 200),
+  });
+  let lastErr: unknown = null;
+  for (const host of RB_HOSTS) {
+    try {
+      const res = await fetch(`${host}/scripts/process_transaction.asp`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString(), signal: AbortSignal.timeout(45000) });
+      const text = await res.text();
+      if (!/trnApproved=|messageId=|rbAccountId=/i.test(text)) {
+        console.log('rb non-api', host, res.status, text.slice(0, 160));
+        lastErr = `${res.status} from ${host}`;
+        continue;
+      }
+      const r = Object.fromEntries(new URLSearchParams(text.trim()));
+      return r as Record<string, string>;
+    } catch (e) {
+      console.log('rb error', host, String(e));
+      throw new Error('The payment gateway did not answer in time. Please check TD Online Mart (Recurring Billing) before trying again.');
+    }
+  }
+  throw new Error('Could not reach Recurring Billing: ' + String(lastErr));
+}
+
+// Automatic tuition plan for an invoice: its tuition (+ family discount) lines
+// with GST, repeating every plan period after the cycle this invoice covers.
+async function tuitionPlan(inv: any) {
+  const { data: lines } = await admin.from('invoice_lines').select('amount, taxable, line_kind, cycle_start, student_id').eq('invoice_id', inv.id);
+  const t = (lines || []).filter((l: any) => l.line_kind === 'tuition' || l.line_kind === 'discount');
+  const starts = t.map((l: any) => l.cycle_start).filter(Boolean).sort();
+  if (!t.some((l: any) => l.line_kind === 'tuition') || !starts.length) return null;
+  const ids = [...new Set(t.map((l: any) => l.student_id).filter(Boolean))];
+  const { data: st } = ids.length ? await admin.from('students').select('plan').in('id', ids) : { data: [] };
+  const months = (st || []).some((x: any) => /3/.test(String(x.plan || ''))) ? 3 : 1;
+  const rate = Number(inv.gst_rate ?? 5) / 100;
+  const amount = r2(t.reduce((n: number, l: any) => n + Number(l.amount) * (l.taxable ? 1 + rate : 1), 0));
+  if (!(amount > 0)) return null;
+  // Next charge: same day of month, `months` after the cycle start (clamped to month end).
+  const [y, m, d] = String(starts[0]).slice(0, 10).split('-').map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, last));
+  let first = target.toISOString().slice(0, 10);
+  if (first <= todayEdm()) {
+    const t2 = new Date(first + 'T00:00:00Z');
+    t2.setUTCMonth(t2.getUTCMonth() + months);
+    first = t2.toISOString().slice(0, 10);
+  }
+  return { amount, months, first };
+}
+
 async function isAdminCaller(req: Request) {
   const caller = createClient(URL_, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: req.headers.get('Authorization') || '' } } });
   const { data } = await caller.rpc('is_admin');
@@ -207,7 +284,7 @@ Deno.serve(async (req) => {
         lines: (lines || []).map((l: any) => ({ name: l.item_name || l.description, description: l.item_name && l.item_name !== l.description ? l.description : '', quantity: Number(l.quantity), amount: r2(l.amount) })),
         enabled: !!s.online_pay,
         mode,
-        can_save: !!inv.customer_id && !!(Deno.env.get(mode === 'live' ? 'TD_PROFILES_PASSCODE' : 'TD_TEST_PROFILES_PASSCODE')),
+        auto: inv.customer_id ? await tuitionPlan(inv) : null,
       };
       if (b.action === 'invoice') return json(summary);
 
@@ -252,6 +329,38 @@ Deno.serve(async (req) => {
         return json({ error: `Payment not approved: ${msg}` }, 402);
       }
       const t = r.data;
+      // Automatic tuition: create a TD Recurring Billing account with the second token.
+      let auto: any = null;
+      if (b.auto && b.rb_token && inv.customer_id) {
+        const plan = await tuitionPlan(inv);
+        if (plan) {
+          try {
+            const rb = await createRecurring(mode, { token: String(b.rb_token), amount: plan.amount, months: plan.months, firstBilling: plan.first, name, email, order: `RB${inv.invoice_number}-${Date.now().toString(36)}`, comments: `${inv.customer_name} tuition (portal)` });
+            if (rb.trnApproved === '1' && rb.rbAccountId) {
+              auto = { ...plan, account: rb.rbAccountId };
+              await admin
+                .from('customers')
+                .update({
+                  rb_account_id: rb.rbAccountId,
+                  rb_mode: mode,
+                  rb_amount: plan.amount,
+                  rb_months: plan.months,
+                  rb_first_billing: plan.first,
+                  rb_card_last4: t.card?.last_four || null,
+                  rb_created_at: new Date().toISOString(),
+                  rb_consent: String(b.consent || '').slice(0, 2000) || null,
+                  ...(mode === 'live' ? { payment_type: 'preauth' } : {}),
+                })
+                .eq('id', inv.customer_id);
+            } else {
+              auto = { error: rb.messageText || 'Automatic payments could not be set up.' };
+            }
+          } catch (e) {
+            auto = { error: String((e as Error).message || e) };
+          }
+          if (auto?.error && s.email) await admin.from('email_queue').insert({ type: 'broadcast', recipient_email: s.email, payload: { subject: `[Action needed] Automatic tuition not set up — ${inv.customer_name}`, message: `${inv.customer_name} paid invoice #${inv.invoice_number} online and asked for automatic tuition, but the TD Recurring Billing account could not be created: ${auto.error}\n\nPlease set it up in TD Online Mart or ask the family to save their card again.` } });
+        }
+      }
       if (saved) {
         // Remember the saved card on the family (both modes, tagged with the mode).
         await admin
@@ -272,10 +381,10 @@ Deno.serve(async (req) => {
           .eq('id', inv.customer_id);
       }
       // Test mode: the charge went to the TD test account only — don't touch the real books.
-      if (mode === 'test') return json({ ok: true, approved: true, recorded: false, test: true, saved: !!saved, transaction: t.id, amount: balance, card: t.card?.last_four || '', mode });
+      if (mode === 'test') return json({ ok: true, approved: true, recorded: false, test: true, saved: !!saved, auto, transaction: t.id, amount: balance, card: t.card?.last_four || '', mode });
       const pay = await recordPayment(s, inv, t, balance, saved ? 'Paid online, card saved for tuition' : 'Paid online (Pay now)', b.email);
       if (!pay) return json({ ok: true, approved: true, recorded: false, transaction: t.id, amount: balance });
-      return json({ ok: true, approved: true, recorded: true, saved: !!saved, receipt: pay.receipt_number, amount: balance, card: t.card?.last_four || '', mode });
+      return json({ ok: true, approved: true, recorded: true, saved: !!saved, auto, receipt: pay.receipt_number, amount: balance, card: t.card?.last_four || '', mode });
     }
 
     if (b.action === 'charge') {
