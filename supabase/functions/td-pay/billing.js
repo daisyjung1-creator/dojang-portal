@@ -1,0 +1,315 @@
+// Copied from src/lib/billingDates.js, src/lib/invoiceUtils.js and src/lib/tuitionBilling.js
+// (same rules as the Billing page). Regenerate with scripts/sync-edge-billing.sh after changing those.
+// @ts-nocheck
+// Billing-cycle date helpers.
+//
+// Each student has a billing anchor date: `billing_start_date` if set,
+// otherwise their enrollment date (they're the same by default). Cycles repeat
+// from that anchor every 1 month ("1 Month" plan) or every 3 months
+// ("3 Months" plan). A billing day past the end of a short month falls on that
+// month's last day (e.g. anchored on the 31st → bills Feb 28).
+//
+// Dates are local YYYY-MM-DD strings throughout.
+
+function iso(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parse(s) {
+  return new Date(s + 'T00:00:00');
+}
+
+export function todayISO() {
+  return iso(new Date());
+}
+
+export function addDaysISO(dateStr, n) {
+  const d = parse(dateStr);
+  d.setDate(d.getDate() + n);
+  return iso(d);
+}
+
+// anchor + k months, keeping the anchor's day-of-month where possible.
+function addMonthsClamped(anchorStr, k) {
+  const a = parse(anchorStr);
+  const day = a.getDate();
+  const target = new Date(a.getFullYear(), a.getMonth() + k, 1);
+  const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(day, last));
+  return iso(target);
+}
+
+export const PLANS = [
+  { value: '1 Month', months: 1 },
+  { value: '3 Months', months: 3 },
+];
+
+export function planMonths(student) {
+  return student && student.plan === '3 Months' ? 3 : 1;
+}
+
+export function billingAnchor(student) {
+  return (student && (student.billing_start_date || student.enroll_date)) || null;
+}
+
+export function getBillingDay(student) {
+  const a = billingAnchor(student);
+  if (a) {
+    const d = parse(a);
+    if (!isNaN(d.getTime())) return d.getDate();
+  }
+  return 1;
+}
+
+// Index of the cycle containing `onDateStr` (can be negative before the anchor).
+function cycleIndexOn(student, onDateStr) {
+  const anchor = billingAnchor(student);
+  const step = planMonths(student);
+  const on = parse(onDateStr);
+  const a = parse(anchor);
+  let k = Math.floor(((on.getFullYear() - a.getFullYear()) * 12 + (on.getMonth() - a.getMonth())) / step) + 1;
+  while (addMonthsClamped(anchor, k * step) > onDateStr) k--;
+  return k;
+}
+
+// Start of the billing cycle the student is in on `onDateStr`.
+export function currentCycleStart(student, onDateStr) {
+  const anchor = billingAnchor(student);
+  if (!anchor) return onDateStr;
+  return addMonthsClamped(anchor, cycleIndexOn(student, onDateStr) * planMonths(student));
+}
+
+// First billing date strictly after `fromDateStr` for this student.
+export function nextDueDate(student, fromDateStr) {
+  const anchor = billingAnchor(student);
+  if (!anchor) return addDaysISO(fromDateStr, 30);
+  return addMonthsClamped(anchor, (cycleIndexOn(student, fromDateStr) + 1) * planMonths(student));
+}
+
+// Kept for older callers: next date after `fromDateStr` on the given day of month.
+export function nextBillingDateAfter(fromDateStr, billingDay) {
+  const d = parse(fromDateStr);
+  d.setDate(d.getDate() + 1);
+  for (let i = 0; i < 62; i++) {
+    if (d.getDate() === billingDay) return iso(d);
+    d.setDate(d.getDate() + 1);
+  }
+  return addDaysISO(fromDateStr, 30);
+}
+
+export function cycleEndBefore(nextBillingDateStr) {
+  return addDaysISO(nextBillingDateStr, -1);
+}
+
+// Tentative makeup-class expiration = absence date + 30 days, on the
+// assumption the student continues into the next billing cycle. Collapses to
+// the paid period's last day if that next cycle turns out unpaid.
+export function computeMakeupWindow(student, absenceDate) {
+  const nextBillingDate = nextDueDate(student, absenceDate);
+  const paidPeriodEnd = cycleEndBefore(nextBillingDate);
+  const tentativeExpiration = addDaysISO(absenceDate, 30);
+  return { nextBillingDate, paidPeriodEnd, tentativeExpiration };
+}
+
+// Days from today until `dateStr` (negative if past).
+export function daysUntil(dateStr) {
+  return Math.round((parse(dateStr) - parse(todayISO())) / 86400000);
+}
+const moneyFmt = new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' });
+
+export function money(n) {
+  const num = Number(n) || 0;
+  return moneyFmt.format(num).replace('CA$', '$');
+}
+
+export function round2(n) {
+  return Math.round((Number(n) || 0) * 100 + Number.EPSILON) / 100;
+}
+export function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+export function lineAmount(line) {
+  return round2((Number(line.quantity) || 0) * (Number(line.unit_price) || 0));
+}
+export function calcTotals(lines, gstRate) {
+  const subtotal = round2(lines.reduce((s, l) => s + lineAmount(l), 0));
+  const taxableBase = round2(lines.filter((l) => l.taxable).reduce((s, l) => s + lineAmount(l), 0));
+  const gst = round2((taxableBase * (Number(gstRate) || 0)) / 100);
+  return { subtotal, gst, total: round2(subtotal + gst) };
+}
+// Turns students' billing cycles into tuition invoices.
+//
+// Each student bills on their own cycle (see billingDates.js). Cycles that
+// start within `leadDays` (default 7) and haven't been invoiced yet are offered
+// on the Billing page. Families who pay by pre-authorized credit card don't
+// get anything in advance: their invoice is made (and paid) on the billing
+// date. Families who pay manually (debit / cash) get the invoice `leadDays`
+// ahead. Siblings (same family = same customer) with the same
+// billing date share one invoice, unless the family is set to "separate
+// invoices". Big-family discount and subsidy lines are added automatically.
+
+
+export const REREGISTRATION_FEE = 20;
+
+// On hold (휴관) on this date: a break with a return date.
+export function onHold(s, iso) {
+  return !!(s && s.hold_until && iso <= s.hold_until && iso >= (s.hold_from || iso));
+}
+
+// What's left of a subsidy grant (e.g. KidSport $300) before this invoice.
+// student._subsidyUsed is filled in by the Billing page from earlier invoices.
+export function subsidyLeft(s) {
+  if (!s || !(Number(s.subsidy_total) > 0)) return null;
+  return round2(Math.max(Number(s.subsidy_total) - Number(s._subsidyUsed || 0), 0));
+}
+
+// Students who get tuition invoices.
+export function isBillable(s) {
+  return s && (s.status || 'active') !== 'withdrawn' && !s.billing_exempt && Number(s.tuition) > 0 && !!billingAnchor(s);
+}
+
+// Billing dates (cycle starts) between today − graceDays and today + leadDays.
+export function cyclesInWindow(student, today, leadDays = 7, graceDays = 7) {
+  if (!billingAnchor(student)) return [];
+  const from = addDaysISO(today, -graceDays);
+  const to = addDaysISO(today, leadDays);
+  const out = [];
+  let d = currentCycleStart(student, from);
+  if (d < from) d = nextDueDate(student, from);
+  for (let i = 0; i < 6 && d <= to; i++) {
+    // Membership cancelled: nothing after the last paid day.
+    if (student.billing_end_date && d > student.billing_end_date) break;
+    // On hold (휴관): that cycle isn't billed.
+    if (d >= from && !onHold(student, d)) out.push(d);
+    d = nextDueDate(student, d);
+  }
+  return out;
+}
+
+export function cycleEnd(student, cycleStart) {
+  return addDaysISO(nextDueDate(student, cycleStart), -1);
+}
+
+const firstName = (n) => String(n || '').split(' ')[0];
+
+// Invoice lines for one student's cycle: tuition, then discount / subsidy.
+export function tuitionLines(student, cycleStart, settings = {}) {
+  const tuition = round2(student.tuition);
+  const three = student.plan === '3 Months';
+  const perWeek = student.classes_per_week ? `${student.classes_per_week}x/week ` : '';
+  const lines = [
+    {
+      student_id: student.id,
+      cycle_start: cycleStart,
+      line_kind: 'tuition',
+      item_name: 'Tuition',
+      description: `${student.name} — ${perWeek}${three ? '3-month' : 'monthly'} tuition (${formatDate(cycleStart)} – ${formatDate(cycleEnd(student, cycleStart))})`,
+      quantity: 1,
+      unit_price: tuition,
+      taxable: true,
+    },
+  ];
+  if (student.family_discount) {
+    const pct = Number(settings.family_discount_pct ?? 20);
+    lines.push({
+      student_id: student.id,
+      cycle_start: cycleStart,
+      line_kind: 'discount',
+      item_name: 'Discount',
+      description: `Big family discount ${pct}% — ${firstName(student.name)}`,
+      quantity: 1,
+      unit_price: -round2((tuition * pct) / 100),
+      taxable: true,
+    });
+  }
+  const left = subsidyLeft(student);
+  if (student.subsidy && (!student.subsidy_status || student.subsidy_status === 'approved') && Number(student.subsidy_amount) > 0 && (!student.subsidy_end_date || cycleStart <= student.subsidy_end_date) && left !== 0) {
+    const months = three ? 3 : 1;
+    const name = (student.subsidy_name || 'Subsidy').trim();
+    let amt = round2(Number(student.subsidy_amount) * months);
+    if (left != null) amt = Math.min(amt, left);
+    // With a grant total: show the balance left and how long it's good for.
+    // e.g. "KidSport for Adonis — $100.00 left of the $148.00 grant after this invoice (good until Dec 31, 2026)"
+    const balance = left != null ? ` — ${money(left - amt)} left of the ${money(student.subsidy_total)} grant after this invoice` : '';
+    const until = student.subsidy_end_date ? (left != null ? ` (good until ${formatDate(student.subsidy_end_date)})` : ` — until ${formatDate(student.subsidy_end_date)}`) : '';
+    lines.push({
+      student_id: student.id,
+      cycle_start: cycleStart,
+      line_kind: 'subsidy',
+      item_name: name,
+      description: `${name} for ${firstName(student.name)}${months > 1 ? ` (${months} months)` : ''}${balance}${until}`,
+      quantity: 1,
+      unit_price: -amt,
+      taxable: false,
+    });
+  }
+  // Coming back after their membership ended (Part 7.4): one-time fee.
+  if (student.reregistration_fee_due) {
+    lines.push({
+      student_id: student.id,
+      cycle_start: cycleStart,
+      line_kind: 'reregistration',
+      item_name: 'Re-registration fee',
+      description: `Re-registration fee — ${firstName(student.name)}`,
+      quantity: 1,
+      unit_price: round2(Number(settings.reregistration_fee ?? REREGISTRATION_FEE)),
+      taxable: true,
+    });
+  }
+  return lines;
+}
+
+// invoicedCycles: Set of `${student_id}|${cycle_start}` already on a live invoice.
+// Returns proposed invoices: [{ key, customer, students, due_date, lines, totals, past }]
+export const isManual = (cust) => !!cust && cust.payment_type === 'manual';
+
+export function proposeInvoices({ students, customers, invoicedCycles, today, settings = {} }) {
+  const manualLead = Number(settings.invoice_lead_days ?? 7);
+  const custById = Object.fromEntries((customers || []).map((c) => [c.id, c]));
+  const groups = {};
+  for (const s of students) {
+    if (!isBillable(s)) continue;
+    const cust = custById[s.customer_id] || null;
+    for (const d of cyclesInWindow(s, today, isManual(cust) ? manualLead : 0)) {
+      if (invoicedCycles.has(`${s.id}|${d}`)) continue;
+      const key = (cust && !cust.separate_invoices ? 'c:' + cust.id : 's:' + s.id) + '|' + d;
+      (groups[key] = groups[key] || { key, customer: cust, students: [], due_date: d, lines: [] }).students.push(s);
+    }
+  }
+  return Object.values(groups)
+    .map((g) => {
+      g.students.sort((a, b) => a.name.localeCompare(b.name));
+      g.lines = g.students.flatMap((s) => tuitionLines(s, g.due_date, settings));
+      g.totals = calcTotals(g.lines, settings.gst_rate ?? 5);
+      g.past = g.due_date < today;
+      g.manual = isManual(g.customer);
+      return g;
+    })
+    .sort((a, b) => (a.due_date === b.due_date ? familyName(a).localeCompare(familyName(b)) : a.due_date < b.due_date ? -1 : 1));
+}
+
+export function familyName(g) {
+  return (g.customer && g.customer.name) || g.students.map((s) => s.name).join(' & ');
+}
+
+// Header for saveInvoice().
+export function invoiceHeader(g, settings, today) {
+  const c = g.customer || {};
+  const first = g.students[0] || {};
+  return {
+    customer_id: c.id || null,
+    customer_name: c.name || g.students.map((s) => s.name).join(' & '),
+    customer_email: c.email || first.guardian_email || '',
+    customer_address: c.address || first.address || '',
+    invoice_date: today,
+    due_date: g.due_date < today ? today : g.due_date,
+    gst_rate: settings.gst_rate ?? 5,
+    notes: '',
+  };
+}
+

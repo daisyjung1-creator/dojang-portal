@@ -128,6 +128,8 @@ export default function HomePage({ setActiveTab }) {
       invs = invs.concat(data || []);
     }
     const invById = Object.fromEntries(invs.map((x) => [x.id, x]));
+    // Today's automatic tuition run (saved cards), if it has run.
+    const { data: autoRun } = await supabase.from('auto_billing_runs').select('*').eq('run_date', today).maybeSingle();
     const cycleInv = {};
     tl.forEach((l) => {
       const inv = invById[l.invoice_id];
@@ -141,6 +143,7 @@ export default function HomePage({ setActiveTab }) {
     setSettings(s);
     setNotes(n || []);
     setD({
+      autoRun: autoRun || null,
       students: (students || []).filter((x) => (x.status || 'active') !== 'withdrawn'),
       custById: Object.fromEntries((customers || []).map((c) => [c.id, c])),
       schedule: schedule || [],
@@ -397,7 +400,20 @@ export default function HomePage({ setActiveTab }) {
       tab: 'students',
       label: 'Students',
     });
-  // Saved cards (online payments): declined charges and cards expiring soon.
+  // Saved cards (online payments): today's automatic tuition, declined charges and cards expiring soon.
+  if (d.autoRun?.results) {
+    const ok = d.autoRun.results.charged || [];
+    const bad = [...(d.autoRun.results.problems || []), ...(d.autoRun.results.error ? [{ customer: 'Run', error: d.autoRun.results.error }] : [])];
+    if (ok.length || bad.length) {
+      const sum = ok.reduce((n, x) => n + Number(x.amount || 0), 0);
+      todayItems.push({
+        tone: bad.length ? 'warn' : 'info',
+        text: `Automatic tuition today: ${ok.length} charged${ok.length ? ` ($${sum.toFixed(2)})` : ''}${bad.length ? ` · ${bad.length} not charged — ${bad.map((x) => `${x.customer}${x.number ? ` #${x.number}` : ''}: ${x.declined || x.error}`).join(', ')}` : ''}`,
+        tab: 'invoices',
+        label: 'Invoices',
+      });
+    }
+  }
   {
     const cards = Object.values(d.custById).filter((c) => c.card_profile_code && c.active !== false);
     const declined = cards.filter((c) => c.card_declined_at);

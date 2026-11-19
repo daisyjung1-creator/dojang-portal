@@ -11,6 +11,8 @@
 //   pay      { pay_token, token, name, email }  → charge the balance (public)
 //   selftest {}                                → $1.00 Worldline test-card charge on the TEST account (no real money)
 //   charge   { invoice_ids }                    → charge each family's saved card for the invoice balance (admin)
+//   autobill {}                                 → daily automatic tuition (pg_cron): invoice + charge saved-card
+//                                                  families whose billing date is today (once a day, live only)
 //
 // "pay" with auto: true (+ a second token rb_token) also creates a TD Recurring
 // Billing account for the tuition on this invoice, so TD charges it every
@@ -27,6 +29,7 @@
 // invoice's pay link can be tried safely with Worldline's test cards.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { proposeInvoices, invoiceHeader, calcTotals, lineAmount, addDaysISO } from './billing.js';
 
 const URL_ = Deno.env.get('SUPABASE_URL')!;
 const admin = createClient(URL_, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -258,6 +261,100 @@ async function autoOffer(inv: any) {
   return { plan, required: !!plan && (c?.payment_type || 'preauth') === 'preauth' };
 }
 
+// Charges a family's saved card for one invoice's balance (records + receipt in live mode).
+async function chargeOne(s: any, mode: string, id: string) {
+  const { data: inv } = await admin.from('invoice_summary').select('*').eq('id', id).maybeSingle();
+  if (!inv || inv.voided) return { id, error: 'Invoice not found' };
+  const balance = r2(inv.balance);
+  if (!(balance > 0.004)) return { id, number: inv.invoice_number, skipped: 'already paid' };
+  const { data: c } = await admin.from('customers').select('id, name, card_profile_code, card_profile_mode, card_series_id, card_declined_at').eq('id', inv.customer_id).maybeSingle();
+  if (!c?.card_profile_code || c.card_profile_mode !== mode) return { id, number: inv.invoice_number, customer: inv.customer_name, error: 'No saved card' };
+  let r;
+  try {
+    r = await gateway(mode, {
+      order_number: `INV${inv.invoice_number}-${Date.now().toString(36)}`.slice(0, 30),
+      amount: balance,
+      payment_method: 'payment_profile',
+      payment_profile: { customer_code: c.card_profile_code, card_id: 1, complete: true },
+      card_on_file: c.card_series_id ? { type: 'subsequent_recurring', series_id: Number(c.card_series_id) || c.card_series_id } : { type: 'subsequent_recurring' },
+      comments: `Invoice #${inv.invoice_number} (tuition)`,
+    });
+  } catch (e) {
+    return { id, number: inv.invoice_number, customer: inv.customer_name, error: String((e as Error).message || e) };
+  }
+  if (!r.ok) {
+    const msg = errMsg(r.data, 'Declined');
+    await admin.from('customers').update({ card_declined_at: new Date().toISOString(), card_decline_message: msg.slice(0, 300) }).eq('id', c.id);
+    return { id, number: inv.invoice_number, customer: inv.customer_name, declined: msg };
+  }
+  const t = r.data;
+  if (c.card_declined_at) await admin.from('customers').update({ card_declined_at: null, card_decline_message: null }).eq('id', c.id);
+  if (mode === 'test') return { id, number: inv.invoice_number, customer: inv.customer_name, approved: true, test: true, amount: balance };
+  const pay = await recordPayment(s, inv, t, balance, 'Saved card (automatic tuition)');
+  return { id, number: inv.invoice_number, customer: inv.customer_name, approved: true, recorded: !!pay, amount: balance };
+}
+
+// Daily automatic tuition: same rules as the Billing page's pre-authorized
+// run, for families with a saved card. Billing dates from the last 3 days are
+// included (in case a run was missed), never ones before the card was saved.
+async function autoBill(_s: any, mode: string, today: string, dry = false): Promise<any> {
+  const { data: settings } = await admin.from('invoice_settings').select('*').eq('id', 1).single();
+  const { data: custs } = await admin.from('customers').select('*').not('card_profile_code', 'is', null).eq('card_profile_mode', mode);
+  const cards = (custs || []).filter((c: any) => c.payment_type !== 'manual');
+  if (!cards.length) return dry ? [] : { charged: [], problems: [] };
+  const { data: students } = await admin.from('students').select('*').in('customer_id', cards.map((c: any) => c.id));
+  const st = students || [];
+  const { data: lines } = st.length
+    ? await admin.from('invoice_lines').select('student_id, cycle_start, line_kind, amount, invoices!inner(voided)').in('student_id', st.map((x: any) => x.id)).gte('cycle_start', addDaysISO(today, -400))
+    : { data: [] };
+  const live = (lines || []).filter((l: any) => !l.invoices?.voided);
+  const invoiced = new Set(live.filter((l: any) => l.line_kind === 'tuition').map((l: any) => `${l.student_id}|${l.cycle_start}`));
+  const used: Record<string, number> = {};
+  live.filter((l: any) => l.line_kind === 'subsidy').forEach((l: any) => {
+    const x = st.find((y: any) => y.id === l.student_id);
+    if (!x || (x.subsidy_start_date && l.cycle_start < x.subsidy_start_date)) return;
+    used[l.student_id] = (used[l.student_id] || 0) - Number(l.amount || 0);
+  });
+  const stu = st.map((x: any) => (used[x.id] ? { ...x, _subsidyUsed: used[x.id] } : x));
+  // First automatic charge at least a week after the card was saved (the first cycle was paid online).
+  const firstAuto: Record<string, string> = Object.fromEntries(cards.map((c: any) => [c.id, addDaysISO(new Date(c.card_saved_at || Date.now()).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }), 7)]));
+  const props = proposeInvoices({ students: stu, customers: cards, invoicedCycles: invoiced, today, settings })
+    .filter((p: any) => p.customer && p.due_date >= addDaysISO(today, -3) && p.due_date <= today && p.due_date >= firstAuto[p.customer.id]);
+  if (dry) return props;
+  const charged: any[] = [];
+  const problems: any[] = [];
+  for (const p of props) {
+    try {
+      const h = invoiceHeader(p, settings, today);
+      const clean = p.lines.filter((l: any) => (l.description || '').trim() || Number(l.unit_price));
+      const tot = calcTotals(clean, h.gst_rate);
+      const { data: inv, error } = await admin
+        .from('invoices')
+        .insert({ ...h, customer_email: h.customer_email || null, customer_address: h.customer_address || null, notes: 'Automatic tuition (saved card)', subtotal: tot.subtotal, gst_amount: tot.gst, total: tot.total })
+        .select()
+        .single();
+      if (error) throw error;
+      const { error: le } = await admin.from('invoice_lines').insert(
+        clean.map((l: any, i: number) => ({ invoice_id: inv.id, position: i, student_id: l.student_id || null, cycle_start: l.cycle_start || null, line_kind: l.line_kind || null, item_name: l.item_name || null, description: l.description || '', quantity: Number(l.quantity) || 0, unit_price: Number(l.unit_price) || 0, taxable: !!l.taxable, amount: lineAmount(l) }))
+      );
+      if (le) throw le;
+      const refee = [...new Set(clean.filter((l: any) => l.line_kind === 'reregistration').map((l: any) => l.student_id))];
+      if (refee.length) await admin.from('students').update({ reregistration_fee_due: false }).in('id', refee);
+      const { data: credit } = await admin.rpc('apply_customer_credit', { p_invoice: inv.id, p_amount: null });
+      if (r2(tot.total - Number(credit || 0)) <= 0.004) {
+        charged.push({ customer: p.customer.name, number: inv.invoice_number, amount: 0, credit: Number(credit || 0) });
+        continue;
+      }
+      const res: any = await chargeOne(_s, mode, inv.id);
+      if (res.approved) charged.push({ customer: p.customer.name, number: inv.invoice_number, amount: res.amount });
+      else problems.push({ customer: p.customer.name, number: inv.invoice_number, declined: res.declined, error: res.error });
+    } catch (e: any) {
+      problems.push({ customer: p.customer?.name || '?', error: String(e?.message || e).slice(0, 300) });
+    }
+  }
+  return { charged, problems };
+}
+
 async function isAdminCaller(req: Request) {
   const caller = createClient(URL_, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: req.headers.get('Authorization') || '' } } });
   const { data } = await caller.rpc('is_admin');
@@ -426,34 +523,41 @@ Deno.serve(async (req) => {
       if (!(await isAdminCaller(req))) return json({ error: 'Admins only' }, 403);
       const ids: string[] = Array.isArray(b.invoice_ids) ? b.invoice_ids.slice(0, 100) : [];
       const results: any[] = [];
-      for (const id of ids) {
-        const { data: inv } = await admin.from('invoice_summary').select('*').eq('id', id).maybeSingle();
-        if (!inv || inv.voided) { results.push({ id, error: 'Invoice not found' }); continue; }
-        const balance = r2(inv.balance);
-        if (!(balance > 0.004)) { results.push({ id, number: inv.invoice_number, skipped: 'already paid' }); continue; }
-        const { data: c } = await admin.from('customers').select('id, name, card_profile_code, card_profile_mode, card_series_id, card_declined_at').eq('id', inv.customer_id).maybeSingle();
-        if (!c?.card_profile_code || c.card_profile_mode !== mode) { results.push({ id, number: inv.invoice_number, customer: inv.customer_name, error: 'No saved card' }); continue; }
-        const r = await gateway(mode, {
-          order_number: `INV${inv.invoice_number}-${Date.now().toString(36)}`.slice(0, 30),
-          amount: balance,
-          payment_method: 'payment_profile',
-          payment_profile: { customer_code: c.card_profile_code, card_id: 1, complete: true },
-          card_on_file: c.card_series_id ? { type: 'subsequent_recurring', series_id: Number(c.card_series_id) || c.card_series_id } : { type: 'subsequent_recurring' },
-          comments: `Invoice #${inv.invoice_number} (tuition)`,
-        });
-        if (!r.ok) {
-          const msg = errMsg(r.data, 'Declined');
-          await admin.from('customers').update({ card_declined_at: new Date().toISOString(), card_decline_message: msg.slice(0, 300) }).eq('id', c.id);
-          results.push({ id, number: inv.invoice_number, customer: inv.customer_name, declined: msg });
-          continue;
-        }
-        const t = r.data;
-        if (c.card_declined_at) await admin.from('customers').update({ card_declined_at: null, card_decline_message: null }).eq('id', c.id);
-        if (mode === 'test') { results.push({ id, number: inv.invoice_number, customer: inv.customer_name, approved: true, test: true, amount: balance }); continue; }
-        const pay = await recordPayment(s, inv, t, balance, 'Saved card (automatic tuition)');
-        results.push({ id, number: inv.invoice_number, customer: inv.customer_name, approved: true, recorded: !!pay, amount: balance });
-      }
+      for (const id of ids) results.push(await chargeOne(s, mode, id));
       return json({ mode, results });
+    }
+
+    if (b.action === 'autobill') {
+      // Dry run: what today's run would invoice (counts only, nothing created or charged).
+      if (b.dry) {
+        const day = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? String(b.date) : todayEdm();
+        const props = await autoBill(s, mode, day, true);
+        return json({ mode, date: day, would_invoice: props.map((p: any) => ({ due: p.due_date, students: p.students.length, total: p.totals.total })) });
+      }
+      if (!s.online_pay || mode !== 'live') return json({ skipped: 'Online payments are not live.' });
+      const today = todayEdm();
+      // Once a day: the row is the lock, so a second call (or a retry) does nothing.
+      const { error: lockErr } = await admin.from('auto_billing_runs').insert({ run_date: today });
+      if (lockErr) return json({ skipped: 'Already ran today.' });
+      let out: any;
+      try {
+        out = await autoBill(s, mode, today);
+      } catch (e) {
+        out = { error: String((e as Error).message || e).slice(0, 500), charged: [], problems: [] };
+      }
+      await admin.from('auto_billing_runs').update({ finished_at: new Date().toISOString(), results: out }).eq('run_date', today);
+      const problems = [...(out.problems || []), ...(out.error ? [{ customer: 'Automatic tuition run', error: out.error }] : [])];
+      if (problems.length && s.email) {
+        await admin.from('email_queue').insert({
+          type: 'broadcast',
+          recipient_email: s.email,
+          payload: {
+            subject: `[Action needed] Automatic tuition ${today}: ${problems.length} not charged`,
+            message: `Charged: ${(out.charged || []).length}\n\nNot charged (the invoices stay unpaid in the portal):\n${problems.map((x: any) => `- ${x.customer}${x.number ? ` (invoice #${x.number})` : ''}: ${x.declined || x.error}`).join('\n')}`,
+          },
+        });
+      }
+      return json(out);
     }
 
     return json({ error: 'Unknown action' }, 400);
