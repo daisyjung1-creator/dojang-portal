@@ -360,6 +360,39 @@ async function autoBill(_s: any, mode: string, today: string, dry = false): Prom
   return { charged, problems };
 }
 
+// The daily run's private key (table app_secrets; only pg_cron and this function can read it).
+async function autobillKeyOk(k: unknown) {
+  if (!k || typeof k !== 'string' || k.length < 32) return false;
+  const { data } = await admin.from('app_secrets').select('value').eq('name', 'autobill_key').maybeSingle();
+  return !!data?.value && data.value === k;
+}
+
+// Card-testing protection for the public pay page: failed attempts are logged;
+// 5 failures on one invoice lock it for an hour, 20 failures across all
+// invoices in 10 minutes pause online payments (and the dojang is emailed once).
+const INVOICE_FAIL_LIMIT = 5;
+const GLOBAL_FAIL_LIMIT = 20;
+const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+async function payBlocked(invoiceId: string) {
+  const [{ count: inv }, { count: all }] = await Promise.all([
+    admin.from('pay_attempts').select('id', { count: 'exact', head: true }).eq('invoice_id', invoiceId).gte('created_at', ago(3600e3)),
+    admin.from('pay_attempts').select('id', { count: 'exact', head: true }).gte('created_at', ago(600e3)),
+  ]);
+  if ((all || 0) >= GLOBAL_FAIL_LIMIT) return 'Online payments are paused for a few minutes. Please try again later or contact the Dojang.';
+  if ((inv || 0) >= INVOICE_FAIL_LIMIT) return 'Too many unsuccessful attempts for this invoice. Please try again in an hour or contact the Dojang.';
+  return '';
+}
+async function logPayFail(s: any, inv: any, message: string) {
+  await admin.from('pay_attempts').insert({ invoice_id: inv.id, message: String(message || '').slice(0, 300) });
+  const { count } = await admin.from('pay_attempts').select('id', { count: 'exact', head: true }).gte('created_at', ago(600e3));
+  if (count === GLOBAL_FAIL_LIMIT && s.email)
+    await admin.from('email_queue').insert({
+      type: 'broadcast',
+      recipient_email: s.email,
+      payload: { subject: '[Security] Online card payments paused', message: `${GLOBAL_FAIL_LIMIT} card payments failed on the portal pay page in the last 10 minutes (last one: invoice #${inv.invoice_number}). This can mean someone is testing stolen cards. Online payments pause automatically and start again once the failures stop.\n\nNothing is needed if this was expected. Otherwise check TD Online Mart for unusual declined transactions.` },
+    });
+}
+
 async function isAdminCaller(req: Request) {
   const caller = createClient(URL_, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: req.headers.get('Authorization') || '' } } });
   const { data } = await caller.rpc('is_admin');
@@ -387,6 +420,7 @@ Deno.serve(async (req) => {
     const mode = s.online_pay_mode === 'live' ? 'live' : 'test';
 
     if (b.action === 'selftest') {
+      if (!(await isAdminCaller(req)) && !(await autobillKeyOk(b.key))) return json({ error: 'Admins only' }, 403);
       // Always the TEST account with Worldline's approved test Visa — never a real charge.
       const r = await gateway('test', {
         order_number: 'TEST-' + Date.now().toString(36),
@@ -427,6 +461,8 @@ Deno.serve(async (req) => {
       if (!(balance > 0.004)) return json({ error: 'This invoice is already paid. Thank you!', paid: true }, 400);
       const token = String(b.token || '');
       if (!token) return json({ error: 'Card details are missing.' }, 400);
+      const blocked = await payBlocked(inv.id);
+      if (blocked) return json({ error: blocked }, 429);
       const useProfile = !!offer.plan && !!b.auto && profilesReady(mode);
       if (offer.required && !(b.auto && (useProfile || b.rb_token))) return json({ error: 'Please tick "Pay tuition automatically with this card" — pre-authorized card memberships are charged automatically.' }, 400);
       const name = String(b.name || inv.customer_name || '').slice(0, 64);
@@ -439,6 +475,7 @@ Deno.serve(async (req) => {
         try {
           saved = await saveProfile(mode, token, name, email, inv);
         } catch (e) {
+          await logPayFail(s, inv, 'Card not saved: ' + String((e as Error).message || e));
           return json({ error: String((e as Error).message || e) }, 400);
         }
         r = await gateway(mode, {
@@ -462,6 +499,7 @@ Deno.serve(async (req) => {
       if (!r.ok) {
         const msg = r.data?.message || r.data?.details?.[0]?.message || 'The card was declined.';
         console.log('declined', inv.invoice_number, r.status, JSON.stringify(r.data).slice(0, 300));
+        await logPayFail(s, inv, msg);
         return json({ error: `Payment not approved: ${msg}` }, 402);
       }
       const t = r.data;
@@ -536,6 +574,8 @@ Deno.serve(async (req) => {
     }
 
     if (b.action === 'autobill') {
+      // Only the scheduled run (private key) — or an admin for the dry run.
+      if (!(await autobillKeyOk(b.key)) && !(b.dry && (await isAdminCaller(req)))) return json({ error: 'Not allowed' }, 403);
       // Dry run: what today's run would invoice (counts only, nothing created or charged).
       if (b.dry) {
         const day = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? String(b.date) : todayEdm();
