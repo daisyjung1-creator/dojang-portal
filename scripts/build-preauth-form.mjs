@@ -131,7 +131,7 @@ const slashX = end + 16 + width('Expiry (MM/YY)', 7.8) + 6 + 26;
 text('/', slashX + 1.5, y - 11, 9);
 y -= 26;
 row([['Cardholder name (as shown on the card)', 1.3], ['Relationship to student (if not the parent above)', 1]]);
-para('For your security, we do not ask for the 3-digit security code (CVC) on paper. Card details are kept in a locked file at the Dojang, used only for the charges you authorize here, and never emailed.', { size: 6.8, color: MUTE });
+para('**Credit cards only** - debit cards (including Visa Debit and Debit Mastercard) cannot be used. For your security, we do not ask for the 3-digit security code (CVC) on paper. Card details are kept in a locked file at the Dojang, used only for the charges you authorize here, and never emailed.', { size: 6.8, color: MUTE });
 
 // ── 3. Payment schedule ──
 section('3', 'Payment schedule — tick one');

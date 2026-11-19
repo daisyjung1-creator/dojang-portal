@@ -50,6 +50,12 @@ function creds(mode: string) {
   return { id: id.trim(), auth: 'Passcode ' + btoa(`${id.trim()}:${pass.trim()}`) };
 }
 
+// Saved cards (Payment Profiles) are used for automatic tuition when the
+// account's profiles passcode is set; otherwise TD Recurring Billing.
+function profilesReady(mode: string) {
+  return !!(Deno.env.get(mode === 'live' ? 'TD_PROFILES_PASSCODE' : 'TD_TEST_PROFILES_PASSCODE') || '').trim();
+}
+
 function profileAuth(mode: string) {
   const live = mode === 'live';
   const id = (Deno.env.get(live ? 'TD_MERCHANT_ID' : 'TD_TEST_MERCHANT_ID') || '').trim();
@@ -287,7 +293,7 @@ Deno.serve(async (req) => {
         // A different test number can be passed (still the TEST account — never real money).
         card: { name: 'Portal Test', number: /^\d{13,19}$/.test(String(b.number || '')) ? String(b.number) : '4030000010001234', expiry_month: '12', expiry_year: '30', cvd: '123', complete: true },
       });
-      return json({ card_type: r.data?.card?.card_type || null, ok: r.ok, status: r.status, message: r.data?.message || r.data?.details?.[0]?.message || '', id: r.data?.id || null, live_secrets_set: !!(Deno.env.get('TD_MERCHANT_ID') && Deno.env.get('TD_PAYMENT_PASSCODE')), test_profiles_secret_set: !!Deno.env.get('TD_TEST_PROFILES_PASSCODE') });
+      return json({ card_type: r.data?.card?.card_type || null, ok: r.ok, status: r.status, message: r.data?.message || r.data?.details?.[0]?.message || '', id: r.data?.id || null, live_secrets_set: !!(Deno.env.get('TD_MERCHANT_ID') && Deno.env.get('TD_PAYMENT_PASSCODE')), test_profiles_secret_set: !!Deno.env.get('TD_TEST_PROFILES_PASSCODE'), live_profiles_secret_set: profilesReady('live') });
     }
 
     if (b.action === 'invoice' || b.action === 'pay') {
@@ -311,6 +317,7 @@ Deno.serve(async (req) => {
       const offer = await autoOffer(inv);
       (summary as any).auto = offer.plan;
       (summary as any).auto_required = offer.required;
+      (summary as any).auto_method = profilesReady(mode) ? 'card' : 'rb';
       if (b.action === 'invoice') return json(summary);
 
       // ── pay ──
@@ -318,13 +325,14 @@ Deno.serve(async (req) => {
       if (!(balance > 0.004)) return json({ error: 'This invoice is already paid. Thank you!', paid: true }, 400);
       const token = String(b.token || '');
       if (!token) return json({ error: 'Card details are missing.' }, 400);
-      if (offer.required && !(b.auto && b.rb_token)) return json({ error: 'Please tick "Pay tuition automatically with this card" — pre-authorized card memberships are charged automatically.' }, 400);
+      const useProfile = !!offer.plan && !!b.auto && profilesReady(mode);
+      if (offer.required && !(b.auto && (useProfile || b.rb_token))) return json({ error: 'Please tick "Pay tuition automatically with this card" — pre-authorized card memberships are charged automatically.' }, 400);
       const name = String(b.name || inv.customer_name || '').slice(0, 64);
       const email = String(b.email || inv.customer_email || '').split(/[,;\s]/)[0] || '';
       const orderNo = `INV${inv.invoice_number}-${Date.now().toString(36)}`.slice(0, 30);
       let saved: any = null;
       let r;
-      if (b.save_card && inv.customer_id) {
+      if ((b.save_card || useProfile) && inv.customer_id) {
         // Save the card first, then make this payment the first one of the card-on-file series.
         try {
           saved = await saveProfile(mode, token, name, email, inv);
@@ -357,7 +365,8 @@ Deno.serve(async (req) => {
       const t = r.data;
       // Automatic tuition: create a TD Recurring Billing account with the second token.
       let auto: any = null;
-      if (b.auto && b.rb_token && offer.plan) {
+      if (saved && useProfile) auto = { ...offer.plan, saved: true };
+      else if (b.auto && b.rb_token && offer.plan) {
         const plan = offer.plan;
         if (plan) {
           try {

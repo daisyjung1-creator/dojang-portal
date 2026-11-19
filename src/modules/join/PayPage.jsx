@@ -107,7 +107,8 @@ export default function PayPage({ token }) {
         return;
       }
       let rbToken = '';
-      if (saveCard && inv.auto) {
+      // Recurring Billing needs its own token; a saved card (profile) doesn't.
+      if (saveCard && inv.auto && inv.auto_method !== 'card') {
         const second = await tokenOnce();
         rbToken = second?.token || '';
       }
@@ -172,7 +173,7 @@ export default function PayPage({ token }) {
               <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Thank you — payment received!</div>
               <p style={{ fontSize: 14.5, margin: '8px 0 0', lineHeight: 1.55 }}>
                 {money(done.amount)} was charged{done.card ? ` to the card ending ${done.card}` : ''}.
-                {done.auto && !done.auto.error ? ` Automatic tuition is set up: ${money(done.auto.amount)} ${done.auto.months === 3 ? 'every 3 months' : 'every month'} from ${fdate(done.auto.first)}. A receipt is emailed after each charge.` : ''}
+                {done.auto && !done.auto.error ? (done.auto.saved ? ` Your card is saved for automatic tuition; the next charge is on ${fdate(done.auto.first)}. A receipt is emailed after each charge.` : ` Automatic tuition is set up: ${money(done.auto.amount)} ${done.auto.months === 3 ? 'every 3 months' : 'every month'} from ${fdate(done.auto.first)}. A receipt is emailed after each charge.`) : ''}
                 {done.auto?.error ? ' (Automatic tuition could not be set up — the Dojang has been notified and will contact you.)' : ''}
                 {done.test ? ' (Test mode: approved by the TD test account; nothing was recorded on the invoice.)' : done.recorded ? ` Your receipt${done.receipt ? ` #${done.receipt}` : ''} has been emailed to you.` : ' The Dojang will send your receipt shortly.'}
               </p>
@@ -200,6 +201,7 @@ export default function PayPage({ token }) {
                   {fieldErr.cvv && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr.cvv}</div>}
                 </div>
               </div>
+              <p style={{ fontSize: 13, color: C.soft, margin: '10px 0 0' }}>Credit cards only. Debit cards (including Visa Debit and Debit Mastercard) can't be used.</p>
               {inv.auto && (
                 <div style={{ marginTop: 14, padding: '12px 12px', border: `1px solid ${saveCard ? C.ink : C.line}`, borderRadius: 10, background: saveCard ? '#fff' : C.paper }}>
                   <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 15, cursor: 'pointer', fontWeight: 600 }}>
@@ -207,7 +209,9 @@ export default function PayPage({ token }) {
                     <span>
                       Pay tuition automatically with this card
                       <span style={{ display: 'block', fontSize: 13, fontWeight: 400, color: C.soft, marginTop: 2 }}>
-                        {money(inv.auto.amount)} {inv.auto.months === 3 ? 'every 3 months' : 'every month'}, starting {fdate(inv.auto.first)}
+                        {inv.auto_method === 'card'
+                          ? `Your card is saved securely with TD. Tuition (currently ${money(inv.auto.amount)} ${inv.auto.months === 3 ? 'every 3 months' : 'a month'}, next on ${fdate(inv.auto.first)}) is charged to it on each billing date.`
+                          : `${money(inv.auto.amount)} ${inv.auto.months === 3 ? 'every 3 months' : 'every month'}, starting ${fdate(inv.auto.first)}`}
                       </span>
                     </span>
                   </label>
