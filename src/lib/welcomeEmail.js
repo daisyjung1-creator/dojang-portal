@@ -53,7 +53,7 @@ export function fillWelcomeTemplate(tpl, student, settings = {}) {
   const next = billingAnchor(s) ? longDate(nextDueDate(s, todayISO() < billingAnchor(s) ? addDay(billingAnchor(s), -1) : todayISO())) : '(to be confirmed)';
   const subsidyNote =
     s.subsidy && (s.subsidy_amount || s.subsidy_end_date)
-      ? `${s.subsidy_name || 'Sports grant'}: ${s.subsidy_amount ? money(s.subsidy_amount) + ' per month' : 'applied'}${s.subsidy_end_date ? ' until ' + longDate(s.subsidy_end_date) : ''}.`
+      ? `${s.subsidy_name || 'Sports grant'}: ${s.subsidy_amount ? money(s.subsidy_amount) + ' off each tuition payment' : 'applied'}${s.subsidy_end_date ? ' until ' + longDate(s.subsidy_end_date) : ''}.`
       : '';
   const classes = classTimes(s, settings.schedule);
   const methods = (settings.payment_methods || []).filter((m) => !/^subsidy|^other$/i.test(m)).join(', ');

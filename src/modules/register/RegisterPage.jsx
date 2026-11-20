@@ -433,7 +433,7 @@ export default function RegisterPage() {
                 <Field label="Subsidy">
                   <input className="dp-input" style={inp} placeholder="KidSport" value={k.subsidy_name} onChange={(e) => setKid(i, { subsidy_name: e.target.value })} />
                 </Field>
-                <Field label="Amount / month ($)">
+                <Field label="Taken off each billing ($)">
                   <input type="number" className="dp-input" style={inp} value={k.subsidy_amount} onChange={(e) => setKid(i, { subsidy_amount: e.target.value })} />
                 </Field>
                 <Field label="Subsidy ends" required>

@@ -90,7 +90,8 @@ export function tuitionLines(student, cycleStart, settings = {}) {
   if (student.subsidy && (!student.subsidy_status || student.subsidy_status === 'approved') && Number(student.subsidy_amount) > 0 && (!student.subsidy_end_date || cycleStart <= student.subsidy_end_date) && left !== 0) {
     const months = three ? 3 : 1;
     const name = (student.subsidy_name || 'Subsidy').trim();
-    let amt = round2(Number(student.subsidy_amount) * months);
+    // subsidy_amount is what comes off each billing (one invoice), whatever the plan.
+    let amt = round2(Number(student.subsidy_amount));
     if (left != null) amt = Math.min(amt, left);
     // With a grant total: show the balance left and how long it's good for.
     // e.g. "KidSport for Adonis — $100.00 left of the $148.00 grant after this invoice (good until Dec 31, 2026)"

@@ -105,7 +105,7 @@ export function leadMessage({ lead, kids, kidsport, join = true, book = true, ki
         : 'Please reply with the date that works best for you, and we will book the trial class' + (many ? 'es.' : '.'),
       join ? `When you are ready to join, registration takes about 5 minutes online.\n${JOIN_LINK}` : '',
       kidsport
-        ? `KidSport grant — help with fees for families who qualify. Please create a KidSport account first; when you bring in the enrollment form${many ? 's' : ''}, we will give you the Proof of Enrollment and everything you need for the application.\n${KIDSPORT_URL}`
+        ? `KidSport grant — help with fees for families who qualify. Please create a KidSport account first. Once registration is complete, we will email you the Proof of Enrollment for your application.\n${KIDSPORT_URL}`
         : '',
       `If you have any questions, simply reply to this email or call us at ${PHONE}.`,
       'Kind regards,\nMaster Daisy\n' + DOJANG,

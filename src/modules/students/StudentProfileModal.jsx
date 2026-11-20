@@ -189,7 +189,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
                 {s.family_discount && <Row k="Discount">Big family −20%</Row>}
                 {s.subsidy && (
                   <Row k="Subsidy">
-                    {(s.subsidy_name || 'Subsidy').trim()}{s.subsidy_amount ? ` ${money(s.subsidy_amount)}/mo` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}
+                    {(s.subsidy_name || 'Subsidy').trim()}{s.subsidy_amount ? ` ${money(s.subsidy_amount)} per billing` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}
                     {s.subsidy_status === 'pending' && <div style={{ color: '#854F0B' }}>Waiting for approval{s.subsidy_applied_on ? ` — applied ${formatDate(s.subsidy_applied_on)}` : ''}</div>}
                     {s.subsidy_status === 'denied' && <div style={{ color: '#9A2B2B' }}>Not approved{s.subsidy_applied_on ? ` (applied ${formatDate(s.subsidy_applied_on)})` : ''}</div>}
                     {s.subsidy_status === 'approved' && s.subsidy_applied_on && <div style={{ color: '#5B5F56' }}>Approved — applied {formatDate(s.subsidy_applied_on)}</div>}

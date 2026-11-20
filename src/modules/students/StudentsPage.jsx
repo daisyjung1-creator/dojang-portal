@@ -404,7 +404,7 @@ export default function StudentsPage() {
               <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12 }} onClick={() => openEdit(s)}>{s.name}</button>
               <span>
                 {s.subsidy_name || 'Subsidy'}
-                {s.subsidy_amount ? ` ($${Number(s.subsidy_amount).toFixed(2)}/mo)` : ''}{' '}
+                {s.subsidy_amount ? ` ($${Number(s.subsidy_amount).toFixed(2)} per billing)` : ''}{' '}
                 {s.days < 0 ? <b>ended {-s.days} days ago ({s.subsidy_end_date})</b> : s.days === 0 ? <b>ends today</b> : <>ends in <b>{s.days} days</b> ({s.subsidy_end_date})</>}
               </span>
               <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12, marginLeft: 'auto' }} disabled={!s.guardian_email} title={s.guardian_email ? '' : 'No guardian email'} onClick={() => openReminder(s)}>
@@ -693,7 +693,7 @@ export default function StudentsPage() {
                     {Array.from(new Set(['KidSport', ...students.map((s) => s.subsidy_name).filter(Boolean)])).map((n) => <option key={n} value={n} />)}
                   </datalist>
                 </Field>
-                <Field label="Taken off each month ($)">
+                <Field label="Taken off each billing ($)">
                   <input type="number" className="dp-input" style={{ width: '100%' }} placeholder="25" value={form.subsidy_amount ?? ''} onChange={(e) => setForm({ ...form, subsidy_amount: e.target.value })} />
                 </Field>
               </div>
@@ -726,7 +726,7 @@ export default function StudentsPage() {
               </Field>
               <p style={{ fontSize: 12, color: '#5B5F56', margin: '-4px 0 12px' }}>
                 {Number(form.subsidy_total) > 0
-                  ? `Each tuition invoice takes off ${form.subsidy_amount ? '$' + form.subsidy_amount : 'the monthly amount'} until the $${form.subsidy_total} is used up or the end date passes. The invoice shows how much is left and until when.`
+                  ? `Each tuition invoice takes off ${form.subsidy_amount ? '$' + form.subsidy_amount : 'the amount above'} until the $${form.subsidy_total} is used up or the end date passes. The invoice shows how much is left and until when.`
                   : 'Add a grant total to track the balance (it shows on each invoice).'}
               </p>
             </div>
