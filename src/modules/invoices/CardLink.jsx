@@ -8,10 +8,26 @@ import { queueEmail } from './api';
 // saved card: /card/<card_link_token>. Nothing is charged on that page.
 export const cardLink = (c) => (c?.card_link_token ? `https://dojang-portal.netlify.app/card/${c.card_link_token}` : '');
 
-function cardEmail(c) {
+const BULLETS = [
+  'No payment is taken when you save your card.',
+  'Tuition is charged automatically on each billing date, and a receipt is emailed to you after every payment.',
+  'The page shows your next tuition amount and billing date, so you can review them before saving.',
+  'Only credit cards can be accepted (debit cards, including Visa Debit and Debit Mastercard, are not supported).',
+  "Your card details are entered directly into TD Online Mart's secure payment system and are never stored by the Dojang.",
+];
+const SIGN = 'If you have any questions, please reply to this email or call us at 780-450-0181.\n\nKind regards,\nMaster Daisy\nChampion Hankook Taekwondo';
+
+// kind: 'new' (just registered) or 'existing' (moving from the old payment system).
+function cardEmail(c, kind) {
+  const notes = BULLETS.map((b) => `• ${b}`).join('\n');
+  if (kind === 'new')
+    return {
+      subject: 'Set up your tuition payment card — Champion Hankook Taekwondo',
+      message: `Dear ${c.name},\n\nWelcome to Champion Hankook Taekwondo — we are delighted to have you with us.\n\nTo complete your registration, please register the credit card you would like to use for tuition through the secure link below:\n\n${cardLink(c)}\n\nPlease note:\n${notes}\n\nWe kindly ask that you complete this before your first billing date. ${SIGN}`,
+    };
   return {
-    subject: 'Action needed: your card for tuition — Champion Hankook Taekwondo',
-    message: `Hi ${c.name},\n\nWe're moving tuition payments to our new system. To keep your tuition payments going without interruption, please enter the credit card you'd like to use for tuition at this secure link:\n\n${cardLink(c)}\n\nNothing is charged when you save the card. From your next billing date, tuition is charged to it automatically and a receipt is emailed every time. The page shows your next tuition amount and date, so you can check it first.\n\nPlease note: credit cards only — debit cards (including Visa Debit and Debit Mastercard) can't be used.\n\nIf you have any questions, just reply to this email.\n\nThank you,\nMaster Daisy\nChampion Hankook Taekwondo`,
+    subject: 'Action required: update your tuition payment card — Champion Hankook Taekwondo',
+    message: `Dear ${c.name},\n\nThank you for being part of Champion Hankook Taekwondo.\n\nWe have moved our tuition payments to a new, secure online system. To keep your tuition payments running without interruption, please register the credit card you would like to use through the secure link below:\n\n${cardLink(c)}\n\nPlease note:\n${notes}\n\nWe kindly ask that you complete this before your next billing date. ${SIGN}`,
   };
 }
 
@@ -20,10 +36,12 @@ export function CardLinkButton({ customer, onSent, style }) {
   const [mail, setMail] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // New families (added in the last 45 days) get the welcome version.
+  const [kind, setKind] = useState(customer?.created_at && Date.now() - new Date(customer.created_at).getTime() < 45 * 864e5 ? 'new' : 'existing');
   if (!customer?.card_link_token) return null;
   const link = cardLink(customer);
   function show() {
-    setMail(cardEmail(customer));
+    setMail(cardEmail(customer, kind));
     setMsg('');
     setOpen(true);
   }
@@ -64,6 +82,11 @@ export function CardLinkButton({ customer, onSent, style }) {
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <input className="dp-input" readOnly value={link} style={{ flex: 1, fontSize: 12 }} onFocus={(e) => e.target.select()} />
             <button className="dp-btn" onClick={() => navigator.clipboard?.writeText(link).then(() => setMsg('Link copied.'))}>Copy link</button>
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {[['new', 'New family'], ['existing', 'Existing family (moving from old system)']].map(([k, l]) => (
+              <button key={k} className="dp-btn" style={{ fontSize: 12, background: kind === k ? '#20241F' : '#fff', color: kind === k ? '#fff' : '#20241F' }} onClick={() => { setKind(k); setMail(cardEmail(customer, k)); }}>{l}</button>
+            ))}
           </div>
           <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
           <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={mail.subject} onChange={(e) => setMail({ ...mail, subject: e.target.value })} />
