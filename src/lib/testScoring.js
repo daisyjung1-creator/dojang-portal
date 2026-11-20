@@ -2,6 +2,8 @@
 // "Promotion Test Report" spreadsheet (Sheet1 / 학생 리스트).
 // Each criterion is marked 0–3; each section gets NI / MS / ES from its total.
 
+import { BELTS } from './constants';
+
 export const DOJANG_NAME = 'Edmonton Champion Hankook Taekwondo';
 export const DEFAULT_EXAMINER = 'Grand Master. Chang Hun Jung';
 
@@ -62,15 +64,29 @@ export const SCORE_GUIDE = [
 
 export const RANK_LABEL = { NI: 'Need Improvement', MS: 'Meets Standard', ES: 'Exceeds Standard', 'N/A': 'N/A' };
 
+// Sections a student doesn't do at the test, by the belt they hold now:
+// white belts do no poomsae, and only Yellow belt and up spar.
+const beltIdx = (b) => BELTS.findIndex((x) => x.value === b);
+export function skippedSections(currentBelt) {
+  const i = beltIdx(currentBelt);
+  if (i < 0) return [];
+  const out = [];
+  if (i === beltIdx('White')) out.push('poomsae');
+  if (i < beltIdx('Yellow')) out.push('sparring');
+  return out;
+}
+
 const marks = (scores, key, n) => {
   const a = (scores && scores[key]) || [];
   return Array.from({ length: n }, (_, i) => (a[i] === '' || a[i] == null ? null : Number(a[i])));
 };
 
 // Totals and ranks for one student's scores.
-export function summarize(scores) {
+// currentBelt (optional): leaves out the sections that belt doesn't do.
+export function summarize(scores, currentBelt) {
   const out = { sections: [], mental: [], complete: true, any: false };
-  SECTIONS.forEach((sec) => {
+  const skip = skippedSections(currentBelt);
+  SECTIONS.filter((sec) => !skip.includes(sec.key)).forEach((sec) => {
     const m = marks(scores, sec.key, sec.criteria.length);
     const filled = m.filter((x) => x != null);
     if (filled.length) out.any = true;

@@ -53,7 +53,7 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
             <button className="dp-btn" style={{ padding: '10px 11px', flex: 'none' }} disabled={idx <= 0} aria-label="Previous student" onClick={() => go(-1)}><ChevronLeft size={18} /></button>
             <select className="dp-select" style={{ flex: 1, minWidth: 0, fontSize: 16, padding: '10px 8px' }} value={sel || ''} onChange={(ev) => setSel(ev.target.value)}>
               {rows.map(({ e, s }, i) => {
-                const sum = summarize(e.scores);
+                const sum = summarize(e.scores, e.current_belt);
                 return <option key={e.id} value={e.id}>{`${i + 1}. ${s.name}${sum.complete ? ' ✓' : sum.any ? ' …' : ''}`}</option>;
               })}
             </select>
@@ -68,7 +68,7 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
         {/* Student list */}
         <div style={{ ...styles.card, maxHeight: '75vh', overflowY: 'auto' }}>
           {rows.map(({ e, s }) => {
-            const sum = summarize(e.scores);
+            const sum = summarize(e.scores, e.current_belt);
             const on = e.id === sel;
             return (
               <button
@@ -96,7 +96,7 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
 
 function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
   const [scores, setScores] = useState(e.scores || {});
-  const sum = summarize(scores);
+  const sum = summarize(scores, e.current_belt);
   const save = (next) => {
     setScores(next);
     onPatch(e, { scores: next });
