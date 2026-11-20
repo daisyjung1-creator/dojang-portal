@@ -25,7 +25,6 @@ export default function CardPage({ token }) {
       if (d?.error) setErr(d.error);
       else {
         setInfo(d);
-        setName(d.customer || '');
       }
     });
   }, [token]);
@@ -124,7 +123,7 @@ export default function CardPage({ token }) {
             <div style={box}>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Credit card for tuition</div>
               {info.saved && <p style={{ fontSize: 13.5, color: C.soft, margin: '0 0 10px' }}>This replaces the saved card ending {info.saved.last4}.</p>}
-              <In label="Name on card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
+              <In label="Name on card" placeholder="As shown on the card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
               <div style={lbl}>Card number</div>
               <div id="cc-card-number" style={fieldBox} />
               {fieldErr['card-number'] && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr['card-number']}</div>}

@@ -59,7 +59,6 @@ export default function PayPage({ token }) {
       if (d?.error) setErr(d.error);
       else {
         setInv(d);
-        setName(d.customer || '');
       }
     });
   }, [token]);
@@ -185,7 +184,7 @@ export default function PayPage({ token }) {
           ) : (
             <div style={box}>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Pay by credit card</div>
-              <In label="Name on card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
+              <In label="Name on card" placeholder="As shown on the card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
               <div style={lbl}>Card number</div>
               <div id="cc-card-number" style={fieldBox} />
               {fieldErr['card-number'] && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr['card-number']}</div>}
