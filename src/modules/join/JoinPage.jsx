@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import logoImg from '../../assets/logo.png';
 import markImg from '../../assets/logo-mark.png';
+import RegCardStep from './RegCardStep';
 import {
   AGREEMENT_VERSION, SCHOOL, HEARD_FROM, FREQUENCIES, PLAN_CHOICES, EMERGENCY_AUTH, TERMS,
   PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO, boldParts, TUITION,
@@ -134,7 +135,12 @@ export default function JoinPage() {
         class_days: picked.map(slotKey),
       };
     });
+    // Lets the card step (credit card plans) save a card for this registration only.
+    const cardToken = window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => ((c === 'x' ? 0 : 8) + Math.floor(Math.random() * (c === 'x' ? 16 : 4))).toString(16));
     const row = {
+      card_token: cardToken,
       family: { ...Object.fromEntries(Object.entries(fam).map(([k, v]) => [k, String(v).trim()])), relationship: adult ? 'Self' : fam.relationship.trim() },
       kids: kidRows,
       frequency,
@@ -168,11 +174,13 @@ export default function JoinPage() {
           <p style={{ color: C.soft, margin: '0 auto 6px', maxWidth: 440, lineHeight: 1.55 }}>
             We've received your registration and emailed you a copy of the signed agreement. Master Daisy will confirm the class schedule, tuition and payment details with you by email or phone.
           </p>
-          {done.row?.plan?.includes('Credit Card') && (
-            <p style={{ color: C.soft, margin: '10px auto 0', maxWidth: 440, lineHeight: 1.55 }}>A separate Credit Card Authorization is completed at the Dojang before automatic payments begin.</p>
-          )}
-          <p style={{ color: C.faint, fontSize: 13.5, marginTop: 18 }}>Questions? {SCHOOL.email}</p>
+          {!done.row?.plan?.includes('Credit Card') && <p style={{ color: C.faint, fontSize: 13.5, marginTop: 18 }}>Questions? {SCHOOL.email}</p>}
         </div>
+        {done.row?.plan?.includes('Credit Card') && (
+          <div style={{ marginTop: 16 }}>
+            <RegCardStep token={done.row.card_token} estimate={estimateFor(done.row)} />
+          </div>
+        )}
       </Page>
     );
   }
@@ -306,7 +314,7 @@ export default function JoinPage() {
         })()}
         <In label="Preferred start date" type="date" value={startDate} min={today()} onChange={(e) => setStartDate(e.target.value)} style={{ maxWidth: 220 }} />
         <p style={{ ...small, color: C.soft, margin: '4px 0 0' }}>
-          The Dojang will confirm your start date and payment dates by email.{plan.includes('Credit Card') ? ' Your credit card details are collected separately at the Dojang (a separate Credit Card Authorization) — please don’t enter them here.' : ''}
+          The Dojang will confirm your start date and payment dates by email.{plan.includes('Credit Card') ? ' After you submit this form, you can save your credit card on TD’s secure form (the separate Credit Card Authorization). Nothing is charged until the Dojang confirms your tuition by email.' : ''}
         </p>
       </Section>
 
@@ -382,6 +390,16 @@ export default function JoinPage() {
       <p style={{ textAlign: 'center', fontSize: 12.5, color: C.faint, marginTop: 14 }}>Agreement version {AGREEMENT_VERSION} · All terms are subject to applicable laws of Alberta and Canada.</p>
     </Page>
   );
+}
+
+// Tuition per student incl. 5% GST for the plan picked on the form (before any discount or grant).
+function estimateFor(row) {
+  const t = TUITION[row.frequency];
+  if (!t || !row.plan) return null;
+  const three = !String(row.plan).startsWith('Monthly');
+  const amt = three ? t.three : t.month;
+  if (!amt) return null;
+  return { each: Math.round(amt * 105) / 100, count: Math.max(1, (row.kids || []).length), per: three ? 'every 3 months' : 'per month' };
 }
 
 // ---------- layout pieces ----------

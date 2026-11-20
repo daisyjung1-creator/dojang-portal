@@ -29,6 +29,12 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
   const pending = rows.filter((r) => r.status === 'new');
   const handled = rows.filter((r) => r.status !== 'new');
   const dismiss = async (r) => {
+    // A card saved on the form's card step is deleted from TD too.
+    if (r.card_profile_code) {
+      if (!window.confirm(`Dismiss this registration and delete the card they saved (ending ${r.card_last4 || '····'}) from TD Online Mart?`)) return;
+      const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'reg_card_remove', registration_id: r.id } });
+      if (error || data?.error) return alert('The saved card could not be deleted from TD: ' + (data?.error || error.message) + '\nNothing was dismissed.');
+    }
     await supabase.from('registrations').update({ status: 'dismissed', handled_at: new Date().toISOString() }).eq('id', r.id);
     setView(null);
     load();
@@ -62,6 +68,7 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
               <div style={{ fontWeight: 600, fontSize: 14 }}>{(r.kids || []).map(kidName).join(', ')}</div>
               <div style={{ fontSize: 12.5, color: '#8A8D84' }}>
                 {r.family?.guardian_name}{r.adult_student ? ' (adult student)' : ''} · {fmtDate(r.created_at)} · {r.plan}
+                {r.card_profile_code && <> · <b style={{ color: '#2A5A30' }}>Card saved ··{r.card_last4}</b></>}
                 {r.status !== 'new' && <> · <b>{r.status === 'approved' ? 'Enrolled' : 'Dismissed'}</b></>}
               </div>
             </div>
@@ -110,7 +117,7 @@ function summaryHtml(r) {
   <h3 style="font-size:14px;margin:14px 0 4px">${r.adult_student ? 'Adult student' : 'Parent / guardian'}</h3>
   <table>${row('Name', esc(f.guardian_name) + (f.relationship && !r.adult_student ? ` (${esc(f.relationship)})` : ''))}${row('Phone', esc(f.phone))}${row('Email', esc(f.email))}${row('Address', `${esc(f.address)} ${esc(f.postal)}`)}${row('Emergency', `${esc(f.emergency_name)} · ${esc(f.emergency_phone)}${f.emergency_relationship ? ` (${esc(f.emergency_relationship)})` : ''}`)}${row('Heard from', esc(f.heard === 'Other' ? `Other: ${f.heard_other || ''}` : f.heard || '—'))}</table>
   <h3 style="font-size:14px;margin:14px 0 4px">Membership</h3>
-  <table>${row('Frequency', esc(freqLabel(r)))}${row('Payment', esc(r.plan))}${row('Start', esc(fmtDate(r.start_date)))}${row('Photo/video', r.photo_consent ? 'Yes — consents' : '<b style="color:#BF1C21">No</b> — no promotional photos')}${row('Initials', esc(TERMS.filter((t) => t.initial).map((t) => `${t.title.split(' — ')[0].replace('Part ', 'P')}: ${r.initials?.[t.key] || '—'}`).join(' · ')))}${row('Signed', `${esc(r.signature_name)} · ${esc(fmtDate(r.signed_on))} · version ${esc(r.agreement_version)}${sigImg(r, 46)}`)}</table>`;
+  <table>${row('Frequency', esc(freqLabel(r)))}${row('Payment', esc(r.plan))}${r.card_profile_code ? row('Card', `<b style="color:#2A5A30">${esc(r.card_type || 'Card')} ending ${esc(r.card_last4)}</b> saved online ${esc(tsDate(r.card_saved_at))} — no charge yet`) : r.card_removed_at ? row('Card', 'Saved card deleted from TD') : ''}${row('Start', esc(fmtDate(r.start_date)))}${row('Photo/video', r.photo_consent ? 'Yes — consents' : '<b style="color:#BF1C21">No</b> — no promotional photos')}${row('Initials', esc(TERMS.filter((t) => t.initial).map((t) => `${t.title.split(' — ')[0].replace('Part ', 'P')}: ${r.initials?.[t.key] || '—'}`).join(' · ')))}${row('Signed', `${esc(r.signature_name)} · ${esc(fmtDate(r.signed_on))} · version ${esc(r.agreement_version)}${sigImg(r, 46)}`)}</table>`;
 }
 
 // The full signed agreement as a printable page (Save as PDF to keep a copy).

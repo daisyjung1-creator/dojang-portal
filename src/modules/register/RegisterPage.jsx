@@ -123,7 +123,15 @@ export default function RegisterPage() {
         };
       })
     );
-    setFromOnline({ id: r.id, names: (r.kids || []).map(kidName).join(', '), family: match ? match.name : null });
+    setFromOnline({
+      id: r.id,
+      names: (r.kids || []).map(kidName).join(', '),
+      family: match ? match.name : null,
+      // Card the family saved on the form's card step (moves to the family on Register).
+      card: r.card_profile_code
+        ? { code: r.card_profile_code, mode: r.card_profile_mode, last4: r.card_last4, expiry: r.card_expiry, type: r.card_type, saved_at: r.card_saved_at, consent: r.card_consent }
+        : null,
+    });
     setFormError('');
     setSuccess('');
     setTimeout(() => document.getElementById('enroll-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -235,6 +243,33 @@ export default function RegisterPage() {
     if (customerId && family.payment_type) {
       await supabase.from('customers').update({ payment_type: family.payment_type }).eq('id', customerId);
     }
+    let cardNote = '';
+    if (customerId && fromOnline?.card) {
+      // The card saved with the online registration becomes the family's card
+      // (unless the family already has one — then it stays on the registration).
+      const { data: cust } = await supabase.from('customers').select('card_profile_code, card_last4').eq('id', customerId).maybeSingle();
+      const k = fromOnline.card;
+      if (cust?.card_profile_code) {
+        cardNote = ` The family already has a saved card (ending ${cust.card_last4 || '····'}), so the card from the registration (ending ${k.last4 || '····'}) was not used.`;
+      } else {
+        const { error: cardErr } = await supabase
+          .from('customers')
+          .update({
+            card_profile_code: k.code,
+            card_profile_mode: k.mode,
+            card_series_id: null,
+            card_last4: k.last4,
+            card_expiry: k.expiry,
+            card_type: k.type,
+            card_saved_at: k.saved_at,
+            card_consent: k.consent,
+            card_legacy_rb_pending: false,
+            payment_type: 'preauth',
+          })
+          .eq('id', customerId);
+        cardNote = cardErr ? ` The saved card could not be moved to the family (${cardErr.message}).` : ` Saved card (${k.type || 'card'} ending ${k.last4 || '····'}) is now on the family for automatic tuition.`;
+      }
+    }
     await closeMatchingLeads(fam, created[0]);
     if (fromOnline) {
       await supabase.from('registrations').update({ status: 'approved', student_ids: created.map((c) => c.id), handled_at: new Date().toISOString() }).eq('id', fromOnline.id);
@@ -243,7 +278,7 @@ export default function RegisterPage() {
     }
     setSaving(false);
     setRecent((prev) => [...created.slice().reverse(), ...prev]);
-    setSuccess(created.length === 1 ? `${created[0].name} registered.` : `${created.map((c) => c.name.split(' ')[0]).join(', ')} registered as one family.`);
+    setSuccess((created.length === 1 ? `${created[0].name} registered.` : `${created.map((c) => c.name.split(' ')[0]).join(', ')} registered as one family.`) + cardNote);
     // One welcome email for the whole family, to review before it goes out.
     if (fam.guardian_email) setWelcomeFor(created);
     setFamily(emptyFamily());
@@ -269,6 +304,7 @@ export default function RegisterPage() {
             <span style={{ flex: 1 }}>
               Online registration loaded: <b>{fromOnline.names}</b>. Check the classes, set the tuition, then Register.
               {fromOnline.family && <> Matched existing family <b>{fromOnline.family}</b> by email.</>}
+              {fromOnline.card && <> Card saved online: <b>{fromOnline.card.type || 'Card'} ending {fromOnline.card.last4}</b> — it moves to the family when you Register.</>}
             </span>
             <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => { setFromOnline(null); setFamily(emptyFamily()); setKids([emptyChild()]); }}>Clear</button>
           </div>

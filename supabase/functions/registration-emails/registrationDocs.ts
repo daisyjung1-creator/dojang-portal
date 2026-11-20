@@ -161,7 +161,7 @@ Thank you for registering ${r.adult_student ? 'with us' : names} at ${SCHOOL.nam
 
 A copy of your signed Student Registration & Membership Agreement is attached for your records.
 
-We'll confirm the class schedule, tuition and payment details with you shortly.${String(r.plan || '').includes('Credit Card') ? ' A separate Credit Card Authorization will be completed at the Dojang before automatic payments begin.' : ''}
+We'll confirm the class schedule, tuition and payment details with you shortly.${String(r.plan || '').includes('Credit Card') ? ' If you didn\'t save your card on the form, we\'ll send you a secure link to complete your Credit Card Authorization. Nothing is charged until we confirm your tuition by email.' : ''}
 
 If you have any questions, just reply to this email.
 

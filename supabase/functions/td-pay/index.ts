@@ -13,6 +13,9 @@
 //   charge   { invoice_ids }                    → charge each family's saved card for the invoice balance (admin)
 //   card_info { card_token }                    → family + next tuition for the "save your card" page (public)
 //   card_save { card_token, token, name }       → save the card as a Payment Profile, no charge (public)
+//   reg_card_info { reg_token }                 → card step right after the /join registration form (public)
+//   reg_card_save { reg_token, token, name }    → save the card on that registration, no charge (public)
+//   reg_card_remove { registration_id }         → delete a registration's saved card from TD (admin)
 //   autobill {}                                 → daily automatic tuition (pg_cron): invoice + charge saved-card
 //                                                  families whose billing date is today (once a day, live only)
 //
@@ -108,7 +111,7 @@ async function saveProfile(mode: string, token: string, name: string, email: str
   const auth = profileAuth(mode);
   // Student names, so the profile is easy to find in TD Online Mart.
   const { data: kids } = inv.customer_id ? await admin.from('students').select('name, status').eq('customer_id', inv.customer_id) : { data: [] };
-  const names = (kids || []).filter((k: any) => k.status !== 'withdrawn').map((k: any) => String(k.name || '').trim()).filter(Boolean);
+  const names: string[] = inv.names || (kids || []).filter((k: any) => k.status !== 'withdrawn').map((k: any) => String(k.name || '').trim()).filter(Boolean);
   // Our own profile code (first student's name + time), readable in TD and checkable after a timeout.
   const stamp = Date.now().toString(36).toUpperCase();
   const base = (names[0] || inv.customer_name || 'FAMILY').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -516,6 +519,71 @@ Deno.serve(async (req) => {
           },
         });
       return json({ ok: true, saved: { last4: saved.last4, type: saved.type }, upcoming });
+    }
+
+    if (b.action === 'reg_card_info' || b.action === 'reg_card_save') {
+      // The card step of the /join form, for a registration sent in the last 2 days.
+      const bad = () => json({ error: 'This step has expired. The Dojang will send you a secure link to save your card.' }, 404);
+      if (!/^[0-9a-f-]{36}$/i.test(String(b.reg_token || ''))) return bad();
+      const { data: r } = await admin.from('registrations').select('*').eq('card_token', b.reg_token).maybeSingle();
+      if (!r || r.status !== 'new' || Date.now() - new Date(r.created_at).getTime() > 2 * 864e5) return bad();
+      const names = (r.kids || []).map((k: any) => `${k.first || ''} ${k.last || ''}`.trim()).filter(Boolean);
+      const guardian = String(r.family?.guardian_name || '').trim();
+      const email = String(r.family?.email || '').trim();
+      const info = {
+        business: s.business_name || 'Champion Hankook Taekwondo',
+        names,
+        enabled: !!s.online_pay && profilesReady(mode),
+        mode,
+        saved: r.card_profile_code ? { last4: r.card_last4, type: r.card_type } : null,
+      };
+      if (b.action === 'reg_card_info') return json(info);
+      if (!info.enabled) return json({ error: 'Saving a card online is not available right now. The Dojang will contact you.' }, 400);
+      if (r.card_profile_code) return json({ error: 'A card is already saved with this registration. Please contact the Dojang to change it.' }, 400);
+      const token = String(b.token || '');
+      if (!token) return json({ error: 'Card details are missing.' }, 400);
+      const blocked = await payBlocked(r.id);
+      if (blocked) return json({ error: blocked }, 429);
+      const name = String(b.name || guardian).slice(0, 64);
+      let saved: any;
+      try {
+        saved = await saveProfile(mode, token, name, email.split(/[,;\s]/)[0] || '', { customer_name: guardian, names });
+      } catch (e) {
+        await logPayFail(s, { id: r.id, invoice_number: '(registration card)' }, 'Card not saved: ' + String((e as Error).message || e));
+        return json({ error: String((e as Error).message || e) }, 400);
+      }
+      await admin
+        .from('registrations')
+        .update({
+          card_profile_code: saved.code,
+          card_profile_mode: mode,
+          card_last4: saved.last4 || null,
+          card_expiry: saved.exp || null,
+          card_type: saved.type || null,
+          card_saved_at: new Date().toISOString(),
+          card_consent: `${String(b.consent || '').slice(0, 1800)} — agreed online by ${name} on ${new Date().toISOString()}`,
+        })
+        .eq('id', r.id);
+      if (s.email)
+        await admin.from('email_queue').insert({
+          type: 'broadcast',
+          recipient_email: s.email,
+          payload: {
+            subject: `Card saved with registration — ${names.join(', ')}`,
+            message: `${guardian || 'The family'} saved a card for automatic tuition with their online registration (${saved.type || 'card'} ending ${saved.last4 || '????'}). Nothing was charged.\n\nWhen you enroll them (Enrollment → Online registrations), the card moves to the family automatically. Confirm the tuition and first payment date with them by email.`,
+          },
+        });
+      return json({ ok: true, saved: { last4: saved.last4, type: saved.type } });
+    }
+
+    if (b.action === 'reg_card_remove') {
+      if (!(await isAdminCaller(req))) return json({ error: 'Admins only' }, 403);
+      const { data: r } = await admin.from('registrations').select('id, card_profile_code, card_profile_mode').eq('id', b.registration_id).maybeSingle();
+      if (!r?.card_profile_code) return json({ ok: true, removed: false });
+      const d = await api(`/profiles/${r.card_profile_code}`, 'DELETE', profileAuth(r.card_profile_mode === 'live' ? 'live' : 'test'));
+      if (!d.okHttp && d.status !== 404) return json({ error: errMsg(d.data, 'TD could not delete the saved card.') }, 400);
+      await admin.from('registrations').update({ card_profile_code: null, card_removed_at: new Date().toISOString() }).eq('id', r.id);
+      return json({ ok: true, removed: true });
     }
 
     if (b.action === 'invoice' || b.action === 'pay') {
