@@ -469,21 +469,44 @@ const LINK_BUTTONS: [RegExp, string][] = [
 function linkButton(url: string) {
   const label = LINK_BUTTONS.find(([re]) => re.test(url))?.[1];
   if (!label) return '';
-  return `<a href="${esc(url)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:10px 18px;border-radius:8px;margin:2px 0">${esc(label)}</a>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:6px auto 26px"><tr><td style="background:#1b1b1b;border-radius:8px"><a href="${esc(url)}" style="display:inline-block;padding:13px 28px;font-family:Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">${esc(label)}</a></td></tr></table>`;
 }
+const linkify = (t: string) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#1b1b1b;text-decoration:underline">$1</a>');
+const P = 'margin:0 0 20px;font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;color:#20241F';
 
-// Plain-text message (as typed in the portal) → simple HTML email, with links clickable.
+// Plain-text message (as typed in the portal) → a clean card-style email:
+// one paragraph per block, links on their own line as centred buttons.
 export function plainTextEmailHtml(message: string, s: Settings) {
-  const body = String(message || '')
-    .split('\n')
-    .map((line) => {
-      const m = line.trim().match(/^(https?:\/\/\S+)$/);
-      const btn = m ? linkButton(m[1]) : '';
-      return btn || esc(line).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#111">$1</a>');
+  const blocks = String(message || '').replace(/\r/g, '').trim().split(/\n\s*\n/);
+  const html = blocks
+    .map((block) => {
+      const out: string[] = [];
+      let text: string[] = [];
+      const flush = () => {
+        if (text.length) out.push(`<p style="${P}">${text.map(linkify).join('<br>')}</p>`);
+        text = [];
+      };
+      for (const line of block.split('\n')) {
+        const m = line.trim().match(/^(https?:\/\/\S+)$/);
+        const btn = m ? linkButton(m[1]) : '';
+        if (btn) {
+          if (text.length) out.push(`<p style="${P.replace('0 0 20px', '0 0 14px')}">${text.map(linkify).join('<br>')}</p>`), (text = []);
+          out.push(btn);
+        } else text.push(line);
+      }
+      flush();
+      return out.join('');
     })
-    .join('\n');
-  return `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:560px;font-size:14px;line-height:1.55">
-  <div style="white-space:pre-line">${body}</div>
-  <p style="font-size:12px;color:#999;margin-top:24px">${esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
+    .join('');
+  const footer = esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '));
+  return `<div style="background:#f3f2ee;padding:28px 12px;font-family:Helvetica,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:14px;border:1px solid #e6e3da">
+    <tr><td style="padding:30px 30px 10px">
+      <div style="width:28px;height:3px;background:#BE1C21;margin:0 0 12px"></div>
+      <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;font-weight:bold;letter-spacing:0.04em;color:#20241F;text-transform:uppercase;margin:0 0 24px">${esc(s.business_name || '')}</div>
+      ${html}
+    </td></tr>
+  </table>
+  <p style="max-width:580px;margin:14px auto 0;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#8A8D84">${footer}</p>
 </div>`;
 }
