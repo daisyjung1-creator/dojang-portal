@@ -81,14 +81,19 @@ export function leadMessage({ lead, kids, kidsport, join = true, book = true, ki
       .join('\n\n');
   }
   const exp = kids.some(isExperienced);
-  const what = exp ? (many ? 'ages and experience' : 'age and experience') : many ? 'ages' : 'age';
+  // What the recommendation is based on — only what we actually know.
+  const what = exp && ages ? (many ? 'ages and experience' : 'age and experience') : exp ? 'experience' : ages ? (many ? 'ages' : 'age') : '';
   const ek = kids.filter(isExperienced);
   const ekWho = noNames ? (ek.length > 1 || !many ? (many ? 'your children' : 'your child') : 'one of your children') : list(ek.map((k) => labelOf(k, many)));
   const levelNote = exp ? `\nSince ${ekWho} already ${ek.length > 1 ? 'have' : 'has'} Taekwondo experience, we'll confirm the right class at the trial.` : '';
   const offer =
-    (groups.length === 1
-      ? `For ${noNames ? (many ? `your children’s ${what}` : `your child’s ${what}`) : many ? `their ${what}` : `${who}’s ${what}`}, the best fit is our ${groups[0].c.label} class:\n${groups[0].c.when}`
-      : `For their ${what}, the best fit is:\n` + groups.map((g) => `• ${cap(nameOf(g))} — ${g.c.label} class: ${g.c.when.replace(/\n/g, '; ')}`).join('\n')) + levelNote;
+    (!groups.length
+      ? ''
+      : groups.length === 1
+      ? what
+        ? `For ${noNames ? (many ? `your children’s ${what}` : `your child’s ${what}`) : many ? `their ${what}` : `${who}’s ${what}`}, the best fit is our ${groups[0].c.label} class:\n${groups[0].c.when}`
+        : `We recommend our ${groups[0].c.label} class for ${who}:\n${groups[0].c.when}`
+      : `${what ? `For their ${what}, the best fit is` : 'We recommend'}:\n` + groups.map((g) => `• ${cap(nameOf(g))} — ${g.c.label} class: ${g.c.when.replace(/\n/g, '; ')}`).join('\n')) + levelNote;
   return {
     subject: named.length === kids.length ? `Trial class for ${who} — ${DOJANG}` : `Trial class — ${DOJANG}`,
     body: [
@@ -115,7 +120,8 @@ const kidsOf = (lead) =>
     name: k.name || '',
     age: k.age ?? '',
     experience: k.experience || '',
-    cls: classForAge(k.age, k.experience),
+    // No age and no experience: the admin picks the class.
+    cls: (k.age === '' || k.age == null) && !k.experience ? '' : classForAge(k.age, k.experience),
   }));
 
 export default function LeadMessageModal({ lead, onClose, onDone }) {
@@ -199,11 +205,11 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
           {msg && <span style={{ marginRight: 'auto', fontSize: 12.5, color: msg.startsWith('Could') || msg.startsWith('Add') ? '#9A2B2B' : '#2A5A30' }}>{msg}</span>}
           <button className="dp-btn" onClick={() => onClose()}>Close</button>
           {kind === 'email' ? (
-            <button className="dp-btn dp-btn-primary" disabled={busy} onClick={sendEmail}><Send size={14} /> Send email</button>
+            <button className="dp-btn dp-btn-primary" disabled={busy || kids.some((k) => !k.cls)} onClick={sendEmail}><Send size={14} /> Send email</button>
           ) : (
             <>
-              <button className="dp-btn" onClick={copyText}><Copy size={14} /> Copy text</button>
-              {phone && (
+              <button className="dp-btn" disabled={kids.some((k) => !k.cls)} onClick={copyText}><Copy size={14} /> Copy text</button>
+              {phone && !kids.some((k) => !k.cls) && (
                 <a className="dp-btn dp-btn-primary" href={smsHref} onClick={() => markContacted('text')} style={{ textDecoration: 'none' }}>
                   <MessageSquare size={14} /> Open in Messages
                 </a>
@@ -223,7 +229,7 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
             <span style={{ minWidth: 110, fontSize: 13.5, fontWeight: 500 }}>{k.name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>{kids.length > 1 ? `Child ${i + 1}` : 'Child'} (no name)</span>}</span>
             <input className="dp-input" inputMode="numeric" aria-label="Age" placeholder="Age" style={{ width: 58 }} value={k.age} onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 2); setKid(i, v === '' ? { age: v } : { age: v, cls: classForAge(v, k.experience) }); }} />
-            <select className="dp-select" aria-label="Taekwondo experience" value={k.experience || 'None'} style={{ fontSize: 12.5 }} onChange={(e) => { const x = e.target.value === 'None' ? '' : e.target.value; setKid(i, { experience: x, cls: classForAge(k.age, x) }); }}>
+            <select className="dp-select" aria-label="Taekwondo experience" value={k.experience || 'None'} style={{ fontSize: 12.5 }} onChange={(e) => { const x = e.target.value === 'None' ? '' : e.target.value; setKid(i, { experience: x, cls: (k.age === '' || k.age == null) && !x ? k.cls : classForAge(k.age, x) }); }}>
               {EXPERIENCE.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
             </select>
             {Object.entries(TRIAL_CLASSES).map(([c, t]) => (
@@ -233,6 +239,7 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
             ))}
           </div>
         ))}
+        {kids.some((k) => !k.cls) && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '2px 0 6px' }}>No age yet — pick the class you'd recommend{kids.length > 1 ? ' for each child' : ''}.</p>}
         <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
           <input type="checkbox" checked={kidsport} onChange={(e) => setKidsport(e.target.checked)} /> Include KidSport grant info
         </label>
