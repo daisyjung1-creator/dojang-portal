@@ -12,6 +12,7 @@ import { fetchAll, loadSettings, saveInvoice, queueEmail } from '../invoices/api
 import ScoresView from './ScoresView';
 import SparringView from './SparringView';
 import PapersView from './PapersView';
+import AwardsView from './AwardsView';
 import { openReports, openBracket } from './testReports';
 import { MIN_CLASSES, TEST_FEE_ITEMS, feeItemFor, nextBelt, beltMeta, beltIndex, countStart, classesSince, matchFees, NOTICE_SUBJECT, NOTICE_MESSAGE } from '../../lib/beltTesting';
 
@@ -171,6 +172,7 @@ export default function TestingPage() {
       noInvoice: rows.filter((r) => feeState(r.e) === 'none'),
       passed: rows.filter((r) => r.e.result === 'pass'),
       toPromote: rows.filter((r) => r.e.result === 'pass' && !r.e.promoted_at),
+      pending: rows.filter((r) => r.e.result === 'pending' && !r.e.promoted_at),
     };
   }, [rows, fees]);
 
@@ -197,6 +199,19 @@ export default function TestingPage() {
     setModal(null);
     say(`${ids.length} student${ids.length === 1 ? '' : 's'} added to the test list.`);
     loadEntries();
+  }
+
+  // Bulk: everyone still Pending → Pass.
+  async function passAllPending() {
+    const ids = stats.pending.map((r) => r.e.id);
+    if (!ids.length) return;
+    setEntries((list) => list.map((x) => (ids.includes(x.id) ? { ...x, result: 'pass' } : x)));
+    const { error } = await supabase.from('belt_test_entries').update({ result: 'pass' }).in('id', ids);
+    if (error) {
+      say('Could not save: ' + error.message, true);
+      return loadEntries();
+    }
+    say(`${ids.length} student${ids.length === 1 ? '' : 's'} marked as Pass.`);
   }
 
   async function patchTest(patch) {
@@ -365,7 +380,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
           )}
 
           <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #E4E0D4', marginBottom: 14 }}>
-            {[['list', 'Test list'], ['papers', 'Test-day sheets'], ['sparring', 'Sparring pairings'], ['scores', 'Scores & reports']].map(([k, l]) => (
+            {[['list', 'Test list'], ['papers', 'Test-day sheets'], ['sparring', 'Sparring pairings'], ['scores', 'Scores & reports'], ['awards', 'Awards & new belts']].map(([k, l]) => (
               <button key={k} onClick={() => setView(k)} style={{ background: 'none', border: 'none', borderBottom: view === k ? '2px solid #20241F' : '2px solid transparent', padding: '8px 14px', fontSize: 14, fontWeight: view === k ? 600 : 400, color: view === k ? '#20241F' : '#5B5F56', cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1 }}>{l}</button>
             ))}
           </div>
@@ -380,6 +395,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
               onPrint={(list) => openReports(list, test, settings?.logo_data) || say('Allow pop-ups to print the reports.', true)}
             />
           )}
+          {view === 'awards' && <AwardsView key={test.id} rows={rows} test={test} tests={tests} onPatch={patchEntry} say={say} />}
           {view === 'papers' && <PapersView key={test.id} rows={rows} test={test} tests={tests} onPatchEntry={patchEntry} onPatchTest={patchTest} say={say} />}
           {view === 'sparring' && (
             <SparringView
@@ -397,6 +413,20 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
             <button className="dp-btn" disabled={!stats.noInvoice.length} onClick={() => setModal('invoice')}><FileText size={15} /> Create fee invoices ({stats.noInvoice.length})</button>
             <button className="dp-btn" disabled={!rows.length} onClick={() => setModal('notice')}><Mail size={15} /> Email test notice</button>
             <button className="dp-btn" disabled={!rows.length} onClick={printList}><Printer size={15} /> Print list</button>
+            <button
+              className="dp-btn"
+              disabled={!stats.pending.length}
+              title="Set every student still marked Pending to Pass (change any retest or absent afterwards)"
+              onClick={() =>
+                setConfirm({
+                  msg: `Mark all ${stats.pending.length} pending student${stats.pending.length === 1 ? '' : 's'} as Pass? You can still change anyone to Retest or Absent afterwards.`,
+                  label: 'Mark as Pass',
+                  run: () => passAllPending(),
+                })
+              }
+            >
+              <Check size={15} /> Pass all pending ({stats.pending.length})
+            </button>
             <button className="dp-btn" disabled={!stats.toPromote.length} onClick={() => setModal('promote')}><Award size={15} /> Promote passed ({stats.toPromote.length})</button>
             <span style={{ marginLeft: 'auto', fontSize: 13, color: '#5B5F56', display: 'flex', gap: 14 }}>
               <span>{stats.n} on list</span>
@@ -562,7 +592,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
       {confirm && (
         <ConfirmDialog
           message={confirm.msg}
-          confirmLabel="Remove"
+          confirmLabel={confirm.label || 'Remove'}
           onCancel={() => setConfirm(null)}
           onConfirm={async () => {
             const r = confirm.run;
