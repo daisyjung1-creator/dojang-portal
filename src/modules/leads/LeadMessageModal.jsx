@@ -101,14 +101,14 @@ export function leadMessage({ lead, kids, kidsport, join = true, book = true, ki
       `Thank you for your interest in ${DOJANG}! We would love to have ${who} join us for a trial class.`,
       offer,
       book
-        ? `You can pick a date and book the trial class${many ? 'es' : ''} yourself here:\n${TRIAL_LINK}\nOr just reply with the date that works best for you, and we will book it for you.`
+        ? `Pick a date that suits you and book the trial class${many ? 'es' : ''} online — or simply reply with your preferred date and we will book it for you.\n${TRIAL_LINK}`
         : 'Please reply with the date that works best for you, and we will book the trial class' + (many ? 'es.' : '.'),
-      join ? `When you're ready to join, you can register online here (it takes about 5 minutes):\n${JOIN_LINK}` : '',
+      join ? `When you are ready to join, registration takes about 5 minutes online.\n${JOIN_LINK}` : '',
       kidsport
-        ? `KidSport grant (help with fees for families who qualify):\n1. First, sign up for an account here: ${KIDSPORT_URL}\n2. When you bring in the enrollment form${many ? 's' : ''}, we will give you the Proof of Enrollment and all the information you need for the application.`
+        ? `KidSport grant — help with fees for families who qualify. Please create a KidSport account first; when you bring in the enrollment form${many ? 's' : ''}, we will give you the Proof of Enrollment and everything you need for the application.\n${KIDSPORT_URL}`
         : '',
-      `If you have any questions, just reply to this email or call us at ${PHONE}.`,
-      'Best Regards,\nMaster Daisy\n' + DOJANG,
+      `If you have any questions, simply reply to this email or call us at ${PHONE}.`,
+      'Kind regards,\nMaster Daisy\n' + DOJANG,
     ]
       .filter(Boolean)
       .join('\n\n'),

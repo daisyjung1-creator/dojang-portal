@@ -458,9 +458,30 @@ export function refundEmail(r: Payment, inv: Invoice | null, customerName: strin
   };
 }
 
+// A link on a line of its own becomes a button with a friendly label.
+const LINK_BUTTONS: [RegExp, string][] = [
+  [/\/trial(\b|$)/, 'Book a trial class'],
+  [/\/join(\b|$)/, 'Register online'],
+  [/\/card\//, 'Save your card'],
+  [/\/pay\//, 'Pay now'],
+  [/kidsport/i, 'Create a KidSport account'],
+];
+function linkButton(url: string) {
+  const label = LINK_BUTTONS.find(([re]) => re.test(url))?.[1];
+  if (!label) return '';
+  return `<a href="${esc(url)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-weight:bold;font-size:14px;padding:10px 18px;border-radius:8px;margin:2px 0">${esc(label)}</a>`;
+}
+
 // Plain-text message (as typed in the portal) → simple HTML email, with links clickable.
 export function plainTextEmailHtml(message: string, s: Settings) {
-  const body = esc(message).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#111">$1</a>');
+  const body = String(message || '')
+    .split('\n')
+    .map((line) => {
+      const m = line.trim().match(/^(https?:\/\/\S+)$/);
+      const btn = m ? linkButton(m[1]) : '';
+      return btn || esc(line).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#111">$1</a>');
+    })
+    .join('\n');
   return `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:560px;font-size:14px;line-height:1.55">
   <div style="white-space:pre-line">${body}</div>
   <p style="font-size:12px;color:#999;margin-top:24px">${esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
