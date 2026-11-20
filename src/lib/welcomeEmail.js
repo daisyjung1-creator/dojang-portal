@@ -38,9 +38,16 @@ export function fillWelcomeTemplate(tpl, student, settings = {}) {
   const s = student;
   const rate = Number(settings.gst_rate ?? 5);
   const per = s.plan === '3 Months' ? 'every 3 months' : 'per month';
-  const tuition = Number(s.tuition)
-    ? `${money(s.tuition)} + GST (${rate}%) = ${money(Number(s.tuition) * (1 + rate / 100))} ${per}`
-    : '(to be confirmed)';
+  // Big family discount comes off before GST, the same way Billing invoices do it.
+  const base = Number(s.tuition) || 0;
+  const pct = s.family_discount ? Number(settings.family_discount_pct ?? 20) : 0;
+  const disc = Math.round(base * pct) / 100;
+  const net = base - disc;
+  const tuition = !base
+    ? '(to be confirmed)'
+    : pct
+    ? `${money(base)} − ${pct}% big family discount (${money(disc)}) = ${money(net)} + GST (${rate}%) = ${money(net * (1 + rate / 100))} ${per}`
+    : `${money(base)} + GST (${rate}%) = ${money(base * (1 + rate / 100))} ${per}`;
   const day = billingAnchor(s) ? ordinal(getBillingDay(s)) : '';
   const schedule = !day ? '' : s.plan === '3 Months' ? `every 3 months on the ${day}` : `on the ${day} of every month`;
   const next = billingAnchor(s) ? longDate(nextDueDate(s, todayISO() < billingAnchor(s) ? addDay(billingAnchor(s), -1) : todayISO())) : '(to be confirmed)';
