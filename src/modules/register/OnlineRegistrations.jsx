@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Globe, Copy, Eye, Printer, X, ArrowDownToLine, Check } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { SCHOOL, INTRO, TERMS, boldParts, EMERGENCY_AUTH, ACKNOWLEDGMENTS, PHOTO_YES, PHOTO_NO, FREQUENCIES } from '../../lib/agreement';
 
 // Registrations families sent from the public /join form, waiting for review.
@@ -21,6 +22,7 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
   const [view, setView] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const [askDismiss, setAskDismiss] = useState(null); // registration waiting for "are you sure?"
 
   const load = () =>
     supabase.from('registrations').select('*').order('created_at', { ascending: false }).limit(60).then(({ data }) => setRows(data || []));
@@ -30,8 +32,8 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
   const handled = rows.filter((r) => r.status !== 'new');
   const dismiss = async (r) => {
     // A card saved on the form's card step is deleted from TD too.
+    setAskDismiss(null);
     if (r.card_profile_code) {
-      if (!window.confirm(`Dismiss this registration and delete the card they saved (ending ${r.card_last4 || '····'}) from TD Online Mart?`)) return;
       const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'reg_card_remove', registration_id: r.id } });
       if (error || data?.error) return alert('The saved card could not be deleted from TD: ' + (data?.error || error.message) + '\nNothing was dismissed.');
     }
@@ -93,11 +95,19 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
             <div style={{ overflowY: 'auto', padding: '4px 20px 16px', fontSize: 13.5 }} dangerouslySetInnerHTML={{ __html: summaryHtml(view) }} />
             <div style={{ display: 'flex', gap: 8, padding: '12px 20px', borderTop: '1px solid #E4E0D4', flexWrap: 'wrap' }}>
               <button className="dp-btn" onClick={() => printAgreement(view)}><Printer size={14} /> Print / PDF</button>
-              {view.status === 'new' && <button className="dp-btn" onClick={() => dismiss(view)}>Dismiss</button>}
+              {view.status === 'new' && <button className="dp-btn" onClick={() => setAskDismiss(view)}>Dismiss</button>}
               {view.status === 'new' && <button className="dp-btn dp-btn-primary" style={{ marginLeft: 'auto' }} onClick={() => { onLoad(view); setView(null); }}><ArrowDownToLine size={14} /> Enroll</button>}
             </div>
           </div>
         </div>
+      )}
+      {askDismiss && (
+        <ConfirmDialog
+          message={`Dismiss the registration for ${(askDismiss.kids || []).map(kidName).join(', ')}? It moves to "handled" and can't be enrolled from the list any more.${askDismiss.card_profile_code ? ` The card they saved (ending ${askDismiss.card_last4 || '····'}) is also deleted from TD Online Mart.` : ''}`}
+          confirmLabel="Dismiss"
+          onCancel={() => setAskDismiss(null)}
+          onConfirm={() => dismiss(askDismiss)}
+        />
       )}
     </div>
   );
