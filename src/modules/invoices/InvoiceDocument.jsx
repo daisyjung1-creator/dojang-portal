@@ -13,7 +13,7 @@ const RED = '#BF1C21';
 
 // Shown first under "How to pay" for families on pre-authorized card payments
 // (same wording as the emailed PDF in send-emails/invoiceDocs.ts).
-export const PREAUTH_PAY_LINE = 'Pre-authorized card on file: reply to the invoice email to approve charging this amount to your card.';
+export const PREAUTH_PAY_LINE = 'Pre-authorized card on file: reply to the invoice email to approve this charge, or pay online.';
 
 const labelStyle = { fontSize: 9, fontWeight: 700, color: FAINT, textTransform: 'uppercase', letterSpacing: '0.08em' };
 

@@ -19,7 +19,7 @@ const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;
 const PORTAL_URL = 'https://dojang-portal.netlify.app';
 
 // Shown first under "How to pay" for families on pre-authorized card payments.
-export const PREAUTH_PAY_LINE = 'Pre-authorized card on file: reply to the invoice email to approve charging this amount to your card.';
+export const PREAUTH_PAY_LINE = 'Pre-authorized card on file: reply to the invoice email to approve this charge, or pay online.';
 
 export function fillTemplate(tpl: string, inv: Invoice, s: Settings, balance: number) {
   return (tpl || '')
@@ -346,14 +346,61 @@ export async function buildReceiptPdf(p: Payment, inv: Invoice | null, lines: Li
   return await pdf.save();
 }
 
-export function invoiceEmailHtml(inv: Invoice, lines: Line[], s: Settings, message: string, balance: number) {
+// "Item — description" without repeating words the item name already has.
+function lineLabel(l: Line) {
+  const item = String(l.item_name || '').trim();
+  const desc = String(l.description || '').trim();
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!item) return esc(desc);
+  if (!desc || norm(item).includes(norm(desc)) || norm(desc) === norm(item)) return '<b>' + esc(item) + '</b>';
+  return '<b>' + esc(item) + '</b> ' + esc(desc);
+}
+
+// Splits a closing like "Kind regards,\nMaster Daisy" off the end of the message.
+function splitSignoff(message: string) {
+  const parts = message.trim().split(/\n\s*\n/);
+  const last = parts[parts.length - 1] || '';
+  if (parts.length > 1 && last.length < 120 && /regards|thank|sincerely|master|best/i.test(last)) return { body: parts.slice(0, -1).join('\n\n'), signoff: last };
+  return { body: message, signoff: '' };
+}
+
+// kind: 'new' (first invoice, no card saved yet), 'preauth' (card on file) or 'manual'.
+export function invoiceEmailHtml(inv: Invoice, lines: Line[], s: Settings, message: string, balance: number, kind = 'manual') {
   const rows = lines
-    .map((l) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #eee">${l.item_name ? '<b>' + esc(l.item_name) + '</b> ' : ''}${esc(l.description)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${Number(l.quantity)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${money(l.amount)}</td></tr>`)
+    .map((l) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #eee">${lineLabel(l)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${Number(l.quantity)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${money(l.amount)}</td></tr>`)
     .join('');
   // "Pay now" button once online card payments are live (Invoice Settings).
   const payNow = s.online_pay && s.online_pay_mode === 'live' && balance > 0.004 && inv.pay_token && !inv.voided
-    ? `<p style="margin:18px 0 6px"><a href="${PORTAL_URL}/pay/${esc(inv.pay_token)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 22px;border-radius:8px">Pay ${money(balance)} now by credit card</a></p><p style="font-size:12px;color:#8A8D84;margin:0">Secure payment through TD Online Mart. Your receipt is emailed right away.</p>`
+    ? `<p style="margin:18px 0 6px"><a href="${PORTAL_URL}/pay/${esc(inv.pay_token)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 22px;border-radius:8px">Pay ${money(balance)} now</a></p>`
     : '';
+  if (payNow) {
+    // One clear action; other ways to pay in a single quiet line.
+    const other =
+      kind === 'new'
+        ? 'Secure credit card payment through TD Online Mart. At checkout you can save your card for automatic tuition payments.'
+        : kind === 'preauth'
+        ? `Secure payment through TD Online Mart. Prefer to use your card on file? Just reply to this email${s.email ? ` — or pay by e-Transfer to ${s.email}` : ''}.`
+        : `Secure payment through TD Online Mart. You can also pay by e-Transfer${s.email ? ` to ${s.email}` : ''} or at the front desk.`;
+    const { body, signoff } = splitSignoff(message);
+    return `<div style="font-family:Helvetica,Arial,sans-serif;color:#20241F;max-width:560px;font-size:15px;line-height:1.5">
+  <p style="white-space:pre-line;margin:0 0 4px">${esc(body)}</p>
+  ${payNow}
+  <p style="font-size:12.5px;color:#8A8D84;margin:0">${esc(other)}</p>
+  <div style="border:1px solid #e5e2d8;border-radius:8px;padding:16px;margin-top:20px;line-height:1.35">
+    <div style="font-weight:bold;font-size:15px">${esc(s.business_name)} — Invoice #${inv.invoice_number}</div>
+    <div style="color:#5B5F56;font-size:13px;margin:4px 0 12px">${fdate(inv.invoice_date)}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">${rows}</table>
+    <table style="width:100%;font-size:13px;margin-top:8px">
+      <tr><td style="color:#5B5F56">Subtotal</td><td style="text-align:right">${money(inv.subtotal)}</td></tr>
+      <tr><td style="color:#5B5F56">GST (${Number(inv.gst_rate)}%)</td><td style="text-align:right">${money(inv.gst_amount)}</td></tr>
+      <tr><td><b>Total</b></td><td style="text-align:right"><b>${money(inv.total)}</b></td></tr>
+      <tr><td style="color:#9A2B2B"><b>Balance due</b></td><td style="text-align:right;color:#9A2B2B"><b>${money(balance)}</b></td></tr>
+    </table>
+  </div>
+  ${signoff ? `<p style="white-space:pre-line;margin-top:20px">${esc(signoff)}</p>` : ''}
+  <p style="font-size:12px;color:#8A8D84;margin-top:16px">${esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
+</div>`;
+  }
   return `<div style="font-family:Helvetica,Arial,sans-serif;color:#20241F;max-width:560px">
   <p style="white-space:pre-line">${esc(message)}</p>
   ${payNow}

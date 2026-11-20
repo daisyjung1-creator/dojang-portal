@@ -98,7 +98,7 @@ async function loadSettings() {
 async function sendInvoice(record: any) {
   const invoiceId = record.payload?.invoice_id;
   const [{ data: inv }, { data: lines }, { data: rawPayments }, { data: refunds }, { data: credits }, s] = await Promise.all([
-    supabase.from('invoices').select('*, customers(cc_email, payment_type)').eq('id', invoiceId).single(),
+    supabase.from('invoices').select('*, customers(cc_email, payment_type, card_profile_code, rb_account_id)').eq('id', invoiceId).single(),
     supabase.from('invoice_lines').select('*').eq('invoice_id', invoiceId).order('position'),
     supabase.from('invoice_payments').select('*').eq('invoice_id', invoiceId),
     supabase.from('invoice_refunds').select('*').eq('invoice_id', invoiceId),
@@ -119,12 +119,22 @@ async function sendInvoice(record: any) {
   const isReminder = !!record.payload?.reminder;
   // A one-off subject/message written in the portal wins over the templates.
   const subject = fillTemplate(record.payload?.subject || (isReminder ? s.reminder_subject : s.email_subject) || 'Invoice #{number} from {business}', inv, s, balance);
-  const message = fillTemplate(record.payload?.message || (isReminder ? s.reminder_message : s.email_message) || 'Please find your invoice attached.', inv, s, balance);
+  // Which "other ways to pay" line goes under the Pay now button.
+  const cust = inv.customers || {};
+  let kind = (cust.payment_type || 'preauth') === 'manual' ? 'manual' : 'preauth';
+  if (kind === 'preauth' && inv.customer_id && !cust.card_profile_code && !cust.rb_account_id) {
+    const { count } = await supabase.from('invoice_payments').select('id', { count: 'exact', head: true }).eq('customer_id', inv.customer_id);
+    if (!count) kind = 'new';
+  }
+  const live = s.online_pay && s.online_pay_mode === 'live' && balance > 0.004;
+  // With Pay now, the long pre-auth paragraph the portal used to add is replaced by one short line.
+  const custom = record.payload?.preauth_note && live ? '' : record.payload?.message;
+  const message = fillTemplate(custom || (isReminder ? s.reminder_message : s.email_message) || 'Please find your invoice attached.', inv, s, balance);
   const pdf = await buildInvoicePdf(inv, lines || [], payments || [], s, refunds || []);
   const extra: Record<string, unknown> = { attachments: [{ filename: `Invoice-${inv.invoice_number}.pdf`, content: toBase64(pdf) }] };
   if (inv.customers?.cc_email) extra.cc = inv.customers.cc_email;
   if (s.email) extra.reply_to = s.email;
-  await sendEmail(record.recipient_email, subject, invoiceEmailHtml(inv, lines || [], s, message, balance), extra);
+  await sendEmail(record.recipient_email, subject, invoiceEmailHtml(inv, lines || [], s, message, balance, kind), extra);
   await supabase.from('invoices').update(isReminder ? { reminded_at: new Date().toISOString() } : { emailed_at: new Date().toISOString() }).eq('id', invoiceId);
 }
 

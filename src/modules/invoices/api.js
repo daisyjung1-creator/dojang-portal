@@ -130,7 +130,7 @@ export const DEFAULT_PREAUTH_NOTE =
 export const NEW_FAMILY_NOTE =
   'To complete your registration, please pay this invoice securely online using the button below. During checkout you will be asked to save your card for automatic tuition payments, so future tuition is charged on each billing date and a receipt is emailed to you every time. Only credit cards can be accepted (debit cards are not supported).';
 export const DEFAULT_EMAIL_MESSAGE =
-  'Dear {customer},\n\nThank you for training with {business}. Please find attached invoice #{number}, with a balance of {balance} due on {due_date}.\n\nIf you have any questions about this invoice, please reply to this email or call us at 780-450-0181.\n\nKind regards,\nMaster Daisy\n{business}';
+  'Dear {customer},\n\nThank you for training with us. Please find attached invoice #{number} for {balance}, due {due_date}.\n\nKind regards,\nMaster Daisy\n{business}';
 
 // Invoice emails to families on pre-authorized card payments get an extra
 // paragraph asking them to reply if they'd like the card on file charged.
@@ -143,6 +143,8 @@ async function withPreauthNote(payload) {
     supabase.from('invoice_settings').select('email_message, preauth_note, online_pay, online_pay_mode').eq('id', 1).maybeSingle(),
   ]);
   if ((c?.payment_type || 'preauth') !== 'preauth') return payload;
+  // With online payments live the email shows a Pay now button and one short line instead.
+  if (s?.online_pay && s.online_pay_mode === 'live') return payload;
   // A new family with no card saved and nothing paid yet: pay online and save the card.
   let isNew = false;
   if (s?.online_pay && s.online_pay_mode === 'live' && !c?.card_profile_code && !c?.rb_account_id) {
