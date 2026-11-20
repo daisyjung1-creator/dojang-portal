@@ -339,8 +339,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
           <h1 style={styles.title}>Belt Testing</h1>
           <p style={styles.subtitle}>Test list, forms, fees and results · {MIN_CLASSES} classes since the last test to be eligible</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select className="dp-select" value={testId} onChange={(e) => setTestId(e.target.value)}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0, maxWidth: '100%' }}>
+          <select className="dp-select" style={{ minWidth: 0, flex: '1 1 200px', maxWidth: '100%', textOverflow: 'ellipsis' }} value={testId} onChange={(e) => setTestId(e.target.value)}>
             {tests.map((t) => (
               <option key={t.id} value={t.id}>
                 {formatDate(t.test_date)}{t.title ? ' — ' + t.title : ''}

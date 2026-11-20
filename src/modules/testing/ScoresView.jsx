@@ -3,10 +3,24 @@ import { ChevronLeft, ChevronRight, Printer, Check } from 'lucide-react';
 import { styles } from '../../lib/uiStyles';
 import { SECTIONS, MENTAL, SCORE_GUIDE, RANK_COLOR, summarize, mentalRank, DEFAULT_EXAMINER } from '../../lib/testScoring';
 
+// Phones (and small tablets): the student list becomes a picker bar that stays at the top.
+function useNarrow() {
+  const q = '(max-width: 820px)';
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener ? m.addEventListener('change', on) : m.addListener(on);
+    return () => (m.removeEventListener ? m.removeEventListener('change', on) : m.removeListener(on));
+  }, []);
+  return narrow;
+}
+
 // Mark each student's Promotion Test Report (0–3 per criterion), with the
 // section ranks worked out as you go. Every tap saves.
 export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer }) {
   const [sel, setSel] = useState(rows[0]?.e.id || null);
+  const narrow = useNarrow();
   const [examiner, setExaminer] = useState(test.examiner || DEFAULT_EXAMINER);
   useEffect(() => setExaminer(test.examiner || DEFAULT_EXAMINER), [test.id]);
   useEffect(() => {
@@ -15,7 +29,11 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
 
   const idx = rows.findIndex((r) => r.e.id === sel);
   const cur = rows[idx];
-  const go = (d) => rows[idx + d] && setSel(rows[idx + d].e.id);
+  const go = (d) => {
+    if (!rows[idx + d]) return;
+    setSel(rows[idx + d].e.id);
+    if (narrow) document.getElementById('dp-score-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   if (!rows.length) return <div style={{ ...styles.card, padding: 20, fontSize: 14, color: '#5B5F56' }}>Add students to the test first.</div>;
 
@@ -29,6 +47,23 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
         <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#8A8D84' }}>In the print window choose “Save as PDF” to get the PDF.</span>
       </div>
 
+      {narrow ? (
+        <>
+          <div style={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', gap: 6, alignItems: 'center', background: '#F4F3EF', padding: '8px 0', flexWrap: 'nowrap' }}>
+            <button className="dp-btn" style={{ padding: '10px 11px', flex: 'none' }} disabled={idx <= 0} aria-label="Previous student" onClick={() => go(-1)}><ChevronLeft size={18} /></button>
+            <select className="dp-select" style={{ flex: 1, minWidth: 0, fontSize: 16, padding: '10px 8px' }} value={sel || ''} onChange={(ev) => setSel(ev.target.value)}>
+              {rows.map(({ e, s }, i) => {
+                const sum = summarize(e.scores);
+                return <option key={e.id} value={e.id}>{`${i + 1}. ${s.name}${sum.complete ? ' ✓' : sum.any ? ' …' : ''}`}</option>;
+              })}
+            </select>
+            <span style={{ fontSize: 12.5, color: '#5B5F56', flex: 'none' }}>{idx + 1}/{rows.length}</span>
+            <button className="dp-btn" style={{ padding: '10px 11px', flex: 'none' }} disabled={idx >= rows.length - 1} aria-label="Next student" onClick={() => go(1)}><ChevronRight size={18} /></button>
+          </div>
+          <div id="dp-score-sheet" style={{ scrollMarginTop: 64 }} />
+          {cur && <Sheet key={cur.e.id} narrow row={cur} onPatch={onPatch} onPrev={null} onNext={idx < rows.length - 1 ? () => go(1) : null} />}
+        </>
+      ) : (
       <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: '250px minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
         {/* Student list */}
         <div style={{ ...styles.card, maxHeight: '75vh', overflowY: 'auto' }}>
@@ -54,11 +89,12 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
         {/* Sheet */}
         {cur && <Sheet key={cur.e.id} row={cur} onPatch={onPatch} onPrev={idx > 0 ? () => go(-1) : null} onNext={idx < rows.length - 1 ? () => go(1) : null} />}
       </div>
+      )}
     </>
   );
 }
 
-function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
+function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
   const [scores, setScores] = useState(e.scores || {});
   const sum = summarize(scores);
   const save = (next) => {
@@ -77,7 +113,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
   };
 
   const Marks = ({ k, n, i }) => (
-    <div style={{ display: 'flex', gap: 4 }}>
+    <div style={{ display: 'flex', gap: narrow ? 6 : 4, flex: 'none', flexWrap: 'nowrap', width: narrow ? '100%' : undefined }}>
       {[0, 1, 2, 3].map((v) => {
         const on = (scores[k] || [])[i] === v;
         return (
@@ -86,7 +122,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
             type="button"
             title={SCORE_GUIDE[v].title}
             onClick={() => mark(k, n, i, v)}
-            style={{ width: 34, height: 30, borderRadius: 6, border: `1px solid ${on ? '#20241F' : '#DEDACC'}`, background: on ? '#20241F' : '#fff', color: on ? '#fff' : '#5B5F56', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ width: narrow ? undefined : 34, flex: narrow ? 1 : undefined, height: narrow ? 42 : 30, borderRadius: 6, border: `1px solid ${on ? '#20241F' : '#DEDACC'}`, background: on ? '#20241F' : '#fff', color: on ? '#fff' : '#5B5F56', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             {v}
           </button>
@@ -100,8 +136,8 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
   return (
     <div style={styles.card}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #EDEAE0' }}>
-        <button className="dp-btn" style={{ padding: 5 }} disabled={!onPrev} aria-label="Previous student" onClick={onPrev}><ChevronLeft size={16} /></button>
-        <div style={{ flex: 1 }}>
+        {!narrow && <button className="dp-btn" style={{ padding: 5 }} disabled={!onPrev} aria-label="Previous student" onClick={onPrev}><ChevronLeft size={16} /></button>}
+        <div style={{ flex: 1, minWidth: narrow ? '100%' : 0 }}>
           <div style={{ fontSize: 16, fontWeight: 600 }}>{s.name}</div>
           <div style={{ fontSize: 12.5, color: '#5B5F56' }}>{e.current_belt} → {e.target_belt}</div>
         </div>
@@ -113,10 +149,10 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
             </span>
           ))}
         </div>
-        <button className="dp-btn" style={{ padding: 5 }} disabled={!onNext} aria-label="Next student" onClick={onNext}><ChevronRight size={16} /></button>
+        {!narrow && <button className="dp-btn" style={{ padding: 5 }} disabled={!onNext} aria-label="Next student" onClick={onNext}><ChevronRight size={16} /></button>}
       </div>
 
-      <div style={{ padding: '10px 16px 16px' }}>
+      <div style={{ padding: narrow ? '10px 10px 14px' : '10px 16px 16px' }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11.5, color: '#8A8D84', marginBottom: 8 }}>
           {SCORE_GUIDE.map((g) => <span key={g.n}><b style={{ color: '#20241F' }}>{g.n}</b> {g.title}</span>)}
           <span>· tap again to clear</span>
@@ -132,8 +168,8 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
             <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(200px, 0.8fr)', gap: 12, padding: '8px 12px' }}>
               <div>
                 {sec.criteria.map((c, i) => (
-                  <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}>
-                    <span style={{ flex: 1, fontSize: 13 }}>{c}</span>
+                  <div key={c} style={{ display: 'flex', flexWrap: narrow ? 'wrap' : 'nowrap', alignItems: 'center', gap: narrow ? 4 : 10, padding: narrow ? '6px 0' : '3px 0' }}>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: narrow ? 14 : 13 }}>{c}</span>
                     <Marks k={sec.key} n={sec.criteria.length} i={i} />
                   </div>
                 ))}
@@ -157,13 +193,14 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext }) {
           <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(200px, 0.8fr)', gap: 12, padding: '8px 12px' }}>
             <div>
               {MENTAL.criteria.map((c, i) => (
-                <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '3px 0' }}>
-                  <span style={{ flex: 1, fontSize: 13 }}>
+                <div key={c} style={{ display: 'flex', flexWrap: narrow ? 'wrap' : 'nowrap', alignItems: 'center', gap: narrow ? 4 : 10, padding: narrow ? '6px 0' : '3px 0' }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: narrow ? 14 : 13 }}>
                     {c}
+                    {narrow && <span style={{ marginLeft: 8 }}><Rank r={mentalRank((scores.mental || [])[i])} /></span>}
                     {i === 2 && <div style={{ fontSize: 11, color: '#8A8D84' }}>{MENTAL.note}</div>}
                   </span>
                   <Marks k={MENTAL.key} n={MENTAL.criteria.length} i={i} />
-                  <span style={{ width: 26, textAlign: 'right' }}><Rank r={mentalRank((scores.mental || [])[i])} /></span>
+                  {!narrow && <span style={{ width: 26, textAlign: 'right' }}><Rank r={mentalRank((scores.mental || [])[i])} /></span>}
                 </div>
               ))}
             </div>
