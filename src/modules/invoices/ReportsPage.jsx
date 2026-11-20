@@ -103,7 +103,7 @@ export default function ReportsPage() {
       </div>
 
       <ItemLookup onOpenInvoice={async (id) => { if (!lookupSettings) setLookupSettings(await loadSettings()); setPreviewId(id); }} />
-      {previewId && lookupSettings && <InvoicePreview invoiceId={previewId} settings={lookupSettings} onClose={() => setPreviewId(null)} onEdit={() => {}} onPay={() => {}} onChanged={() => {}} />}
+      {previewId && lookupSettings && <InvoicePreview invoiceId={previewId} settings={lookupSettings} onClose={() => setPreviewId(null)} onPay={() => {}} onChanged={() => {}} />}
 
       <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 18 }}>
         <Metric label={`${MONTHS[selMonth]} net sales (before GST)`} value={money(sel.netSales)} note={sel.refundSales ? `${money(sel.subtotal)} sales − ${money(sel.refundSales)} refunds` : ''} />

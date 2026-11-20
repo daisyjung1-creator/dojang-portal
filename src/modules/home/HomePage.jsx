@@ -614,7 +614,7 @@ export default function HomePage({ setActiveTab }) {
         </div>
       </div>
 
-      {previewId && <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onEdit={() => setActiveTab('invoices')} onPay={() => setActiveTab('payments')} onChanged={load} />}
+      {previewId && <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onPay={() => setActiveTab('payments')} onChanged={load} />}
     </>
   );
 }

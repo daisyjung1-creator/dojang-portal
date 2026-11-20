@@ -5,8 +5,9 @@ import { supabase } from '../../supabaseClient';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import InvoiceDocument from './InvoiceDocument';
+import InvoiceEditor from './InvoiceEditor';
 import ReceiptPreview from './ReceiptPreview';
-import { loadInvoiceFull, queueEmail, loadCredit, applyCredit, chargeSavedCards } from './api';
+import { loadInvoiceFull, queueEmail, loadCredit, applyCredit, chargeSavedCards, loadCustomers, loadItems } from './api';
 import { money, formatDate, INVOICE_STATUS_STYLES } from '../../lib/invoiceUtils';
 import { confirmSend } from '../../components/ConfirmSend';
 
@@ -30,6 +31,18 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
   const [confirm, setConfirm] = useState(null);
   const [receiptId, setReceiptId] = useState(null);
 
+  // Edit right here when the page that opened the preview has no editor of its own (Billing, Home, Reports).
+  const [editor, setEditor] = useState(null); // { customers, items, students }
+  async function startEdit() {
+    if (onEdit) return onEdit(data);
+    const [customers, items, { data: students }] = await Promise.all([
+      loadCustomers(),
+      loadItems(),
+      supabase.from('students').select('id, name, class_name, tuition, customer_id, status').order('name'),
+    ]);
+    setEditor({ customers, items, students: students || [] });
+  }
+
   const [credit, setCredit] = useState(0);
   async function reload() {
     const d = await loadInvoiceFull(invoiceId);
@@ -52,6 +65,24 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
   }, [invoiceId]);
 
   if (!data || !data.invoice) return null;
+  if (editor)
+    return (
+      <InvoiceEditor
+        settings={settings}
+        customers={editor.customers}
+        items={editor.items}
+        students={editor.students}
+        editing={data}
+        onClose={() => setEditor(null)}
+        onSaved={async () => {
+          setEditor(null);
+          setMsg('Invoice saved.');
+          await reload();
+          onChanged && onChanged();
+        }}
+        onCustomersChanged={async () => setEditor((e) => e && { ...e })}
+      />
+    );
   const { invoice, lines, payments, refunds, credits = [] } = data;
   const refundable = Number(invoice.amount_paid) - Number(invoice.credit_used || 0) - Number(invoice.amount_refunded);
   const st = INVOICE_STATUS_STYLES[invoice.status] || INVOICE_STATUS_STYLES['Not Paid'];
@@ -91,7 +122,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
             <button className="dp-btn dp-btn-danger" onClick={() => setConfirm(payments.length || refunds.length ? 'cantDelete' : 'delete')}><Trash2 size={14} /> Delete</button>
             <button className="dp-btn" onClick={() => setConfirm('void')}><Ban size={14} /> {invoice.voided ? 'Un-void' : 'Void'}</button>
             <div style={{ flex: 1 }} />
-            <button className="dp-btn" onClick={() => onEdit(data)}><Pencil size={14} /> Edit</button>
+            <button className="dp-btn" onClick={startEdit}><Pencil size={14} /> Edit</button>
             <button className="dp-btn" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
             <button className="dp-btn" onClick={sendEmail}><Mail size={14} /> Email</button>
             {invoice.saved_card && !invoice.voided && Number(invoice.balance) > 0.004 && (

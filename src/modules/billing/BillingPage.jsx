@@ -504,7 +504,7 @@ export default function BillingPage() {
       })()}
 
       {previewId && (
-        <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onEdit={() => setFlash('To edit, open the invoice from the Invoices page.')} onPay={() => setFlash('Use "Mark paid" above, or Apply Payment on the Invoices page.')} onChanged={loadAll} />
+        <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onPay={() => setFlash('Use "Mark paid" above, or Apply Payment on the Invoices page.')} onChanged={loadAll} />
       )}
     </>
   );
