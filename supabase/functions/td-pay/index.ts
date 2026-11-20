@@ -106,15 +106,21 @@ const CARD_TYPE: Record<string, string> = { VI: 'Visa', MC: 'Mastercard', AM: 'A
 // Saves the one-time card token as a Secure Payment Profile; returns its code and card details.
 async function saveProfile(mode: string, token: string, name: string, email: string, inv: any) {
   const auth = profileAuth(mode);
-  // Our own profile code, so a slow/timed-out create can be checked afterwards.
-  const ourCode = (String(inv.customer_id || '').replace(/-/g, '').slice(0, 24) + Date.now().toString(36)).slice(0, 32).toUpperCase();
+  // Student names, so the profile is easy to find in TD Online Mart.
+  const { data: kids } = inv.customer_id ? await admin.from('students').select('name, status').eq('customer_id', inv.customer_id) : { data: [] };
+  const names = (kids || []).filter((k: any) => k.status !== 'withdrawn').map((k: any) => String(k.name || '').trim()).filter(Boolean);
+  // Our own profile code (first student's name + time), readable in TD and checkable after a timeout.
+  const stamp = Date.now().toString(36).toUpperCase();
+  const base = (names[0] || inv.customer_name || 'FAMILY').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const ourCode = (base.slice(0, 32 - stamp.length) + stamp).slice(0, 32);
+  const comments = `${names.length ? `Students: ${names.join(', ')} · ` : ''}Portal family: ${inv.customer_name || ''}`.slice(0, 250);
   let r: any;
   try {
     r = await api('/profiles', 'POST', auth, {
       customer_code: ourCode,
       token: { name, code: token },
       billing: { name, email_address: email || undefined },
-      comments: `${inv.customer_name || ''}`.slice(0, 100),
+      comments,
       validate: false,
     }, 45000);
   } catch (e: any) {
