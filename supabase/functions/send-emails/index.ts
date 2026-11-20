@@ -23,29 +23,21 @@ const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPAB
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const FROM_ADDRESS = Deno.env.get('RESEND_FROM_ADDRESS') || 'onboarding@resend.dev';
 
-function tryoutConfirmationEmail(payload: any) {
+function tryoutConfirmationEmail(payload: any, s: Record<string, any>) {
   const { student_name, date, time, class_name } = payload || {};
   return {
     subject: `[Trial Booking Confirmed] ${student_name}`,
-    html: `
-      <p>Hi, this confirms ${student_name}'s trial class booking.</p>
-      <ul>
-        <li>Date: ${date || 'To be announced'}</li>
-        <li>Time: ${time || 'To be announced'}</li>
-        <li>Class: ${class_name || 'To be announced'}</li>
-      </ul>
-      <p>We look forward to seeing you. Feel free to reach out with any questions.</p>
-    `,
+    html: plainTextEmailHtml(
+      `Hello,\n\nThis confirms ${student_name}'s trial class booking.\n\nDate: ${date || 'To be announced'}\nTime: ${time || 'To be announced'}\nClass: ${class_name || 'To be announced'}\n\nWe look forward to seeing you. If you have any questions, simply reply to this email.\n\nKind regards,\nMaster Daisy`,
+      s
+    ),
   };
 }
 
-function welcomeEmail(studentName: string) {
+function welcomeEmail(studentName: string, s: Record<string, any>) {
   return {
     subject: `Welcome, ${studentName}!`,
-    html: `
-      <p>${studentName}'s registration is complete. Welcome to our dojang family!</p>
-      <p>We'll follow up separately with schedule and attendance details.</p>
-    `,
+    html: plainTextEmailHtml(`Hello,\n\n${studentName}'s registration is complete. Welcome to our dojang family!\n\nWe'll follow up separately with schedule and attendance details.\n\nKind regards,\nMaster Daisy`, s),
   };
 }
 
@@ -208,7 +200,7 @@ async function release(table: string, id: string) {
 
 async function processEmailQueue(record: any) {
   if (record.type === 'tryout_confirmation' && !record.payload?.message) {
-    const { subject, html } = tryoutConfirmationEmail(record.payload);
+    const { subject, html } = tryoutConfirmationEmail(record.payload, await loadSettings());
     await sendEmail(record.recipient_email, subject, html);
     if (record.payload?.tryout_id) {
       await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', record.payload.tryout_id);
@@ -259,7 +251,7 @@ async function sendBroadcastCopy(broadcastId: string, s: Record<string, any>) {
 }
 
 async function processWelcome(record: any) {
-  const { subject, html } = welcomeEmail(record.student_name);
+  const { subject, html } = welcomeEmail(record.student_name, await loadSettings());
   await sendEmail(record.guardian_email, subject, html);
 }
 

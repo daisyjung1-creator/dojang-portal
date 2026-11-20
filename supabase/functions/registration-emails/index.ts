@@ -18,11 +18,27 @@ const FROM_ADDRESS = Deno.env.get('RESEND_FROM_ADDRESS') || 'onboarding@resend.d
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const splitEmails = (v: unknown) => String(v || '').split(/[,;\s]+/).map((e) => e.trim()).filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
 
+// Same card design as the portal's other emails (send-emails/invoiceDocs.ts).
+const FONT = 'font-family:Helvetica,Arial,sans-serif';
+const P = `margin:0 0 20px;${FONT};font-size:16px;line-height:1.6;color:#20241F`;
+const linkify = (t: string) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#1b1b1b;text-decoration:underline">$1</a>');
 function textHtml(message: string, s: Record<string, any>) {
-  const body = esc(message).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#111">$1</a>');
-  return `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:560px;font-size:14px;line-height:1.55">
-  <div style="white-space:pre-line">${body}</div>
-  <p style="font-size:12px;color:#999;margin-top:24px">${esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
+  const inner = String(message || '')
+    .replace(/\r/g, '')
+    .trim()
+    .split(/\n\s*\n/)
+    .map((b) => `<p style="${P}">${b.split('\n').map(linkify).join('<br>')}</p>`)
+    .join('');
+  const footer = esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '));
+  return `<div style="background:#f3f2ee;padding:28px 12px;${FONT}">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:14px;border:1px solid #e6e3da">
+    <tr><td style="padding:30px 30px 10px">
+      <div style="width:28px;height:3px;background:#BE1C21;margin:0 0 12px"></div>
+      <div style="${FONT};font-size:13px;font-weight:bold;letter-spacing:0.04em;color:#20241F;text-transform:uppercase;margin:0 0 24px">${esc(s.business_name || '')}</div>
+      ${inner}
+    </td></tr>
+  </table>
+  <p style="max-width:580px;margin:14px auto 0;text-align:center;${FONT};font-size:12px;color:#8A8D84">${footer}</p>
 </div>`;
 }
 

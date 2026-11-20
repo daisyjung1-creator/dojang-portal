@@ -1,6 +1,6 @@
 // Payslip PDF (same layout as the portal's PayslipDocument) and its email.
 import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
-import { money, fdate } from './invoiceDocs.ts';
+import { money, fdate, payslipEmailHtml } from './invoiceDocs.ts';
 
 const pdfSafe = (s: any) =>
   String(s ?? '').replace(/\u2013/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u2026/g, '...').replace(/[^\x20-\x7E\u00A0-\u00FF\u2014]/g, '');
@@ -113,17 +113,17 @@ export function payslipEmail(slip: Record<string, any>, e: Record<string, any>, 
   const period = slip.period_start && slip.period_end ? `${fdate(slip.period_start)} – ${fdate(slip.period_end)}` : '';
   return {
     subject: `Payslip — ${fdate(slip.pay_date)} — ${s.company_name || ''}`.trim(),
-    html: `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:520px;font-size:14px;line-height:1.55">
-  <p>Hi ${esc(first)},</p>
-  <p>Your payslip for the pay date ${esc(fdate(slip.pay_date))}${period ? ` (work period ${esc(period)})` : ''} is attached as a PDF.</p>
-  <table style="font-size:14px;border-collapse:collapse;margin:12px 0">
-    <tr><td style="color:#737373;padding:3px 16px 3px 0">Hours</td><td>${Number(slip.hours || 0).toFixed(2)}</td></tr>
-    <tr><td style="color:#737373;padding:3px 16px 3px 0">Gross pay</td><td>${money(slip.gross)}</td></tr>
-    <tr><td style="color:#737373;padding:3px 16px 3px 0">Deductions</td><td>${money(slip.total_deductions)}</td></tr>
-    <tr><td style="color:#737373;padding:3px 16px 3px 0">Net pay</td><td><b>${money(slip.net)}</b></td></tr>
-  </table>
-  ${s.contact_line ? `<p style="font-size:13px;color:#555">Questions? Please contact ${esc(s.contact_line)}.</p>` : ''}
-  <p style="font-size:12px;color:#999;margin-top:20px">${esc([s.company_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
-</div>`,
+    html: payslipEmailHtml(
+      `Hi ${first},\n\nYour payslip for the pay date ${fdate(slip.pay_date)}${period ? ` (work period ${period})` : ''} is attached as a PDF.`,
+      [
+        ['Hours', Number(slip.hours || 0).toFixed(2)],
+        ['Gross pay', money(slip.gross)],
+        ['Deductions', money(slip.total_deductions)],
+        ['Net pay', money(slip.net), true],
+      ],
+      s.contact_line ? `Questions? Please contact ${s.contact_line}.` : '',
+      s.company_name || '',
+      [s.company_name, s.phone, s.email]
+    ),
   };
 }
