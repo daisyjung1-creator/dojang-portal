@@ -46,7 +46,7 @@ export default function AwardsView({ rows, test, tests, onPatch, say }) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
         <button className="dp-btn dp-btn-primary" disabled={!passed.length} onClick={() => fail(printNewBelts(passed, test))}><Printer size={15} /> Print new belt list ({passed.length})</button>
         <button className="dp-btn" disabled={!awarded.length} onClick={() => fail(printAwards(awarded, test))}><Printer size={15} /> Print awards list ({awarded.length})</button>
-        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#5B5F56' }}>Medal suggested at {MEDAL_MIN}+ MS/ES · each patch can be given to a student only once</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#5B5F56' }}>Medal suggested at {MEDAL_MIN}+ ES · each patch can be given to a student only once</span>
       </div>
 
       <div style={styles.card}>
@@ -58,7 +58,7 @@ export default function AwardsView({ rows, test, tests, onPatch, say }) {
               <tr>
                 <th>Student</th>
                 <th>Result</th>
-                <th style={{ textAlign: 'center' }}>MS/ES</th>
+                <th style={{ textAlign: 'center' }}>ES</th>
                 <th style={{ textAlign: 'center' }}>Medal</th>
                 <th>Patch</th>
                 <th>Earlier awards</th>

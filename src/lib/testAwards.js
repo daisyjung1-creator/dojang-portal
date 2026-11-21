@@ -1,5 +1,6 @@
 // Awards handed out at a belt test.
-//   · Medal: usually for a strong test — 7 or more sections/values at MS or better.
+//   · Medal: for a strong test — 7 or more of the 8 report ranks at ES
+//     (5 sections + 3 mental values; a section the belt doesn't do can't count).
 //   · Character patches: chosen by the instructors from what the student has
 //     shown in class. A student receives each patch only once.
 // `intro` is read out when the patch is presented (printed on the awards list).
@@ -26,8 +27,8 @@ export const MEDAL_INTRO =
 
 export const MEDAL_MIN = 7;
 
-// How many sections and mental values are at MS or ES.
+// How many sections and mental values are at ES (Exceeds Standard).
 export function goodCount(scores, currentBelt) {
   const sum = summarize(scores, currentBelt);
-  return [...sum.sections.map((x) => x.rank), ...sum.mental.map((m) => m.rank)].filter((r) => r === 'MS' || r === 'ES').length;
+  return [...sum.sections.map((x) => x.rank), ...sum.mental.map((m) => m.rank)].filter((r) => r === 'ES').length;
 }
