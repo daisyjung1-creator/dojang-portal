@@ -121,8 +121,11 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     if (!form.invoice_date) return setError('Please set the invoice date.');
     if (!lines.some((l) => (l.description || '').trim() || Number(l.unit_price))) return setError('Add at least one line.');
     if (totals.total < 0) return setError('The total is below $0 — make the discount or credit smaller.');
-    if (action === 'email' && !form.customer_email) return setError('This customer has no email address.');
-    if (action === 'email' && !(await confirmSend({ what: `Invoice (PDF) — ${form.customer_name || ''}`, to: form.customer_email, note: 'The invoice is saved and emailed.' }))) return;
+    let sendTo = null;
+    if (action === 'email') {
+      sendTo = await confirmSend({ what: `Invoice (PDF) — ${form.customer_name || ''}`, to: form.customer_email, note: 'The invoice is saved and emailed.', extra: true });
+      if (!sendTo) return;
+    }
     setSaving(true);
     try {
       const invoice = await saveInvoice(form, effLines, isEdit ? editing.invoice.id : null);
@@ -130,7 +133,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
       if (payNow && !isEdit && invoice.total - usedCredit > 0.004) {
         await savePayment({ invoice_id: invoice.id, customer_id: invoice.customer_id, payment_date: invoice.invoice_date, method: payMethod, amount: round2(invoice.total - usedCredit) });
       }
-      if (action === 'email') await queueEmail('invoice', form.customer_email, { invoice_id: invoice.id });
+      if (action === 'email') await queueEmail('invoice', sendTo, { invoice_id: invoice.id });
       onSaved(invoice, action);
     } catch (e) {
       setError('Could not save: ' + (e.message || e));

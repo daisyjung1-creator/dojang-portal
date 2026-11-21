@@ -88,11 +88,11 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
   const st = INVOICE_STATUS_STYLES[invoice.status] || INVOICE_STATUS_STYLES['Not Paid'];
 
   async function sendEmail() {
-    if (!invoice.customer_email) return setMsg('This customer has no email address. Add one in Customers, then edit the invoice to pick it up.');
-    if (!(await confirmSend({ what: `Invoice #${invoice.invoice_number} (PDF) — ${invoice.customer_name || ''}`, to: invoice.customer_email }))) return;
+    const to = await confirmSend({ what: `Invoice #${invoice.invoice_number} (PDF) — ${invoice.customer_name || ''}`, to: invoice.customer_email, extra: true });
+    if (!to) return;
     try {
-      await queueEmail('invoice', invoice.customer_email, { invoice_id: invoice.id });
-      setMsg(`Invoice queued to send to ${invoice.customer_email}.`);
+      await queueEmail('invoice', to, { invoice_id: invoice.id });
+      setMsg(`Invoice queued to send to ${to}.`);
     } catch (e) {
       setMsg('Could not queue email: ' + e.message);
     }

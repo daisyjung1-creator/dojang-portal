@@ -8,6 +8,7 @@ import { isBillable, isManual } from '../../lib/tuitionBilling';
 import { inClass } from '../../lib/classes';
 import { money, formatDate } from '../../lib/invoiceUtils';
 import { fetchAll, loadSettings, queueEmail } from '../invoices/api';
+import { joinEmails } from '../../components/ConfirmSend';
 import { absenceAlerts, trackingStart, NOT_SEEN_DAYS } from '../../lib/attendanceStats';
 import InvoicePreview from '../invoices/InvoicePreview';
 import { GREEN, BLUE, RED, AMBER, PURPLE, GREY, smallBtn, linkBtn, Tag, Card, Empty } from './homeUi';
@@ -749,13 +750,16 @@ function DeclinedModal({ cards, today, onClose, onChanged }) {
     supabase.from('invoice_summary').select('id, invoice_number, balance, customer_email').in('id', ids).then(({ data }) => setInvs(Object.fromEntries((data || []).map((x) => [x.id, x]))));
   }, []);
   function open(c, reminder) {
-    setEdit({ c, reminder, ...declineEmail(c, invs[c.card_declined_invoice_id], reminder) });
+    setEdit({ c, reminder, extra: '', ...declineEmail(c, invs[c.card_declined_invoice_id], reminder) });
   }
   async function send() {
     const { c, reminder, subject, message } = edit;
     const inv = invs[c.card_declined_invoice_id];
-    const to = c.email || inv?.customer_email;
-    if (!to) return setMsg(`No email address for ${c.name}.`);
+    const list = joinEmails(c.email || inv?.customer_email || '', edit.extra || '');
+    const bad = list.filter((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (!list.length) return setMsg(`No email address for ${c.name}.`);
+    if (bad.length) return setMsg(`Check the email address: ${bad.join(', ')}`);
+    const to = list.join(', ');
     setBusy(true);
     try {
       // Sent as the invoice email: the PDF is attached and the "Pay now" button is under the message.
@@ -776,6 +780,9 @@ function DeclinedModal({ cards, today, onClose, onChanged }) {
   if (edit)
     return (
       <Modal title={`${edit.reminder ? 'Reminder' : 'Email'} to ${edit.c.name}`} maxWidth={640} onClose={() => setEdit(null)} footer={<><button className="dp-btn" onClick={() => setEdit(null)}>Back</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
+        <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>To: {edit.c.email || invs[edit.c.card_declined_invoice_id]?.customer_email || '—'}</p>
+        <label style={{ fontSize: 12, color: '#5B5F56' }}>Also send to <span style={{ color: '#8A8D84' }}>— this email only, not saved to the family</span></label>
+        <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} placeholder="e.g. dad@example.com (separate several with commas)" value={edit.extra} onChange={(e) => setEdit({ ...edit, extra: e.target.value })} />
         <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
         <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} />
         <label style={{ fontSize: 12, color: '#5B5F56' }}>Message</label>

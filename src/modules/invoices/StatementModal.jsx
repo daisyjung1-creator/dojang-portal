@@ -120,11 +120,12 @@ export default function StatementModal({ customer, student = null, onClose }) {
   async function email() {
     const addr = to_.trim();
     if (!addr) return setMsg('No email address.');
-    if (!(await confirmSend({ what: title, to: addr, note: `Statement for ${period}.` }))) return;
+    const sendTo = await confirmSend({ what: title, to: addr, note: `Statement for ${period}.`, extra: true });
+    if (!sendTo) return;
     setBusy(true);
-    const { error } = await supabase.from('email_queue').insert({ type: 'broadcast', recipient_email: addr, student_id: student?.id || null, payload: { subject: `${title} (${period})`, message: text() } });
+    const { error } = await supabase.from('email_queue').insert({ type: 'broadcast', recipient_email: sendTo, student_id: student?.id || null, payload: { subject: `${title} (${period})`, message: text() } });
     setBusy(false);
-    setMsg(error ? error.message : `Emailed to ${addr}.`);
+    setMsg(error ? error.message : `Emailed to ${sendTo}.`);
   }
 
   return (

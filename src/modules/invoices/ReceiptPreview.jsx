@@ -38,11 +38,11 @@ export default function ReceiptPreview({ paymentId, onClose }) {
   const to = customer?.email || invoice?.customer_email;
 
   async function email() {
-    if (!to) return setMsg('No email on file for this customer.');
-    if (!(await confirmSend({ what: `Receipt #${p.receipt_number} (PDF)`, to }))) return;
+    const sendTo = await confirmSend({ what: `Receipt #${p.receipt_number} (PDF)`, to, extra: true });
+    if (!sendTo) return;
     try {
-      await queueEmail('receipt', to, { payment_id: p.id });
-      setMsg(`Receipt #${p.receipt_number} (PDF) queued to ${to}.`);
+      await queueEmail('receipt', sendTo, { payment_id: p.id });
+      setMsg(`Receipt #${p.receipt_number} (PDF) queued to ${sendTo}.`);
     } catch (e) {
       setMsg('Could not send: ' + (e.message || e));
     }

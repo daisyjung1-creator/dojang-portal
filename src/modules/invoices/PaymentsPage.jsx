@@ -92,15 +92,15 @@ export default function PaymentsPage() {
   }
   async function emailIt(p) {
     const c = customerMap[p.customer_id];
-    if (!c?.email) return say('This customer has no email address.', true);
-    const what = view === 'payments' ? `Receipt #${p.receipt_number} (PDF) — ${c.name || ''}` : `Refund #${p.refund_number} confirmation — ${c.name || ''}`;
-    if (!(await confirmSend({ what, to: c.email }))) return;
+    const what = view === 'payments' ? `Receipt #${p.receipt_number} (PDF) — ${c?.name || ''}` : `Refund #${p.refund_number} confirmation — ${c?.name || ''}`;
+    const to = await confirmSend({ what, to: c?.email || '', extra: true });
+    if (!to) return;
     if (view === 'payments') {
-      await queueEmail('receipt', c.email, { payment_id: p.id });
-      say(`Receipt #${p.receipt_number} queued to ${c.email}.`);
+      await queueEmail('receipt', to, { payment_id: p.id });
+      say(`Receipt #${p.receipt_number} queued to ${to}.`);
     } else {
-      await queueEmail('refund', c.email, { refund_id: p.id });
-      say(`Refund #${p.refund_number} confirmation queued to ${c.email}.`);
+      await queueEmail('refund', to, { refund_id: p.id });
+      say(`Refund #${p.refund_number} confirmation queued to ${to}.`);
     }
   }
 
