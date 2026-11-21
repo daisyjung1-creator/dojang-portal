@@ -697,14 +697,18 @@ function overdueEmail(inv, c, today) {
 function OverdueNoticeModal({ inv, cust, sentAt, today, onClose, onSent }) {
   const [form, setForm] = useState(() => overdueEmail(inv, cust, today));
   const [to, setTo] = useState(cust?.email || '');
+  const [extra, setExtra] = useState(''); // added for this email only — not saved to the family
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   async function send() {
-    if (!to.trim()) return setMsg('Add an email address.');
+    const list = [...new Set(`${to},${extra}`.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))];
+    const bad = list.filter((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (!list.length) return setMsg('Add an email address.');
+    if (bad.length) return setMsg(`Check the email address: ${bad.join(', ')}`);
     setBusy(true);
     try {
       // Sent as the invoice email: PDF attached, "Pay now" button under the message.
-      await queueEmail('invoice', to.trim(), { invoice_id: inv.id, subject: form.subject, message: form.message });
+      await queueEmail('invoice', list.join(', '), { invoice_id: inv.id, subject: form.subject, message: form.message });
       const at = new Date().toISOString();
       await supabase.from('invoices').update({ overdue_notice_at: at }).eq('id', inv.id);
       onSent(at);
@@ -721,6 +725,8 @@ function OverdueNoticeModal({ inv, cust, sentAt, today, onClose, onSent }) {
       </p>
       <label style={{ fontSize: 12, color: '#5B5F56' }}>To</label>
       <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={to} onChange={(e) => setTo(e.target.value)} />
+      <label style={{ fontSize: 12, color: '#5B5F56' }}>Also send to <span style={{ color: '#8A8D84' }}>— this email only, not saved to the family</span></label>
+      <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} placeholder="e.g. dad@example.com (separate several with commas)" value={extra} onChange={(e) => setExtra(e.target.value)} />
       <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
       <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} />
       <label style={{ fontSize: 12, color: '#5B5F56' }}>Message</label>
