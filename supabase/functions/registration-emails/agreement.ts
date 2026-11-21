@@ -113,6 +113,7 @@ export const TERMS = [
           'Grants apply only to regular tuition for the named student — **not** to belt testing, uniforms, equipment, tournaments or other fees.',
           'Grants **cannot be transferred** to another student, family member or person.',
           'Grants apply only within the grant period and **cannot be extended** or carried over to a later period.',
+          'When a grant ends or is used up, tuition **automatically returns to the regular amount** from the next payment date, without further notice. **Applying for a new or renewed grant is the family’s responsibility.**',
           'If the student withdraws, **any unused grant balance is not refundable** to the family. Where the grant provider’s rules require it, unused funds are returned to the grant provider.',
         ],
       },
