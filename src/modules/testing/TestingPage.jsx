@@ -132,8 +132,10 @@ export default function TestingPage() {
   // A belt fixed on the student's record carries over to the test list (until
   // they're promoted): current belt, and the "testing for" belt and fee if
   // those were still the automatic picks. Fees already invoiced stay as they are.
+  // Only before the test day: once the test has happened, the student's belt
+  // may already be their new belt and the list must keep what they tested from.
   useEffect(() => {
-    if (!entries.length || !students.length) return;
+    if (!entries.length || !students.length || !test || test.test_date < localISO()) return;
     const fixes = [];
     entries.forEach((e) => {
       const s = sById[e.student_id];
@@ -152,7 +154,7 @@ export default function TestingPage() {
       return f ? { ...x, ...f[1] } : x;
     }));
     fixes.forEach(([e, patch]) => supabase.from('belt_test_entries').update(patch).eq('id', e.id).then(() => {}));
-  }, [entries, students, fees, itemByName]);
+  }, [entries, students, fees, itemByName, test]);
 
   const rows = useMemo(
     () =>
