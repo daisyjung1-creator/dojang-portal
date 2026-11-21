@@ -68,6 +68,8 @@ export default function HomePage({ setActiveTab }) {
   const [settings, setSettings] = useState(null);
   const [showShort, setShowShort] = useState(false);
   const [showDeclined, setShowDeclined] = useState(false);
+  const [notice, setNotice] = useState(null); // overdue invoice being emailed
+  const [noticeAt, setNoticeAt] = useState({}); // invoice id -> overdue_notice_at
 
   useEffect(() => {
     load();
@@ -190,6 +192,12 @@ export default function HomePage({ setActiveTab }) {
     [d]
   );
   const overdueTotal = overdue.reduce((t, i) => t + Number(i.balance || 0), 0);
+
+  useEffect(() => {
+    const ids = overdue.map((i) => i.id);
+    if (!ids.length) return;
+    supabase.from('invoices').select('id, overdue_notice_at').in('id', ids).then(({ data }) => setNoticeAt(Object.fromEntries((data || []).map((x) => [x.id, x.overdue_notice_at]))));
+  }, [overdue]);
 
   const classesOn = (date) => {
     if (!d) return [];
@@ -541,7 +549,7 @@ export default function HomePage({ setActiveTab }) {
                 <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                   <table className="dp-table">
                     <thead>
-                      <tr><th>Family</th><th>Invoice</th><th>Due</th><th style={{ textAlign: 'right' }}>Balance</th></tr>
+                      <tr><th>Family</th><th>Invoice</th><th>Due</th><th style={{ textAlign: 'right' }}>Balance</th><th></th></tr>
                     </thead>
                     <tbody>
                       {overdue.map((i) => {
@@ -553,6 +561,12 @@ export default function HomePage({ setActiveTab }) {
                             <td style={{ fontSize: 13 }}>#{i.invoice_number}</td>
                             <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(due)} <span style={{ color: late > 30 ? '#9A2B2B' : '#854F0B' }}>· {late}d late</span></td>
                             <td style={{ textAlign: 'right', fontWeight: 500, color: '#9A2B2B' }}>{money(i.balance)}</td>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                              <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 11.5 }} title="Email the overdue notice (classes may be suspended — agreement 7.3)" onClick={() => setNotice(i)}>
+                                <Mail size={12} /> {noticeAt[i.id] ? 'Again' : 'Notice'}
+                              </button>
+                              {noticeAt[i.id] && <div style={{ fontSize: 10.5, color: '#8A8D84', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
+                            </td>
                           </tr>
                         );
                       })}
@@ -614,6 +628,16 @@ export default function HomePage({ setActiveTab }) {
         </div>
       </div>
 
+      {notice && (
+        <OverdueNoticeModal
+          inv={notice}
+          cust={d.custById[notice.customer_id]}
+          sentAt={noticeAt[notice.id]}
+          today={today}
+          onClose={() => setNotice(null)}
+          onSent={(at) => { setNoticeAt((m) => ({ ...m, [notice.id]: at })); setNotice(null); }}
+        />
+      )}
       {previewId && <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onPay={() => setActiveTab('payments')} onChanged={load} />}
     </>
   );
@@ -645,6 +669,66 @@ function declineEmail(c, inv, reminder) {
     subject: "Tuition payment didn't go through — Champion Hankook Taekwondo",
     message: `Hi ${c.name},\n\nWe tried to process your tuition payment of ${amount}${num} on ${shortDate(c.card_declined_at)} using ${card}, but it was declined by the bank${c.card_decline_message ? ` ("${c.card_decline_message}")` : ''}.\n\nThis often happens when a card has expired, been replaced, or reached its limit.\n\nYou can pay securely online with another card using the button below. When you pay, you can also choose to use the new card for future tuition, so you won't need to do anything next month.\n\nIf you've already sorted this out, or would prefer to pay at the front desk, please just reply to this email. Payment is due within 7 days.\n\n${sign}`,
   };
+}
+
+// Overdue invoice: notice that classes may be suspended (agreement 7.3) unless paid.
+// Manual payers are asked to pay; card families are told the automatic payment
+// didn't go through and can pay with another card (and keep it for next time).
+const NOTICE_DAYS = 7;
+function overdueEmail(inv, c, today) {
+  const name = c?.name || inv.customer_name;
+  const amount = money(inv.balance);
+  const due = formatDate(inv.due_date || inv.invoice_date);
+  const by = formatDate(addDaysISO(today, NOTICE_DAYS));
+  const card = c && !isManual(c);
+  const policy = `As outlined in Part 7.3 of our Membership Agreement, if tuition is overdue or a payment is unsuccessful, class participation may be temporarily suspended after notice. Please consider this email that notice: if the balance is not paid by ${by}, your child's classes will be paused until the account is brought up to date.`;
+  const sign = 'Thank you for your understanding,\nMaster Daisy\nChampion Hankook Taekwondo';
+  if (card)
+    return {
+      subject: `Action needed: tuition payment unsuccessful — invoice #${inv.invoice_number}`,
+      message: `Hi ${name},\n\nYour tuition payment of ${amount} (invoice #${inv.invoice_number}, due ${due}) could not be processed with your saved card${c.card_last4 ? ` ending in ${c.card_last4}` : ''}. This usually happens when a card has expired, been replaced, or reached its limit.\n\n${policy}\n\nYou can pay securely online with another card using the "Pay now" button below. When you pay, you can also choose to use the new card for future tuition, so your monthly payments continue without interruption. You're also welcome to pay at the front desk.\n\nIf you've already taken care of this, thank you — please disregard this email. If you have any questions or need to talk about your account, just reply here.\n\n${sign}`,
+    };
+  return {
+    subject: `Overdue tuition — invoice #${inv.invoice_number}`,
+    message: `Hi ${name},\n\nOur records show that tuition of ${amount} (invoice #${inv.invoice_number}) was due on ${due} and is still outstanding.\n\n${policy}\n\nYou can pay securely online by credit card using the "Pay now" button below, or by cash, debit or e-Transfer at the front desk.\n\nIf you've already paid, thank you — please disregard this email. If you have any questions or need to talk about your account, just reply here.\n\n${sign}`,
+  };
+}
+
+function OverdueNoticeModal({ inv, cust, sentAt, today, onClose, onSent }) {
+  const [form, setForm] = useState(() => overdueEmail(inv, cust, today));
+  const [to, setTo] = useState(cust?.email || '');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  async function send() {
+    if (!to.trim()) return setMsg('Add an email address.');
+    setBusy(true);
+    try {
+      // Sent as the invoice email: PDF attached, "Pay now" button under the message.
+      await queueEmail('invoice', to.trim(), { invoice_id: inv.id, subject: form.subject, message: form.message });
+      const at = new Date().toISOString();
+      await supabase.from('invoices').update({ overdue_notice_at: at }).eq('id', inv.id);
+      onSent(at);
+    } catch (e) {
+      setMsg('Could not send: ' + e.message);
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={`Overdue notice — ${inv.customer_name}`} maxWidth={640} onClose={onClose} footer={<><button className="dp-btn" onClick={onClose}>Cancel</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
+      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>
+        {cust && !isManual(cust) ? 'Card family — automatic payment didn’t go through.' : 'Manual payer.'} Classes are paused if unpaid by {formatDate(addDaysISO(today, NOTICE_DAYS))} (agreement 7.3).
+        {sentAt && <b style={{ color: '#854F0B', fontWeight: 500 }}> A notice was already sent {shortDate(sentAt)}.</b>}
+      </p>
+      <label style={{ fontSize: 12, color: '#5B5F56' }}>To</label>
+      <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={to} onChange={(e) => setTo(e.target.value)} />
+      <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
+      <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} />
+      <label style={{ fontSize: 12, color: '#5B5F56' }}>Message</label>
+      <textarea className="dp-input" style={{ width: '100%', minHeight: 320, fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.5 }} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+      <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 0 0' }}>The invoice PDF is attached and a "Pay now by credit card" button is added under the message.</p>
+      {msg && <p style={{ fontSize: 12.5, color: '#9A2B2B' }}>{msg}</p>}
+    </Modal>
+  );
 }
 
 // Declined saved cards: review and email the parent (first email, then one reminder).
