@@ -58,6 +58,7 @@ export const TERMS = [
       { list: ['2 classes per week: **$150 per month**, or **$435 for three months**', '3 classes per week: **$170 per month**, or **$495 for three months**', '4 classes per week: **$200 per month**, or **$585 for three months**'] },
       'All tuition is subject to 5% GST.',
       'Three-month memberships **save $15** compared with paying monthly, whatever the payment method. **New students who start with a three-month membership receive a free uniform.**',
+      '**Big family discount:** When **three or more siblings** in the same family are enrolled at the same time, the sibling with the **lowest tuition** receives a **20% discount** on their tuition. The discount does not apply to Competition Team tuition. If fewer than three siblings remain enrolled, the discount ends from the next payment date.',
       'The guaranteed number of classes applies to **each fully paid monthly service period**; for three-month memberships, it applies to each month of the period. Additional regularly scheduled classes may be available depending on the calendar and program schedule.',
       'The Dojang will confirm the membership start date and payment dates by email before the first payment.',
     ],
@@ -97,6 +98,7 @@ export const TERMS = [
     initial: true,
     title: 'Part 7 — Payment Policy',
     body: [
+      '**Responsibility for payment:** The parent/guardian who signs this agreement (or the adult student) is **responsible for all tuition and fees** under this agreement.',
       '**7.1 Pre-Authorized Credit Card Payments:** Members who select pre-authorized credit card payments may arrange automatic tuition payments monthly or every three months. **A separate Credit Card Authorization must be completed** before automatic charges begin. The authorization will identify the payment amount, frequency, charge date, cancellation process, and applicable rights. **Cancelling the credit card authorization does not automatically cancel the underlying membership agreement** or eliminate valid outstanding charges.',
       '**7.2 Members Not Using Pre-Authorized Credit Card Payments:** Members who do not select pre-authorized credit card payments **must pay tuition for three months in advance**. The following payment methods are accepted:',
       { list: ['Cash', 'Debit Card', 'E-transfer'] },
@@ -161,6 +163,7 @@ export const TERMS = [
       'If a material change substantially affects the Dojang’s ability to provide the agreed training services, the Dojang will discuss appropriate alternatives or adjustments with the member, subject to applicable law.',
       '**Holiday closures:** The Dojang is **closed on all Alberta general holidays** — New Year’s Day, Family Day, Good Friday, Victoria Day, Canada Day, Labour Day, Thanksgiving Day, Remembrance Day and Christmas Day — and also on **Easter Monday, Heritage Day, the National Day for Truth and Reconciliation, Boxing Day, Christmas Eve and New Year’s Eve**. Other closures (such as belt testing days) will be announced by email at least 14 days in advance.',
       '**Changes to this agreement:** The Dojang may update these terms with **at least 30 days’ written notice by email**. The updated terms apply to the membership after that date; members who do not agree may cancel under Part 6.',
+      '**Notices & contact details:** Notices under this agreement are sent to the email address on file and are considered delivered when sent. Families must keep their **email address, phone number and payment card up to date** and tell the Dojang promptly of any change.',
     ],
   },
   {
@@ -198,7 +201,7 @@ export const TERMS = [
     title: 'Part 12 — Privacy & Personal Information',
     body: [
       'Champion Hankook Taekwondo collects and uses personal information reasonably necessary for student registration, communication, billing, attendance management, safety, and administration.',
-      'Relevant information may be shared with authorized staff, payment providers, insurers, or emergency responders where reasonably necessary and legally permitted.',
+      'Relevant information may be shared with authorized staff, payment providers, grant providers (such as KidSport), insurers, or emergency responders where reasonably necessary and legally permitted.',
       'Personal information will be protected using reasonable security measures and retained only as long as reasonably required for legitimate business or legal purposes.',
       'Members may contact the Dojang to request access to their personal information, request corrections, or ask questions about privacy practices. Privacy Contact: Champion Hankook Taekwondo — hankooktkd@gmail.com',
       'I agree to receive **emails and text messages from the Dojang** about classes, schedules, events, billing and my account. I can unsubscribe from non-essential messages at any time.',

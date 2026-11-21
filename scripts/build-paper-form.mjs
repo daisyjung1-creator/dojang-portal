@@ -1,13 +1,13 @@
 // Builds public/enrollment-form.pdf — the paper version of the /join
 // registration (same agreement wording, src/lib/agreement.js) for families
-// who register in person. Two pages = one sheet printed double-sided:
+// who register in person. Three pages:
 //   page 1 — the form to fill in (students, classes, parent, membership, photo consent)
-//   page 2 — the full terms in three columns, initials, and the signature
+//   pages 2–3 — the full terms in three columns, initials, and the signature
 //
 //   NODE_PATH=/path/to/node_modules node scripts/build-paper-form.mjs
 //
 // Re-run it whenever the agreement or the class timetable changes. The terms
-// text shrinks automatically until everything fits on two pages.
+// text shrinks automatically until everything fits on three pages.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -68,6 +68,15 @@ async function build(TS) {
     if (frame.col < frame.cols - 1) {
       frame.col++;
       frame.x += frame.w + frame.gap;
+      y = frame.top;
+    } else if (frame.spill) {
+      // Terms continue on page 3, above the signature block.
+      frame.spill = false;
+      newPage();
+      text(safe(`${A.SCHOOL.name} — Membership terms (continued)`), frame.x0, H - 26, 8, B);
+      frame.x = frame.x0;
+      frame.col = 0;
+      frame.bottom = frame.sigBottom;
       y = frame.top;
     } else {
       overflow = true;
@@ -251,7 +260,7 @@ async function build(TS) {
   text(safe(`${A.SCHOOL.name} — Membership terms (please read; initial where marked)`), M, H - 26, 8, B);
   const sigH = 92;
   const cols = 3, gap = 11, M2 = 28;
-  frame = { x: M2, w: (W - 2 * M2 - gap * (cols - 1)) / cols, top: H - 34, bottom: 34 + sigH, col: 0, cols, gap };
+  frame = { x: M2, x0: M2, w: (W - 2 * M2 - gap * (cols - 1)) / cols, top: H - 34, bottom: 34, sigBottom: 34 + sigH, col: 0, cols, gap, spill: true };
   y = frame.top;
   const sub = (t) => { need(TS * 3); y -= 2; para(t, { size: TS + 0.5, f: B, lh: 1.2 }); y -= 0.5; };
 
@@ -277,7 +286,7 @@ async function build(TS) {
   page.drawLine({ start: { x: M, y: y + 2 }, end: { x: W - M, y: y + 2 }, thickness: 1, color: INK });
   y -= 4;
   text('SIGNATURE', M, y - 8, 8, B, RED);
-  text('I have read and agree to this agreement (both sides), subject to my rights under applicable law.', M + 58, y - 8, 7.8);
+  text('I have read and agree to this agreement (all pages), subject to my rights under applicable law.', M + 58, y - 8, 7.8);
   y -= 13;
   row([['Parent/guardian name (or adult student)', 1.2], ['Signature', 1.3], ['Date', 0.6]], 30);
   y -= 2;
@@ -300,13 +309,13 @@ async function build(TS) {
 }
 
 let result;
-for (let ts = 7; ts >= 5.4; ts = Math.round((ts - 0.1) * 10) / 10) {
+for (let ts = 7.6; ts >= 5.4; ts = Math.round((ts - 0.1) * 10) / 10) {
   globalThis.__over = 0;
   result = await build(ts);
   if (process.env.DEBUG) console.log(ts, 'overflow col-restarts', globalThis.__over, 'p1 left', Math.round(result.page1Bottom - 34));
   if (!result.overflow) { console.log('terms font', ts); break; }
 }
-if (result.overflow && !process.env.DEBUG) throw new Error('Terms do not fit on page 2 even at the smallest size');
+if (result.overflow && !process.env.DEBUG) throw new Error('Terms do not fit on pages 2–3 even at the smallest size');
 if (result.page1Bottom < 30) throw new Error('Page 1 overflows: ' + result.page1Bottom);
 const out = path.join(root, 'public/enrollment-form.pdf');
 fs.writeFileSync(out, await result.pdf.save());
