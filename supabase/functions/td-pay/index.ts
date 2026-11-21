@@ -546,8 +546,8 @@ Deno.serve(async (req) => {
           type: 'broadcast',
           recipient_email: s.email,
           payload: {
-            subject: `Card saved online — ${c.name}`,
-            message: `${c.name} saved a card for automatic tuition (${saved.type || 'card'} ending ${saved.last4 || '????'}).${legacy ? `\n\nBefore their next billing date, close their old Recurring Billing account in TD Online Mart so they aren't charged twice, then tick "Old TD Recurring Billing is closed" on the family in the portal (Customers). Automatic charges start only after that.` : ''}`,
+            subject: c.card_profile_code ? `Card changed — ${c.name}` : `Card saved online — ${c.name}`,
+            message: `${c.card_profile_code ? `${c.name} changed their card for automatic tuition: ${c.card_type || 'card'} ending ${c.card_last4 || '????'} → ${saved.type || 'card'} ending ${saved.last4 || '????'}. The old card was removed from TD Online Mart. Nothing was charged.` : `${c.name} saved a card for automatic tuition (${saved.type || 'card'} ending ${saved.last4 || '????'}).`}${legacy ? `\n\nBefore their next billing date, close their old Recurring Billing account in TD Online Mart so they aren't charged twice, then tick "Old TD Recurring Billing is closed" on the family in the portal (Customers). Automatic charges start only after that.` : ''}`,
           },
         });
       return json({ ok: true, saved: { last4: saved.last4, type: saved.type }, upcoming });
@@ -673,7 +673,7 @@ Deno.serve(async (req) => {
       if ((b.save_card || useProfile) && inv.customer_id) {
         // Save the card first, then make this payment the first one of the card-on-file series.
         try {
-          oldCard = (await admin.from('customers').select('card_profile_code, card_profile_mode').eq('id', inv.customer_id).maybeSingle()).data;
+          oldCard = (await admin.from('customers').select('card_profile_code, card_profile_mode, card_last4, card_type').eq('id', inv.customer_id).maybeSingle()).data;
           saved = await replaceProfile(mode, token, name, email, inv, oldCard?.card_profile_code || null, oldCard?.card_profile_mode || null, false);
         } catch (e) {
           await logPayFail(s, inv, 'Card not saved: ' + String((e as Error).message || e));
@@ -762,6 +762,15 @@ Deno.serve(async (req) => {
           .eq('id', inv.customer_id);
         // The card this one replaces is no longer needed in TD.
         if (oldCard?.card_profile_code && !saved.oldGone && oldCard.card_profile_code !== saved.code) await deleteProfile(oldCard.card_profile_code, oldCard.card_profile_mode || mode);
+        if (oldCard?.card_profile_code && s.email)
+          await admin.from('email_queue').insert({
+            type: 'broadcast',
+            recipient_email: s.email,
+            payload: {
+              subject: `Card changed — ${inv.customer_name}`,
+              message: `${inv.customer_name} paid invoice #${inv.invoice_number} with a new card, which is now their card for automatic tuition: ${oldCard.card_type || 'card'} ending ${oldCard.card_last4 || '????'} → ${saved.type || 'card'} ending ${saved.last4 || '????'}. The old card was removed from TD Online Mart.`,
+            },
+          });
       }
       // Test mode: the charge went to the TD test account only — don't touch the real books.
       if (mode === 'test') return json({ ok: true, approved: true, recorded: false, test: true, saved: !!saved, auto, transaction: t.id, amount: balance, card: t.card?.last_four || '', mode });
