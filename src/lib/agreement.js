@@ -2,7 +2,7 @@
 // Shown on the public /join form and printed with each online registration.
 // Change AGREEMENT_VERSION whenever the wording changes, so each signed
 // registration records which version the family agreed to.
-export const AGREEMENT_VERSION = '2026-11-h';
+export const AGREEMENT_VERSION = '2026-11-i';
 
 export const SCHOOL = {
   name: 'Champion Hankook Taekwondo',
@@ -101,7 +101,7 @@ export const TERMS = [
       '**7.2 Members Not Using Pre-Authorized Credit Card Payments:** Members who do not select pre-authorized credit card payments **must pay tuition for three months in advance**. The following payment methods are accepted:',
       { list: ['Cash', 'Debit Card', 'E-transfer'] },
       'Payment must be completed **before the start of each three-month membership period**. Members are responsible for making their next three-month payment by the applicable renewal date. No automatic credit card charge will occur without a separate Credit Card Authorization.',
-      '**7.3 Overdue Payments:** Tuition must be paid by the agreed payment date. If payment is overdue or unsuccessful, the Dojang **may temporarily suspend class participation** after providing reasonable notice and an opportunity to resolve the outstanding balance.',
+      '**7.3 Full Payment & Overdue Payments:** Tuition must be **paid in full** by the agreed payment date. **Partial payments do not count as payment for the membership period**; any remaining balance is treated as overdue. If payment is overdue, incomplete or unsuccessful, the Dojang **may temporarily suspend class participation** after providing reasonable notice and an opportunity to resolve the outstanding balance.',
       '**7.4 Re-Registration Fee:** A **$20 re-registration fee** applies when a student’s membership has ended or been cancelled and the student subsequently registers again. The fee does not apply to an active membership or a temporary payment issue resolved before membership termination.',
       '**7.5 Additional Fees:** Belt testing, tournaments, coaching fees, uniforms, private lessons, and special events are **not included in regular tuition** unless expressly stated. Applicable fees will be disclosed before purchase or registration.',
       '**7.6 Tuition Changes:** The Dojang may change tuition with **at least 30 days’ written notice by email**. The new rate applies from the first payment date after the notice period.',

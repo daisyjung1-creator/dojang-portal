@@ -681,7 +681,7 @@ function overdueEmail(inv, c, today) {
   const due = formatDate(inv.due_date || inv.invoice_date);
   const by = formatDate(addDaysISO(today, NOTICE_DAYS));
   const card = c && !isManual(c);
-  const policy = `As outlined in Part 7.3 of our Membership Agreement, if tuition is overdue or a payment is unsuccessful, class participation may be temporarily suspended after notice. Please consider this email that notice: if the balance is not paid by ${by}, your child's classes will be paused until the account is brought up to date.`;
+  const policy = `As outlined in Part 7.3 of our Membership Agreement, tuition must be paid in full by the payment date; if it is overdue, only partly paid or a payment is unsuccessful, class participation may be temporarily suspended after notice. Please consider this email that notice: if the balance is not paid by ${by}, your child's classes will be paused until the account is brought up to date.`;
   const sign = 'Thank you for your understanding,\nMaster Daisy\nChampion Hankook Taekwondo';
   if (card)
     return {
