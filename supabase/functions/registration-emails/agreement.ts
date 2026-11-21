@@ -117,6 +117,14 @@ export const TERMS = [
           'If the student withdraws, **any unused grant balance is not refundable** to the family. Where the grant provider’s rules require it, unused funds are returned to the grant provider.',
         ],
       },
+      '**7.8 Private Lessons:** Private lessons are sold as a **package of 5 thirty-minute lessons for $200** (plus 5% GST) and are booked in advance with the Dojang, subject to instructor availability.',
+      {
+        list: [
+          'To cancel or reschedule, please let the Dojang know **at least 3 hours before the lesson starts**. A later cancellation or a no-show **counts as a used lesson**.',
+          'A package is valid for **one year from the date of purchase**. Lessons not used within that year expire.',
+          'Private lesson packages are **non-refundable**.',
+        ],
+      },
     ],
   },
   {
