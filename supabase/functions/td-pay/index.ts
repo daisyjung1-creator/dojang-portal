@@ -149,6 +149,37 @@ async function saveProfile(mode: string, token: string, name: string, email: str
   return { code, last4, exp, type: CARD_TYPE[card.card_type] || card.card_type || '' };
 }
 
+// Deletes a TD Payment Profile (a replaced or removed card). Missing = already gone.
+async function deleteProfile(code: string, mode: string) {
+  if (!code) return true;
+  try {
+    const d = await api(`/profiles/${code}`, 'DELETE', profileAuth(mode === 'live' ? 'live' : 'test'));
+    return d.okHttp || d.status === 404;
+  } catch (_e) {
+    return false;
+  }
+}
+
+// Saves a family's new card in place of the old one: if TD says the card is
+// already saved (same card, e.g. a new expiry date) the old profile is deleted
+// first and the save retried; otherwise the old profile is deleted afterwards
+// (unless deleteAfter is false: the pay page deletes it once the payment is approved).
+async function replaceProfile(mode: string, token: string, name: string, email: string, inv: any, oldCode: string | null, oldMode: string | null, deleteAfter = true) {
+  let saved: any;
+  let oldGone = false;
+  try {
+    saved = await saveProfile(mode, token, name, email, inv);
+  } catch (e) {
+    if (!oldCode || !/already saved/i.test(String((e as Error).message))) throw e;
+    if (!(await deleteProfile(oldCode, oldMode || mode))) throw e;
+    oldGone = true;
+    saved = await saveProfile(mode, token, name, email, inv);
+  }
+  if (deleteAfter && oldCode && !oldGone && oldCode !== saved.code) await deleteProfile(oldCode, oldMode || mode);
+  saved.oldGone = oldGone;
+  return saved;
+}
+
 // Records an approved charge on the invoice and emails the receipt.
 async function recordPayment(s: any, inv: any, t: any, amount: number, note: string, toEmail?: string) {
   const methods: string[] = s.payment_methods || [];
@@ -483,7 +514,7 @@ Deno.serve(async (req) => {
       const name = String(b.name || c.name || '').slice(0, 64);
       let saved: any;
       try {
-        saved = await saveProfile(mode, token, name, String(c.email || '').split(/[,;\s]/)[0] || '', { customer_id: c.id, customer_name: c.name });
+        saved = await replaceProfile(mode, token, name, String(c.email || '').split(/[,;\s]/)[0] || '', { customer_id: c.id, customer_name: c.name }, c.card_profile_code, c.card_profile_mode);
       } catch (e) {
         await logPayFail(s, { id: c.id, invoice_number: '(card link)' }, 'Card not saved: ' + String((e as Error).message || e));
         return json({ error: String((e as Error).message || e) }, 400);
@@ -582,10 +613,7 @@ Deno.serve(async (req) => {
       if (!(await isAdminCaller(req))) return json({ error: 'Admins only' }, 403);
       const { data: c } = await admin.from('customers').select('id, card_profile_code, card_profile_mode').eq('id', b.customer_id).maybeSingle();
       if (!c) return json({ error: 'Family not found' }, 404);
-      if (c.card_profile_code) {
-        const d = await api(`/profiles/${c.card_profile_code}`, 'DELETE', profileAuth(c.card_profile_mode === 'live' ? 'live' : 'test'));
-        if (!d.okHttp && d.status !== 404) return json({ error: errMsg(d.data, 'TD could not delete the saved card.') }, 400);
-      }
+      if (c.card_profile_code && !(await deleteProfile(c.card_profile_code, c.card_profile_mode))) return json({ error: 'TD could not delete the saved card. Please try again, or delete it in TD Online Mart.' }, 400);
       await admin
         .from('customers')
         .update({ card_profile_code: null, card_profile_mode: null, card_series_id: null, card_last4: null, card_expiry: null, card_type: null, card_saved_at: null, card_consent: null, card_declined_at: null, card_decline_message: null, card_declined_invoice_id: null, card_legacy_rb_pending: false })
@@ -640,11 +668,13 @@ Deno.serve(async (req) => {
       const email = String(b.email || inv.customer_email || '').split(/[,;\s]/)[0] || '';
       const orderNo = `INV${inv.invoice_number}-${Date.now().toString(36)}`.slice(0, 30);
       let saved: any = null;
+      let oldCard: any = null;
       let r;
       if ((b.save_card || useProfile) && inv.customer_id) {
         // Save the card first, then make this payment the first one of the card-on-file series.
         try {
-          saved = await saveProfile(mode, token, name, email, inv);
+          oldCard = (await admin.from('customers').select('card_profile_code, card_profile_mode').eq('id', inv.customer_id).maybeSingle()).data;
+          saved = await replaceProfile(mode, token, name, email, inv, oldCard?.card_profile_code || null, oldCard?.card_profile_mode || null, false);
         } catch (e) {
           await logPayFail(s, inv, 'Card not saved: ' + String((e as Error).message || e));
           return json({ error: String((e as Error).message || e) }, 400);
@@ -671,6 +701,8 @@ Deno.serve(async (req) => {
         const msg = r.data?.message || r.data?.details?.[0]?.message || 'The card was declined.';
         console.log('declined', inv.invoice_number, r.status, JSON.stringify(r.data).slice(0, 300));
         await logPayFail(s, inv, msg);
+        // The old profile was deleted to re-save the same card: keep the family pointed at the new one.
+        if (saved?.oldGone) await admin.from('customers').update({ card_profile_code: saved.code, card_profile_mode: mode, card_series_id: null }).eq('id', inv.customer_id);
         return json({ error: `Payment not approved: ${msg}` }, 402);
       }
       const t = r.data;
@@ -728,6 +760,8 @@ Deno.serve(async (req) => {
             ...(mode === 'live' ? { payment_type: 'preauth' } : {}),
           })
           .eq('id', inv.customer_id);
+        // The card this one replaces is no longer needed in TD.
+        if (oldCard?.card_profile_code && !saved.oldGone && oldCard.card_profile_code !== saved.code) await deleteProfile(oldCard.card_profile_code, oldCard.card_profile_mode || mode);
       }
       // Test mode: the charge went to the TD test account only — don't touch the real books.
       if (mode === 'test') return json({ ok: true, approved: true, recorded: false, test: true, saved: !!saved, auto, transaction: t.id, amount: balance, card: t.card?.last_four || '', mode });
