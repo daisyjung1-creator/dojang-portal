@@ -73,7 +73,7 @@ export const TERMS = [
       'New students may request cancellation and a refund **before the start of their third scheduled class**.',
       'The cancellation request must be **submitted by email to hankooktkd@gmail.com** and received before the third scheduled class begins.',
       'For an eligible voluntary cancellation, the following deductions will apply:',
-      { list: ['**Cancellation Administration Fee: $20**', '**Classes Already Attended: $20 per class**'] },
+      { list: ['**Cancellation Administration Fee: $20**', '**Classes Already Attended: $20 per class**', '**Free uniform received with a three-month membership: $110**, unless the uniform is returned unworn'] },
       'The refund will be calculated by subtracting these amounts from the tuition paid. Deductions will not exceed the amount paid.',
       'After the third scheduled class has begun, **tuition is generally non-refundable for voluntary withdrawal**.',
       'Refunds are issued **within 14 days** to the original payment method.',
