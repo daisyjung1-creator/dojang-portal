@@ -107,6 +107,15 @@ export const TERMS = [
       '**7.4 Re-Registration Fee:** A **$20 re-registration fee** applies when a student’s membership has ended or been cancelled and the student subsequently registers again. The fee does not apply to an active membership or a temporary payment issue resolved before membership termination.',
       '**7.5 Additional Fees:** Belt testing, tournaments, coaching fees, uniforms, private lessons, and special events are **not included in regular tuition** unless expressly stated. Applicable fees will be disclosed before purchase or registration.',
       '**7.6 Tuition Changes:** The Dojang may change tuition with **at least 30 days’ written notice by email**. The new rate applies from the first payment date after the notice period.',
+      '**7.7 KidSport & Other Grants:** Families who apply for a KidSport grant or another funding grant apply directly to the grant provider; the Dojang provides the Proof of Enrollment once registration is complete. Approval and the grant amount are decided by the grant provider. **Until the grant is approved and received by the Dojang, tuition is payable in full** under this Part. Once the grant is received, the approved amount is returned to the family as a refund or a credit toward tuition, as the Dojang confirms by email. If a grant is declined or is less than expected, the family remains responsible for the full tuition.',
+      {
+        list: [
+          'Grants apply only to regular tuition for the named student — **not** to belt testing, uniforms, equipment, tournaments or other fees.',
+          'Grants **cannot be transferred** to another student, family member or person.',
+          'Grants apply only within the grant period and **cannot be extended** or carried over to a later period.',
+          'If the student withdraws, **any unused grant balance is not refundable** to the family. Where the grant provider’s rules require it, unused funds are returned to the grant provider.',
+        ],
+      },
     ],
   },
   {
