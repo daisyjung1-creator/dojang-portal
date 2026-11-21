@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import LoginPage from './auth/LoginPage';
 import Sidebar from './components/Sidebar';
@@ -28,9 +28,28 @@ import TrialPage from './modules/join/TrialPage';
 import PayPage from './modules/join/PayPage';
 import CardPage from './modules/join/CardPage';
 
+const TABS = ['home', 'today', 'students', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
+const tabFromHash = () => {
+  const t = decodeURIComponent(window.location.hash.slice(1));
+  return TABS.includes(t) ? t : null;
+};
+
 export default function App() {
   const { session, loading, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState(null); // null = start page (Home for admins)
+  // null = start page (Home for admins). The page is kept in the address
+  // (#students) so a refresh stays on it.
+  const [activeTab, setActiveTab] = useState(tabFromHash);
+  useEffect(() => {
+    const onHash = () => setActiveTab(tabFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  useEffect(() => {
+    const p = window.location.pathname;
+    if (p === '/join' || p === '/trial' || p.startsWith('/pay/') || p.startsWith('/card/')) return;
+    const want = activeTab ? `#${activeTab}` : '';
+    if (window.location.hash !== want) window.history.replaceState(null, '', `${p}${window.location.search}${want}`);
+  }, [activeTab]);
 
   // Public registration form — no login needed.
   const publicPath = window.location.pathname.replace(/\/+$/, '');

@@ -23,6 +23,7 @@ import { allClassNames } from '../../lib/classes';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useAuth } from '../../auth/AuthContext';
+import { matchesSearch as matchesText } from '../../lib/searchMatch';
 
 const FIELD_DEFS = [
   { key: 'name', label: 'Name', required: true, aliases: ['name', 'student name'] },
@@ -106,7 +107,7 @@ export default function StudentsPage() {
     setLoading(true);
     const [{ data, error: fetchError }, { data: fams }, { data: credits }] = await Promise.all([
       supabase.from('students').select('*').order('name'),
-      supabase.from('customers').select('id, name, payment_type, email'),
+      supabase.from('customers').select('id, name, payment_type, email, phone'),
       supabase.from('customer_credit').select('customer_id, credit').neq('credit', 0),
     ]);
     if (fetchError) setError('Could not load the student list.');
@@ -269,16 +270,14 @@ export default function StudentsPage() {
   }, [students]);
   const filtered = useMemo(() => {
     return students.filter((s) => {
-      const matchesSearch =
-        !search.trim() ||
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        (s.guardian_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (s.class_name || '').toLowerCase().includes(search.toLowerCase());
+      const fam = families[s.customer_id];
+      // Name, guardian, class, email or phone — also when typed with the Korean keyboard on.
+      const matchesSearch = matchesText(search, [s.name, s.guardian_name, s.class_name, s.guardian_email, fam?.name, fam?.email], [s.guardian_phone, s.emergency_phone, fam?.phone]);
       const matchesBelt = beltFilter === 'all' || s.belt === beltFilter;
       const matchesStatus = statusFilter === 'all' || (s.status || 'active') === statusFilter;
       return matchesSearch && matchesBelt && matchesStatus;
     });
-  }, [students, search, beltFilter, statusFilter]);
+  }, [students, families, search, beltFilter, statusFilter]);
 
   function beltMeta(belt) {
     return BELTS.find((b) => b.value === belt) || BELTS[0];
@@ -372,7 +371,7 @@ export default function StudentsPage() {
           <input
             className="dp-input"
             style={{ border: 'none', flex: 1, padding: '4px 6px' }}
-            placeholder="Search by name, guardian, or class"
+            placeholder="Search by name, guardian, class, phone or email"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
