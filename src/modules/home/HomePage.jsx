@@ -632,6 +632,7 @@ export default function HomePage({ setActiveTab }) {
         <OverdueNoticeModal
           inv={notice}
           cust={d.custById[notice.customer_id]}
+          kids={d.students.filter((s) => s.customer_id === notice.customer_id)}
           sentAt={noticeAt[notice.id]}
           today={today}
           onClose={() => setNotice(null)}
@@ -675,18 +676,21 @@ function declineEmail(c, inv, reminder) {
 // Manual payers are asked to pay; card families are told the automatic payment
 // didn't go through and can pay with another card (and keep it for next time).
 const NOTICE_DAYS = 7;
-function overdueEmail(inv, c, today) {
+function overdueEmail(inv, c, today, kids = []) {
   const name = c?.name || inv.customer_name;
   const amount = money(inv.balance);
   const due = formatDate(inv.due_date || inv.invoice_date);
   const by = formatDate(addDaysISO(today, NOTICE_DAYS));
   const card = c && !isManual(c);
+  // Monthly or three-month payments, from the family's billed students.
+  const plans = [...new Set(kids.filter(isBillable).map((s) => (s.plan === '3 Months' ? 'three-month' : 'monthly')))];
+  const cycle = plans.length === 1 ? `${plans[0]} ` : '';
   const policy = `As outlined in Part 7.3 of our Membership Agreement, tuition must be paid in full by the payment date; if it is overdue, only partly paid or a payment is unsuccessful, class participation may be temporarily suspended after notice. Please consider this email that notice: if the balance is not paid by ${by}, your child's classes will be paused until the account is brought up to date.`;
   const sign = 'Thank you for your understanding,\nMaster Daisy\nChampion Hankook Taekwondo';
   if (card)
     return {
       subject: `Action needed: tuition payment unsuccessful — invoice #${inv.invoice_number}`,
-      message: `Hi ${name},\n\nYour tuition payment of ${amount} (invoice #${inv.invoice_number}, due ${due}) could not be processed with your saved card${c.card_last4 ? ` ending in ${c.card_last4}` : ''}. This usually happens when a card has expired, been replaced, or reached its limit.\n\n${policy}\n\nYou can pay securely online with another card using the "Pay now" button below. When you pay, you can also choose to use the new card for future tuition, so your monthly payments continue without interruption. You're also welcome to pay at the front desk.\n\nIf you've already taken care of this, thank you — please disregard this email. If you have any questions or need to talk about your account, just reply here.\n\n${sign}`,
+      message: `Hi ${name},\n\nYour tuition payment of ${amount} (invoice #${inv.invoice_number}, due ${due}) could not be processed with your saved card${c.card_last4 ? ` ending in ${c.card_last4}` : ''}. This usually happens when a card has expired, been replaced, or reached its limit.\n\n${policy}\n\nYou can pay securely online with another card using the "Pay now" button below. When you pay, you can also choose to use the new card for future tuition, so your ${cycle}tuition payments continue without interruption. You're also welcome to pay at the front desk.\n\nIf you've already taken care of this, thank you — please disregard this email. If you have any questions or need to talk about your account, just reply here.\n\n${sign}`,
     };
   return {
     subject: `Overdue tuition — invoice #${inv.invoice_number}`,
@@ -694,8 +698,8 @@ function overdueEmail(inv, c, today) {
   };
 }
 
-function OverdueNoticeModal({ inv, cust, sentAt, today, onClose, onSent }) {
-  const [form, setForm] = useState(() => overdueEmail(inv, cust, today));
+function OverdueNoticeModal({ inv, cust, kids, sentAt, today, onClose, onSent }) {
+  const [form, setForm] = useState(() => overdueEmail(inv, cust, today, kids));
   const [to, setTo] = useState(cust?.email || '');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
