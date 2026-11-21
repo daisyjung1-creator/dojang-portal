@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import logoImg from '../../assets/logo.png';
 import markImg from '../../assets/logo-mark.png';
-import RegCardStep from './RegCardStep';
+import RegCardStep, { cardConsentNote } from './RegCardStep';
+import CardForm from './CardForm';
+import { SAVE_CONSENT, call } from './PayPage';
 import {
   AGREEMENT_VERSION, SCHOOL, HEARD_FROM, FREQUENCIES, PLAN_CHOICES, EMERGENCY_AUTH, TERMS,
   PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO, boldParts, TUITION,
@@ -74,6 +76,9 @@ export default function JoinPage() {
   const [sendError, setSendError] = useState('');
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(null);
+  const cardRef = useRef(null);
+  const [card, setCard] = useState({ started: false, ready: false }); // card section (credit card plans)
+  const cardPlan = plan.includes('Credit Card');
 
   useEffect(() => {
     document.title = `Registration · ${SCHOOL.name}`;
@@ -109,6 +114,7 @@ export default function JoinPage() {
     if (!agree) e.push('Tick the box to agree to the terms');
     if (signature.trim().length < 2) e.push(adult ? 'Your full name (above the signature)' : 'Parent/guardian full name (above the signature)');
     if (!sigImage) e.push('Sign in the signature box');
+    if (cardPlan && card.started && !card.ready) e.push('Credit card: finish the card details, name on card and the authorization box (or clear the card number to add it later)');
     return e;
   }
 
@@ -122,6 +128,16 @@ export default function JoinPage() {
     }
     if (trap) return setDone({ names: [] });
     setSaving(true);
+    // Card entered in the form: get TD's one-time token first, so card problems show here.
+    let tok = null;
+    if (cardPlan && card.started && cardRef.current) {
+      tok = await cardRef.current.tokenize();
+      if (tok.error) {
+        setSaving(false);
+        setTimeout(() => document.getElementById('join-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+        return;
+      }
+    }
     const kidRows = kids.map((k) => {
       const picked = schedule.filter((c) => k.slots.includes(slotKey(c)));
       return {
@@ -156,12 +172,18 @@ export default function JoinPage() {
       agreement_version: AGREEMENT_VERSION,
     };
     const { error } = await supabase.from('registrations').insert(row);
-    setSaving(false);
     if (error) {
+      setSaving(false);
       setSendError(`Sorry — we couldn't send your registration (${error.message}). Please try again, or email ${SCHOOL.email}.`);
       return;
     }
-    setDone({ names: kidRows.map((k) => k.first), row });
+    let cardError = null;
+    if (tok?.token) {
+      const r = await call({ action: 'reg_card_save', reg_token: cardToken, token: tok.token, name: tok.name, consent: `${SAVE_CONSENT} ${cardConsentNote(estimateFor(row))}` });
+      if (!r?.ok) cardError = r?.error || 'please try again';
+    }
+    setSaving(false);
+    setDone({ names: kidRows.map((k) => k.first), row, cardError });
     window.scrollTo(0, 0);
   }
 
@@ -178,7 +200,7 @@ export default function JoinPage() {
         </div>
         {done.row?.plan?.includes('Credit Card') && (
           <div style={{ marginTop: 16 }}>
-            <RegCardStep token={done.row.card_token} estimate={estimateFor(done.row)} />
+            <RegCardStep token={done.row.card_token} estimate={estimateFor(done.row)} saveError={done.cardError} />
           </div>
         )}
       </Page>
@@ -314,7 +336,7 @@ export default function JoinPage() {
         })()}
         <In label="Preferred start date" type="date" value={startDate} min={today()} onChange={(e) => setStartDate(e.target.value)} style={{ maxWidth: 220 }} />
         <p style={{ ...small, color: C.soft, margin: '4px 0 0' }}>
-          The Dojang will confirm your start date and payment dates by email.{plan.includes('Credit Card') ? ' After you submit this form, you can save your credit card on TD’s secure form (the separate Credit Card Authorization). Nothing is charged until the Dojang confirms your tuition by email.' : ''}
+          The Dojang will confirm your start date and payment dates by email.{plan.includes('Credit Card') ? ' You can enter your credit card at the end of this form (TD’s secure form — the Credit Card Authorization). Nothing is charged until the Dojang confirms your tuition by email.' : ''}
         </p>
       </Section>
 
@@ -378,6 +400,26 @@ export default function JoinPage() {
         <input tabIndex={-1} autoComplete="off" value={trap} onChange={(e) => setTrap(e.target.value)} aria-hidden="true" style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }} name="website" />
       </Section>
 
+      {cardPlan && (
+        <div id="join-card">
+          <Section n="15" title="Credit Card Authorization">
+            <p style={{ ...small, color: C.soft, marginTop: 0 }}>
+              You chose pre-authorized credit card payments. Save the card for tuition now — <b style={{ color: C.ink }}>nothing is charged today</b>. Master Daisy confirms your tuition and first payment date by email before the first charge. You can also leave this blank and add the card after you submit.
+            </p>
+            {(() => {
+              const est = estimateFor({ frequency, plan, kids });
+              return est ? (
+                <div style={{ ...box, display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 14, marginBottom: 12 }}>
+                  <span>Estimated tuition <span style={{ color: C.soft }}>{est.per}{est.count > 1 ? ` · ${est.count} students` : ''}</span><div style={{ fontSize: 12.5, color: C.faint, marginTop: 2 }}>Including 5% GST. Any discount or grant is applied when the Dojang confirms.</div></span>
+                  <b style={{ whiteSpace: 'nowrap' }}>${(est.each * est.count).toFixed(2)}</b>
+                </div>
+              ) : null;
+            })()}
+            <CardForm ref={cardRef} inline title="Credit card" consentNote={cardConsentNote(estimateFor({ frequency, plan, kids }))} onStatus={setCard} />
+          </Section>
+        </div>
+      )}
+
       {errors.length > 0 && (
         <div id="join-errors" style={{ background: C.redSoft, color: '#8C1D18', border: '1px solid #F0C9C6', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 14.5 }}>
           <b>Please check:</b>
@@ -385,7 +427,7 @@ export default function JoinPage() {
         </div>
       )}
       <button type="button" disabled={saving} onClick={submit} style={{ ...btn, background: C.red, borderColor: C.red, color: '#fff', width: '100%', padding: '15px', fontSize: 17, fontWeight: 700 }}>
-        {saving ? 'Sending…' : 'Submit registration'}
+        {saving ? 'Sending…' : cardPlan && card.started ? 'Submit registration & save card' : 'Submit registration'}
       </button>
       <p style={{ textAlign: 'center', fontSize: 12.5, color: C.faint, marginTop: 14 }}>Agreement version {AGREEMENT_VERSION} · All terms are subject to applicable laws of Alberta and Canada.</p>
     </Page>

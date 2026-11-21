@@ -1,14 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { In, C, box, btn } from './JoinPage';
 import { SAVE_CONSENT, loadScript } from './PayPage';
 
 // The secure "save a card for tuition" form (TD Online Mart Custom Checkout
 // fields + consent). Used by the /card/<token> page and the card step of /join.
 // onSave(oneTimeToken, nameOnCard) → { ok } or { error }.
-export default function CardForm({ onSave, replaceLast4, consentNote = '', buttonLabel = 'Save card for tuition' }) {
+// inline: no button of its own — the /join form's Submit uses the ref:
+//   ref.status() → { started, ready }   ref.tokenize() → { token, name } or { error }
+//   ref.showError(msg)
+const CardForm = forwardRef(function CardForm({ onSave, replaceLast4, consentNote = '', buttonLabel = 'Save card for tuition', inline = false, title = 'Credit card for tuition', onStatus }, ref) {
   const [name, setName] = useState('');
   const [agree, setAgree] = useState(false);
   const [ready, setReady] = useState({});
+  const [started, setStarted] = useState({});
   const [fieldErr, setFieldErr] = useState({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -28,11 +32,16 @@ export default function CardForm({ onSave, replaceLast4, consentNote = '', butto
         ].forEach(([f, o]) => c.create(f, o).mount('#cc-' + f));
         c.on('complete', (e) => {
           setReady((r) => ({ ...r, [e.field]: true }));
+          setStarted((r) => ({ ...r, [e.field]: true }));
           setFieldErr((r) => ({ ...r, [e.field]: '' }));
         });
-        c.on('empty', (e) => setReady((r) => ({ ...r, [e.field]: !e.empty ? r[e.field] : false })));
+        c.on('empty', (e) => {
+          setReady((r) => ({ ...r, [e.field]: !e.empty ? r[e.field] : false }));
+          setStarted((r) => ({ ...r, [e.field]: !e.empty }));
+        });
         c.on('error', (e) => {
           setReady((r) => ({ ...r, [e.field]: false }));
+          setStarted((r) => ({ ...r, [e.field]: true }));
           setFieldErr((r) => ({ ...r, [e.field]: e.message }));
         });
       })
@@ -55,13 +64,36 @@ export default function CardForm({ onSave, replaceLast4, consentNote = '', butto
     });
   }
 
-  const allReady = ready['card-number'] && ready.expiry && ready.cvv && name.trim() && agree;
+  const allReady = !!(ready['card-number'] && ready.expiry && ready.cvv && name.trim() && agree);
+
+  const anyStarted = !!(started['card-number'] || started.expiry || started.cvv);
+  useEffect(() => {
+    onStatus?.({ started: anyStarted, ready: allReady });
+  }, [anyStarted, allReady]);
+
+  useImperativeHandle(ref, () => ({
+    status: () => ({ started: anyStarted, ready: allReady }),
+    showError: (m) => setErr(m || ''),
+    tokenize: () =>
+      new Promise((resolve) => {
+        if (!cc.current) return resolve({ error: 'The secure card form did not load.' });
+        setErr('');
+        cc.current.createToken((res) => {
+          if (res.error || !res.token) {
+            const m = res.error?.message || 'Please check the card details.';
+            setErr(m);
+            return resolve({ error: m });
+          }
+          resolve({ token: res.token, name });
+        });
+      }),
+  }));
   const fieldBox = { border: '1px solid #D6D2C4', borderRadius: 9, padding: '11px 12px', background: '#fff', minHeight: 22 };
   const lbl = { fontSize: 14, fontWeight: 600, margin: '4px 0 6px' };
 
   return (
     <div style={box}>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Credit card for tuition</div>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{title}</div>
       {replaceLast4 && <p style={{ fontSize: 13.5, color: C.soft, margin: '0 0 10px' }}>This replaces the saved card ending {replaceLast4}.</p>}
       <In label="Name on card" placeholder="As shown on the card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
       <div style={lbl}>Card number</div>
@@ -88,17 +120,19 @@ export default function CardForm({ onSave, replaceLast4, consentNote = '', butto
         </span>
       </label>
       {err && <div style={{ color: C.red, fontSize: 14, marginTop: 12 }}>{err}</div>}
-      <button
+      {!inline && <button
         type="button"
         disabled={!allReady || busy}
         onClick={save}
         style={{ ...btn, width: '100%', marginTop: 16, background: allReady && !busy ? C.ink : '#B9B6AC', color: '#fff', borderColor: 'transparent', fontWeight: 700, fontSize: 16 }}
       >
         {busy ? 'Saving…' : buttonLabel}
-      </button>
+      </button>}
       <p style={{ fontSize: 12, color: C.faint, margin: '10px 0 0', lineHeight: 1.5 }}>
         Card details are entered on TD Online Mart's secure form and are never stored by the Dojang.
       </p>
     </div>
   );
-}
+});
+
+export default CardForm;

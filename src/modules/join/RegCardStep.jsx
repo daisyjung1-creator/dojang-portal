@@ -8,7 +8,19 @@ import { TestNote } from './CardPage';
 // payments: save the card right away (TD Payment Profile, no charge). The card
 // stays with the registration until the Dojang enrolls the family.
 // estimate: { each, count, per } — tuition per student incl. GST, from the plan they picked.
-export default function RegCardStep({ token, estimate }) {
+// The note under the authorization checkbox (also used by the card section inside the form).
+export function cardConsentNote(estimate) {
+  const est = estimateText(estimate);
+  return `${est ? `Estimated tuition from the plan I chose: ${est}. ` : ''}The Dojang confirms the final amount and the first payment date by email before the first charge.`;
+}
+function estimateText(estimate) {
+  if (!estimate) return '';
+  const total = estimate.each * estimate.count;
+  return `${money(total)} ${estimate.per}${estimate.count > 1 ? ` (${estimate.count} students × ${money(estimate.each)})` : ''}, including GST`;
+}
+
+// saveError: the card entered in the form couldn't be saved after the registration was sent.
+export default function RegCardStep({ token, estimate, saveError }) {
   const [info, setInfo] = useState(null);
   const [done, setDone] = useState(null);
   const [skipped, setSkipped] = useState(false);
@@ -33,14 +45,17 @@ export default function RegCardStep({ token, estimate }) {
   }
 
   const total = estimate ? estimate.each * estimate.count : 0;
-  const est = estimate
-    ? `${money(total)} ${estimate.per}${estimate.count > 1 ? ` (${estimate.count} students × ${money(estimate.each)})` : ''}, including GST`
-    : '';
-  const consentNote = `${est ? `Estimated tuition from the plan I chose: ${est}. ` : ''}The Dojang confirms the final amount and the first payment date by email before the first charge.`;
+  const est = estimateText(estimate);
+  const consentNote = cardConsentNote(estimate);
 
   return (
     <div style={{ textAlign: 'left' }}>
       {info.mode === 'test' && <TestNote />}
+      {saveError && (
+        <div style={{ ...box, borderColor: '#F0C9C6', background: '#FFF7F6', color: '#8C1D18', fontSize: 14.5, lineHeight: 1.5, marginBottom: 14 }}>
+          Your registration was received, but your card could not be saved{saveError ? ` (${saveError})` : ''}. Please enter it again below.
+        </div>
+      )}
       <div style={{ ...box, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.red, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Last step · Credit Card Authorization</div>
         <p style={{ fontSize: 14.5, lineHeight: 1.55, margin: '6px 0 0' }}>
