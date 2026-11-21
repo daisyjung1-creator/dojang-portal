@@ -387,7 +387,7 @@ export default function CustomersPage() {
                         className="dp-btn"
                         style={{ padding: '1px 8px', fontSize: 11.5, marginLeft: 8 }}
                         onClick={async () => {
-                          if (!window.confirm('Remove the saved card from this family? It is deleted from TD Online Mart too, and tuition will no longer be charged to it automatically.')) return;
+                          if (!window.confirm(`Delete the saved card${f.card_last4 ? ` ending ${f.card_last4}` : ''} from ${f.name || 'this family'}?\n\nIt is deleted from TD Online Mart too, and tuition will no longer be charged to it automatically. This can't be undone — the family would need to save the card again.`)) return;
                           // Deletes the TD Payment Profile first, so the same card can be saved again (TD blocks duplicates).
                           const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'card_remove', customer_id: f.id } });
                           if (error || data?.error) return alert('The card could not be removed: ' + (data?.error || error.message));
