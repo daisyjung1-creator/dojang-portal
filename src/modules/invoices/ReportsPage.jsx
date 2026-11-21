@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
-import { money, downloadCSV } from '../../lib/invoiceUtils';
+import { money, downloadCSV, formatDate } from '../../lib/invoiceUtils';
+import { todayISO } from '../../lib/billingDates';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { fetchAll, loadSettings } from './api';
 import ItemLookup from './ItemLookup';
 import InvoicePreview from './InvoicePreview';
@@ -19,6 +21,8 @@ export default function ReportsPage() {
   const [selMonth, setSelMonth] = useState(new Date().getMonth());
   const [previewId, setPreviewId] = useState(null);
   const [lookupSettings, setLookupSettings] = useState(null);
+  const [other, setOther] = useState([]); // other_income rows for the year (KidSport cheques etc.)
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -27,11 +31,13 @@ export default function ReportsPage() {
         supabase.from('monthly_payments').select('*').like('month', `${year}-%`),
         supabase.from('monthly_refunds').select('*').like('month', `${year}-%`),
       ]);
+      const { data: o } = await supabase.from('other_income').select('*').gte('received_on', `${year}-01-01`).lte('received_on', `${year}-12-31`).order('received_on', { ascending: false });
+      setOther(o || []);
       setSales(s || []);
       setPays(p || []);
       setRefs(r || []);
     })();
-  }, [year]);
+  }, [year, reload]);
 
   useEffect(() => {
     (async () => {
@@ -51,6 +57,7 @@ export default function ReportsPage() {
         const s = sales.find((x) => x.month === key) || {};
         const rf = refs.find((x) => x.month === key) || {};
         const paidIn = pays.filter((x) => x.month === key).reduce((t, x) => t + Number(x.amount), 0);
+        const otherIn = other.filter((x) => String(x.received_on).slice(0, 7) === key).reduce((t, x) => t + Number(x.amount), 0);
         const subtotal = Number(s.subtotal || 0);
         const grossGst = Number(s.gst || 0);
         const refundSales = Number(rf.sales_refund || 0);
@@ -63,9 +70,10 @@ export default function ReportsPage() {
           grossGst, refundGst, gst: grossGst - refundGst,          // gst = net GST collected
           total: Number(s.total || 0), unpaid: Number(s.unpaid || 0),
           paidIn, refunded, received: paidIn - refunded,           // received = net of refunds
+          other: otherIn, income: subtotal - refundSales + otherIn, // net sales + grants (before GST)
         };
       }),
-    [sales, pays, refs, year]
+    [sales, pays, refs, other, year]
   );
   const sum = (k, list = rows) => list.reduce((t, r) => t + r[k], 0);
   const quarters = [0, 1, 2, 3].map((q) => {
@@ -79,9 +87,9 @@ export default function ReportsPage() {
 
   function exportCSV() {
     downloadCSV(`sales_${year}.csv`, [
-      ['Month', 'Invoices', 'Sales (before GST)', 'Refunds (before GST)', 'Net sales', 'GST on invoices', 'GST refunded', 'Net GST', 'Total invoiced', 'Payments received', 'Refunds paid out', 'Net received', 'Still unpaid'],
-      ...[...rows, { key: 'Total', ...Object.fromEntries(['count', 'subtotal', 'refundSales', 'netSales', 'grossGst', 'refundGst', 'gst', 'total', 'paidIn', 'refunded', 'received', 'unpaid'].map((k) => [k, sum(k)])) }].map((r) => [
-        r.key, r.count, ...['subtotal', 'refundSales', 'netSales', 'grossGst', 'refundGst', 'gst', 'total', 'paidIn', 'refunded', 'received', 'unpaid'].map((k) => r[k].toFixed(2)),
+      ['Month', 'Invoices', 'Sales (before GST)', 'Refunds (before GST)', 'Net sales', 'GST on invoices', 'GST refunded', 'Net GST', 'Total invoiced', 'Payments received', 'Refunds paid out', 'Net received', 'Still unpaid', 'Other income (grants)', 'Total income (net sales + other)'],
+      ...[...rows, { key: 'Total', ...Object.fromEntries(['count', 'subtotal', 'refundSales', 'netSales', 'grossGst', 'refundGst', 'gst', 'total', 'paidIn', 'refunded', 'received', 'unpaid', 'other', 'income'].map((k) => [k, sum(k)])) }].map((r) => [
+        r.key, r.count, ...['subtotal', 'refundSales', 'netSales', 'grossGst', 'refundGst', 'gst', 'total', 'paidIn', 'refunded', 'received', 'unpaid', 'other', 'income'].map((k) => r[k].toFixed(2)),
       ]),
     ]);
   }
@@ -126,10 +134,10 @@ export default function ReportsPage() {
       </div>
 
       <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
-        <div style={styles.card}>
+        <div style={{ ...styles.card, overflowX: 'auto' }}>
           <table className="dp-table">
             <thead>
-              <tr><th>Month</th><th style={num}>Invoices</th><th style={num}>Sales</th><th style={num}>Refunds</th><th style={num}>Net sales</th><th style={num}>Net GST</th><th style={num}>Received</th><th style={num}>Unpaid</th></tr>
+              <tr><th>Month</th><th style={num}>Invoices</th><th style={num}>Sales</th><th style={num}>Refunds</th><th style={num}>Net sales</th><th style={num} title="Grants and other money received outside invoices (e.g. KidSport cheques)">Other income</th><th style={num} title="Net sales + other income, before GST">Total income</th><th style={num}>Net GST</th><th style={num}>Received</th><th style={num}>Unpaid</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
@@ -139,6 +147,8 @@ export default function ReportsPage() {
                   <td style={num}>{r.subtotal ? money(r.subtotal) : ''}</td>
                   <td style={{ ...num, color: '#4B3A86' }}>{r.refundSales ? '-' + money(r.refundSales) : ''}</td>
                   <td style={num}>{r.netSales ? money(r.netSales) : ''}</td>
+                  <td style={{ ...num, color: '#2A5A30' }}>{r.other ? money(r.other) : ''}</td>
+                  <td style={{ ...num, fontWeight: 500 }}>{r.income ? money(r.income) : ''}</td>
                   <td style={num}>{r.gst ? money(r.gst) : ''}</td>
                   <td style={num}>{r.received ? money(r.received) : ''}</td>
                   <td style={{ ...num, color: r.unpaid ? '#9A2B2B' : undefined }}>{r.unpaid ? money(r.unpaid) : ''}</td>
@@ -150,6 +160,8 @@ export default function ReportsPage() {
                 <td style={num}>{money(sum('subtotal'))}</td>
                 <td style={{ ...num, color: '#4B3A86' }}>{sum('refundSales') ? '-' + money(sum('refundSales')) : ''}</td>
                 <td style={num}>{money(sum('netSales'))}</td>
+                <td style={{ ...num, color: '#2A5A30' }}>{sum('other') ? money(sum('other')) : ''}</td>
+                <td style={num}>{money(sum('income'))}</td>
                 <td style={num}>{money(sum('gst'))}</td>
                 <td style={num}>{money(sum('received'))}</td>
                 <td style={num}>{money(sum('unpaid'))}</td>
@@ -159,6 +171,7 @@ export default function ReportsPage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <OtherIncomeCard year={year} list={other} onChanged={() => setReload((n) => n + 1)} />
           <div style={styles.card}>
             <p style={{ ...styles.metricLabel, padding: '12px 12px 0' }}>GST by quarter (for your GST return)</p>
             <table className="dp-table">
@@ -225,6 +238,89 @@ function Metric({ label, value, note }) {
       <p style={styles.metricLabel}>{label}</p>
       <p style={styles.metricValue}>{value}</p>
       {note && <p style={{ fontSize: 11.5, color: '#8A8D84', margin: '4px 0 0' }}>{note}</p>}
+    </div>
+  );
+}
+
+// Money received outside invoices — e.g. a KidSport cheque. Invoices show the
+// grant as a deduction, so this records the income that covers it (no GST:
+// GST was already charged on the full tuition).
+function OtherIncomeCard({ year, list, onChanged }) {
+  const blank = () => ({ received_on: todayISO(), source: 'KidSport', amount: '', reference: '', note: '' });
+  const [form, setForm] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [del, setDel] = useState(null);
+  const total = list.reduce((t, x) => t + Number(x.amount), 0);
+  async function save() {
+    const amount = Math.round(Number(form.amount) * 100) / 100;
+    if (!(amount > 0)) return setErr('Enter the amount.');
+    if (!form.received_on) return setErr('Enter the date received.');
+    setBusy(true);
+    const { error } = await supabase.from('other_income').insert({ ...form, amount, source: form.source.trim() || 'KidSport', reference: form.reference.trim() || null, note: form.note.trim() || null });
+    setBusy(false);
+    if (error) return setErr(error.message);
+    setForm(null);
+    setErr('');
+    onChanged();
+  }
+  const lbl = { fontSize: 11.5, color: '#5B5F56', display: 'block', marginTop: 6 };
+  return (
+    <div style={styles.card}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '12px 12px 0' }}>
+        <p style={{ ...styles.metricLabel, margin: 0 }}>Other income {year} — grants, cheques</p>
+        {!form && <button className="dp-btn" style={{ marginLeft: 'auto', padding: '3px 9px', fontSize: 12 }} onClick={() => setForm(blank())}><Plus size={13} /> Add</button>}
+      </div>
+      {form && (
+        <div style={{ padding: '4px 12px 12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div><label style={lbl}>Date received</label><input type="date" className="dp-input" style={{ width: '100%' }} value={form.received_on} onChange={(e) => setForm({ ...form, received_on: e.target.value })} /></div>
+            <div><label style={lbl}>Amount</label><input type="number" min="0" step="0.01" className="dp-input" style={{ width: '100%' }} placeholder="300.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+            <div><label style={lbl}>From</label><input className="dp-input" style={{ width: '100%' }} value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} /></div>
+            <div><label style={lbl}>Cheque #</label><input className="dp-input" style={{ width: '100%' }} value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} /></div>
+          </div>
+          <label style={lbl}>Students / note</label>
+          <input className="dp-input" style={{ width: '100%' }} placeholder="e.g. Arkan, Naija, Robsan Hamid" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+          {err && <p style={{ color: '#9A2B2B', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
+            <button className="dp-btn" onClick={() => { setForm(null); setErr(''); }}>Cancel</button>
+            <button className="dp-btn dp-btn-primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
+          </div>
+        </div>
+      )}
+      {list.length === 0 ? (
+        !form && <p style={{ padding: '6px 12px 12px', fontSize: 13, color: '#8A8D84' }}>None yet. Add KidSport cheques here so they count as income.</p>
+      ) : (
+        <table className="dp-table">
+          <tbody>
+            {list.map((x) => (
+              <tr key={x.id}>
+                <td>
+                  {x.source}{x.reference ? ` · #${x.reference}` : ''}
+                  <div style={{ fontSize: 11.5, color: '#8A8D84' }}>{formatDate(x.received_on)}{x.note ? ` · ${x.note}` : ''}</div>
+                </td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {money(x.amount)}
+                  <button className="dp-btn" aria-label="Delete" style={{ padding: '2px 5px', marginLeft: 6 }} onClick={() => setDel(x)}><Trash2 size={12} /></button>
+                </td>
+              </tr>
+            ))}
+            <tr style={{ fontWeight: 600 }}><td>{year} total</td><td style={{ textAlign: 'right' }}>{money(total)}</td></tr>
+          </tbody>
+        </table>
+      )}
+      {del && (
+        <ConfirmDialog
+          message={`Delete ${del.source} ${money(del.amount)} received ${formatDate(del.received_on)}?`}
+          confirmLabel="Delete"
+          onCancel={() => setDel(null)}
+          onConfirm={async () => {
+            await supabase.from('other_income').delete().eq('id', del.id);
+            setDel(null);
+            onChanged();
+          }}
+        />
+      )}
     </div>
   );
 }
