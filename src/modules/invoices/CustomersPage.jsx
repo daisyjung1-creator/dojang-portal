@@ -387,10 +387,11 @@ export default function CustomersPage() {
                         className="dp-btn"
                         style={{ padding: '1px 8px', fontSize: 11.5, marginLeft: 8 }}
                         onClick={async () => {
-                          if (!window.confirm('Remove the saved card from this family? Tuition will no longer be charged to it automatically.')) return;
-                          const clear = { card_profile_code: null, card_profile_mode: null, card_series_id: null, card_last4: null, card_expiry: null, card_type: null, card_saved_at: null, card_consent: null, card_declined_at: null, card_decline_message: null, card_legacy_rb_pending: false };
-                          await supabase.from('customers').update(clear).eq('id', f.id);
-                          set(clear);
+                          if (!window.confirm('Remove the saved card from this family? It is deleted from TD Online Mart too, and tuition will no longer be charged to it automatically.')) return;
+                          // Deletes the TD Payment Profile first, so the same card can be saved again (TD blocks duplicates).
+                          const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'card_remove', customer_id: f.id } });
+                          if (error || data?.error) return alert('The card could not be removed: ' + (data?.error || error.message));
+                          set({ card_profile_code: null, card_profile_mode: null, card_series_id: null, card_last4: null, card_expiry: null, card_type: null, card_saved_at: null, card_consent: null, card_declined_at: null, card_decline_message: null, card_legacy_rb_pending: false });
                         }}
                       >
                         Remove

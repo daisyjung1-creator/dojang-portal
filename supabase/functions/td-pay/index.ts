@@ -16,6 +16,7 @@
 //   reg_card_info { reg_token }                 → card step right after the /join registration form (public)
 //   reg_card_save { reg_token, token, name }    → save the card on that registration, no charge (public)
 //   reg_card_remove { registration_id }         → delete a registration's saved card from TD (admin)
+//   card_remove { customer_id }                 → delete a family's saved card from TD and the portal (admin)
 //   autobill {}                                 → daily automatic tuition (pg_cron): invoice + charge saved-card
 //                                                  families whose billing date is today (once a day, live only)
 //
@@ -574,6 +575,22 @@ Deno.serve(async (req) => {
           },
         });
       return json({ ok: true, saved: { last4: saved.last4, type: saved.type } });
+    }
+
+    if (b.action === 'card_remove') {
+      // Remove a family's saved card: delete the TD Payment Profile, then clear it in the portal.
+      if (!(await isAdminCaller(req))) return json({ error: 'Admins only' }, 403);
+      const { data: c } = await admin.from('customers').select('id, card_profile_code, card_profile_mode').eq('id', b.customer_id).maybeSingle();
+      if (!c) return json({ error: 'Family not found' }, 404);
+      if (c.card_profile_code) {
+        const d = await api(`/profiles/${c.card_profile_code}`, 'DELETE', profileAuth(c.card_profile_mode === 'live' ? 'live' : 'test'));
+        if (!d.okHttp && d.status !== 404) return json({ error: errMsg(d.data, 'TD could not delete the saved card.') }, 400);
+      }
+      await admin
+        .from('customers')
+        .update({ card_profile_code: null, card_profile_mode: null, card_series_id: null, card_last4: null, card_expiry: null, card_type: null, card_saved_at: null, card_consent: null, card_declined_at: null, card_decline_message: null, card_declined_invoice_id: null, card_legacy_rb_pending: false })
+        .eq('id', c.id);
+      return json({ ok: true });
     }
 
     if (b.action === 'reg_card_remove') {
