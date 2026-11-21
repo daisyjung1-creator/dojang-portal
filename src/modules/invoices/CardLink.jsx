@@ -17,9 +17,15 @@ const BULLETS = [
 ];
 const SIGN = 'If you have any questions, please reply to this email or call us at 780-450-0181.\n\nKind regards,\nMaster Daisy\nChampion Hankook Taekwondo';
 
-// kind: 'new' (just registered) or 'existing' (moving from the old payment system).
+// kind: 'new' (just registered), 'existing' (moving from the old payment system)
+// or 'change' (has a saved card and wants to use a different one).
 function cardEmail(c, kind) {
   const notes = BULLETS.map((b) => `• ${b}`).join('\n');
+  if (kind === 'change')
+    return {
+      subject: 'Update your tuition payment card — Champion Hankook Taekwondo',
+      message: `Dear ${c.name},\n\nAs requested, here is a secure link to change the credit card used for your tuition payments:\n\n${cardLink(c)}\n\nOnce you save the new card, it replaces the card ending ${c.card_last4 || '····'} and is used from your next billing date. Nothing is charged when you save it.\n\nPlease note:\n${notes}\n\n${SIGN}`,
+    };
   if (kind === 'new')
     return {
       subject: 'Set up your tuition payment card — Champion Hankook Taekwondo',
@@ -37,7 +43,8 @@ export function CardLinkButton({ customer, onSent, style }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   // New families (added in the last 45 days) get the welcome version.
-  const [kind, setKind] = useState(customer?.created_at && Date.now() - new Date(customer.created_at).getTime() < 45 * 864e5 ? 'new' : 'existing');
+  const hasCard = !!customer?.card_profile_code;
+  const [kind, setKind] = useState(hasCard ? 'change' : customer?.created_at && Date.now() - new Date(customer.created_at).getTime() < 45 * 864e5 ? 'new' : 'existing');
   if (!customer?.card_link_token) return null;
   const link = cardLink(customer);
   function show() {
@@ -61,8 +68,8 @@ export function CardLinkButton({ customer, onSent, style }) {
   }
   return (
     <>
-      <button type="button" className="dp-btn" style={{ padding: '1px 8px', fontSize: 11.5, ...style }} onClick={show} title="Send the family a link to save their card for automatic tuition">
-        <CreditCard size={12} /> Card link{customer.card_link_sent_at ? ' (sent)' : ''}
+      <button type="button" className="dp-btn" style={{ padding: '1px 8px', fontSize: 11.5, ...style }} onClick={show} title={hasCard ? 'Send the family a link to replace their saved card' : 'Send the family a link to save their card for automatic tuition'}>
+        <CreditCard size={12} /> {hasCard ? 'Change card' : `Card link${customer.card_link_sent_at ? ' (sent)' : ''}`}
       </button>
       {open && (
         <Modal
@@ -77,14 +84,16 @@ export function CardLinkButton({ customer, onSent, style }) {
           }
         >
           <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>
-            The family enters their card on a secure page (nothing is charged). Their next tuition amount and date are shown there, so check the family's tuition is right before sending. After they save it, close their old Recurring Billing account in TD Online Mart and tick "Old TD Recurring Billing is closed" on the family — automatic charges only start then.
+            {hasCard
+              ? `The family enters the new card on a secure page (nothing is charged). It replaces the saved card ending ${customer.card_last4 || '····'}, the old card is deleted from TD Online Mart, and you get an email when it's done.`
+              : 'The family enters their card on a secure page (nothing is charged). Their next tuition amount and date are shown there, so check the family\'s tuition is right before sending. After they save it, close their old Recurring Billing account in TD Online Mart and tick "Old TD Recurring Billing is closed" on the family — automatic charges only start then.'}
           </p>
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <input className="dp-input" readOnly value={link} style={{ flex: 1, fontSize: 12 }} onFocus={(e) => e.target.select()} />
             <button className="dp-btn" onClick={() => navigator.clipboard?.writeText(link).then(() => setMsg('Link copied.'))}>Copy link</button>
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            {[['new', 'New family'], ['existing', 'Existing family (moving from old system)']].map(([k, l]) => (
+            {(hasCard ? [['change', 'Change card']] : [['new', 'New family'], ['existing', 'Existing family (moving from old system)']]).map(([k, l]) => (
               <button key={k} className="dp-btn" style={{ fontSize: 12, background: kind === k ? '#20241F' : '#fff', color: kind === k ? '#fff' : '#20241F' }} onClick={() => { setKind(k); setMail(cardEmail(customer, k)); }}>{l}</button>
             ))}
           </div>

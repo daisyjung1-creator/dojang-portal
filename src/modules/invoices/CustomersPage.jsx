@@ -396,6 +396,7 @@ export default function CustomersPage() {
                       >
                         Remove
                       </button>
+                      <CardLinkButton customer={f} style={{ marginLeft: 6 }} onSent={(at) => set({ card_link_sent_at: at })} />
                     </div>
                   )}
                 </Field>
