@@ -12,6 +12,7 @@ import InvoiceDocument from '../invoices/InvoiceDocument';
 import Modal from '../../components/Modal';
 import { CardLinkButton } from '../invoices/CardLink';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import PaymentNoticeModal, { shortDate } from '../invoices/PaymentNotice';
 
 const tag = (text, c) => (
   <span style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{text}</span>
@@ -39,6 +40,8 @@ export default function BillingPage() {
   const [busy, setBusy] = useState('');
   const [flash, setFlash] = useState('');
   const [previewId, setPreviewId] = useState(null);
+  const [notice, setNotice] = useState(null); // unpaid invoice being emailed
+  const [noticeAt, setNoticeAt] = useState({}); // invoice id -> overdue_notice_at
   const [draft, setDraft] = useState(null);
   const [confirm, setConfirm] = useState(null);
 
@@ -104,6 +107,8 @@ export default function BillingPage() {
   const dueUnpaid = tuitionInvoices.filter((i) => Number(i.balance) > 0 && (i.due_date || i.invoice_date) <= today).sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
   useEffect(() => {
     setPaySel(Object.fromEntries(dueUnpaid.map((i) => [i.id, true])));
+    const ids = dueUnpaid.map((i) => i.id);
+    if (ids.length) supabase.from('invoices').select('id, overdue_notice_at').in('id', ids).then(({ data }) => setNoticeAt(Object.fromEntries((data || []).map((x) => [x.id, x.overdue_notice_at]))));
   }, [tuitionInvoices]);
   useEffect(() => {
     if (!payMethod && methods.length) setPayMethod(methods[0]);
@@ -145,6 +150,8 @@ export default function BillingPage() {
 
   // mode 'manual': create (+ email if ticked). mode 'preauth': create and
   // record the pre-authorized card charge on the billing date (no invoice email).
+  // mode 'failed': pre-authorized charge didn't go through — create the invoice
+  // unpaid (nothing charged or recorded); email the family from Unpaid below.
   async function createInvoices(list, runMode) {
     setBusy('create');
     let made = 0;
@@ -172,7 +179,9 @@ export default function BillingPage() {
         }
         if (used) creditUsed += used;
         const left = Math.round((Number(inv.total) - used) * 100) / 100;
-        if (runMode === 'preauth') {
+        if (runMode === 'failed') {
+          /* stays unpaid */
+        } else if (runMode === 'preauth') {
           if (left > 0.004 && canCharge(p.customer)) toCharge.push(inv.id);
           else {
             if (left > 0.004) {
@@ -200,7 +209,7 @@ export default function BillingPage() {
         }
       }
       const creditNote = (creditUsed > 0.004 ? ` ${money(creditUsed)} of family credit used.` : '') + cardNote;
-      setFlash((runMode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`) + creditNote);
+      setFlash((runMode === 'failed' ? `Created ${made} unpaid invoice${made === 1 ? '' : 's'} — use Notice under "Unpaid" to email the famil${made === 1 ? 'y' : 'ies'}.` : runMode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`) + creditNote);
     } catch (e) {
       setFlash(`Stopped after ${made} invoices: ${e.message}`);
     }
@@ -339,6 +348,9 @@ export default function BillingPage() {
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
                 <input type="checkbox" checked={emailReceipts} onChange={(e) => setEmailReceipts(e.target.checked)} /> Email receipts
               </label>
+              <button className="dp-btn" disabled={!preauthSel.length || !!busy} onClick={() => setConfirm({ mode: 'failed', list: preauthSel })} title="The card charge was declined: create the invoice unpaid, then email the family from Unpaid">
+                Payment didn't go through
+              </button>
               <button className="dp-btn dp-btn-primary" disabled={!preauthSel.length || !!busy} onClick={() => setConfirm({ mode: 'preauth', list: preauthSel })}>
                 <Wallet size={14} /> {busy === 'create' ? 'Saving…' : `Record ${preauthSel.length} card payment${preauthSel.length === 1 ? '' : 's'}`}
               </button>
@@ -353,7 +365,7 @@ export default function BillingPage() {
           <Empty>No unpaid tuition invoices that are due.</Empty>
         ) : (
           <>
-            <InvoiceList list={dueUnpaid} onOpen={setPreviewId} sel={paySel} setSel={setPaySel} />
+            <InvoiceList list={dueUnpaid} onOpen={setPreviewId} sel={paySel} setSel={setPaySel} custById={custById} noticeAt={noticeAt} onNotice={setNotice} />
             <ActionBar>
               <select className="dp-select" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
                 {methods.map((m) => <option key={m}>{m}</option>)}
@@ -461,7 +473,9 @@ export default function BillingPage() {
       {confirm && (
         <ConfirmDialog
           message={
-            confirm.mode === 'preauth'
+            confirm.mode === 'failed'
+              ? `Payment didn't go through for ${confirm.list.map((p) => p.customer?.name || '').filter(Boolean).join(', ') || `${confirm.list.length} famil${confirm.list.length === 1 ? 'y' : 'ies'}`}? Creates ${confirm.list.length === 1 ? 'the invoice' : `${confirm.list.length} invoices`} unpaid (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))}) — nothing is charged or recorded. Then email the family with Notice under "Unpaid".`
+              : confirm.mode === 'preauth'
               ? `Record ${confirm.list.length} pre-authorized card payment${confirm.list.length === 1 ? '' : 's'} (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))})? Each gets a paid invoice.`
               : `Create ${confirm.list.length} invoice${confirm.list.length === 1 ? '' : 's'} (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))} total)${emailNow && confirm.list.some((p) => isManual(p.customer)) ? ' and email them' : ''}?`
           }
@@ -503,6 +517,16 @@ export default function BillingPage() {
         );
       })()}
 
+      {notice && (
+        <PaymentNoticeModal
+          inv={notice}
+          cust={custById[notice.customer_id]}
+          sentAt={noticeAt[notice.id]}
+          today={today}
+          onClose={() => setNotice(null)}
+          onSent={(at) => { setNoticeAt((m) => ({ ...m, [notice.id]: at })); setNotice(null); setFlash(`Notice emailed to ${notice.customer_name}.`); }}
+        />
+      )}
       {previewId && (
         <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onPay={() => setFlash('Use "Mark paid" above, or Apply Payment on the Invoices page.')} onChanged={loadAll} />
       )}
@@ -538,7 +562,7 @@ function ActionBar({ children }) {
   return <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end', padding: '10px 14px', borderTop: '1px solid #EDEAE0', flexWrap: 'wrap' }}>{children}</div>;
 }
 
-function InvoiceList({ list, onOpen, sel, setSel }) {
+function InvoiceList({ list, onOpen, sel, setSel, custById, noticeAt, onNotice }) {
   return (
     <table className="dp-table">
       <thead>
@@ -549,6 +573,7 @@ function InvoiceList({ list, onOpen, sel, setSel }) {
           <th>Family</th>
           <th style={{ textAlign: 'right' }}>Balance</th>
           <th>Status</th>
+          {onNotice && <th></th>}
         </tr>
       </thead>
       <tbody>
@@ -557,9 +582,17 @@ function InvoiceList({ list, onOpen, sel, setSel }) {
             {sel && <td><input type="checkbox" checked={!!sel[i.id]} onChange={(e) => setSel({ ...sel, [i.id]: e.target.checked })} /></td>}
             <td>{formatDate(i.due_date || i.invoice_date)}</td>
             <td><button className="dp-btn" style={{ padding: '1px 6px', fontSize: 12.5 }} onClick={() => onOpen(i.id)}>#{i.invoice_number}</button></td>
-            <td>{i.customer_name}{!i.customer_email && tag('no email', GREY)}</td>
+            <td>{i.customer_name}{custById && custById[i.customer_id] && !isManual(custById[i.customer_id]) && tag('card', BLUE)}{!i.customer_email && tag('no email', GREY)}</td>
             <td style={{ textAlign: 'right' }}>{money(i.balance)}</td>
             <td><StatusPill status={i.status} /></td>
+            {onNotice && (
+              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 11.5 }} title="Email the family: payment not received / didn't go through (agreement 7.3)" onClick={() => onNotice(i)}>
+                  <Mail size={12} /> {noticeAt?.[i.id] ? 'Again' : 'Notice'}
+                </button>
+                {noticeAt?.[i.id] && <div style={{ fontSize: 10.5, color: '#8A8D84', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
