@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Pencil, FileText, CalendarX, Mail, Trash2, Eye, EyeOff, Copy, Check, PauseCircle, Receipt } from 'lucide-react';
+import { ArrowLeft, Pencil, FileText, CalendarX, Mail, Trash2, Eye, EyeOff, Copy, Check, PauseCircle, Receipt } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
-import Modal from '../../components/Modal';
+import { styles } from '../../lib/uiStyles';
+import TapeTracker from '../../components/TapeTracker';
+import { hasTapes, loadTapes } from '../../lib/tapes';
 import StudentFlags from '../../components/StudentFlags';
 import { BELTS } from '../../lib/constants';
 import { todayISO, addDaysISO, billingAnchor, nextDueDate, planMonths } from '../../lib/billingDates';
@@ -45,6 +47,10 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const [copied, setCopied] = useState('');
   const [msg, setMsg] = useState('');
   const [subUsed, setSubUsed] = useState(null);
+  const [tapes, setTapes] = useState(null);
+  useEffect(() => {
+    loadTapes([s]).then((m) => setTapes(m[s.id] || new Set()));
+  }, [s.id, s.belt]);
 
   useEffect(() => {
     const from = addDaysISO(todayISO(), -365);
@@ -96,15 +102,10 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
 
   const btn = { padding: '5px 10px', fontSize: 12.5 };
 
-  return (
-    <Modal
-      title={s.name}
-      maxWidth={820}
-      onClose={onClose}
-      footer={
+  const actions =
         isAdmin ? (
           <>
-            <button className="dp-btn dp-btn-danger" style={{ ...btn, marginRight: 'auto' }} onClick={onDelete}><Trash2 size={13} /> Delete</button>
+            <button className="dp-btn dp-btn-danger" style={{ ...btn, marginLeft: 'auto' }} onClick={onDelete}><Trash2 size={13} /> Delete</button>
             {withdrawn ? (
               <button className="dp-btn" style={btn} onClick={onReactivate}>Reactivate</button>
             ) : (
@@ -117,13 +118,19 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
                 <button className="dp-btn" style={btn} onClick={onStatement}><Receipt size={13} /> Statement</button>
               </>
             )}
-            <button className="dp-btn dp-btn-primary" style={btn} onClick={onEdit}><Pencil size={13} /> Edit</button>
           </>
-        ) : (
-          <button className="dp-btn" onClick={onClose}>Close</button>
-        )
-      }
-    >
+        ) : null;
+
+  // A full page (not a pop-up). Changes go through "Edit details".
+  return (
+    <div data-testid="student-page">
+      <button className="dp-btn" style={{ ...btn, marginBottom: 12 }} onClick={onClose}><ArrowLeft size={14} /> All students</button>
+      <div style={{ ...styles.header, alignItems: 'flex-start' }}>
+        <div>
+          <h1 style={styles.title}>{s.name}</h1>
+        </div>
+        {isAdmin && <button className="dp-btn dp-btn-primary" onClick={onEdit}><Pencil size={14} /> Edit details</button>}
+      </div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '-4px 0 14px' }}>
         <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 13, background: belt.bg, color: belt.text, border: `1px solid ${belt.border}` }}>{s.belt || 'White'}</span>
@@ -159,6 +166,11 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           </Row>
           <Row k="This month">{thisMonth == null ? '…' : `${thisMonth} class${thisMonth === 1 ? '' : 'es'}`}</Row>
           <Row k="Last class">{last ? `${WD[new Date(last.date + 'T00:00:00').getDay()]} ${formatDate(last.date)}` : '—'}</Row>
+          {hasTapes(s.belt) && (
+            <Row k="Tapes">
+              {tapes === null ? '…' : <TapeTracker student={s} earned={tapes} onChange={setTapes} size="lg" />}
+            </Row>
+          )}
         </Box>
 
         <Box title="Family & contact">
@@ -272,7 +284,13 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           </div>
         </div>
       )}
-    </Modal>
+
+      {actions && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 18, paddingTop: 14, borderTop: '1px solid #EDEAE0' }}>
+          {actions}
+        </div>
+      )}
+    </div>
   );
 }
 

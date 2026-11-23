@@ -17,6 +17,7 @@ import InvoiceSettingsPage from './modules/invoices/InvoiceSettingsPage';
 import InventoryPage from './modules/invoices/InventoryPage';
 import EmailPage from './modules/email/EmailPage';
 import TestingPage from './modules/testing/TestingPage';
+import ProgressOverview from './modules/testing/ProgressOverview';
 import PayrollPage from './modules/payroll/PayrollPage';
 import ConfirmSendHost from './components/ConfirmSend';
 import HomePage from './modules/home/HomePage';
@@ -28,9 +29,10 @@ import PayPage from './modules/join/PayPage';
 import CardPage from './modules/join/CardPage';
 import { IS_DEMO } from './demo/isDemo';
 
-const TABS = ['home', 'today', 'students', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
+const TABS = ['home', 'today', 'tapes', 'students', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
 const tabFromHash = () => {
-  const t = decodeURIComponent(window.location.hash.slice(1));
+  // #students/<id> = a student's page inside the Students tab.
+  const t = decodeURIComponent(window.location.hash.slice(1)).split('/')[0];
   return TABS.includes(t) ? t : null;
 };
 
@@ -48,6 +50,7 @@ export default function App() {
     const p = window.location.pathname;
     if (p === '/join' || p === '/trial' || p.startsWith('/pay/') || p.startsWith('/card/')) return;
     const want = activeTab ? `#${activeTab}` : '';
+    if (activeTab && window.location.hash.startsWith(`${want}/`)) return; // keep a sub-page (e.g. a student)
     if (window.location.hash !== want) window.history.replaceState(null, '', `${p}${window.location.search}${want}`);
   }, [activeTab]);
 
@@ -70,7 +73,7 @@ export default function App() {
   // bounced to a page it actually has access to.
   const adminOnlyTabs = ['home', 'students', 'email', 'leads', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
   const startTab = activeTab || (isAdmin ? 'home' : 'today');
-  const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'today' : isAdmin && startTab === 'today' ? 'home' : startTab;
+  const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'today' : isAdmin && startTab === 'today' ? 'home' : isAdmin && startTab === 'tapes' ? 'testing' : startTab;
 
   return (
     <>
@@ -91,6 +94,7 @@ export default function App() {
         {(effectiveTab === 'leads' || effectiveTab === 'tryouts') && <LeadsTrialsPage view={effectiveTab} setActiveTab={setActiveTab} />}
         {isAdmin && effectiveTab === 'register' && <RegisterPage />}
         {isAdmin && effectiveTab === 'testing' && <TestingPage />}
+        {!isAdmin && effectiveTab === 'tapes' && <ProgressOverview isAdmin={false} />}
         {isAdmin && effectiveTab === 'payroll' && <PayrollPage />}
         {isAdmin && effectiveTab === 'billing' && <BillingPage />}
         {isAdmin && effectiveTab === 'email' && <EmailPage />}

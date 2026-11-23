@@ -14,6 +14,8 @@ export const ALL_TABS = [
   { id: 'leads', label: 'Leads & Trials', staffLabel: 'Trials', staffId: 'tryouts', also: ['tryouts'], icon: PhoneCall, adminOnly: true, staff: true },
   { id: 'register', label: 'Enrollment', icon: UserPlus, adminOnly: true },
   { id: 'attendance', label: 'Attendance', icon: ClipboardCheck, adminOnly: true, staff: true },
+  // Instructors tick curriculum tapes on the front-desk iPad (admins do it in Belt Testing).
+  { id: 'tapes', label: 'Tapes', icon: Award, staffOnly: true, staff: true },
   { id: 'testing', label: 'Belt Testing', icon: Award, adminOnly: true },
   { id: 'billing', label: 'Billing', icon: Wallet, adminOnly: true },
   { id: 'email', label: 'Email', icon: Mail, adminOnly: true },
@@ -36,6 +38,8 @@ export default function Sidebar({ activeTab, setActiveTab }) {
   const current = ALL_TABS.find((t) => t.id === activeTab || t.also?.includes(activeTab));
   const badges = useBadges(isAdmin, activeTab);
   const pick = (id) => {
+    // Clicking the tab you're on goes back to its main page (e.g. from a student's page to the list).
+    if (id === activeTab && window.location.hash !== `#${id}`) window.location.hash = id;
     setActiveTab(id);
     setOpen(false);
     window.scrollTo(0, 0);

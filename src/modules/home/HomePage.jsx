@@ -16,6 +16,7 @@ import InvoicePreview from '../invoices/InvoicePreview';
 import PaymentNoticeModal from '../invoices/PaymentNotice';
 import { GREEN, BLUE, RED, AMBER, PURPLE, GREY, smallBtn, linkBtn, Tag, Card, Empty } from './homeUi';
 import BeltProgressCard from './BeltProgressCard';
+import TapeSummaryCard from './TapeSummaryCard';
 import MeetingsCard from './MeetingsCard';
 import Modal from '../../components/Modal';
 import { guaranteeShortfalls } from '../../lib/guarantee';
@@ -542,6 +543,8 @@ export default function HomePage({ setActiveTab }) {
               </table>
             )}
           </Card>
+
+          <TapeSummaryCard students={d.students} setActiveTab={setActiveTab} />
 
           <BeltProgressCard students={d.students} schedule={d.schedule} settings={settings} today={today} setActiveTab={setActiveTab} onSaved={setSettings} />
 
