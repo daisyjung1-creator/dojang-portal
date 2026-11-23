@@ -5,8 +5,7 @@ import Sidebar from './components/Sidebar';
 import { styles } from './lib/uiStyles';
 
 import StudentsPage from './modules/students/StudentsPage';
-import LeadsPage from './modules/leads/LeadsPage';
-import TryoutsPage from './modules/tryouts/TryoutsPage';
+import LeadsTrialsPage from './modules/leads/LeadsTrialsPage';
 import RegisterPage from './modules/register/RegisterPage';
 import AttendancePage from './modules/attendance/AttendancePage';
 import BillingPage from './modules/billing/BillingPage';
@@ -89,8 +88,7 @@ export default function App() {
         {isAdmin && effectiveTab === 'staff-logins' && <StaffLoginsPage />}
         {isAdmin && effectiveTab === 'students' && <StudentsPage />}
         {effectiveTab === 'attendance' && <AttendancePage />}
-        {isAdmin && effectiveTab === 'leads' && <LeadsPage setActiveTab={setActiveTab} />}
-        {effectiveTab === 'tryouts' && <TryoutsPage setActiveTab={setActiveTab} />}
+        {(effectiveTab === 'leads' || effectiveTab === 'tryouts') && <LeadsTrialsPage view={effectiveTab} setActiveTab={setActiveTab} />}
         {isAdmin && effectiveTab === 'register' && <RegisterPage />}
         {isAdmin && effectiveTab === 'testing' && <TestingPage />}
         {isAdmin && effectiveTab === 'payroll' && <PayrollPage />}

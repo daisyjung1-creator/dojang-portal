@@ -21,7 +21,7 @@ function emptyForm(time = '16:30') {
   return { student_name: '', student_age: '', experience: '', guardian_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time, status: 'Scheduled', notes: '' };
 }
 
-export default function TryoutsPage({ setActiveTab }) {
+export default function TryoutsPage({ setActiveTab, tabs }) {
   const { isAdmin } = useAuth();
   const [tryouts, setTryouts] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -170,7 +170,7 @@ export default function TryoutsPage({ setActiveTab }) {
     <>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>Trials</h1>
+          {tabs || <h1 style={styles.title}>Trials</h1>}
           <p style={styles.subtitle}>{tryouts.length} trial bookings</p>
         </div>
         <button className="dp-btn dp-btn-primary" onClick={openAdd}>

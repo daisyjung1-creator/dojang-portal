@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, AlertTriangle, CalendarDays, Wallet, Clock, Award, Cake, UserPlus, Banknote, StickyNote, CircleCheck, Mail, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, AlertTriangle, CalendarDays, Wallet, Clock, Award, Cake, UserPlus, Banknote, ListTodo, CircleCheck, Mail, Users, Package } from 'lucide-react';
+import { syncStockTodos, lowRows, itemWithSize } from '../../lib/stock';
+import { refreshBadges } from '../../lib/badges';
 import { DEFAULT_MEETINGS, isMeetingDay, time12, meetingMessage, whatsappLink } from '../../lib/meetings';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
@@ -145,9 +147,18 @@ export default function HomePage({ setActiveTab }) {
       const { data } = await supabase.from('belt_test_entries').select('*').eq('test_id', tests[0].id);
       entries = data || [];
     }
+    // Low stock: alert here and an "Order …" item on the To-do (added once, cleared when restocked).
+    const { data: stockLv } = await supabase.from('inventory_levels').select('*');
+    let todos = n || [];
+    const synced = await syncStockTodos(stockLv || []);
+    // Read the list again after the sync (another run may have just added to it).
+    const { data: fresh } = await supabase.from('dashboard_notes').select('*').order('created_at');
+    if (fresh) todos = fresh;
+    if (synced.changed) refreshBadges();
     setSettings(s);
-    setNotes(n || []);
+    setNotes(todos);
     setD({
+      lowStock: lowRows(stockLv || []),
       autoRun: autoRun || null,
       students: (students || []).filter((x) => (x.status || 'active') !== 'withdrawn'),
       custById: Object.fromEntries((customers || []).map((c) => [c.id, c])),
@@ -365,14 +376,17 @@ export default function HomePage({ setActiveTab }) {
     const { data, error } = await supabase.from('dashboard_notes').insert({ note_date: date, body }).select().single();
     if (!error && data) setNotes((p) => [...p, data]);
     reset('');
+    refreshBadges();
   }
   async function toggleNote(n) {
     await supabase.from('dashboard_notes').update({ done: !n.done }).eq('id', n.id);
     setNotes((p) => p.map((x) => (x.id === n.id ? { ...x, done: !n.done } : x)));
+    refreshBadges();
   }
   async function deleteNote(n) {
     await supabase.from('dashboard_notes').delete().eq('id', n.id);
     setNotes((p) => p.filter((x) => x.id !== n.id));
+    refreshBadges();
   }
 
   if (!d) return <p style={{ color: '#5B5F56', fontSize: 14 }}>Loading…</p>;
@@ -464,9 +478,15 @@ export default function HomePage({ setActiveTab }) {
     });
   const bdayToday = d.students.filter((x) => x.dob && String(x.dob).slice(5) === today.slice(5));
   if (bdayToday.length) todayItems.push({ tone: 'good', text: `Birthday today 🎉 ${bdayToday.map((x) => x.name).join(', ')}`, tab: 'students', label: 'Students' });
-  notes.filter((n) => n.note_date === today && !n.done).forEach((n) => todayItems.push({ tone: 'info', text: `Note: ${n.body}` }));
+  if (d.lowStock.length)
+    todayItems.push({
+      tone: 'warn',
+      text: `Low stock — order more: ${d.lowStock.slice(0, 6).map((r) => `${itemWithSize(r.name, r.size)} (${Number(r.on_hand) <= 0 ? 'out' : `${Number(r.on_hand)} left`})`).join(', ')}${d.lowStock.length > 6 ? '…' : ''}`,
+      tab: 'inventory',
+      label: 'Inventory',
+    });
+  notes.filter((n) => n.note_date && n.note_date <= today && !n.done && !n.auto_key).forEach((n) => todayItems.push({ tone: n.note_date < today ? 'warn' : 'info', text: `To-do${n.note_date < today ? ` (was due ${shortDay(n.note_date)})` : ''}: ${n.body}` }));
   todayItems.sort((a, b) => (a.tone === 'warn' ? 0 : 1) - (b.tone === 'warn' ? 0 : 1));
-  const generalNotes = notes.filter((n) => !n.note_date);
   const presentIn = (c) => new Set(d.att.filter((a) => a.class_name === c && a.status === 'present').map((a) => a.student_id)).size;
 
   return (
@@ -616,17 +636,11 @@ export default function HomePage({ setActiveTab }) {
                 <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 6 }}>{classesOn(day).length ? `${classesOn(day).length} classes · nothing else` : 'No classes'}</div>
               )}
               <NoteList notes={sel.notes} onToggle={toggleNote} onDelete={deleteNote} />
-              <NoteInput value={draft} onChange={setDraft} onAdd={() => addNote(day, draft, setDraft)} placeholder={`Add a note for ${day === today ? 'today' : shortDay(day)}…`} />
+              <NoteInput value={draft} onChange={setDraft} onAdd={() => addNote(day, draft, setDraft)} placeholder={`Add a to-do for ${day === today ? 'today' : shortDay(day)}…`} />
             </div>
           </Card>
 
-          <Card title="Notes" icon={StickyNote}>
-            <div style={{ padding: '10px 14px 12px' }}>
-              {generalNotes.length === 0 && <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 6 }}>Things to remember that aren't tied to a day.</div>}
-              <NoteList notes={generalNotes} onToggle={toggleNote} onDelete={deleteNote} />
-              <NoteInput value={general} onChange={setGeneral} onAdd={() => addNote(null, general, setGeneral)} placeholder="Add a note…" />
-            </div>
-          </Card>
+          <TodoCard todos={notes} today={today} onAdd={addNote} onToggle={toggleNote} onDelete={deleteNote} setActiveTab={setActiveTab} />
         </div>
       </div>
 
@@ -905,7 +919,7 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
             <button
               key={x}
               onClick={() => setDay(x)}
-              title={[it.test && 'Belt test', it.billing.length && `${it.billing.length} billing`, it.trials.length && `${it.trials.length} trial`, it.notes.length && `${it.notes.length} note`, it.cancels.length && 'cancelled'].filter(Boolean).join(' · ')}
+              title={[it.test && 'Belt test', it.billing.length && `${it.billing.length} billing`, it.trials.length && `${it.trials.length} trial`, it.notes.length && `${it.notes.length} to-do`, it.cancels.length && 'cancelled'].filter(Boolean).join(' · ')}
               style={{
                 minHeight: 46,
                 border: isSel ? '1.5px solid #20241F' : '1px solid #EDEAE0',
@@ -933,7 +947,7 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
         <span><span style={{ color: '#2A5A30' }}>$3</span> = 3 billing</span>
         <Legend c="#9A2B2B">Test / cancelled</Legend>
         <Legend c="#1E4566">Trial</Legend>
-        <Legend c="#C58A12">Note</Legend>
+        <Legend c="#C58A12">To-do</Legend>
       </div>
     </div>
   );
@@ -950,7 +964,7 @@ function NoteList({ notes, onToggle, onDelete }) {
         <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0', borderBottom: '1px solid #F6F4EE' }}>
           <input type="checkbox" checked={n.done} onChange={() => onToggle(n)} style={{ marginTop: 3 }} />
           <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: n.done ? 'line-through' : 'none', color: n.done ? '#A7AAA1' : '#20241F' }}>{n.body}</span>
-          <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete note" onClick={() => onDelete(n)}><Trash2 size={13} color="#8A8D84" /></button>
+          <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(n)}><Trash2 size={13} color="#8A8D84" /></button>
         </div>
       ))}
     </div>
@@ -968,7 +982,73 @@ function NoteInput({ value, onChange, onAdd, placeholder }) {
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onAdd()}
       />
-      <button className="dp-btn" style={{ padding: '4px 8px' }} aria-label="Add note" disabled={!value.trim()} onClick={onAdd}><Plus size={14} /></button>
+      <button className="dp-btn" style={{ padding: '4px 8px' }} aria-label="Add to-do" disabled={!value.trim()} onClick={onAdd}><Plus size={14} /></button>
+    </div>
+  );
+}
+
+// ── To-do (was Notes) ─────────────────────────────────────────────────────
+// Your own to-dos (with or without a due date) plus ones the portal adds by
+// itself, like "Order Chest Gear (size 2)" when stock runs low.
+function TodoCard({ todos, today, onAdd, onToggle, onDelete, setActiveTab }) {
+  const [text, setText] = useState('');
+  const [due, setDue] = useState('');
+  const [showDone, setShowDone] = useState(false);
+  const open = todos
+    .filter((t) => !t.done)
+    .sort((a, b) => {
+      // overdue / today first, then no date, then later dates
+      const k = (t) => (!t.note_date ? `1` : t.note_date <= today ? `0${t.note_date}` : `2${t.note_date}`);
+      return k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : String(a.created_at).localeCompare(String(b.created_at));
+    });
+  const done = todos.filter((t) => t.done);
+  const add = () => {
+    if (!text.trim()) return;
+    onAdd(due || null, text, () => { setText(''); setDue(''); });
+  };
+  return (
+    <Card title={`To-do${open.length ? ` (${open.length})` : ''}`} icon={ListTodo}>
+      <div style={{ padding: '10px 14px 12px' }} data-testid="todo-card">
+        {open.length === 0 && <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 6 }}>Nothing to do. Add one below — a due date is optional.</div>}
+        {open.map((t) => (
+          <TodoRow key={t.id} t={t} today={today} onToggle={onToggle} onDelete={onDelete} setActiveTab={setActiveTab} />
+        ))}
+        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <input className="dp-input" aria-label="New to-do" style={{ flex: 1, padding: '6px 8px', fontSize: 13 }} value={text} placeholder="Add a to-do…" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+          <input type="date" className="dp-input" aria-label="Due date (optional)" title="Due date (optional)" style={{ width: 132, padding: '5px 6px', fontSize: 12.5 }} value={due} onChange={(e) => setDue(e.target.value)} />
+          <button className="dp-btn" style={{ padding: '4px 8px' }} aria-label="Add to-do" disabled={!text.trim()} onClick={add}><Plus size={14} /></button>
+        </div>
+        {done.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <button className="dp-link" style={{ background: 'none', border: 'none', padding: 0, fontSize: 12.5, color: '#5B5F56', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => setShowDone((v) => !v)}>
+              {showDone ? 'Hide' : 'Show'} done ({done.length})
+            </button>
+            {showDone && <div style={{ marginTop: 4 }}>{done.slice().reverse().map((t) => <TodoRow key={t.id} t={t} today={today} onToggle={onToggle} onDelete={onDelete} setActiveTab={setActiveTab} />)}</div>}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function TodoRow({ t, today, onToggle, onDelete, setActiveTab }) {
+  const late = t.note_date && t.note_date < today && !t.done;
+  return (
+    <div data-todo={t.body} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0', borderBottom: '1px solid #F6F4EE' }}>
+      <input type="checkbox" checked={!!t.done} onChange={() => onToggle(t)} style={{ marginTop: 3 }} aria-label={`Done: ${t.body}`} />
+      <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: t.done ? 'line-through' : 'none', color: t.done ? '#A7AAA1' : '#20241F' }}>
+        {t.auto_key && <Package size={12} color="#854F0B" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
+        {t.body}
+        {t.note_date && (
+          <span style={{ marginLeft: 6, fontSize: 11, padding: '1px 6px', borderRadius: 5, background: late ? '#FBEAEA' : t.note_date === today ? '#FAEEDA' : '#F1EFE7', color: late ? '#9A2B2B' : t.note_date === today ? '#854F0B' : '#5B5F56', whiteSpace: 'nowrap' }}>
+            {t.note_date === today ? 'today' : late ? `due ${md(t.note_date)}` : md(t.note_date)}
+          </span>
+        )}
+      </span>
+      {t.link_tab && !t.done && (
+        <button className="dp-btn" style={{ padding: '1px 7px', fontSize: 11.5 }} onClick={() => setActiveTab(t.link_tab)}>Open</button>
+      )}
+      <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(t)}><Trash2 size={13} color="#8A8D84" /></button>
     </div>
   );
 }

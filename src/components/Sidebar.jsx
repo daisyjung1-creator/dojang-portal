@@ -3,13 +3,15 @@ import BrandMark from './BrandMark';
 import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X, KeyRound, Sun } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
+import { useBadges } from '../lib/badges';
 
 export const ALL_TABS = [
   { id: 'home', label: 'Home', icon: LayoutDashboard, adminOnly: true },
   { id: 'today', label: 'Today', icon: Sun, staffOnly: true, staff: true },
   { id: 'students', label: 'Students', icon: Users, adminOnly: true },
-  { id: 'leads', label: 'Leads', icon: PhoneCall, adminOnly: true },
-  { id: 'tryouts', label: 'Trials', icon: CalendarPlus, adminOnly: true, staff: true },
+  // Leads and Trials are one tab (switch between them at the top of the page).
+  // Staff logins only get the Trials side.
+  { id: 'leads', label: 'Leads & Trials', staffLabel: 'Trials', staffId: 'tryouts', also: ['tryouts'], icon: PhoneCall, adminOnly: true, staff: true },
   { id: 'register', label: 'Enrollment', icon: UserPlus, adminOnly: true },
   { id: 'attendance', label: 'Attendance', icon: ClipboardCheck, adminOnly: true, staff: true },
   { id: 'testing', label: 'Belt Testing', icon: Award, adminOnly: true },
@@ -31,7 +33,8 @@ export default function Sidebar({ activeTab, setActiveTab }) {
   const tabs = ALL_TABS.filter((t) => (isAdmin ? !t.staffOnly : t.staff));
   // On a phone the sidebar becomes a top bar; the menu slides in from the left.
   const [open, setOpen] = useState(false);
-  const current = ALL_TABS.find((t) => t.id === activeTab);
+  const current = ALL_TABS.find((t) => t.id === activeTab || t.also?.includes(activeTab));
+  const badges = useBadges(isAdmin, activeTab);
   const pick = (id) => {
     setActiveTab(id);
     setOpen(false);
@@ -43,7 +46,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     <div className="dp-topbar">
       <button className="dp-topbar-btn" aria-label="Open menu" onClick={() => setOpen(true)}><Menu size={22} /></button>
       <BrandMark />
-      <span style={{ ...styles.brandText, fontSize: 15 }}>{current?.label || 'Dojang Portal'}</span>
+      <span style={{ ...styles.brandText, fontSize: 15 }}>{(!isAdmin && current?.staffLabel) || current?.label || 'Dojang Portal'}</span>
     </div>
     {open && <div className="dp-drawer-backdrop" onClick={() => setOpen(false)} />}
     <div className={`dp-sidebar${open ? ' open' : ''}`} style={{ ...styles.sidebar, display: 'flex', flexDirection: 'column' }}>
@@ -55,12 +58,14 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       <nav style={{ marginTop: 24, flex: 1 }}>
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const active = activeTab === tab.id;
+          const id = !isAdmin && tab.staffId ? tab.staffId : tab.id;
+          const active = activeTab === tab.id || !!tab.also?.includes(activeTab);
+          const n = badges[tab.id] || 0;
           return (
             <React.Fragment key={tab.id}>
             {tab.section && <div style={{ fontSize: 11, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 10px 6px' }}>{tab.section}</div>}
             <button
-              onClick={() => pick(tab.id)}
+              onClick={() => pick(id)}
               style={{
                 ...styles.navItem,
                 background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
@@ -68,7 +73,10 @@ export default function Sidebar({ activeTab, setActiveTab }) {
               }}
             >
               <Icon size={17} strokeWidth={1.75} />
-              <span>{tab.label}</span>
+              <span style={{ flex: 1 }}>{!isAdmin && tab.staffLabel ? tab.staffLabel : tab.label}</span>
+              {n > 0 && (
+                <span className="dp-badge" data-badge={tab.id} aria-label={`${n} to do`} style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: '#BE1C21', color: '#fff', fontSize: 11, fontWeight: 600, lineHeight: '18px', textAlign: 'center' }}>{n > 99 ? '99+' : n}</span>
+              )}
             </button>
             </React.Fragment>
           );
