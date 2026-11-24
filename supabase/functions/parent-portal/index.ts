@@ -179,7 +179,16 @@ Deno.serve(async (req) => {
           }
           user = data.user;
         }
-        const { data: prof } = await admin.from('profiles').select('role, customer_id').eq('id', user!.id).maybeSingle();
+        let { data: prof } = await admin.from('profiles').select('role, customer_id').eq('id', user!.id).maybeSingle();
+        // A login this function created is a parent login. (When the login is
+        // created, the new-user trigger can run before the parent details are
+        // attached and label it 'staff' — fix that here. app_metadata can only
+        // be set by the server, so this never touches a real staff login.)
+        const ours = user!.app_metadata?.portal_role === 'parent' && !user!.last_sign_in_at;
+        if (prof && prof.role === 'staff' && ours) {
+          await admin.from('profiles').update({ role: 'parent', customer_id: fam.id }).eq('id', user!.id);
+          prof = { role: 'parent', customer_id: fam.id };
+        }
         if (prof && prof.role !== 'parent') {
           skipped.push({ email, reason: `already a ${prof.role} login — use a different email for the parent portal` });
           continue;
