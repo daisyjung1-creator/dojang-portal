@@ -150,9 +150,10 @@ The palette is ink on white with one red. Status colors exist only to report sta
 
 ## Typography
 
-**Body and Display Font:** Helvetica Neue / Helvetica (with Arial fallback)
+**Display Font (titles only):** Helvetica — the logo font — taken from the device (Mac / iPad), Helvetica Neue / Arial elsewhere. Used for page titles (h1, h2), the brand name and the kiosk class name.
+**Body Font:** the portal's original stack — Pretendard, then the system UI font (-apple-system / BlinkMacSystemFont), Malgun Gothic, Apple SD Gothic Neo.
 
-**Character:** One family, the same as the logo. Hierarchy comes from size and weight, not from mixing typefaces.
+**Character:** The logo face marks the important titles; long reading (tables, forms, lists) stays in the calmer system body font.
 
 ### Hierarchy
 - **Display** (700, 28px, 1.15): page totals and big numbers on Home and Reports.

@@ -9,7 +9,7 @@ export const styles = {
     background: 'var(--dp-hankook-red)',
     flexShrink: 0,
   },
-  brandText: { color: '#FFFFFF', fontSize: 14, fontWeight: 700 },
+  brandText: { color: '#FFFFFF', fontSize: 14, fontWeight: 700, fontFamily: 'var(--dp-font-display)' },
   navItem: {
     width: '100%',
     display: 'flex',
@@ -35,7 +35,7 @@ export const styles = {
   },
   main: { flex: 1, padding: '28px 32px', minWidth: 0 },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18 },
-  title: { fontSize: 'var(--dp-text-headline)', fontWeight: 700, margin: 0, lineHeight: 1.25 },
+  title: { fontSize: 'var(--dp-text-headline)', fontWeight: 700, margin: 0, lineHeight: 1.25, fontFamily: 'var(--dp-font-display)' },
   subtitle: { fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', margin: '4px 0 0' },
   filterBar: { display: 'flex', gap: 8, marginBottom: 14 },
   searchBox: {

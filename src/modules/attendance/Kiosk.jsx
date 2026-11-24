@@ -121,7 +121,7 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--dp-canvas)', zIndex: 900, display: 'flex', flexDirection: 'column', fontFamily: 'var(--dp-font)', fontWeight: 400, color: 'var(--dp-ink)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', background: 'var(--dp-ink)', color: 'var(--dp-paper)', flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 'var(--dp-text-headline)', fontWeight: 700 }}>{cls ? cls.class_name : 'No classes today'}</div>
+        <div style={{ fontSize: 'var(--dp-text-headline)', fontWeight: 700, fontFamily: 'var(--dp-font-display)' }}>{cls ? cls.class_name : 'No classes today'}</div>
         {cls && <div style={{ fontSize: 'var(--dp-text-body)', color: 'var(--dp-line)' }}>{timeLabel(cls.start_time)} – {timeLabel(cls.end_time)}</div>}
         {cls && !cancelled && <div style={{ fontSize: 'var(--dp-text-body)', fontWeight: 600, background: 'var(--dp-success)', borderRadius: 'var(--dp-radius-pill)', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>{here} / {expectedCount} here</div>}
         <div style={{ flex: 1 }} />

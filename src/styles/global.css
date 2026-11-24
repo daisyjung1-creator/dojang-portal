@@ -13,6 +13,11 @@ body {
   background: var(--dp-ink);
   color: var(--dp-paper);
 }
+/* Titles in Helvetica (the logo font); everything else in the body font. */
+h1,
+h2 {
+  font-family: var(--dp-font-display);
+}
 :focus-visible {
   outline: 2px solid var(--dp-ink);
   outline-offset: 2px;
@@ -101,10 +106,6 @@ select.dp-select {
 }
 .dp-btn-danger:hover {
   background: var(--dp-danger-tint);
-}
-/* Admin pages: light body text (easier on the eyes for long sessions). */
-.dp-main {
-  font-weight: var(--dp-weight-admin);
 }
 .dp-row:hover {
   background: var(--dp-canvas);

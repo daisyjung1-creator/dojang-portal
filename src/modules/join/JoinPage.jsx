@@ -461,7 +461,7 @@ export function Page({ children, subtitle = 'Student Registration & Membership A
         <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 14 }}>
           <img src={markImg} alt="Hankook Taekwondo" style={{ width: 50, height: 50, objectFit: 'contain', background: '#fff', borderRadius: 10, padding: 3, flex: 'none' }} />
           <div>
-            <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '0.01em' }}>{SCHOOL.name}</div>
+            <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '0.01em', fontFamily: 'var(--dp-font-display)' }}>{SCHOOL.name}</div>
             <div style={{ fontSize: 14, opacity: 0.75 }}>{subtitle}</div>
           </div>
         </div>

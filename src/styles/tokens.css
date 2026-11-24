@@ -1,7 +1,7 @@
 /* Helvetica from the visitor's own device (Mac / iPad have Light, Regular, Bold
    and Oblique built in). Nothing is downloaded: Helvetica's licence doesn't allow
    putting the font files on a website. Devices without Helvetica fall through to
-   Helvetica Neue / Arial in --dp-font. */
+   Helvetica Neue / Arial in --dp-font-display. */
 @font-face {
   font-family: 'Dojang Helvetica';
   font-weight: 300;
@@ -60,9 +60,9 @@
   --dp-info: #1E4566;
 
   /* Type */
-  --dp-font: 'Dojang Helvetica', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  /* Admin screens read in Helvetica Light; touch screens (kiosk, Today, Tapes, Trials, parents) stay Regular. */
-  --dp-weight-admin: 300;
+  /* Body text: the portal's original font. Helvetica (the logo font) only for titles. */
+  --dp-font: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --dp-font-display: 'Dojang Helvetica', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --dp-text-display: 28px;
   --dp-text-headline: 20px;
   --dp-text-title: 16px;
