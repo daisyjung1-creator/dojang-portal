@@ -5,6 +5,7 @@ import { styles } from '../../lib/uiStyles';
 import TapeList from '../../components/TapeList';
 import BeltWithTapes from '../../components/BeltWithTapes';
 import { CardLinkButton } from '../invoices/CardLink';
+import CardWallet from '../../components/CardWallet';
 import { hasTapes, loadTapes, TAPE_COUNT } from '../../lib/tapes';
 import StudentFlags from '../../components/StudentFlags';
 import { BELTS } from '../../lib/constants';
@@ -512,18 +513,10 @@ function FamilyCard({ customerId }) {
   if (!c) return <span style={{ color: '#8A8D84' }}>…</span>;
   return (
     <div>
-      {c.card_profile_code ? (
-        <div style={{ color: c.card_declined_at ? '#9A2B2B' : '#20241F' }}>
-          {c.card_type || 'Card'} ···{c.card_last4 || '????'}
-          {c.card_expiry ? ` · exp ${String(c.card_expiry).replace(/^(\d\d)(\d\d)$/, '$1/$2')}` : ''}
-          {c.card_profile_mode === 'test' ? ' · TEST' : ''}
-          {c.card_declined_at && <div style={{ fontSize: 12 }}>Declined {String(c.card_declined_at).slice(0, 10)}{c.card_decline_message ? `: ${c.card_decline_message}` : ''}</div>}
-        </div>
-      ) : c.rb_account_id ? (
-        <div>TD Recurring Billing{c.rb_card_last4 ? ` · ···${c.rb_card_last4}` : ''}</div>
-      ) : (
-        <div style={{ color: '#8A8D84' }}>No card saved</div>
+      {c.card_declined_at && c.card_profile_code && (
+        <div style={{ color: '#9A2B2B', fontSize: 12 }}>Last charge declined {String(c.card_declined_at).slice(0, 10)}{c.card_decline_message ? `: ${c.card_decline_message}` : ''}</div>
       )}
+      {c.rb_account_id && !c.card_profile_code ? <div>TD Recurring Billing{c.rb_card_last4 ? ` · ···${c.rb_card_last4}` : ''}</div> : <CardWallet customerId={customerId} />}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
         <CardLinkButton customer={c} onSent={(at) => setC((x) => ({ ...x, card_link_sent_at: at }))} />
         <button type="button" className="dp-btn" style={{ padding: '1px 8px', fontSize: 11.5 }} onClick={() => (window.location.hash = `customers/${customerId}`)}>

@@ -457,18 +457,24 @@ function Billing({ d, open, onDoc }) {
       </div>
 
       <div style={card}>
-        <h2 style={h2}><CreditCard size={17} /> Card for tuition</h2>
-        {f.card_saved ? (
-          <p style={{ margin: '0 0 10px', fontSize: 14 }}>
-            {f.card_type || 'Card'} ending in <b>{f.card_last4}</b>
-            {f.card_expiry ? ` · expires ${String(f.card_expiry).replace(/^(\d\d)(\d\d)$/, '$1/$2')}` : ''} — tuition is charged to it automatically.
-          </p>
+        <h2 style={h2}><CreditCard size={17} /> Saved cards</h2>
+        {(d.cards || []).length ? (
+          (d.cards || []).map((k, i) => (
+            <Row key={i}>
+              <div style={{ flex: 1 }}>
+                {k.type || 'Card'} ending <b>{k.last4}</b>
+                {k.expiry ? <span style={{ color: C.soft }}> · expires {k.expiry}</span> : null}
+              </div>
+              {k.is_default && <span style={{ fontSize: 12.5, fontWeight: 600, color: C.green, background: '#E8F1E9', borderRadius: 999, padding: '2px 9px' }}>Used for tuition</span>}
+            </Row>
+          ))
         ) : (
           <p style={{ margin: '0 0 10px', fontSize: 14, color: C.soft }}>{f.payment_type === 'manual' ? 'You pay tuition by invoice (debit or cash).' : 'No card saved yet.'}</p>
         )}
         {f.card_link_token && (
-          <a style={btn} href={`/card/${f.card_link_token}`}>{f.card_saved ? 'Update card' : 'Save a card'}</a>
+          <a style={{ ...btn, marginTop: 10 }} href={`/card/${f.card_link_token}`}>{(d.cards || []).length ? 'Add or change cards' : 'Save a card'}</a>
         )}
+        {(d.cards || []).length > 0 && <p style={{ fontSize: 12.5, color: C.faint, margin: '8px 0 0' }}>You can add cards and choose which one is used for tuition. A card can be removed only when you have another card saved.</p>}
       </div>
 
       <div style={card}>
