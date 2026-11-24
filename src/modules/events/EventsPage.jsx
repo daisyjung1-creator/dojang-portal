@@ -20,7 +20,7 @@ export const EVENT_KINDS = {
   seminar: 'Seminar / clinic',
   other: 'Other',
 };
-const empty = { title: '', kind: 'camp', description: '', start_date: '', end_date: '', start_time: '', end_time: '', location: '', price: '', taxable: true, fee_item_id: '', signup_deadline: '', capacity: '', published: true };
+const empty = { title: '', kind: 'camp', description: '', start_date: '', end_date: '', start_time: '', end_time: '', location: '', price: '', taxable: true, fee_item_id: '', signup_deadline: '', capacity: '', published: true, allow_guests: false, guest_price: '', question: '', question_required: false };
 const ftime = (t) => {
   if (!t) return '';
   const [h, m] = String(t).split(':').map(Number);
@@ -32,6 +32,7 @@ const when = (e) =>
 export default function EventsPage() {
   const [events, setEvents] = useState(null);
   const [signups, setSignups] = useState([]);
+  const [guests, setGuests] = useState([]);
   const [invoices, setInvoices] = useState({});
   const [students, setStudents] = useState([]);
   const [items, setItems] = useState([]);
@@ -41,13 +42,14 @@ export default function EventsPage() {
   const [flash, setFlash] = useState('');
 
   async function load() {
-    const [{ data: ev }, { data: su }, { data: st }, { data: fi }] = await Promise.all([
+    const [{ data: ev }, { data: su }, { data: gu }, { data: st }, { data: fi }] = await Promise.all([
       supabase.from('events').select('*').order('start_date', { ascending: false }),
       fetchAll(() => supabase.from('event_signups').select('*')),
+      fetchAll(() => supabase.from('event_guests').select('*').is('removed_at', null)),
       fetchAll(() => supabase.from('students').select('id, name, customer_id, status, class_name, belt').order('name')),
       supabase.from('fee_items').select('id, name, description, default_amount, taxable').eq('active', true).order('name'),
     ]);
-    const ids = [...new Set((su || []).map((s) => s.invoice_id).filter(Boolean))];
+    const ids = [...new Set([...(su || []), ...(gu || [])].map((s) => s.invoice_id).filter(Boolean))];
     const inv = {};
     for (let i = 0; i < ids.length; i += 150) {
       const { data } = await supabase.from('invoice_summary').select('id, invoice_number, total, balance, voided, pay_token').in('id', ids.slice(i, i + 150));
@@ -55,6 +57,7 @@ export default function EventsPage() {
     }
     setEvents(ev || []);
     setSignups(su || []);
+    setGuests(gu || []);
     setInvoices(inv);
     setStudents((st || []).filter((s) => (s.status || 'active') !== 'withdrawn'));
     setItems(fi || []);
@@ -67,8 +70,9 @@ export default function EventsPage() {
   const list = (events || []).filter((e) => !e.archived && (showPast || (e.end_date || e.start_date || today) >= today)).sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)));
   const stats = (id) => {
     const su = signups.filter((s) => s.event_id === id && s.status === 'signed_up');
-    const inv = [...new Set(su.map((s) => s.invoice_id).filter(Boolean))].map((x) => invoices[x]).filter(Boolean);
-    return { count: su.length, owing: inv.filter((i) => !i.voided && Number(i.balance) > 0.004).reduce((t, i) => t + Number(i.balance), 0), parents: su.filter((s) => s.source === 'parent').length };
+    const gu = guests.filter((g) => g.event_id === id);
+    const inv = [...new Set([...su, ...gu].map((s) => s.invoice_id).filter(Boolean))].map((x) => invoices[x]).filter(Boolean);
+    return { count: su.length, guests: gu.length, owing: inv.filter((i) => !i.voided && Number(i.balance) > 0.004).reduce((t, i) => t + Number(i.balance), 0), parents: su.filter((s) => s.source === 'parent').length };
   };
   const done = (m) => {
     setEdit(null);
@@ -82,6 +86,7 @@ export default function EventsPage() {
       <EventDetail
         event={current}
         signups={signups.filter((s) => s.event_id === current.id)}
+        guests={guests.filter((g) => g.event_id === current.id)}
         invoices={invoices}
         students={students}
         onBack={() => { setOpenId(null); setFlash(''); }}
@@ -121,7 +126,7 @@ export default function EventsPage() {
                 <div style={{ fontSize: 16, fontWeight: 600, color: '#20241F' }}>{e.title}</div>
                 <div style={{ fontSize: 13, color: '#5B5F56', margin: '2px 0 8px' }}>{when(e)}</div>
                 <div style={{ display: 'flex', gap: 14, fontSize: 13, color: '#20241F' }}>
-                  <span><Users size={13} style={{ verticalAlign: -2 }} /> {st.count}{e.capacity ? ` / ${e.capacity}` : ''} signed up</span>
+                  <span><Users size={13} style={{ verticalAlign: -2 }} /> {st.count}{st.guests ? ` + ${st.guests} guest${st.guests > 1 ? 's' : ''}` : ''}{e.capacity ? ` / ${e.capacity}` : ''} signed up</span>
                   <span>{Number(e.price) > 0 ? money(e.price) : 'Free'}</span>
                   {st.owing > 0 && <span style={{ color: '#9A2B2B' }}>{money(st.owing)} unpaid</span>}
                 </div>
@@ -135,7 +140,7 @@ export default function EventsPage() {
   );
 }
 
-function EventDetail({ event: e, signups, invoices, students, onBack, onEdit, reload, editModal }) {
+function EventDetail({ event: e, signups, guests = [], invoices, students, onBack, onEdit, reload, editModal }) {
   const [pick, setPick] = useState('');
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
@@ -153,7 +158,7 @@ function EventDetail({ event: e, signups, invoices, students, onBack, onEdit, re
     const s = byId[pick];
     if (!s?.customer_id) return setErr(`${s?.name || 'This student'} has no family account yet (Customers), so no invoice can be made.`);
     setBusy(true);
-    const { data, error } = await supabase.rpc('event_signup', { p_event: e.id, p_students: [pick] });
+    const { data, error } = await supabase.rpc('event_register', { p_event: e.id, p_students: [pick] });
     setBusy(false);
     if (error) return setErr(error.message);
     setPick('');
@@ -203,7 +208,7 @@ function EventDetail({ event: e, signups, invoices, students, onBack, onEdit, re
           <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No one signed up yet.</p>
         ) : (
           <table className="dp-table">
-            <thead><tr><th>Student</th><th>Signed up</th><th>Invoice</th><th style={{ textAlign: 'right' }}>Balance</th><th></th></tr></thead>
+            <thead><tr><th>Student</th>{e.question && <th>{e.question}</th>}<th>Signed up</th><th>Invoice</th><th style={{ textAlign: 'right' }}>Balance</th><th></th></tr></thead>
             <tbody>
               {active.map((su) => {
                 const s = byId[su.student_id];
@@ -212,6 +217,7 @@ function EventDetail({ event: e, signups, invoices, students, onBack, onEdit, re
                 return (
                   <tr key={su.id} className="dp-row" data-signup={s?.name}>
                     <td style={{ fontWeight: 500 }}>{s?.name || '—'}{su.note && <div style={{ fontSize: 12, color: '#8A8D84', fontWeight: 400 }}>“{su.note}”</div>}</td>
+                    {e.question && <td style={{ fontSize: 13 }}>{su.answer || <span style={{ color: '#8A8D84' }}>—</span>}</td>}
                     <td style={{ fontSize: 13, color: '#5B5F56' }}>{formatDate(su.created_at?.slice(0, 10))} · {su.source === 'parent' ? 'by parent' : 'by you'}</td>
                     <td>{inv ? `#${inv.invoice_number}${inv.voided ? ' (void)' : ''}` : Number(e.price) > 0 ? '—' : 'free'}</td>
                     <td style={{ textAlign: 'right', color: paid ? '#2A5A30' : '#9A2B2B', fontWeight: 500 }}>{inv ? (paid ? <><Check size={13} /> Paid</> : money(inv.balance)) : ''}</td>
@@ -228,7 +234,31 @@ function EventDetail({ event: e, signups, invoices, students, onBack, onEdit, re
           </table>
         )}
       </div>
-      <p style={{ fontSize: 12.5, color: '#8A8D84' }}>{active.length}{e.capacity ? ` of ${e.capacity}` : ''} spots taken.</p>
+      {guests.length > 0 && (
+        <div style={{ ...styles.card, marginTop: 12 }}>
+          <div style={{ padding: '12px 14px 4px', fontWeight: 600 }}>Guests ({guests.length}){Number(e.guest_price) > 0 ? ` · ${money(e.guest_price)} each` : ''}</div>
+          <table className="dp-table">
+            <thead><tr><th>Guest</th><th>With family</th><th>Invoice</th><th></th></tr></thead>
+            <tbody>
+              {guests.map((g) => {
+                const fam = students.find((s) => s.customer_id === g.customer_id);
+                const inv = invoices[g.invoice_id];
+                return (
+                  <tr key={g.id} className="dp-row" data-guest={g.name}>
+                    <td style={{ fontWeight: 500 }}>{g.name}</td>
+                    <td style={{ fontSize: 13, color: '#5B5F56' }}>{signups.filter((x) => x.customer_id === g.customer_id && x.status === 'signed_up').map((x) => byId[x.student_id]?.name).filter(Boolean).join(', ') || fam?.name || '—'}</td>
+                    <td style={{ fontSize: 13 }}>{inv ? `#${inv.invoice_number}${Number(inv.balance) <= 0.004 ? ' · paid' : ''}` : Number(e.guest_price) > 0 ? '—' : 'free'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={async () => { await supabase.from('event_guests').update({ removed_at: new Date().toISOString() }).eq('id', g.id); setMsg(`${g.name} removed.${inv && !inv.voided ? ` Adjust invoice #${inv.invoice_number} in Invoices if needed.` : ''}`); reload(); }}><X size={12} /> Remove</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p style={{ fontSize: 12.5, color: '#8A8D84' }}>{active.length + guests.length}{e.capacity ? ` of ${e.capacity}` : ''} spots taken{guests.length ? ` (incl. ${guests.length} guest${guests.length > 1 ? 's' : ''})` : ''}.</p>
       {editModal}
     </>
   );
@@ -261,6 +291,10 @@ function EventForm({ event, items, onClose, onDone }) {
       signup_deadline: f.signup_deadline || null,
       capacity: f.capacity === '' ? null : Number(f.capacity),
       published: !!f.published,
+      allow_guests: !!f.allow_guests,
+      guest_price: f.allow_guests ? Number(f.guest_price) || 0 : 0,
+      question: f.question.trim() || null,
+      question_required: !!f.question.trim() && !!f.question_required,
     };
     const { error: e } = event.id ? await supabase.from('events').update(row).eq('id', event.id) : await supabase.from('events').insert(row);
     if (e) return setError(e.message);
@@ -309,6 +343,16 @@ function EventForm({ event, items, onClose, onDone }) {
         <Field label="Spots (empty = no limit)"><input type="number" min="1" className="dp-input" style={{ width: '100%' }} value={f.capacity} onChange={set('capacity')} /></Field>
       </div>
       <Field label="Details for parents"><textarea className="dp-input" style={{ width: '100%', minHeight: 90 }} value={f.description} onChange={set('description')} placeholder="What to bring, pick-up time…" /></Field>
+      <div style={{ border: '1px solid #E4E6DF', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+        <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center' }}><input type="checkbox" checked={!!f.allow_guests} onChange={set('allow_guests')} /> Families can bring guests (they enter each guest's name)</label>
+        {f.allow_guests && (
+          <div style={{ marginTop: 8, maxWidth: 260 }}>
+            <Field label="Price per guest"><input type="number" min="0" step="0.01" className="dp-input" style={{ width: '100%' }} value={f.guest_price} onChange={set('guest_price')} placeholder="0 = free" /></Field>
+          </div>
+        )}
+      </div>
+      <Field label="Question for families (optional)"><input className="dp-input" style={{ width: '100%' }} value={f.question} onChange={set('question')} placeholder="e.g. What food will you bring?" /></Field>
+      {f.question.trim() && <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center', margin: '-4px 0 10px' }}><input type="checkbox" checked={!!f.question_required} onChange={set('question_required')} /> Answer required</label>}
       <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center', marginBottom: 6 }}><input type="checkbox" checked={!!f.taxable} onChange={set('taxable')} /> Add GST</label>
       <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center' }}><input type="checkbox" checked={!!f.published} onChange={set('published')} /> Show in the parent portal (parents can sign up)</label>
       {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}

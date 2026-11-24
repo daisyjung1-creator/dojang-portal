@@ -229,7 +229,7 @@ function ParentPortal({ onSignOut }) {
   async function load() {
     const today = todayISO();
     const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
-    const [{ data: core, error: e1 }, inv, pays, att, tapes, events, signups, notices, closed] = await Promise.all([
+    const [{ data: core, error: e1 }, inv, pays, att, tapes, events, signups, guests, makeups, notices, closed] = await Promise.all([
       supabase.rpc('parent_portal_data'),
       supabase.from('invoice_summary').select('*').eq('voided', false).order('invoice_date', { ascending: false }),
       supabase.from('invoice_payments').select('*').order('payment_date', { ascending: false }),
@@ -237,11 +237,13 @@ function ParentPortal({ onSignOut }) {
       supabase.from('student_tapes').select('student_id, belt, tape'),
       supabase.from('events').select('*').order('start_date'),
       supabase.from('event_signups').select('*'),
+      supabase.from('event_guests').select('*').is('removed_at', null),
+      supabase.from('makeup_records').select('*').gte('created_at', new Date(Date.now() - 120 * 864e5).toISOString()).order('absence_date', { ascending: false }),
       supabase.from('absence_notices').select('*').gte('absence_date', today).order('absence_date'),
       supabase.from('class_cancellations').select('date, class_name, reason').gte('date', today),
     ]);
     if (e1) return setError(e1.message);
-    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], notices: notices.data || [], closed: closed.data || [] });
+    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: closed.data || [] });
   }
   useEffect(() => {
     load();
@@ -380,6 +382,8 @@ function Kids({ d, onAbsence }) {
               )}
             </Section>
 
+            <Makeups list={(d.makeups || []).filter((m) => m.student_id === s.id)} />
+
             <button style={{ ...btn, marginTop: 12, width: '100%', justifyContent: 'center' }} onClick={() => onAbsence(s)}>
               <CalendarX size={16} /> My child will be absent
             </button>
@@ -387,6 +391,44 @@ function Kids({ d, onAbsence }) {
         );
       })}
     </div>
+  );
+}
+
+// Make-up classes: open ones (with the last day to use them), booked ones,
+// and the ones done in the last weeks.
+function Makeups({ list }) {
+  const today = todayISO();
+  const open = list.filter((m) => m.status === 'pending' && (!m.expiration_date || m.expiration_date >= today));
+  const booked = list.filter((m) => m.status === 'reserved');
+  const done = list.filter((m) => m.status === 'completed').slice(0, 3);
+  if (!open.length && !booked.length && !done.length) return null;
+  const pill = (bg, c) => ({ fontSize: 12.5, padding: '6px 9px', borderRadius: 8, background: bg, color: c, marginBottom: 5 });
+  return (
+    <Section title="Make-up classes">
+      <div data-testid="makeups">
+        {booked.map((m) => (
+          <div key={m.id} style={pill('#EEF0F3', '#3A4250')}>
+            <b>Booked:</b> {fday(m.reservation_date)}{m.reservation_class_name ? ` · ${m.reservation_class_name}` : ''}
+            <div style={{ fontSize: 11.5, opacity: 0.85 }}>for the class missed on {fday(m.absence_date)}</div>
+          </div>
+        ))}
+        {open.map((m) => (
+          <div key={m.id} style={pill('#FAEEDA', '#854F0B')}>
+            <b>1 make-up available</b> — use by {fday(m.expiration_date || m.tentative_expiration)}
+            <div style={{ fontSize: 11.5, opacity: 0.9 }}>
+              for {fday(m.absence_date)}{m.class_name ? ` (${m.class_name})` : ''}
+              {m.conditional && m.paid_period_end ? ` · only while the membership is active (paid to ${fday(m.paid_period_end)})` : ''}
+            </div>
+          </div>
+        ))}
+        {done.map((m) => (
+          <div key={m.id} style={{ fontSize: 12.5, color: C.soft, padding: '2px 0' }}>
+            ✓ Made up {m.reservation_date ? fday(m.reservation_date) : ''} for {fday(m.absence_date)}
+          </div>
+        ))}
+        {open.length > 0 && <div style={{ fontSize: 12, color: C.faint, marginTop: 3 }}>To book a make-up, ask at the front desk or email the dojang (Contact tab).</div>}
+      </div>
+    </Section>
   );
 }
 
@@ -524,9 +566,12 @@ function Events({ d, onSignUp }) {
   return upcoming.map((e) => {
     const mine = d.signups.filter((s) => s.event_id === e.id && s.status === 'signed_up');
     const names = mine.map((s) => d.students.find((k) => k.id === s.student_id)?.name).filter(Boolean);
+    const myGuests = (d.guests || []).filter((g) => g.event_id === e.id);
+    const answer = mine.find((m) => m.answer)?.answer;
     const closed = e.signup_deadline && e.signup_deadline < today;
     const canAdd = !closed && d.students.some((k) => !mine.some((m) => m.student_id === k.id));
-    const inv = mine.map((m) => d.invoices.find((i) => i.id === m.invoice_id)).filter(Boolean);
+    const inv = [...mine, ...myGuests].map((m) => d.invoices.find((i) => i.id === m.invoice_id)).filter(Boolean);
+    const canGuests = !closed && e.allow_guests && mine.length > 0;
     const owing = [...new Map(inv.map((i) => [i.id, i])).values()].filter((i) => Number(i.balance) > 0.004);
     return (
       <div key={e.id} style={card} data-event={e.title}>
@@ -543,13 +588,16 @@ function Events({ d, onSignUp }) {
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontWeight: 700 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</div>
             {Number(e.price) > 0 && <div style={{ fontSize: 12, color: C.faint }}>per student{e.taxable ? ' + GST' : ''}</div>}
+            {e.allow_guests && <div style={{ fontSize: 12, color: C.faint }}>Guests {Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}</div>}
           </div>
         </div>
         {e.description && <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '10px 0 0' }}>{e.description}</p>}
         {e.signup_deadline && <p style={{ fontSize: 13, color: closed ? C.red : C.soft, margin: '8px 0 0' }}>{closed ? 'Sign-up closed' : `Sign up by ${fdate(e.signup_deadline)}`}</p>}
-        {names.length > 0 && <p style={{ fontSize: 14, color: C.green, margin: '8px 0 0' }}><Check size={15} style={{ verticalAlign: -2 }} /> Signed up: {names.join(', ')}</p>}
+        {names.length > 0 && <p style={{ fontSize: 14, color: C.green, margin: '8px 0 0' }}><Check size={15} style={{ verticalAlign: -2 }} /> Signed up: {names.join(', ')}{myGuests.length ? ` + guests: ${myGuests.map((g) => g.name).join(', ')}` : ''}</p>}
+        {answer && e.question && <p style={{ fontSize: 13.5, color: C.soft, margin: '4px 0 0' }}>{e.question} <b style={{ color: C.ink }}>{answer}</b></p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           {canAdd && <button style={primary} onClick={() => onSignUp(e)}>Sign up</button>}
+          {!canAdd && canGuests && <button style={btn} onClick={() => onSignUp(e)}>Add guests</button>}
           {owing.map((i) => (
             <a key={i.id} style={btn} href={`/pay/${i.pay_token}`}>Pay {money(i.balance)}</a>
           ))}
@@ -687,46 +735,82 @@ function AbsenceModal({ d, student, onClose, onDone }) {
 function SignUpModal({ d, event, onClose, onDone }) {
   const taken = new Set(d.signups.filter((s) => s.event_id === event.id && s.status === 'signed_up').map((s) => s.student_id));
   const kids = d.students.filter((k) => !taken.has(k.id));
+  const already = taken.size > 0 && d.students.some((k) => taken.has(k.id));
   const [pick, setPick] = useState(() => (kids.length === 1 ? [kids[0].id] : []));
+  const [guests, setGuests] = useState([]);
+  const [answer, setAnswer] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const price = Number(event.price) || 0;
-  const sub = price * pick.length;
+  const gprice = Number(event.guest_price) || 0;
+  const names = guests.map((g) => g.trim()).filter(Boolean);
+  const sub = price * pick.length + (event.allow_guests ? gprice * names.length : 0);
   const total = sub + (event.taxable ? Math.round(sub * 5) / 100 : 0);
+  const needAnswer = event.question && event.question_required && pick.length > 0;
   async function go() {
-    if (!pick.length) return setError('Choose who is coming.');
+    if (!pick.length && !names.length) return setError(kids.length ? 'Choose who is coming.' : 'Add at least one guest.');
+    if (!pick.length && !already) return setError('Choose at least one student — guests come with a student.');
+    if (guests.some((g) => !g.trim())) return setError("Enter each guest's name (or remove the empty line).");
+    if (needAnswer && !answer.trim()) return setError(`Please answer: ${event.question}`);
     setBusy(true);
     setError('');
-    const { data, error: err } = await supabase.rpc('event_signup', { p_event: event.id, p_students: pick, p_note: note || null });
+    const { data, error: err } = await supabase.rpc('event_register', { p_event: event.id, p_students: pick, p_note: note || null, p_guests: names, p_answer: answer || null });
     setBusy(false);
     if (err) return setError(err.message);
-    if (data?.pay_token) setResult(data);
-    else onDone(`You're signed up for ${event.title}!`);
+    const what = `${event.title}${names.length ? ` (with ${names.length} guest${names.length > 1 ? 's' : ''})` : ''}`;
+    if (data?.pay_token) setResult({ ...data, what });
+    else onDone(`You're signed up for ${what}!`);
   }
   if (result)
     return (
-      <Modal title="You're signed up!" onClose={() => onDone(`You're signed up for ${event.title}. Invoice #${result.invoice_number} is under Billing.`)}>
+      <Modal title="You're signed up!" onClose={() => onDone(`You're signed up for ${result.what}. Invoice #${result.invoice_number} is under Billing.`)}>
         <p style={{ fontSize: 15 }}>Invoice #{result.invoice_number} for <b>{money(result.total)}</b> was added to your account.</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <a style={primary} href={`/pay/${result.pay_token}`}>Pay now</a>
-          <button style={btn} onClick={() => onDone(`You're signed up for ${event.title}. Invoice #${result.invoice_number} is under Billing.`)}>Pay later</button>
+          <button style={btn} onClick={() => onDone(`You're signed up for ${result.what}. Invoice #${result.invoice_number} is under Billing.`)}>Pay later</button>
         </div>
       </Modal>
     );
   return (
-    <Modal title={`Sign up — ${event.title}`} onClose={onClose} footer={<><button style={btn} onClick={onClose}>Cancel</button><button style={primary} onClick={go} disabled={busy || !pick.length}>Sign up{price > 0 && pick.length ? ` · ${money(total)}` : ''}</button></>}>
-      <label style={label}>Who is coming?</label>
-      {kids.map((k) => (
-        <label key={k.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 15 }}>
-          <input type="checkbox" checked={pick.includes(k.id)} onChange={(e) => setPick((p) => (e.target.checked ? [...p, k.id] : p.filter((x) => x !== k.id)))} />
-          {k.name}
-        </label>
-      ))}
-      <label style={label}>Note for the dojang (optional)</label>
-      <input style={input} placeholder="Allergies, pick-up time…" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
-      {price > 0 && <p style={{ fontSize: 13, color: C.soft }}>An invoice ({money(price)} per student{event.taxable ? ' + GST' : ''}) is added to your account. You can pay it right away or later under Billing.</p>}
+    <Modal title={`${kids.length ? 'Sign up' : 'Add guests'} — ${event.title}`} onClose={onClose} footer={<><button style={btn} onClick={onClose}>Cancel</button><button style={primary} onClick={go} disabled={busy || (!pick.length && !names.length)}>{kids.length ? 'Sign up' : 'Add guests'}{sub > 0 ? ` · ${money(total)}` : ''}</button></>}>
+      {kids.length > 0 && (
+        <>
+          <label style={label}>Who is coming?</label>
+          {kids.map((k) => (
+            <label key={k.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 15 }}>
+              <input type="checkbox" checked={pick.includes(k.id)} onChange={(e) => setPick((p) => (e.target.checked ? [...p, k.id] : p.filter((x) => x !== k.id)))} />
+              {k.name}
+            </label>
+          ))}
+        </>
+      )}
+      {event.allow_guests && (
+        <div data-testid="guests">
+          <label style={label}>Guests {gprice > 0 ? `(${money(gprice)} each${event.taxable ? ' + GST' : ''})` : '(free)'}</label>
+          {guests.map((g, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <input style={input} placeholder="Guest's name" aria-label={`Guest ${i + 1} name`} value={g} maxLength={80} autoFocus={i === guests.length - 1} onChange={(e) => setGuests((x) => x.map((y, j) => (j === i ? e.target.value : y)))} />
+              <button type="button" aria-label="Remove guest" style={{ ...btn, padding: '6px 10px' }} onClick={() => setGuests((x) => x.filter((_, j) => j !== i))}><X size={15} /></button>
+            </div>
+          ))}
+          {guests.length < 10 && <button type="button" style={{ ...btn, padding: '6px 12px', fontSize: 13.5 }} onClick={() => setGuests((x) => [...x, ''])}>+ Add guest</button>}
+        </div>
+      )}
+      {event.question && kids.length > 0 && (
+        <>
+          <label style={label}>{event.question}{event.question_required ? ' *' : ' (optional)'}</label>
+          <input style={input} value={answer} onChange={(e) => setAnswer(e.target.value)} maxLength={300} />
+        </>
+      )}
+      {kids.length > 0 && (
+        <>
+          <label style={label}>Note for the dojang (optional)</label>
+          <input style={input} placeholder="Allergies, pick-up time…" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
+        </>
+      )}
+      {sub > 0 && <p style={{ fontSize: 13, color: C.soft }}>An invoice for {money(total)} (incl. GST) is added to your account. You can pay it right away or later under Billing.</p>}
       {error && <p style={{ color: C.red, fontSize: 13 }}>{error}</p>}
     </Modal>
   );
