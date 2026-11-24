@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Check, Ban, Plus } from 'lucide-react';
+import { X, Check, Ban, Plus, CalendarOff, CircleX, Undo2 } from 'lucide-react';
 import { splitClasses, comesOn } from '../../lib/classes';
-import { BELTS } from '../../lib/constants';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import BeltStrip from '../../components/BeltStrip';
 
 // The dojang's clock, whatever time zone the iPad is set to.
 export function dojangNow() {
@@ -36,6 +36,13 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
   const [confirm, setConfirm] = useState(false);
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState('');
+  // Last tap, so a mis-tap can be undone: { id, name, here }.
+  const [toast, setToast] = useState(null);
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
   useEffect(() => {
     const t = setInterval(() => setNow(dojangNow()), 30000);
     return () => clearInterval(t);
@@ -79,95 +86,167 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
     onMark(r.s.id, now.date, cls.class_name, 'present');
   }
 
+  // Tile tap: toggle "here" and offer an Undo for a few seconds.
+  function tapTile(r) {
+    const wasHere = r.rec && r.rec.status === 'present';
+    setToast({ id: r.s.id, name: r.s.name, here: !wasHere });
+    tap(r);
+  }
+
+  function undo() {
+    if (!toast) return;
+    const r = roster.find((x) => x.s.id === toast.id);
+    setToast(null);
+    if (!r) return;
+    const isPresentNow = r.rec && r.rec.status === 'present';
+    // Only reverse if the record still matches what the tap did.
+    if (toast.here === Boolean(isPresentNow)) tap(r);
+  }
+
+  const statusOf = (r, st, on) => {
+    if (r.m) return on ? { text: 'Makeup · here', tone: 'success' } : { text: 'Makeup booked', tone: 'soft' };
+    if (r.drop) return { text: 'Drop-in · here', tone: 'success' };
+    if (st === 'absent') return { text: r.rec.auto ? 'Marked absent' : 'Absent', tone: 'danger' };
+    if (st === 'excused') return { text: 'Excused (makeup)', tone: 'warning' };
+    if (st === 'vacation') return { text: 'Vacation', tone: 'warning' };
+    if (st === 'double') return { text: 'Double class', tone: 'success' };
+    if (st === 'private') return { text: 'Private', tone: 'success' };
+    if (on) return { text: 'Here', tone: 'success' };
+    if (r.off) return { text: 'Not their day · tap if here', tone: 'soft' };
+    return { text: 'Tap when here', tone: 'soft' };
+  };
+  const TONE = { success: 'var(--dp-success)', danger: 'var(--dp-danger)', warning: 'var(--dp-warning)', soft: 'var(--dp-ink-soft)' };
+  const touchBtn = { minHeight: 'var(--dp-touch)', fontSize: 'var(--dp-text-body)', padding: '10px 16px' };
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#F6F4EE', zIndex: 900, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: '#20241F', color: '#fff', flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 22, fontWeight: 600 }}>{cls ? cls.class_name : 'No classes today'}</div>
-        {cls && <div style={{ fontSize: 15, opacity: 0.8 }}>{timeLabel(cls.start_time)} – {timeLabel(cls.end_time)}</div>}
-        {cls && !cancelled && <div style={{ fontSize: 15, background: '#2A5A30', borderRadius: 999, padding: '3px 12px' }}>{here} / {expectedCount} here</div>}
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--dp-canvas)', zIndex: 900, display: 'flex', flexDirection: 'column', fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', background: 'var(--dp-ink)', color: 'var(--dp-paper)', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 'var(--dp-text-headline)', fontWeight: 700 }}>{cls ? cls.class_name : 'No classes today'}</div>
+        {cls && <div style={{ fontSize: 'var(--dp-text-body)', color: 'var(--dp-line)' }}>{timeLabel(cls.start_time)} – {timeLabel(cls.end_time)}</div>}
+        {cls && !cancelled && <div style={{ fontSize: 'var(--dp-text-body)', fontWeight: 600, background: 'var(--dp-success)', borderRadius: 'var(--dp-radius-pill)', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>{here} / {expectedCount} here</div>}
         <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 14, opacity: 0.8 }}>{new Date(now.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-        <button className="dp-btn" style={{ background: 'transparent', color: '#fff', borderColor: '#5B5F56' }} onClick={onClose}><X size={16} /> Exit</button>
+        <div style={{ fontSize: 'var(--dp-text-body)', color: 'var(--dp-line)' }}>{new Date(now.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+        <button className="dp-btn" style={{ ...touchBtn, background: 'transparent', color: 'var(--dp-paper)', borderColor: 'var(--dp-ink-soft)' }} onClick={onClose}><X size={16} /> Exit</button>
       </div>
 
       {today.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, padding: '10px 20px', overflowX: 'auto', borderBottom: '1px solid #E4E0D4' }}>
-          {today.map((c) => (
-            <button
-              key={c.id}
-              className="dp-btn"
-              style={{ whiteSpace: 'nowrap', fontSize: 14, padding: '8px 14px', background: cls && c.id === cls.id ? '#20241F' : '#fff', color: cls && c.id === cls.id ? '#fff' : '#20241F' }}
-              onClick={() => setPicked(c.id)}
-            >
-              {timeLabel(c.start_time)} {c.class_name}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: 8, padding: '10px 20px', overflowX: 'auto', borderBottom: '1px solid var(--dp-line)' }}>
+          {today.map((c) => {
+            const sel = cls && c.id === cls.id;
+            return (
+              <button
+                key={c.id}
+                className="dp-btn"
+                aria-pressed={sel}
+                style={{ ...touchBtn, whiteSpace: 'nowrap', background: sel ? 'var(--dp-ink)' : 'var(--dp-paper)', color: sel ? 'var(--dp-paper)' : 'var(--dp-ink)', borderColor: sel ? 'var(--dp-ink)' : 'var(--dp-line)' }}
+                onClick={() => setPicked(c.id)}
+              >
+                {timeLabel(c.start_time)} {c.class_name}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+      <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 88px' }}>
         {!cls ? (
-          <p style={{ fontSize: 18, color: '#5B5F56', textAlign: 'center', marginTop: 80 }}>No classes on the schedule today.</p>
+          <p style={{ fontSize: 'var(--dp-text-title)', color: 'var(--dp-ink-soft)', textAlign: 'center', marginTop: 80 }}>No classes on the schedule today.</p>
         ) : cancelled ? (
-          <p style={{ fontSize: 18, color: '#854F0B', textAlign: 'center', marginTop: 80 }}>This class is cancelled today — nobody will be marked absent.</p>
+          <p style={{ fontSize: 'var(--dp-text-title)', color: 'var(--dp-warning)', textAlign: 'center', marginTop: 80 }}>This class is cancelled today — nobody will be marked absent.</p>
         ) : roster.length === 0 ? (
-          <p style={{ fontSize: 18, color: '#5B5F56', textAlign: 'center', marginTop: 80 }}>No students in this class.</p>
+          <p style={{ fontSize: 'var(--dp-text-title)', color: 'var(--dp-ink-soft)', textAlign: 'center', marginTop: 80 }}>No students in this class.</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
             {roster.map((r) => {
               const st = r.rec?.status;
               const on = st === 'present' || st === 'double' || st === 'private';
-              const belt = BELTS.find((b) => b.value === r.s.belt) || BELTS[0];
+              const status = statusOf(r, st, on);
+              const canExcuse = !on && !r.m && !r.drop && !r.off;
+              const excused = st === 'excused';
+              const bg = on ? 'var(--dp-success-tint)' : st === 'absent' ? 'var(--dp-danger-tint)' : excused || st === 'vacation' ? 'var(--dp-warning-tint)' : r.off ? 'var(--dp-canvas)' : 'var(--dp-paper)';
               return (
-                <button
+                <div
                   key={r.s.id}
-                  onClick={() => tap(r)}
                   style={{
-                    position: 'relative',
-                    minHeight: 96,
-                    borderRadius: 12,
-                    border: `2px solid ${on ? '#3C7A43' : st === 'absent' ? '#E4B8B8' : st === 'vacation' || st === 'excused' ? '#F0D9A8' : '#DEDACC'}`,
-                    background: on ? '#E8F1E9' : st === 'absent' ? '#FBEAEA' : st === 'excused' ? '#FAEEDA' : r.off ? '#F6F4EE' : '#fff',
-                    opacity: r.off && !on && !st ? 0.7 : 1,
-                    padding: '14px 12px 12px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    WebkitTapHighlightColor: 'transparent',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderRadius: 'var(--dp-radius-lg)',
+                    border: `2px solid ${on ? 'var(--dp-success)' : 'var(--dp-line)'}`,
+                    background: bg,
+                    overflow: 'hidden',
                   }}
                 >
-                  <div style={{ height: 6, borderRadius: 3, background: belt.bg, border: `1px solid ${belt.border}`, marginBottom: 10 }} />
-                  <div style={{ fontSize: 17, fontWeight: 600, color: '#20241F', lineHeight: 1.25 }}>{r.s.name}</div>
-                  <div style={{ fontSize: 12.5, color: '#5B5F56', marginTop: 4 }}>
-                    {r.m ? (on ? 'Makeup · here' : 'Makeup booked') : r.drop ? 'Drop-in · here' : st === 'absent' ? (r.rec.auto ? 'Marked absent' : 'Absent') : st === 'excused' ? 'Excused (makeup)' : st === 'vacation' ? 'Vacation' : st === 'double' ? 'Double class' : st === 'private' ? 'Private' : on ? 'Here' : r.off ? 'Not their day · tap if here' : 'Tap when here'}
-                  </div>
-                  {!on && !r.m && !r.drop && !r.off && (
-                    <span
-                      role="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        st === 'excused' ? onUnmark(r.rec) : onMark(r.s.id, now.date, cls.class_name, 'excused');
-                      }}
-                      style={{ position: 'absolute', right: 8, bottom: 8, fontSize: 11.5, padding: '3px 8px', borderRadius: 999, border: '1px solid #F0D9A8', background: st === 'excused' ? '#854F0B' : '#FAEEDA', color: st === 'excused' ? '#fff' : '#854F0B' }}
-                    >
-                      Excused
-                    </span>
-                  )}
-                  {on && (
-                    <div style={{ position: 'absolute', top: 10, right: 10, width: 26, height: 26, borderRadius: 13, background: '#3C7A43', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Check size={16} />
+                  <button
+                    className="dp-kiosk-tap"
+                    onClick={() => tapTile(r)}
+                    aria-label={`${r.s.name}, ${r.s.belt || 'White'} belt, ${status.text}`}
+                    style={{ flex: 1, minHeight: 104, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'stretch', border: 'none', background: 'transparent', padding: '12px 12px 12px', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <BeltStrip belt={r.s.belt} width={64} />
+                      <span style={{ fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.s.belt || 'White'}</span>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 'var(--dp-text-title)', fontWeight: 600, lineHeight: 1.3 }}>{r.s.name}</div>
+                      {on && (
+                        <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: 13, background: 'var(--dp-success)', color: 'var(--dp-paper)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Check size={16} />
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 'var(--dp-text-label)', color: TONE[status.tone], marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {st === 'absent' && <CircleX size={14} aria-hidden="true" />}
+                      {excused && <CalendarOff size={14} aria-hidden="true" />}
+                      {status.text}
+                    </div>
+                  </button>
+                  {canExcuse && (
+                    <button
+                      className="dp-kiosk-tap"
+                      onClick={() => (excused ? onUnmark(r.rec) : onMark(r.s.id, now.date, cls.class_name, 'excused'))}
+                      aria-pressed={excused}
+                      aria-label={excused ? `Undo excused for ${r.s.name}` : `Mark ${r.s.name} excused`}
+                      style={{
+                        minHeight: 'var(--dp-touch)',
+                        border: 'none',
+                        borderTop: '1px solid var(--dp-line)',
+                        background: excused ? 'var(--dp-warning)' : 'var(--dp-warning-tint)',
+                        color: excused ? 'var(--dp-paper)' : 'var(--dp-warning)',
+                        fontSize: 'var(--dp-text-label)',
+                        fontWeight: 600,
+                        fontFamily: 'inherit',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        cursor: 'pointer',
+                        WebkitTapHighlightColor: 'transparent',
+                      }}
+                    >
+                      {excused ? <Undo2 size={15} aria-hidden="true" /> : <CalendarOff size={15} aria-hidden="true" />}
+                      {excused ? 'Excused · tap to undo' : 'Excused'}
+                    </button>
                   )}
-                </button>
+                </div>
               );
             })}
+          </div>
+        )}
+      </div>
+        {toast && (
+          <div role="status" style={{ position: 'absolute', left: '50%', bottom: 16, transform: 'translateX(-50%)', zIndex: 920, display: 'flex', alignItems: 'center', gap: 16, background: 'var(--dp-ink)', color: 'var(--dp-paper)', borderRadius: 'var(--dp-radius-md)', padding: '6px 6px 6px 16px', fontSize: 'var(--dp-text-body)', boxShadow: '0 6px 20px rgba(32,36,31,0.25)', maxWidth: 'calc(100% - 40px)' }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{toast.name} {toast.here ? 'marked here' : 'unmarked'}</span>
+            <button className="dp-btn" style={{ ...touchBtn, background: 'transparent', color: 'var(--dp-paper)', borderColor: 'var(--dp-ink-soft)', fontWeight: 600 }} onClick={undo}>
+              <Undo2 size={15} aria-hidden="true" /> Undo
+            </button>
           </div>
         )}
       </div>
 
       {/* Right padding keeps the buttons clear of Netlify's "Powered by Netlify" badge (bottom right). */}
       {cls && (
-        <div className="dp-kiosk-foot" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 210px 10px 20px', borderTop: '1px solid #E4E0D4', fontSize: 13, color: '#5B5F56', flexWrap: 'wrap' }}>
+        <div className="dp-kiosk-foot" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 210px 10px 20px', borderTop: '1px solid var(--dp-line)', background: 'var(--dp-paper)', fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', flexWrap: 'wrap' }}>
           <span>
             {cancelled
               ? 'Cancelled today.'
@@ -177,28 +256,28 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
           </span>
           <div style={{ flex: 1 }} />
           {!cancelled && (
-            <>
-              <button className="dp-btn dp-btn-primary" style={{ fontSize: 14, padding: '8px 14px' }} onClick={() => { setSearch(''); setAdding(true); }}>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button className="dp-btn" style={{ ...touchBtn, background: 'var(--dp-ink)', color: 'var(--dp-paper)', borderColor: 'var(--dp-ink)' }} onClick={() => { setSearch(''); setAdding(true); }}>
                 <Plus size={15} /> Makeup / drop-in
               </button>
-              <button className="dp-btn" onClick={() => setConfirm(true)}><Ban size={14} /> Class cancelled today</button>
-            </>
+              <button className="dp-btn" style={touchBtn} onClick={() => setConfirm(true)}><Ban size={14} /> Class cancelled today</button>
+            </div>
           )}
         </div>
       )}
 
       {adding && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(32,36,31,0.45)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 12, width: 'min(640px, 100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 16, borderBottom: '1px solid #EDEAE0' }}>
-              <div style={{ fontSize: 17, fontWeight: 600, flex: 1 }}>Who came to {cls.class_name}?</div>
-              <button className="dp-btn" onClick={() => setAdding(false)}><X size={15} /> Close</button>
+          <div style={{ background: 'var(--dp-paper)', borderRadius: 'var(--dp-radius-lg)', width: 'min(640px, 100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 16, borderBottom: '1px solid var(--dp-line)' }}>
+              <div style={{ fontSize: 'var(--dp-text-title)', fontWeight: 600, flex: 1 }}>Who came to {cls.class_name}?</div>
+              <button className="dp-btn" style={touchBtn} onClick={() => setAdding(false)}><X size={15} /> Close</button>
             </div>
             <div style={{ padding: '12px 16px 0' }}>
-              <input autoFocus className="dp-input" style={{ width: '100%', fontSize: 16, padding: 10 }} placeholder="Type a name…" value={search} onChange={(e) => setSearch(e.target.value)} />
-              <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '8px 0 0' }}>Uses their oldest open makeup; if they don't have one it's recorded as an extra class.</p>
+              <input autoFocus className="dp-input" style={{ width: '100%', fontSize: 'var(--dp-text-title)', padding: 10, minHeight: 'var(--dp-touch)' }} placeholder="Type a name…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <p style={{ fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', margin: '8px 0 0' }}>Uses their oldest open makeup; if they don't have one it's recorded as an extra class.</p>
             </div>
-            <div style={{ overflowY: 'auto', padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 8 }}>
+            <div style={{ overflowY: 'auto', padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
               {students
                 .filter((x) => !x.billing_exempt && !roster.some((r) => r.s.id === x.id) && x.name.toLowerCase().includes(search.trim().toLowerCase()))
                 .sort((a, b) => a.name.localeCompare(b.name))
@@ -208,14 +287,17 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
                     <button
                       key={x.id}
                       className="dp-btn"
-                      style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px', fontSize: 14.5, display: 'block' }}
+                      style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '10px 12px', minHeight: 'var(--dp-touch)', fontSize: 'var(--dp-text-body)', display: 'block' }}
                       onClick={async () => {
                         setAdding(false);
                         await onWalkIn(x.id, now.date, cls.class_name);
                       }}
                     >
-                      <div style={{ fontWeight: 600 }}>{x.name}</div>
-                      <div style={{ fontSize: 12, color: open ? '#854F0B' : '#8A8D84' }}>{open ? `${open} makeup${open > 1 ? 's' : ''} open` : 'No open makeup'}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <BeltStrip belt={x.belt} width={44} />
+                        <span style={{ fontWeight: 600 }}>{x.name}</span>
+                      </div>
+                      <div style={{ fontSize: 'var(--dp-text-caption)', color: open ? 'var(--dp-warning)' : 'var(--dp-ink-soft)', marginTop: 4 }}>{open ? `${open} makeup${open > 1 ? 's' : ''} open` : 'No open makeup'}</div>
                     </button>
                   );
                 })}

@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, RefreshCw, CalendarOff, UserPlus, RotateCcw, Cake, CalendarDays, CircleCheck } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
-import { styles } from '../../lib/uiStyles';
 import { todayISO, addDaysISO } from '../../lib/billingDates';
 import { inClass } from '../../lib/classes';
-import { Card, Tag, Empty, RED, PURPLE, smallBtn } from './homeUi';
+import { Card, Tag, Empty, RED, GREY, touchBtn } from './homeUi';
 import BeltProgressCard from './BeltProgressCard';
 
 // Start page for staff logins (front-desk iPad): today's classes, who is
@@ -47,7 +46,7 @@ export default function StaffHomePage({ setActiveTab }) {
     load();
   }, []);
 
-  if (!d) return <p style={{ color: '#5B5F56', fontSize: 14 }}>Loading…</p>;
+  if (!d) return <p style={{ color: 'var(--dp-ink-soft)', fontSize: 'var(--dp-text-title)', fontFamily: 'var(--dp-font)' }}>Loading…</p>;
 
   const wd = new Date(today + 'T00:00:00').getDay();
   const offToday = d.cancels.filter((c) => c.date === today);
@@ -58,68 +57,76 @@ export default function StaffHomePage({ setActiveTab }) {
   const nextOff = d.cancels.filter((c) => c.date > today).sort((a, b) => (a.date < b.date ? -1 : 1))[0];
 
   const items = [];
-  offToday.forEach((c) => items.push({ warn: true, text: `No ${c.class_name || 'classes'} today${c.reason ? ` — ${c.reason}` : ''}` }));
-  if (d.trials.length) items.push({ text: `Trial class${d.trials.length === 1 ? '' : 'es'}: ${d.trials.map((t) => `${t.student_name}${t.time ? ' ' + t12(t.time) : ''}${t.class_name ? ` (${t.class_name})` : ''}`).join(', ')}`, tab: 'tryouts', label: 'Trials' });
-  if (d.makeups.length) items.push({ text: `Makeup today: ${d.makeups.map((m) => `${nameOf(m.student_id)} (${m.reservation_class_name})`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
-  if (bdays.length) items.push({ good: true, text: `Birthday today 🎉 ${bdays.map((x) => x.name).join(', ')}` });
-  if (nextOff) items.push({ text: `Next day off: ${new Date(nextOff.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}${nextOff.class_name ? ` (${nextOff.class_name})` : ''}${nextOff.reason ? ` — ${nextOff.reason}` : ''}` });
+  offToday.forEach((c) => items.push({ tone: 'warn', icon: CalendarOff, text: `No ${c.class_name || 'classes'} today${c.reason ? ` — ${c.reason}` : ''}` }));
+  if (d.trials.length) items.push({ icon: UserPlus, text: `Trial class${d.trials.length === 1 ? '' : 'es'}: ${d.trials.map((t) => `${t.student_name}${t.time ? ' ' + t12(t.time) : ''}${t.class_name ? ` (${t.class_name})` : ''}`).join(', ')}`, tab: 'tryouts', label: 'Trials' });
+  if (d.makeups.length) items.push({ icon: RotateCcw, text: `Makeup today: ${d.makeups.map((m) => `${nameOf(m.student_id)} (${m.reservation_class_name})`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
+  if (bdays.length) items.push({ tone: 'good', icon: Cake, text: `Birthday today: ${bdays.map((x) => x.name).join(', ')}` });
+  if (nextOff) items.push({ icon: CalendarDays, text: `Next day off: ${new Date(nextOff.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}${nextOff.class_name ? ` (${nextOff.class_name})` : ''}${nextOff.reason ? ` — ${nextOff.reason}` : ''}` });
+  const TONE = { warn: 'var(--dp-warning)', good: 'var(--dp-success)' };
 
   return (
-    <>
-      <div style={styles.header}>
+    <div style={{ fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginBottom: 20 }}>
         <div>
-          <h1 style={styles.title}>{longDay(today)}</h1>
-          <p style={styles.subtitle}>Today at the Dojang</p>
+          <h1 style={{ fontSize: 'var(--dp-text-display)', fontWeight: 700, lineHeight: 1.15, margin: 0 }}>{longDay(today)}</h1>
+          <p style={{ fontSize: 'var(--dp-text-body)', color: 'var(--dp-ink-soft)', margin: '4px 0 0' }}>Today at the dojang</p>
         </div>
-        <button className="dp-btn" onClick={load}>Refresh</button>
+        <button className="dp-btn" style={touchBtn} onClick={load}><RefreshCw size={15} aria-hidden="true" /> Refresh</button>
       </div>
 
-      <div style={{ ...styles.card, marginBottom: 18 }}>
-        <div style={{ padding: '11px 14px', borderBottom: items.length ? '1px solid #EDEAE0' : 'none', display: 'flex', gap: 10, alignItems: 'baseline' }}>
-          <span style={{ fontSize: 15, fontWeight: 600 }}>Today</span>
-          {!items.length && <span style={{ fontSize: 13, color: '#2A5A30' }}>Regular classes — nothing extra 👍</span>}
-        </div>
-        {items.map((it, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: i < items.length - 1 ? '1px solid #F1EFE7' : 'none' }}>
-            <span style={{ width: 7, height: 7, borderRadius: 99, background: it.warn ? '#D9962B' : it.good ? '#4F9A58' : '#B9B6AA', flexShrink: 0 }} />
-            <span style={{ flex: 1, fontSize: 14, color: it.warn ? '#854F0B' : it.good ? '#2A5A30' : '#20241F', fontWeight: it.warn ? 500 : 400 }}>{it.text}</span>
-            {it.tab && <button className="dp-btn" style={smallBtn} onClick={() => setActiveTab(it.tab)}>{it.label}</button>}
+      <section aria-label="Today" style={{ background: 'var(--dp-paper)', border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-lg)', overflow: 'hidden', marginBottom: 20 }}>
+        {!items.length ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', fontSize: 'var(--dp-text-title)', color: 'var(--dp-success)' }}>
+            <CircleCheck size={20} aria-hidden="true" /> Regular classes today — nothing extra
           </div>
-        ))}
-      </div>
+        ) : (
+          items.map((it, i) => {
+            const Icon = it.icon;
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', minHeight: 60, borderBottom: i < items.length - 1 ? '1px solid var(--dp-line)' : 'none', background: it.tone === 'warn' ? 'var(--dp-warning-tint)' : 'transparent' }}>
+                <Icon size={20} color={TONE[it.tone] || 'var(--dp-ink-soft)'} aria-hidden="true" style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 'var(--dp-text-title)', lineHeight: 1.4, color: TONE[it.tone] || 'var(--dp-ink)', fontWeight: it.tone === 'warn' ? 600 : 400 }}>{it.text}</span>
+                {it.tab && <button className="dp-btn" style={touchBtn} onClick={() => setActiveTab(it.tab)}>{it.label}</button>}
+              </div>
+            );
+          })
+        )}
+      </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap: 18, alignItems: 'start' }}>
-        <Card title="Today's classes" icon={Clock} action={<button className="dp-btn" style={smallBtn} onClick={() => setActiveTab('attendance')}>Attendance</button>}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap: 20, alignItems: 'start' }}>
+        <Card touch title="Today's classes" icon={Clock} action={<button className="dp-btn" style={touchBtn} onClick={() => setActiveTab('attendance')}>Attendance</button>}>
           {classes.length === 0 ? (
-            <Empty>No classes on the schedule today.</Empty>
+            <Empty touch>No classes on the schedule today.</Empty>
           ) : (
-            <table className="dp-table">
-              <tbody>
-                {classes.map((c) => {
-                  const roster = d.students.filter((s) => inClass(s, c.class_name)).length;
-                  const here = new Set(d.att.filter((a) => a.class_name === c.class_name && a.status === 'present').map((a) => a.student_id)).size;
-                  const mk = d.makeups.filter((m) => m.reservation_class_name === c.class_name).length;
-                  const tr = d.trials.filter((t) => t.class_name === c.class_name).length;
-                  return (
-                    <tr key={c.id} style={c.cancelled ? { opacity: 0.55 } : undefined}>
-                      <td style={{ whiteSpace: 'nowrap', width: 130, fontSize: 13, color: '#5B5F56' }}>{t12(c.start_time)} – {t12(c.end_time)}</td>
-                      <td style={{ fontWeight: 500 }}>
-                        {c.class_name}
-                        {c.cancelled && <Tag c={RED}>No class</Tag>}
-                        {mk > 0 && <Tag c={PURPLE}>{mk} makeup</Tag>}
-                        {tr > 0 && <Tag c={PURPLE}>{tr} trial</Tag>}
-                      </td>
-                      <td style={{ textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>{here > 0 ? <span style={{ color: '#2A5A30' }}>{here} / {roster} here</span> : <span style={{ color: "#8A8D84" }}>{roster} student{roster === 1 ? "" : "s"}</span>}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div>
+              {classes.map((c, i) => {
+                const roster = d.students.filter((s) => inClass(s, c.class_name)).length;
+                const here = new Set(d.att.filter((a) => a.class_name === c.class_name && a.status === 'present').map((a) => a.student_id)).size;
+                const mk = d.makeups.filter((m) => m.reservation_class_name === c.class_name).length;
+                const tr = d.trials.filter((t) => t.class_name === c.class_name).length;
+                return (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', minHeight: 60, borderBottom: i < classes.length - 1 ? '1px solid var(--dp-line)' : 'none', background: c.cancelled ? 'var(--dp-canvas)' : 'transparent' }}>
+                    <div style={{ width: 92, flexShrink: 0, fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.35 }}>
+                      {t12(c.start_time)}<br />{t12(c.end_time)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 'var(--dp-text-title)', fontWeight: 600, color: c.cancelled ? 'var(--dp-ink-soft)' : 'var(--dp-ink)', textDecoration: c.cancelled ? 'line-through' : 'none' }}>{c.class_name}</span>
+                      {c.cancelled && <Tag touch c={RED}><CalendarOff size={13} aria-hidden="true" /> No class</Tag>}
+                      {mk > 0 && <Tag touch c={GREY}><RotateCcw size={13} aria-hidden="true" /> {mk} makeup</Tag>}
+                      {tr > 0 && <Tag touch c={GREY}><UserPlus size={13} aria-hidden="true" /> {tr} trial</Tag>}
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: 'var(--dp-text-body)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {here > 0 ? <span style={{ color: 'var(--dp-success)', fontWeight: 600 }}>{here} / {roster} here</span> : <span style={{ color: 'var(--dp-ink-soft)' }}>{roster} student{roster === 1 ? '' : 's'}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </Card>
 
-        <BeltProgressCard students={d.students} schedule={d.schedule} settings={d.settings} today={today} setActiveTab={setActiveTab} readOnly />
+        <BeltProgressCard touch students={d.students} schedule={d.schedule} settings={d.settings} today={today} setActiveTab={setActiveTab} readOnly />
       </div>
-    </>
+    </div>
   );
 }
