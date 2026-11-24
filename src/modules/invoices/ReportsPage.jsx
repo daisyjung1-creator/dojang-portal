@@ -154,7 +154,7 @@ export default function ReportsPage() {
                   <td style={{ ...num, color: r.unpaid ? '#9A2B2B' : undefined }}>{r.unpaid ? money(r.unpaid) : ''}</td>
                 </tr>
               ))}
-              <tr style={{ fontWeight: 600 }}>
+              <tr style={{ fontWeight: 500 }}>
                 <td>Total</td>
                 <td style={num}>{sum('count')}</td>
                 <td style={num}>{money(sum('subtotal'))}</td>
@@ -185,7 +185,7 @@ export default function ReportsPage() {
                     <td style={num}>{money(q.gst)}</td>
                   </tr>
                 ))}
-                <tr style={{ fontWeight: 600 }}><td>{year} total</td><td style={num}>{money(sum('gst'))}</td></tr>
+                <tr style={{ fontWeight: 500 }}><td>{year} total</td><td style={num}>{money(sum('gst'))}</td></tr>
               </tbody>
             </table>
           </div>
@@ -305,7 +305,7 @@ function OtherIncomeCard({ year, list, onChanged }) {
                 </td>
               </tr>
             ))}
-            <tr style={{ fontWeight: 600 }}><td>{year} total</td><td style={{ textAlign: 'right' }}>{money(total)}</td></tr>
+            <tr style={{ fontWeight: 500 }}><td>{year} total</td><td style={{ textAlign: 'right' }}>{money(total)}</td></tr>
           </tbody>
         </table>
       )}

@@ -218,9 +218,9 @@ export default function InvoicesPage() {
         )}
         <div style={{ padding: '10px 12px', fontSize: 13, color: '#5B5F56', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
           <span>{filtered.length} invoices</span>
-          <span>Total <b style={{ color: '#20241F' }}>{money(totals.total)}</b></span>
+          <span>Total <b style={{ fontWeight: 500, color: '#20241F' }}>{money(totals.total)}</b></span>
           <span>GST {money(totals.gst)}</span>
-          <span>Owing <b style={{ color: totals.owing > 0 ? '#9A2B2B' : '#20241F' }}>{money(totals.owing)}</b></span>
+          <span>Owing <b style={{ fontWeight: 500, color: totals.owing > 0 ? '#9A2B2B' : '#20241F' }}>{money(totals.owing)}</b></span>
         </div>
       </div>
 

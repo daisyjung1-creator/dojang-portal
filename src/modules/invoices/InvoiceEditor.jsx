@@ -278,7 +278,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
           </button>
           {adj && (
             <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', background: '#FAF8F2', border: '1px solid #EDEAE0', borderRadius: 8, padding: '4px 8px', flexWrap: 'wrap' }}>
-              <b style={{ fontSize: 12.5 }}>{adj.kind === 'credit' ? 'Credit' : 'Discount'}</b>
+              <b style={{ fontWeight: 500, fontSize: 12.5 }}>{adj.kind === 'credit' ? 'Credit' : 'Discount'}</b>
               {adj.kind === 'discount' && (
                 <span style={{ display: 'inline-flex', border: '1px solid #DEDACC', borderRadius: 6, overflow: 'hidden' }}>
                   {['%', '$'].map((t) => (
@@ -326,7 +326,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
               </td>
               <td style={{ padding: '4px 8px', textAlign: 'right' }}>{money(totals.gst)}</td>
             </tr>
-            <tr style={{ borderTop: '1px solid #20241F' }}><td style={{ padding: '6px 8px', fontWeight: 600 }}>Total</td><td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, fontSize: 16 }}>{money(totals.total)}</td></tr>
+            <tr style={{ borderTop: '1px solid #20241F' }}><td style={{ padding: '6px 8px', fontWeight: 500 }}>Total</td><td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 500, fontSize: 16 }}>{money(totals.total)}</td></tr>
           </tbody>
         </table>
       </div>

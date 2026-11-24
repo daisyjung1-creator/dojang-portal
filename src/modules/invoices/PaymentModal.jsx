@@ -121,7 +121,7 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
       </Field>
       {credit > 0.004 && (
         <div style={{ background: '#E8F1E9', color: '#2A5A30', border: '1px solid #BFDCC3', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px', display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>Family credit available: <b>{money(credit)}</b></span>
+          <span>Family credit available: <b style={{ fontWeight: 500 }}>{money(credit)}</b></span>
           {selected && owing > 0.004 && !isEdit && (
             <button type="button" className="dp-btn" style={{ padding: '3px 10px', fontSize: 12.5 }} onClick={useCredit}>Use on this invoice</button>
           )}

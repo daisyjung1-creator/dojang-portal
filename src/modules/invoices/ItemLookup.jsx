@@ -53,7 +53,7 @@ export default function ItemLookup({ onOpenInvoice }) {
 
   return (
     <div style={{ ...styles.card, padding: 16, marginBottom: 18 }}>
-      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Who bought what</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Who bought what</div>
       <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>Search invoices by item or service (e.g. uniform, belt test, sparring gear) to see who bought it and when.</p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #DEDACC', borderRadius: 8, padding: '0 10px', background: '#fff', flex: '1 1 240px' }}>
@@ -103,7 +103,7 @@ export default function ItemLookup({ onOpenInvoice }) {
                       <td><button style={{ background: 'none', border: 'none', padding: 0, color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' }} onClick={() => onOpenInvoice && onOpenInvoice(r.invoice_id)}>#{r.number}</button></td>
                       <td style={{ fontSize: 13 }}>{r.customer}</td>
                       <td style={{ fontSize: 13 }}>{r.student || '—'}</td>
-                      <td style={{ fontSize: 12.5 }}>{r.item_name && <b>{r.item_name} </b>}<span style={{ color: '#5B5F56' }}>{r.description}</span></td>
+                      <td style={{ fontSize: 12.5 }}>{r.item_name && <b style={{ fontWeight: 500 }}>{r.item_name} </b>}<span style={{ color: '#5B5F56' }}>{r.description}</span></td>
                       <td style={{ textAlign: 'right' }}>{r.quantity}</td>
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{money(r.amount)}</td>
                       <td style={{ fontSize: 12 }}>{r.status}</td>

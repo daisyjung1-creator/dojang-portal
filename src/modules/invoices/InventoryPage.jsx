@@ -104,12 +104,12 @@ export default function InventoryPage() {
 
       {counts.uncounted > 0 && (
         <p style={{ fontSize: 13, color: '#5C3A07', background: '#FAEEDA', border: '1px solid #F0D9A8', borderRadius: 8, padding: '8px 12px', margin: '0 0 14px' }}>
-          Click <b>Count</b> on each item and enter how many you have right now (per size for sized gear). Stock is tracked from that moment on.
+          Click <b style={{ fontWeight: 500 }}>Count</b> on each item and enter how many you have right now (per size for sized gear). Stock is tracked from that moment on.
         </p>
       )}
       {counts.low + counts.out > 0 && (
         <p style={{ fontSize: 13, color: '#7A1F1F', background: '#FBEAEA', border: '1px solid #F0C9C9', borderRadius: 8, padding: '8px 12px', margin: '0 0 14px' }}>
-          Running low — an <b>Order</b> reminder has been added to the To-do on Home for each item/size. It clears itself once you record the new stock.
+          Running low — an <b style={{ fontWeight: 500 }}>Order</b> reminder has been added to the To-do on Home for each item/size. It clears itself once you record the new stock.
         </p>
       )}
 
@@ -163,7 +163,7 @@ export default function InventoryPage() {
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>{money(g.default_amount)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600, color }}>
+                    <td style={{ textAlign: 'right', fontWeight: 500, color }}>
                       {g.total === null ? '—' : g.total}
                       {!g.sized && g.worst === 'low' && <span style={{ fontSize: 12, fontWeight: 400 }}> low</span>}
                     </td>
@@ -199,7 +199,7 @@ function SizeChip({ r }) {
   const c = st === 'out' ? ['#FBEAEA', '#9A2B2B'] : st === 'low' ? ['#FAEEDA', '#854F0B'] : ['#F1EFE7', '#20241F'];
   return (
     <span data-size={r.size} data-status={st} style={{ background: c[0], color: c[1], borderRadius: 6, padding: '2px 7px', fontSize: 12, whiteSpace: 'nowrap' }}>
-      <span style={{ color: '#8A8D84' }}>{r.size || '—'}</span> <b style={{ fontWeight: 600 }}>{r.on_hand === null ? '–' : Number(r.on_hand)}</b>
+      <span style={{ color: '#8A8D84' }}>{r.size || '—'}</span> <b style={{ fontWeight: 500 }}>{r.on_hand === null ? '–' : Number(r.on_hand)}</b>
     </span>
   );
 }
@@ -252,7 +252,7 @@ function CountModal({ item, onClose, onDone }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8, marginBottom: 12 }}>
           {item.rows.map((r, i) => (
             <label key={r.size} style={{ fontSize: 12.5, color: '#5B5F56' }}>
-              Size <b style={{ color: '#20241F' }}>{r.size || '(none)'}</b>
+              Size <b style={{ fontWeight: 500, color: '#20241F' }}>{r.size || '(none)'}</b>
               {!first && <span style={{ color: '#8A8D84' }}> · {r.on_hand === null ? 'new' : `was ${r.on_hand}`}</span>}
               <input type="number" min="0" autoFocus={i === 0} aria-label={`Size ${r.size}`} className="dp-input" style={{ width: '100%', marginTop: 3 }} value={qty[r.size]} onChange={(e) => setQty((q) => ({ ...q, [r.size]: e.target.value }))} />
             </label>
@@ -375,7 +375,7 @@ function SizesModal({ item, onClose, onDone }) {
         <button type="button" className="dp-btn" style={{ fontSize: 12.5 }} onClick={() => setList('')}>No sizes</button>
       </div>
       <Field label="Sizes, in order (comma separated)"><input className="dp-input" style={{ width: '100%' }} placeholder="e.g. S, M, L" value={list} onChange={(e) => setList(e.target.value)} /></Field>
-      {item.inventory_since != null && <p style={{ fontSize: 12.5, color: '#8A8D84', margin: 0 }}>After changing sizes, use <b>Count</b> to enter how many you have of each new size.</p>}
+      {item.inventory_since != null && <p style={{ fontSize: 12.5, color: '#8A8D84', margin: 0 }}>After changing sizes, use <b style={{ fontWeight: 500 }}>Count</b> to enter how many you have of each new size.</p>}
       {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}
     </Modal>
   );

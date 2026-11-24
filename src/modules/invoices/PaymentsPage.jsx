@@ -228,7 +228,7 @@ export default function PaymentsPage() {
           </table>
         )}
         <div style={{ padding: '10px 12px', fontSize: 13, color: '#5B5F56', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-          <span>{filtered.length} {view} · Total <b style={{ color: '#20241F' }}>{money(total)}</b></span>
+          <span>{filtered.length} {view} · Total <b style={{ fontWeight: 500, color: '#20241F' }}>{money(total)}</b></span>
           {byMethod.map(([m, v]) => <span key={m}>{m}: {money(v)}</span>)}
         </div>
       </div>

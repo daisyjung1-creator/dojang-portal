@@ -89,7 +89,7 @@ select.dp-select {
   background: var(--dp-ink);
   color: var(--dp-paper);
   border-color: var(--dp-ink);
-  font-weight: 600;
+  font-weight: 500;
 }
 .dp-btn-primary:hover {
   background: var(--dp-ink-soft);
@@ -119,7 +119,7 @@ table.dp-table td {
 table.dp-table th {
   color: var(--dp-ink-soft);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   border-bottom: 1px solid var(--dp-line);
 }
 table.dp-table td {

@@ -59,7 +59,7 @@ export default function PaymentNoticeModal({ inv, cust, sentAt, today, onClose, 
     <Modal title={`Overdue notice — ${inv.customer_name}`} maxWidth={640} onClose={onClose} footer={<><button className="dp-btn" onClick={onClose}>Cancel</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
       <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>
         {cust && !isManual(cust) ? 'Card family — automatic payment didn’t go through.' : 'Manual payer.'} Classes are paused if unpaid by {formatDate(addDaysISO(today, NOTICE_DAYS))} (agreement 7.3).
-        {sentAt && <b style={{ color: '#854F0B', fontWeight: 500 }}> A notice was already sent {shortDate(sentAt)}.</b>}
+        {sentAt && <b style={{ fontWeight: 500, color: '#854F0B', fontWeight: 500 }}> A notice was already sent {shortDate(sentAt)}.</b>}
       </p>
       <label style={{ fontSize: 12, color: '#5B5F56' }}>To</label>
       <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={to} onChange={(e) => setTo(e.target.value)} />

@@ -362,7 +362,7 @@ export default function CustomersPage() {
                   )}
                   {f.rb_account_id && (
                     <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid #CFE3D0', background: '#F1F8F1', fontSize: 12.5 }}>
-                      <b>Automatic tuition (TD Recurring Billing):</b> account #{f.rb_account_id}
+                      <b style={{ fontWeight: 500 }}>Automatic tuition (TD Recurring Billing):</b> account #{f.rb_account_id}
                       {f.rb_amount ? ` · $${Number(f.rb_amount).toFixed(2)} ${Number(f.rb_months) === 3 ? 'every 3 months' : 'every month'}` : ''}
                       {f.rb_first_billing ? ` · from ${f.rb_first_billing}` : ''}
                       {f.rb_card_last4 ? ` · card ···${f.rb_card_last4}` : ''}
@@ -372,13 +372,13 @@ export default function CustomersPage() {
                   )}
                   {f.card_profile_code && (
                     <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${f.card_declined_at ? '#E7B7B7' : '#CFE3D0'}`, background: f.card_declined_at ? '#FBEDEC' : '#F1F8F1', fontSize: 12.5 }}>
-                      <b>Saved cards</b> (the <i>tuition</i> one is charged automatically)
+                      <b style={{ fontWeight: 500 }}>Saved cards</b> (the <i>tuition</i> one is charged automatically)
                       <div style={{ margin: '4px 0 2px' }}><CardWallet customerId={f.id} /></div>
                       {f.card_declined_at && <div style={{ color: '#9A2B2B', marginTop: 2 }}>Last charge declined {String(f.card_declined_at).slice(0, 10)}: {f.card_decline_message}</div>}
                       {f.card_legacy_rb_pending && (
                         <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 6, background: '#FFF6E0', border: '1px solid #F0D9A8', color: '#854F0B' }}>
-                          Saved through the card link. <b>Close this family's old Recurring Billing account in TD Online Mart</b> before their next billing date so they aren't charged twice — automatic charges from the portal start only after you tick this:
-                          <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, color: '#20241F', fontWeight: 600 }}>
+                          Saved through the card link. <b style={{ fontWeight: 500 }}>Close this family's old Recurring Billing account in TD Online Mart</b> before their next billing date so they aren't charged twice — automatic charges from the portal start only after you tick this:
+                          <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, color: '#20241F', fontWeight: 500 }}>
                             <input
                               type="checkbox"
                               onChange={async (e) => {

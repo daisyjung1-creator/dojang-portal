@@ -355,7 +355,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
           <div style={{ fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Month worked</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button className="dp-btn" style={{ padding: '6px 9px' }} aria-label="Previous month" onClick={() => shiftMonth(-1)}><ChevronLeft size={15} /></button>
-            <div style={{ minWidth: 150, textAlign: 'center', fontSize: 16, fontWeight: 600 }}>{monthLabel}</div>
+            <div style={{ minWidth: 150, textAlign: 'center', fontSize: 16, fontWeight: 500 }}>{monthLabel}</div>
             <button className="dp-btn" style={{ padding: '6px 9px' }} aria-label="Next month" onClick={() => shiftMonth(1)}><ChevronRight size={15} /></button>
           </div>
         </div>
@@ -418,7 +418,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                       <td style={{ textAlign: 'right' }}>{c ? money(c.cpp) : ''}</td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.ei) : ''}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" title="Worked out automatically (federal + Alberta). Type an amount to use your own." placeholder={c ? c.tax.toFixed(2) : 'auto'} value={r?.tax ?? ''} onChange={(ev) => set(e.id, 'tax', ev.target.value)} /></td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{c ? money(c.net) : ''}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 500 }}>{c ? money(c.net) : ''}</td>
                     </tr>
                     {open[e.id] && r && (
                       <tr>
@@ -442,10 +442,10 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
           </table>
           {chosen.length > 0 && (
             <div style={{ padding: '10px 14px', borderTop: '1px solid #EDEAE0', background: '#FAF8F2', fontSize: 12.5, color: '#5B5F56', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-              <span>Total gross <b style={{ color: '#20241F' }}>{money(remit.gross)}</b></span>
-              <span>Total net pay <b style={{ color: '#20241F' }}>{money(remit.net)}</b></span>
+              <span>Total gross <b style={{ fontWeight: 500, color: '#20241F' }}>{money(remit.gross)}</b></span>
+              <span>Total net pay <b style={{ fontWeight: 500, color: '#20241F' }}>{money(remit.net)}</b></span>
               <span title={`CPP ${money(remit.cpp)} × 2 + EI ${money(remit.ei)} + employer EI ${money(remit.ei * 1.4)} + tax ${money(remit.tax)}`}>
-                CRA remittance <b style={{ color: '#20241F' }}>{money(remitTotal)}</b> due {remitDue.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                CRA remittance <b style={{ fontWeight: 500, color: '#20241F' }}>{money(remitTotal)}</b> due {remitDue.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
                 <span style={{ color: '#8A8D84' }}> (CPP {money(remit.cpp * 2)} · EI {money(remit.ei + r2(remit.ei * 1.4))} · tax {money(remit.tax)})</span>
               </span>
             </div>
@@ -539,7 +539,7 @@ function SlipList({ slips, empById, onView, onDeleted, onEmailed }) {
                   <td style={{ textAlign: 'right' }}>{money(s.cpp)}</td>
                   <td style={{ textAlign: 'right' }}>{money(s.ei)}</td>
                   <td style={{ textAlign: 'right' }}>{money(s.tax)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                  <td style={{ textAlign: 'right', fontWeight: 500 }}>
                     {money(s.net)}
                     {s.emailed_at && <div style={{ fontSize: 12, color: '#2A5A30', fontWeight: 400 }}>Emailed</div>}
                   </td>
@@ -551,13 +551,13 @@ function SlipList({ slips, empById, onView, onDeleted, onEmailed }) {
                 </tr>
               ))}
               <tr>
-                <td colSpan={3} style={{ fontWeight: 600 }}>Total ({list.length})</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{tot('hours').toFixed(2)}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('gross'))}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('cpp'))}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('ei'))}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('tax'))}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('net'))}</td>
+                <td colSpan={3} style={{ fontWeight: 500 }}>Total ({list.length})</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{tot('hours').toFixed(2)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('gross'))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('cpp'))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('ei'))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('tax'))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('net'))}</td>
                 <td></td>
               </tr>
             </tbody>

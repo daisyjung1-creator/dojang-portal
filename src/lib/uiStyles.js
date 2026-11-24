@@ -53,7 +53,7 @@ export const styles = {
   card: { background: 'var(--dp-paper)', border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-lg)', overflow: 'hidden' },
   metricCard: { background: 'var(--dp-paper)', border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-lg)', padding: '14px 16px' },
   metricLabel: { fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', margin: '0 0 6px' },
-  metricValue: { fontSize: 'var(--dp-text-display)', fontWeight: 700, margin: 0, color: 'var(--dp-ink)', fontVariantNumeric: 'tabular-nums' },
+  metricValue: { fontSize: 'var(--dp-text-display)', fontWeight: 500, margin: 0, color: 'var(--dp-ink)', fontVariantNumeric: 'tabular-nums' },
   overlay: {
     position: 'fixed',
     inset: 0,
