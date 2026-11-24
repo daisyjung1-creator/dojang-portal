@@ -66,13 +66,13 @@ export default function CardPage({ token }) {
   return (
     <Page subtitle="Card for automatic tuition">
       {!info && !err && <p style={{ color: C.soft }}>Loading…</p>}
-      {!info && err && <div style={{ ...box, color: C.red }}>{err}</div>}
+      {!info && err && <div style={{ ...box, color: C.danger }}>{err}</div>}
       {info && (
         <>
           {info.mode === 'test' && <TestNote />}
           <div style={{ ...box, marginBottom: 16 }}>
             <div style={{ fontSize: 17, fontWeight: 700 }}>{info.customer}</div>
-            <p style={{ fontSize: 14.5, lineHeight: 1.55, margin: '6px 0 0' }}>
+            <p style={{ fontSize: 16, lineHeight: 1.55, margin: '6px 0 0' }}>
               We're moving tuition payments to our new system. Please enter the card you'd like to use for tuition. <b>Nothing is charged today</b> — tuition is charged to this card automatically on each billing date, and a receipt is emailed every time.
             </p>
             {info.upcoming?.length > 0 && (
@@ -86,7 +86,7 @@ export default function CardPage({ token }) {
                     <span style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{money(u.total)}</span>
                   </div>
                 ))}
-                <div style={{ fontSize: 12.5, color: C.faint, marginTop: 4 }}>Including GST. If anything looks different from what you expected, please contact the Dojang before saving your card.</div>
+                <div style={{ fontSize: 14, color: C.faint, marginTop: 4 }}>Including GST. If anything looks different from what you expected, please contact the Dojang before saving your card.</div>
               </div>
             )}
           </div>
@@ -97,18 +97,18 @@ export default function CardPage({ token }) {
               {cards.map((k) => (
                 <div key={k.id} data-card={k.last4} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${C.line}`, flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 160 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600 }}>{k.type || 'Card'} ending {k.last4 || '····'}</div>
-                    <div style={{ fontSize: 12.5, color: C.soft }}>{k.expiry ? `Expires ${k.expiry}` : ''}{k.mode === 'test' ? ' · TEST' : ''}</div>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>{k.type || 'Card'} ending {k.last4 || '····'}</div>
+                    <div style={{ fontSize: 14, color: C.soft }}>{k.expiry ? `Expires ${k.expiry}` : ''}{k.mode === 'test' ? ' · TEST' : ''}</div>
                   </div>
                   {k.is_default ? (
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: C.green, background: '#E8F1E9', borderRadius: 999, padding: '3px 10px' }}>Used for tuition</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: C.green, background: 'var(--dp-success-tint)', borderRadius: 999, padding: '3px 10px' }}>Used for tuition</span>
                   ) : (
                     <>
-                      <button type="button" disabled={!!busy} onClick={() => act('default', k)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.line}`, background: '#fff', fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      <button type="button" disabled={!!busy} onClick={() => act('default', k)} style={{ padding: '8px 14px', minHeight: 44, borderRadius: 10, border: '1px solid #D6D2C4', background: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
                         Use for tuition
                       </button>
                       {cards.length >= 2 && (
-                        <button type="button" disabled={!!busy} onClick={() => act('delete', k)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #F0C9C9', background: '#fff', color: C.red, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        <button type="button" disabled={!!busy} onClick={() => act('delete', k)} style={{ padding: '8px 14px', minHeight: 44, borderRadius: 10, border: '1px solid var(--dp-danger-tint)', background: '#fff', color: C.danger, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
                           Remove
                         </button>
                       )}
@@ -116,17 +116,17 @@ export default function CardPage({ token }) {
                   )}
                 </div>
               ))}
-              <p style={{ fontSize: 12.5, color: C.faint, margin: '8px 0 0' }}>
+              <p style={{ fontSize: 14, color: C.faint, margin: '8px 0 0' }}>
                 Saved cards can't be removed while they're your only card or the card used for tuition — add another card and choose it for tuition first.
               </p>
-              {cardMsg && <p style={{ fontSize: 13.5, color: C.green, margin: '8px 0 0' }}>{cardMsg}</p>}
+              {cardMsg && <p style={{ fontSize: 14, color: C.green, margin: '8px 0 0' }}>{cardMsg}</p>}
             </div>
           )}
 
           {done && (
-            <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1', marginBottom: 16 }}>
+            <div style={{ ...box, borderColor: 'var(--dp-success-tint)', background: 'var(--dp-success-tint)', marginBottom: 16 }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Thank you — your card is saved!</div>
-              <p style={{ fontSize: 14.5, margin: '8px 0 0', lineHeight: 1.55 }}>
+              <p style={{ fontSize: 16, margin: '8px 0 0', lineHeight: 1.55 }}>
                 {done.saved?.type || 'Card'} ending {done.saved?.last4 || '····'} will be used for tuition from now on. Nothing was charged today. You'll get an emailed receipt after each charge.
               </p>
             </div>
@@ -134,7 +134,7 @@ export default function CardPage({ token }) {
           {!info.enabled ? (
             <div style={box}>Saving a card online isn't available right now. Please contact the Dojang at {SCHOOL.email}.</div>
           ) : cards && cards.length > 0 && !adding ? (
-            <button type="button" onClick={() => { setAdding(true); setDone(null); }} style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: C.red, color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button type="button" onClick={() => { setAdding(true); setDone(null); }} style={{ padding: '10px 16px', minHeight: 44, borderRadius: 10, border: 'none', background: C.ink, color: '#fff', fontSize: 16, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               + Add another card
             </button>
           ) : cards ? (
@@ -148,7 +148,7 @@ export default function CardPage({ token }) {
 
 export function TestNote() {
   return (
-    <div style={{ ...box, background: '#FFF6E0', borderColor: '#F0D9A8', marginBottom: 14, fontSize: 13.5 }}>
+    <div style={{ ...box, background: 'var(--dp-warning-tint)', borderColor: 'var(--dp-warning-tint)', marginBottom: 14, fontSize: 14 }}>
       <b>Test mode</b> — the card is saved on the TD test account only. Use the test card 4030 0000 1000 1234, any future expiry, CVV 123.
     </div>
   );

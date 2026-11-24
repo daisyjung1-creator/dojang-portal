@@ -48,8 +48,8 @@ export default function HoldModal({ student: s, onClose, onSaved }) {
         </>
       }
     >
-      {onHold(s, today) && <p style={{ background: '#EEF0F3', color: '#3A4250', borderRadius: 6, padding: '7px 12px', fontSize: 13, margin: '0 0 12px' }}>{first} is on hold until {formatDate(s.hold_until)}.</p>}
-      <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>For a break with a return date (travel, injury…). While on hold {first} isn't billed and isn't marked absent. After the return date everything carries on as usual.</p>
+      {onHold(s, today) && <p style={{ background: 'var(--dp-canvas)', color: 'var(--dp-ink-soft)', borderRadius: 6, padding: '7px 12px', fontSize: 13, margin: '0 0 12px' }}>{first} is on hold until {formatDate(s.hold_until)}.</p>}
+      <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 12px' }}>For a break with a return date (travel, injury…). While on hold {first} isn't billed and isn't marked absent. After the return date everything carries on as usual.</p>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <Field label="Hold starts"><input type="date" className="dp-input" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></Field>
         <Field label="Back on (last day of hold)"><input type="date" className="dp-input" value={f.until} onChange={(e) => setF({ ...f, until: e.target.value })} /></Field>
@@ -61,11 +61,11 @@ export default function HoldModal({ student: s, onClose, onSaved }) {
       </div>
       <Field label="Reason (optional)"><input className="dp-input" style={{ width: '100%' }} placeholder="e.g. Travelling to India" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
       {skipped.length > 0 && (
-        <p style={{ fontSize: 12.5, color: '#854F0B', background: '#FAEEDA', borderRadius: 6, padding: '7px 12px', margin: 0 }}>
+        <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', background: 'var(--dp-warning-tint)', borderRadius: 6, padding: '7px 12px', margin: 0 }}>
           Not billed: {skipped.map(formatDate).join(', ')}. Billing picks up again on the next billing date after {formatDate(f.until)}.
         </p>
       )}
-      {err && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{err}</p>}
+      {err && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{err}</p>}
     </Modal>
   );
 }

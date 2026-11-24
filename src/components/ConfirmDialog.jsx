@@ -7,8 +7,8 @@ export default function ConfirmDialog({ message, onCancel, onConfirm, confirmLab
     <div style={styles.overlay} onClick={onCancel}>
       <div style={{ ...styles.modal, maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
         <div style={{ padding: '20px 20px 0' }}>
-          <AlertTriangle size={20} color="#9A2B2B" />
-          <p style={{ fontSize: 14.5, margin: '12px 0 0', color: '#20241F' }}>{message}</p>
+          <AlertTriangle size={20} color="var(--dp-danger)" />
+          <p style={{ fontSize: 14.5, margin: '12px 0 0', color: 'var(--dp-ink)' }}>{message}</p>
         </div>
         <div style={styles.modalFooter}>
           <button className="dp-btn" onClick={onCancel}>

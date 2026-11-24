@@ -40,7 +40,7 @@ export default function MessagePreview({ item, onClose, onReuse }) {
         </>
       }
     >
-      <p style={{ fontSize: 13, color: '#5B5F56', marginTop: 0 }}>
+      <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 0 }}>
         {[when, item.audience || item.to].filter(Boolean).join(' · ')}
       </p>
       <div style={{ border: '1px solid #EDEAE0', borderRadius: 8, padding: 14, fontSize: 13.5, lineHeight: 1.55, maxHeight: '55vh', overflowY: 'auto' }}>
@@ -48,7 +48,7 @@ export default function MessagePreview({ item, onClose, onReuse }) {
         <div style={{ whiteSpace: 'pre-wrap' }}>{item.message}</div>
       </div>
       {onReuse && (
-        <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 0 0' }}>
+        <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>
           "Use this message" puts the subject and message back into Group email so you can change it and send it again.
         </p>
       )}

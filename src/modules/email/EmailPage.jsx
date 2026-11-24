@@ -186,7 +186,7 @@ export default function EmailPage() {
   const tab = (id, label) => (
     <button
       className="dp-btn"
-      style={{ background: mode === id ? '#20241F' : '#FFFFFF', color: mode === id ? '#FFFFFF' : '#20241F', borderColor: mode === id ? '#20241F' : '#DEDACC' }}
+      style={{ background: mode === id ? 'var(--dp-ink)' : '#FFFFFF', color: mode === id ? '#FFFFFF' : 'var(--dp-ink)', borderColor: mode === id ? 'var(--dp-ink)' : 'var(--dp-line)' }}
       onClick={() => {
         setMode(id);
         setExcluded(new Set());
@@ -206,14 +206,14 @@ export default function EmailPage() {
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {[['compose', 'Group email'], ['log', 'Sent emails']].map(([id, label]) => (
-            <button key={id} className="dp-btn" style={{ background: page === id ? '#20241F' : '#fff', color: page === id ? '#fff' : '#20241F' }} onClick={() => setPage(id)}>
+            <button key={id} className="dp-btn" style={{ background: page === id ? 'var(--dp-ink)' : '#fff', color: page === id ? '#fff' : 'var(--dp-ink)' }} onClick={() => setPage(id)}>
               {label}
             </button>
           ))}
         </div>
       </div>
       {page === 'log' ? <EmailLog onReuse={reuse} /> : (<>
-      {flash.text && <p style={{ background: flash.error ? '#FBEAEA' : '#E8F1E9', color: flash.error ? '#9A2B2B' : '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
+      {flash.text && <p style={{ background: flash.error ? 'var(--dp-danger-tint)' : 'var(--dp-success-tint)', color: flash.error ? 'var(--dp-danger)' : 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
 
       <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
         <div style={{ ...styles.card, padding: 18 }}>
@@ -225,14 +225,14 @@ export default function EmailPage() {
           </div>
           {mode === 'classes' && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-              {classCounts.length === 0 && <span style={{ fontSize: 13, color: '#8A8D84' }}>No classes set on students yet.</span>}
+              {classCounts.length === 0 && <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No classes set on students yet.</span>}
               {classCounts.map(([c, n]) => {
                 const on = classes.has(c);
                 return (
                   <button
                     key={c}
                     className="dp-btn"
-                    style={{ padding: '4px 10px', fontSize: 12.5, background: on ? '#9A2B2B' : '#fff', color: on ? '#fff' : '#20241F', borderColor: on ? '#711F1F' : '#DEDACC' }}
+                    style={{ padding: '4px 10px', fontSize: 12.5, background: on ? 'var(--dp-danger)' : '#fff', color: on ? '#fff' : 'var(--dp-ink)', borderColor: on ? 'var(--dp-danger)' : 'var(--dp-line)' }}
                     onClick={() => {
                       const s = new Set(classes);
                       on ? s.delete(c) : s.add(c);
@@ -252,7 +252,7 @@ export default function EmailPage() {
           <Field label="Message" required>
             <textarea className="dp-input" rows={14} style={{ width: '100%', resize: 'vertical', fontSize: 13.5, lineHeight: 1.5 }} value={message} onChange={(e) => setMessage(e.target.value)} />
           </Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: '-4px 0 14px' }}>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '-4px 0 14px' }}>
             {'{guardian}'} = parent's name · {'{student}'} = their child's first name (siblings: "Adam & Lily"). Links become clickable. One copy also goes to the dojang's own email so you can find it later.
           </p>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -281,7 +281,7 @@ export default function EmailPage() {
             </div>
             <div style={{ maxHeight: 340, overflowY: 'auto', padding: '0 12px 10px' }}>
               {families.filter((f) => !find.trim() || matchScore(find, f.students.map((x) => x.name).join(' ') + ' ' + f.emails.join(' ')) !== null).map((f) => (
-                <label key={f.key} style={{ display: 'flex', gap: 8, fontSize: 13, padding: '5px 0', borderBottom: '1px solid #F1EFE7', alignItems: 'flex-start' }}>
+                <label key={f.key} style={{ display: 'flex', gap: 8, fontSize: 13, padding: '5px 0', borderBottom: '1px solid var(--dp-canvas)', alignItems: 'flex-start' }}>
                   <input
                     type="checkbox"
                     checked={!excluded.has(f.key)}
@@ -294,13 +294,13 @@ export default function EmailPage() {
                   />
                   <span>
                     <b style={{ fontWeight: 500 }}>{f.students.map((s) => s.name).join(', ')}</b>
-                    <span style={{ color: '#8A8D84' }}> · {f.emails.join(', ')}</span>
+                    <span style={{ color: 'var(--dp-ink-faint)' }}> · {f.emails.join(', ')}</span>
                   </span>
                 </label>
               ))}
-              {families.length === 0 && <p style={{ fontSize: 13, color: '#8A8D84' }}>Nobody in this group yet.</p>}
+              {families.length === 0 && <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>Nobody in this group yet.</p>}
               {noEmail.length > 0 && (
-                <p style={{ fontSize: 12.5, color: '#854F0B', margin: '8px 0 0' }}>
+                <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '8px 0 0' }}>
                   No email on file (won't receive it): {noEmail.map((s) => s.name).join(', ')}
                 </p>
               )}
@@ -313,7 +313,7 @@ export default function EmailPage() {
               <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={loadHistory}><RefreshCw size={12} /> Refresh</button>
             </div>
             {history.length === 0 ? (
-              <p style={{ padding: '6px 12px 12px', fontSize: 13, color: '#8A8D84' }}>None yet.</p>
+              <p style={{ padding: '6px 12px 12px', fontSize: 13, color: 'var(--dp-ink-faint)' }}>None yet.</p>
             ) : (
               <table className="dp-table">
                 <tbody>
@@ -321,15 +321,15 @@ export default function EmailPage() {
                     <tr key={h.id} className="dp-row" style={{ cursor: 'pointer' }} title="Click to see the message" onClick={() => setViewing(h)}>
                       <td style={{ fontSize: 12.5 }}>
                         <div style={{ fontWeight: 500 }}>{h.subject}</div>
-                        <div style={{ color: '#8A8D84' }}>{new Date(h.created_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {h.audience}</div>
+                        <div style={{ color: 'var(--dp-ink-faint)' }}>{new Date(h.created_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {h.audience}</div>
                       </td>
                       <td style={{ fontSize: 12.5, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <span style={{ color: '#2A5A30' }}>{h.sent}/{h.recipient_count} sent</span>
-                        {h.pending > 0 && <div style={{ color: '#8A8D84' }}>{h.pending} sending…</div>}
+                        <span style={{ color: 'var(--dp-success)' }}>{h.sent}/{h.recipient_count} sent</span>
+                        {h.pending > 0 && <div style={{ color: 'var(--dp-ink-faint)' }}>{h.pending} sending…</div>}
                         {h.failed > 0 && (
                           <div>
-                            <span style={{ color: '#9A2B2B' }}>{h.failed} failed </span>
-                            <button className="dp-btn" style={{ padding: '1px 6px', fontSize: 11.5 }} onClick={(e) => { e.stopPropagation(); retryFailed(); }}>Retry</button>
+                            <span style={{ color: 'var(--dp-danger)' }}>{h.failed} failed </span>
+                            <button className="dp-btn" style={{ padding: '1px 6px', fontSize: 12.5 }} onClick={(e) => { e.stopPropagation(); retryFailed(); }}>Retry</button>
                           </div>
                         )}
                       </td>
@@ -354,7 +354,7 @@ export default function EmailPage() {
             </>
           }
         >
-          <p style={{ fontSize: 13, color: '#5B5F56', marginTop: 0 }}>
+          <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 0 }}>
             {audienceLabel} · preview of the email to <b>{preview.emails.join(', ')}</b>:
           </p>
           <div style={{ border: '1px solid #EDEAE0', borderRadius: 8, padding: 14, fontSize: 13.5, lineHeight: 1.55 }}>

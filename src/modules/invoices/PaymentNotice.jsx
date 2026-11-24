@@ -57,20 +57,20 @@ export default function PaymentNoticeModal({ inv, cust, sentAt, today, onClose, 
   }
   return (
     <Modal title={`Overdue notice — ${inv.customer_name}`} maxWidth={640} onClose={onClose} footer={<><button className="dp-btn" onClick={onClose}>Cancel</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
-      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>
         {cust && !isManual(cust) ? 'Card family — automatic payment didn’t go through.' : 'Manual payer.'} Classes are paused if unpaid by {formatDate(addDaysISO(today, NOTICE_DAYS))} (agreement 7.3).
-        {sentAt && <b style={{ color: '#854F0B', fontWeight: 500 }}> A notice was already sent {shortDate(sentAt)}.</b>}
+        {sentAt && <b style={{ fontWeight: 500, color: 'var(--dp-warning)', fontWeight: 500 }}> A notice was already sent {shortDate(sentAt)}.</b>}
       </p>
-      <label style={{ fontSize: 12, color: '#5B5F56' }}>To</label>
+      <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>To</label>
       <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={to} onChange={(e) => setTo(e.target.value)} />
-      <label style={{ fontSize: 12, color: '#5B5F56' }}>Also send to <span style={{ color: '#8A8D84' }}>— this email only, not saved to the family</span></label>
+      <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Also send to <span style={{ color: 'var(--dp-ink-faint)' }}>— this email only, not saved to the family</span></label>
       <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} placeholder="e.g. dad@example.com (separate several with commas)" value={extra} onChange={(e) => setExtra(e.target.value)} />
-      <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
+      <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Subject</label>
       <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} />
-      <label style={{ fontSize: 12, color: '#5B5F56' }}>Message</label>
+      <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Message</label>
       <textarea className="dp-input" style={{ width: '100%', minHeight: 320, fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.5 }} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
-      <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 0 0' }}>The invoice PDF is attached and a "Pay now by credit card" button is added under the message.</p>
-      {msg && <p style={{ fontSize: 12.5, color: '#9A2B2B' }}>{msg}</p>}
+      <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>The invoice PDF is attached and a "Pay now by credit card" button is added under the message.</p>
+      {msg && <p style={{ fontSize: 12.5, color: 'var(--dp-danger)' }}>{msg}</p>}
     </Modal>
   );
 }

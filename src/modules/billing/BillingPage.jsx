@@ -15,12 +15,12 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import PaymentNoticeModal, { shortDate } from '../invoices/PaymentNotice';
 
 const tag = (text, c) => (
-  <span style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{text}</span>
+  <span style={{ marginLeft: 6, fontSize: 12.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{text}</span>
 );
-const GREEN = ['#2A5A30', '#E8F1E9', '#BFDCC3'];
-const BLUE = ['#1E4566', '#E6F0F6', '#B9D3E4'];
-const GREY = ['#5B5F56', '#F1EFE7', '#DEDACC'];
-const PURPLE = ['#4B3A86', '#EEEAF6', '#D2C9EA'];
+const GREEN = ['var(--dp-success)', 'var(--dp-success-tint)', 'var(--dp-success-tint)'];
+const BLUE = ['var(--dp-info)', 'var(--dp-canvas)', 'var(--dp-line)'];
+const GREY = ['var(--dp-ink-soft)', 'var(--dp-canvas)', 'var(--dp-line)'];
+const PURPLE = ['var(--dp-ink-soft)', 'var(--dp-canvas)', 'var(--dp-line)'];
 
 export default function BillingPage() {
   const today = todayISO();
@@ -276,7 +276,7 @@ export default function BillingPage() {
     setFlash(`${r.s.name} has no billing date or tuition set yet.`);
   }
 
-  if (loading || !settings) return <p style={{ color: '#5B5F56' }}>Loading…</p>;
+  if (loading || !settings) return <p style={{ color: 'var(--dp-ink-soft)' }}>Loading…</p>;
   const lead = Number(settings.invoice_lead_days ?? 7);
   const manualProps = proposals.filter((p) => p.manual);
   const preauthProps = proposals.filter((p) => !p.manual);
@@ -293,7 +293,7 @@ export default function BillingPage() {
         <button className="dp-btn" onClick={loadAll}><RefreshCw size={14} /> Refresh</button>
       </div>
 
-      {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
+      {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
 
       <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, marginBottom: 18 }}>
         <Metric label="Students billed" value={stats.billable} />
@@ -329,7 +329,7 @@ export default function BillingPage() {
           <>
             <InvoiceList list={reminders} onOpen={setPreviewId} />
             <ActionBar>
-              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>Re-sends the invoice with the reminder wording (Invoice Settings → Email templates).</span>
+              <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>Re-sends the invoice with the reminder wording (Invoice Settings → Email templates).</span>
               <button className="dp-btn dp-btn-primary" disabled={!!busy} onClick={sendReminders}><Mail size={14} /> {busy === 'remind' ? 'Sending…' : `Approve ${reminders.length} reminder${reminders.length === 1 ? '' : 's'}`}</button>
             </ActionBar>
           </>
@@ -344,7 +344,7 @@ export default function BillingPage() {
           <>
             <ProposalTable list={preauthProps} selected={selected} setSelected={setSelected} settings={settings} onOpen={(p) => setDraft({ g: p, mode: 'preauth' })} />
             <ActionBar>
-              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>{settings?.online_pay ? 'Families marked "saved card" are charged through TD right away (payment recorded, receipt emailed). For the others, charge their cards in TD first — this creates each invoice and records it as paid.' : 'After charging the cards: creates each invoice and records it as paid. No invoice email is sent.'}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{settings?.online_pay ? 'Families marked "saved card" are charged through TD right away (payment recorded, receipt emailed). For the others, charge their cards in TD first — this creates each invoice and records it as paid.' : 'After charging the cards: creates each invoice and records it as paid. No invoice email is sent.'}</span>
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
                 <input type="checkbox" checked={emailReceipts} onChange={(e) => setEmailReceipts(e.target.checked)} /> Email receipts
               </label>
@@ -383,7 +383,7 @@ export default function BillingPage() {
 
       {/* Roster */}
       <div style={{ ...styles.filterBar, alignItems: 'center', marginTop: 8 }}>
-        <span style={{ fontSize: 13, color: '#5B5F56' }}>Sort by</span>
+        <span style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>Sort by</span>
         <select className="dp-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
           <option value="date">Billing date</option>
           <option value="family">Family</option>
@@ -408,11 +408,11 @@ export default function BillingPage() {
               return (
                 <tr key={s.id} className="dp-row" style={{ opacity: s.billing_exempt ? 0.6 : 1 }}>
                   <td style={{ fontWeight: 500 }}>
-                    <button className="dp-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 500, color: '#20241F', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => openStudent(r)}>
+                    <button className="dp-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 500, color: 'var(--dp-ink)', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => openStudent(r)}>
                       {s.name}
                     </button>
                   </td>
-                  <td style={{ fontSize: 12.5, color: '#5B5F56' }}>
+                  <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>
                     {r.family?.name || '—'}
                     {isManual(r.family) && tag('pays manually', BLUE)}
                     {r.family?.separate_invoices && tag('separate', GREY)}
@@ -422,7 +422,7 @@ export default function BillingPage() {
                       tag('Staff — no invoice', BLUE)
                     ) : (
                       <>
-                        {s.plan || '1 Month'} · {s.tuition ? money(s.tuition) : <span style={{ color: '#9A2B2B' }}>not set</span>}
+                        {s.plan || '1 Month'} · {s.tuition ? money(s.tuition) : <span style={{ color: 'var(--dp-danger)' }}>not set</span>}
                         {s.classes_per_week ? tag(`${s.classes_per_week}x/wk`, GREY) : null}
                         {s.family_discount && tag(`-${settings.family_discount_pct ?? 20}%`, PURPLE)}
                         {s.subsidy && tag('subsidy', GREEN)}
@@ -433,13 +433,13 @@ export default function BillingPage() {
                     {r.cycle && !s.billing_exempt ? (
                       r.cycleInv ? (
                         <button className="dp-btn" style={{ padding: '1px 6px', border: 'none', background: 'none' }} onClick={() => setPreviewId(r.cycleInv.id)}>
-                          <span style={{ fontSize: 12, color: '#5B5F56', marginRight: 6 }}>#{r.cycleInv.invoice_number}</span>
+                          <span style={{ fontSize: 12, color: 'var(--dp-ink-soft)', marginRight: 6 }}>#{r.cycleInv.invoice_number}</span>
                           <StatusPill status={r.cycleInv.status} />
                         </button>
                       ) : r.recent ? (
-                        <span style={{ fontSize: 12.5, color: '#9A2B2B' }}>Not invoiced ({formatDate(r.cycle)})</span>
+                        <span style={{ fontSize: 12.5, color: 'var(--dp-danger)' }}>Not invoiced ({formatDate(r.cycle)})</span>
                       ) : (
-                        <span style={{ fontSize: 12.5, color: '#8A8D84' }} title="Started before billing moved to the portal">Since {formatDate(r.cycle)}</span>
+                        <span style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }} title="Started before billing moved to the portal">Since {formatDate(r.cycle)}</span>
                       )
                     ) : (
                       '—'
@@ -447,14 +447,14 @@ export default function BillingPage() {
                   </td>
                   <td>
                     {s.billing_end_date && r.next > s.billing_end_date ? (
-                      <span style={{ fontSize: 12.5, color: '#9A2B2B' }} title="Membership cancelled — no more tuition">Ends {formatDate(s.billing_end_date)}</span>
+                      <span style={{ fontSize: 12.5, color: 'var(--dp-danger)' }} title="Membership cancelled — no more tuition">Ends {formatDate(s.billing_end_date)}</span>
                     ) : (
                       <>
                         {r.next && !s.billing_exempt ? formatDate(r.next) : '—'}
                         {r.nextInv && <span style={{ marginLeft: 6 }}><StatusPill status={r.nextInv.status} /></span>}
                       </>
                     )}
-                    {s.reregistration_fee_due && <div style={{ fontSize: 11.5, color: '#854F0B' }}>+ $20 re-registration fee</div>}
+                    {s.reregistration_fee_due && <div style={{ fontSize: 12.5, color: 'var(--dp-warning)' }}>+ $20 re-registration fee</div>}
                   </td>
                   <td>
                     {isBillable(s) && r.toInvoice && (
@@ -500,7 +500,7 @@ export default function BillingPage() {
             onClose={() => setDraft(null)}
             footer={
               <>
-                <span style={{ marginRight: 'auto', fontSize: 12.5, color: '#854F0B' }}>Draft — not created yet{g.students.length > 1 ? ` · ${g.students.length} siblings on one invoice` : ''}</span>
+                <span style={{ marginRight: 'auto', fontSize: 12.5, color: 'var(--dp-warning)' }}>Draft — not created yet{g.students.length > 1 ? ` · ${g.students.length} siblings on one invoice` : ''}</span>
                 <button className="dp-btn" onClick={() => setDraft(null)}>Close</button>
                 {draft.mode && (
                   <button className="dp-btn dp-btn-primary" onClick={() => { setDraft(null); setConfirm({ mode: draft.mode, list: [g] }); }}>
@@ -555,7 +555,7 @@ function Panel({ icon, title, children }) {
 }
 
 function Empty({ children }) {
-  return <p style={{ padding: '12px 14px', color: '#8A8D84', fontSize: 13, margin: 0 }}>{children}</p>;
+  return <p style={{ padding: '12px 14px', color: 'var(--dp-ink-faint)', fontSize: 13, margin: 0 }}>{children}</p>;
 }
 
 function ActionBar({ children }) {
@@ -587,10 +587,10 @@ function InvoiceList({ list, onOpen, sel, setSel, custById, noticeAt, onNotice }
             <td><StatusPill status={i.status} /></td>
             {onNotice && (
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 11.5 }} title="Email the family: payment not received / didn't go through (agreement 7.3)" onClick={() => onNotice(i)}>
+                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12.5 }} title="Email the family: payment not received / didn't go through (agreement 7.3)" onClick={() => onNotice(i)}>
                   <Mail size={12} /> {noticeAt?.[i.id] ? 'Again' : 'Notice'}
                 </button>
-                {noticeAt?.[i.id] && <div style={{ fontSize: 10.5, color: '#8A8D84', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
+                {noticeAt?.[i.id] && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
               </td>
             )}
           </tr>
@@ -621,12 +621,12 @@ function ProposalTable({ list, selected, setSelected, settings, onOpen }) {
               {p.past && tag('already passed', GREY)}
             </td>
             <td>
-              <button style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#20241F', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => onOpen(p)}>{familyName(p)}</button>
+              <button style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--dp-ink)', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => onOpen(p)}>{familyName(p)}</button>
               {p.manual && !p.customer?.email && tag('no email', GREY)}
               {p.customer?.card_profile_code && settings.online_pay && p.customer.card_profile_mode === (settings.online_pay_mode || 'test') && (p.customer.card_legacy_rb_pending ? tag('card saved — close old TD Recurring Billing first', GREY) : tag(`saved card ···${p.customer.card_last4 || ''}`, GREEN))}
               {!p.manual && p.customer && !p.customer.card_profile_code && settings.online_pay && settings.online_pay_mode === 'live' && <CardLinkButton customer={p.customer} style={{ marginLeft: 6 }} onSent={(at) => { p.customer.card_link_sent_at = at; }} />}
             </td>
-            <td style={{ fontSize: 12.5, color: '#5B5F56', cursor: 'pointer' }} title="Preview invoice" onClick={() => onOpen(p)}>
+            <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', cursor: 'pointer' }} title="Preview invoice" onClick={() => onOpen(p)}>
               {p.lines.map((l) => (l.line_kind === 'tuition' ? l.description.split(' — ')[0] : null)).filter(Boolean).join(', ')}
               {p.lines.some((l) => l.line_kind === 'discount') && tag(`-${settings.family_discount_pct ?? 20}%`, PURPLE)}
               {p.lines.some((l) => l.line_kind === 'subsidy') && tag('subsidy', GREEN)}

@@ -49,7 +49,7 @@ export default function NotSeenCard({ students, recordsBy, today, onChanged }) {
         <Empty>Every active student has come to class in the last {FOLLOWUP_DAYS} days.</Empty>
       ) : (
         <div data-testid="not-seen">
-          <p style={{ margin: 0, padding: '8px 14px 4px', fontSize: 12.5, color: '#5B5F56' }}>
+          <p style={{ margin: 0, padding: '8px 14px 4px', fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>
             Active students with no class for {FOLLOWUP_DAYS}+ days (breaks not included). A quick call often keeps them coming.
           </p>
           <table className="dp-table" style={{ width: '100%' }}>
@@ -57,10 +57,10 @@ export default function NotSeenCard({ students, recordsBy, today, onChanged }) {
               {rows.map(({ s, last, days }) => (
                 <tr key={s.id} data-student={s.name}>
                   <td style={{ fontWeight: 500 }}>
-                    <a href={`#students/${s.id}`} style={{ color: '#20241F' }}>{s.name}</a>
-                    <div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>{s.class_name || ''}</div>
+                    <a href={`#students/${s.id}`} style={{ color: 'var(--dp-ink)' }}>{s.name}</a>
+                    <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{s.class_name || ''}</div>
                   </td>
-                  <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: days == null || days >= 28 ? '#9A2B2B' : '#854F0B' }}>
+                  <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: days == null || days >= 28 ? 'var(--dp-danger)' : 'var(--dp-warning)' }}>
                     {last ? `${days} days · last ${md(last)}` : 'No class in 90 days'}
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>

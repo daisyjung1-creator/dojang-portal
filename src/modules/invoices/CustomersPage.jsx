@@ -244,11 +244,11 @@ export default function CustomersPage() {
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={onFile} />
         </div>
       </div>
-      {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
+      {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
 
       <div style={{ ...styles.filterBar, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={styles.searchBox}>
-          <Search size={15} color="#8A8D84" />
+          <Search size={15} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Name, email, phone, student…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={onlyOwing} onChange={(e) => setOnlyOwing(e.target.checked)} /> Owing only</label>
@@ -257,7 +257,7 @@ export default function CustomersPage() {
 
       <div style={styles.card}>
         {filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No customers yet. Add one, import your Express Invoice customer list, or click "From Students".</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No customers yet. Add one, import your Express Invoice customer list, or click "From Students".</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -278,15 +278,15 @@ export default function CustomersPage() {
                 return (
                   <tr key={c.id} className="dp-row" style={{ cursor: 'pointer', opacity: c.active === false ? 0.55 : 1 }} onClick={() => openEdit(c)}>
                     <td style={{ fontWeight: 500 }}>{c.name}</td>
-                    <td style={{ textAlign: 'right', color: bal > 0 ? '#9A2B2B' : '#8A8D84' }}>
+                    <td style={{ textAlign: 'right', color: bal > 0 ? 'var(--dp-danger)' : 'var(--dp-ink-faint)' }}>
                       {money(bal)}
-                      {credits[c.id] > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
+                      {credits[c.id] > 0.004 && <div style={{ fontSize: 12.5, color: 'var(--dp-success)' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
                     </td>
                     <td>{bal > 0 ? balances[c.id]?.oldest_due_date : ''}</td>
                     <td>{balances[c.id]?.last_invoice_number || ''}</td>
                     <td>{c.phone}</td>
                     <td>{c.email}</td>
-                    <td style={{ color: '#5B5F56' }}>{(studentsByCustomer[c.id] || []).map((s) => s.name).join(', ')}</td>
+                    <td style={{ color: 'var(--dp-ink-soft)' }}>{(studentsByCustomer[c.id] || []).map((s) => s.name).join(', ')}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setStatementFor(c)}><FileText size={13} /> Statement</button>
                     </td>
@@ -333,7 +333,7 @@ export default function CustomersPage() {
                 <Field label="Notes"><textarea className="dp-input" rows={2} style={{ width: '100%' }} value={f.notes || ''} onChange={(e) => set({ notes: e.target.value })} /></Field>
                 <Field label="Students paid for by this customer">
                   <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid #EDEAE0', borderRadius: 6, padding: 6 }}>
-                    {students.filter((s) => s.status !== 'withdrawn' || modal.studentIds.includes(s.id)).length === 0 && <span style={{ fontSize: 13, color: '#8A8D84' }}>No students yet.</span>}
+                    {students.filter((s) => s.status !== 'withdrawn' || modal.studentIds.includes(s.id)).length === 0 && <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No students yet.</span>}
                     {students
                       .filter((s) => s.status !== 'withdrawn' || modal.studentIds.includes(s.id))
                       .slice()
@@ -343,7 +343,7 @@ export default function CustomersPage() {
                         return (
                           <label key={s.id} style={{ display: 'flex', gap: 6, fontSize: 13, padding: '2px 0' }}>
                             <input type="checkbox" checked={modal.studentIds.includes(s.id)} onChange={(e) => setModal({ ...modal, studentIds: e.target.checked ? [...modal.studentIds, s.id] : modal.studentIds.filter((x) => x !== s.id) })} />
-                            {s.name} {other ? <span style={{ color: '#8A8D84' }}>· now in {other.name}</span> : null}
+                            {s.name} {other ? <span style={{ color: 'var(--dp-ink-faint)' }}>· now in {other.name}</span> : null}
                           </label>
                         );
                       })}
@@ -356,29 +356,29 @@ export default function CustomersPage() {
                   </select>
                   {(f.payment_type || 'preauth') === 'preauth' && (
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
-                      <a href="/preauth-form.pdf" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#1E4566' }}>Print the card pre-authorization form (PDF)</a>
+                      <a href="/preauth-form.pdf" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--dp-info)' }}>Print the card pre-authorization form (PDF)</a>
                       {f.id && !f.card_profile_code && <CardLinkButton customer={f} onSent={(at) => set({ card_link_sent_at: at })} />}
                     </div>
                   )}
                   {f.rb_account_id && (
-                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid #CFE3D0', background: '#F1F8F1', fontSize: 12.5 }}>
-                      <b>Automatic tuition (TD Recurring Billing):</b> account #{f.rb_account_id}
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid #CFE3D0', background: 'var(--dp-success-tint)', fontSize: 12.5 }}>
+                      <b style={{ fontWeight: 500 }}>Automatic tuition (TD Recurring Billing):</b> account #{f.rb_account_id}
                       {f.rb_amount ? ` · $${Number(f.rb_amount).toFixed(2)} ${Number(f.rb_months) === 3 ? 'every 3 months' : 'every month'}` : ''}
                       {f.rb_first_billing ? ` · from ${f.rb_first_billing}` : ''}
                       {f.rb_card_last4 ? ` · card ···${f.rb_card_last4}` : ''}
                       {f.rb_mode === 'test' ? ' · TEST account' : ''}
-                      <div style={{ color: '#5B5F56', marginTop: 2 }}>Set up online by the family. Change the amount or cancel it in TD Online Mart → Recurring billing.</div>
+                      <div style={{ color: 'var(--dp-ink-soft)', marginTop: 2 }}>Set up online by the family. Change the amount or cancel it in TD Online Mart → Recurring billing.</div>
                     </div>
                   )}
                   {f.card_profile_code && (
-                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${f.card_declined_at ? '#E7B7B7' : '#CFE3D0'}`, background: f.card_declined_at ? '#FBEDEC' : '#F1F8F1', fontSize: 12.5 }}>
-                      <b>Saved cards</b> (the <i>tuition</i> one is charged automatically)
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${f.card_declined_at ? '#E7B7B7' : '#CFE3D0'}`, background: f.card_declined_at ? '#FBEDEC' : 'var(--dp-success-tint)', fontSize: 12.5 }}>
+                      <b style={{ fontWeight: 500 }}>Saved cards</b> (the <i>tuition</i> one is charged automatically)
                       <div style={{ margin: '4px 0 2px' }}><CardWallet customerId={f.id} /></div>
-                      {f.card_declined_at && <div style={{ color: '#9A2B2B', marginTop: 2 }}>Last charge declined {String(f.card_declined_at).slice(0, 10)}: {f.card_decline_message}</div>}
+                      {f.card_declined_at && <div style={{ color: 'var(--dp-danger)', marginTop: 2 }}>Last charge declined {String(f.card_declined_at).slice(0, 10)}: {f.card_decline_message}</div>}
                       {f.card_legacy_rb_pending && (
-                        <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 6, background: '#FFF6E0', border: '1px solid #F0D9A8', color: '#854F0B' }}>
-                          Saved through the card link. <b>Close this family's old Recurring Billing account in TD Online Mart</b> before their next billing date so they aren't charged twice — automatic charges from the portal start only after you tick this:
-                          <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, color: '#20241F', fontWeight: 600 }}>
+                        <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 6, background: 'var(--dp-warning-tint)', border: '1px solid var(--dp-warning-tint)', color: 'var(--dp-warning)' }}>
+                          Saved through the card link. <b style={{ fontWeight: 500 }}>Close this family's old Recurring Billing account in TD Online Mart</b> before their next billing date so they aren't charged twice — automatic charges from the portal start only after you tick this:
+                          <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, color: 'var(--dp-ink)', fontWeight: 500 }}>
                             <input
                               type="checkbox"
                               onChange={async (e) => {
@@ -401,8 +401,8 @@ export default function CustomersPage() {
                   Separate invoice for each student (otherwise siblings with the same billing date share one invoice)
                 </label>
                 <label style={{ fontSize: 13, display: 'flex', gap: 6 }}><input type="checkbox" checked={f.active !== false} onChange={(e) => set({ active: e.target.checked })} /> Active</label>
-                <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 0 0' }}>Email, address and contact name are shared with the students in this family — changing them here updates the students, and the other way round.</p>
-                {modal.error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{modal.error}</p>}
+                <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>Email, address and contact name are shared with the students in this family — changing them here updates the students, and the other way round.</p>
+                {modal.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{modal.error}</p>}
               </>
             );
           })()}
@@ -422,7 +422,7 @@ export default function CustomersPage() {
             </>
           }
         >
-          <p style={{ fontSize: 13, color: '#5B5F56', marginTop: 0 }}>Match the columns in your file. Names that already exist are skipped.</p>
+          <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 0 }}>Match the columns in your file. Names that already exist are skipped.</p>
           {IMPORT_FIELDS.map((f) => (
             <Field key={f.key} label={f.label} required={f.required}>
               <select className="dp-select" style={{ width: '100%' }} value={importState.mapping[f.key]} onChange={(e) => setImportState({ ...importState, mapping: { ...importState.mapping, [f.key]: Number(e.target.value) } })}>

@@ -135,12 +135,12 @@ export default function RefundModal({ customers, initial, onClose, onSaved }) {
       <Field label="Reason">
         <input className="dp-input" style={{ width: '100%' }} value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="e.g. Withdrew mid-month, overpaid, class cancelled…" />
       </Field>
-      {invoice?.voided && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '0 0 10px' }}>This invoice is voided, so the refund won’t change sales or GST — it only shows as money paid out.</p>}
-      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, color: customer?.email ? '#20241F' : '#8A8D84' }}>
+      {invoice?.voided && <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '0 0 10px' }}>This invoice is voided, so the refund won’t change sales or GST — it only shows as money paid out.</p>}
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, color: customer?.email ? 'var(--dp-ink)' : 'var(--dp-ink-faint)' }}>
         <input type="checkbox" checked={emailIt} disabled={!customer?.email} onChange={(e) => setEmailIt(e.target.checked)} />
         Email a refund confirmation to {customer?.email || 'customer (no email on file)'}
       </label>
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '8px 0 0' }}>{error}</p>}
     </Modal>
   );
 }

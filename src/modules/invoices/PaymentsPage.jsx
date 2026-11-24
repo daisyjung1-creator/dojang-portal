@@ -122,7 +122,7 @@ export default function PaymentsPage() {
     <button
       key={id}
       className="dp-btn"
-      style={{ background: view === id ? '#20241F' : '#FFFFFF', color: view === id ? '#FFFFFF' : '#20241F', borderColor: view === id ? '#20241F' : '#DEDACC' }}
+      style={{ background: view === id ? 'var(--dp-ink)' : '#FFFFFF', color: view === id ? '#FFFFFF' : 'var(--dp-ink)', borderColor: view === id ? 'var(--dp-ink)' : 'var(--dp-line)' }}
       onClick={() => {
         setView(id);
         setMethod('all');
@@ -146,7 +146,7 @@ export default function PaymentsPage() {
           <button className="dp-btn dp-btn-primary" onClick={() => setModal({})}><Plus size={15} /> Apply Payment</button>
         </div>
       </div>
-      {flash.text && <p style={{ background: flash.error ? '#FBEAEA' : '#E8F1E9', color: flash.error ? '#9A2B2B' : '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
+      {flash.text && <p style={{ background: flash.error ? 'var(--dp-danger-tint)' : 'var(--dp-success-tint)', color: flash.error ? 'var(--dp-danger)' : 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {tab('payments', `Payments (${payments.length})`)}
@@ -158,10 +158,10 @@ export default function PaymentsPage() {
           {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         <input type="date" className="dp-input" value={range.start} onChange={(e) => { setPeriod('custom'); setRange({ ...range, start: e.target.value }); }} />
-        <span style={{ color: '#5B5F56', fontSize: 13 }}>to</span>
+        <span style={{ color: 'var(--dp-ink-soft)', fontSize: 13 }}>to</span>
         <input type="date" className="dp-input" value={range.end} onChange={(e) => { setPeriod('custom'); setRange({ ...range, end: e.target.value }); }} />
         <div style={styles.searchBox}>
-          <Search size={15} color="#8A8D84" />
+          <Search size={15} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder={view === 'payments' ? 'Customer, receipt, invoice…' : 'Customer, refund #, invoice, reason…'} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         </div>
         <select className="dp-select" value={method} onChange={(e) => setMethod(e.target.value)}>
@@ -172,7 +172,7 @@ export default function PaymentsPage() {
 
       <div style={styles.card}>
         {filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>{view === 'payments' ? 'No payments in this period.' : 'No refunds in this period.'}</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>{view === 'payments' ? 'No payments in this period.' : 'No refunds in this period.'}</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -208,13 +208,13 @@ export default function PaymentsPage() {
                   <td style={{ fontWeight: 500 }}>{view === 'payments' ? p.receipt_number : p.refund_number}</td>
                   <td>{customerMap[p.customer_id]?.name || ''}</td>
                   <td>{p.method}</td>
-                  <td style={{ textAlign: 'right', color: view === 'refunds' ? '#4B3A86' : undefined }}>
+                  <td style={{ textAlign: 'right', color: view === 'refunds' ? 'var(--dp-ink-soft)' : undefined }}>
                     {view === 'refunds' ? '-' : ''}{money(p.amount)}
-                    {view === 'payments' && Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }}>{money(p.credit_amount)} to credit</div>}
+                    {view === 'payments' && Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 12.5, color: 'var(--dp-success)' }}>{money(p.credit_amount)} to credit</div>}
                   </td>
-                  {view === 'refunds' && <td style={{ textAlign: 'right', color: '#5B5F56' }}>{money(p.gst_amount)}</td>}
+                  {view === 'refunds' && <td style={{ textAlign: 'right', color: 'var(--dp-ink-soft)' }}>{money(p.gst_amount)}</td>}
                   <td>{p.invoices?.invoice_number || ''}</td>
-                  <td style={{ color: '#5B5F56' }}>{view === 'payments' ? p.reference : p.reason}</td>
+                  <td style={{ color: 'var(--dp-ink-soft)' }}>{view === 'payments' ? p.reference : p.reason}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4 }}>
                       {view === 'payments' && <button className="dp-btn" style={{ padding: 5 }} aria-label="Receipt" title="View / print receipt" onClick={() => setReceiptId(p.id)}><Printer size={13} /></button>}
@@ -227,8 +227,8 @@ export default function PaymentsPage() {
             </tbody>
           </table>
         )}
-        <div style={{ padding: '10px 12px', fontSize: 13, color: '#5B5F56', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-          <span>{filtered.length} {view} · Total <b style={{ color: '#20241F' }}>{money(total)}</b></span>
+        <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--dp-ink-soft)', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+          <span>{filtered.length} {view} · Total <b style={{ fontWeight: 500, color: 'var(--dp-ink)' }}>{money(total)}</b></span>
           {byMethod.map(([m, v]) => <span key={m}>{m}: {money(v)}</span>)}
         </div>
       </div>

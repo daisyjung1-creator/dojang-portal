@@ -31,13 +31,13 @@ export default function RegCardStep({ token, estimate, saveError }) {
 
   const later = 'The Dojang will email you a secure link to save your card before automatic payments begin.';
   if (!info) return <p style={{ color: C.soft, textAlign: 'center' }}>Loading…</p>;
-  if (!info.enabled || skipped) return <div style={{ ...box, fontSize: 14.5, lineHeight: 1.55 }}>{later}</div>;
+  if (!info.enabled || skipped) return <div style={{ ...box, fontSize: 16, lineHeight: 1.55 }}>{later}</div>;
   if (done || info.saved) {
     const c = done?.saved || info.saved;
     return (
-      <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1' }}>
+      <div style={{ ...box, borderColor: 'var(--dp-success-tint)', background: 'var(--dp-success-tint)' }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Your card is saved</div>
-        <p style={{ fontSize: 14.5, margin: '8px 0 0', lineHeight: 1.55 }}>
+        <p style={{ fontSize: 16, margin: '8px 0 0', lineHeight: 1.55 }}>
           {c?.type || 'Card'} ending {c?.last4 || '····'} is saved for automatic tuition. <b>Nothing was charged.</b> Master Daisy will confirm the tuition amount and your first payment date by email before the first charge.
         </p>
       </div>
@@ -52,13 +52,13 @@ export default function RegCardStep({ token, estimate, saveError }) {
     <div style={{ textAlign: 'left' }}>
       {info.mode === 'test' && <TestNote />}
       {saveError && (
-        <div style={{ ...box, borderColor: '#F0C9C6', background: '#FFF7F6', color: '#8C1D18', fontSize: 14.5, lineHeight: 1.5, marginBottom: 14 }}>
+        <div role="alert" style={{ ...box, borderColor: 'transparent', background: C.redSoft, color: C.danger, fontSize: 16, lineHeight: 1.5, marginBottom: 14 }}>
           Your registration was received, but your card could not be saved{saveError ? ` (${saveError})` : ''}. Please enter it again below.
         </div>
       )}
       <div style={{ ...box, marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.red, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Last step · Credit Card Authorization</div>
-        <p style={{ fontSize: 14.5, lineHeight: 1.55, margin: '6px 0 0' }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.soft }}>Last step · Credit card authorization</div>
+        <p style={{ fontSize: 16, lineHeight: 1.55, margin: '6px 0 0' }}>
           You chose pre-authorized credit card payments. Save the card for tuition now. <b>Nothing is charged today</b> — Master Daisy confirms your tuition and first payment date by email first.
         </p>
         {est && (
@@ -67,7 +67,7 @@ export default function RegCardStep({ token, estimate, saveError }) {
             <b style={{ whiteSpace: 'nowrap' }}>{money(total)}</b>
           </div>
         )}
-        {est && <div style={{ fontSize: 12.5, color: C.faint, marginTop: 4 }}>Including 5% GST. Any discount or grant is applied when the Dojang confirms.</div>}
+        {est && <div style={{ fontSize: 14, color: C.faint, marginTop: 4 }}>Including 5% GST. Any discount or grant is applied when the Dojang confirms.</div>}
       </div>
       <CardForm
         consentNote={consentNote}

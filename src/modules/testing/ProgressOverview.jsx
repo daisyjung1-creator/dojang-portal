@@ -102,7 +102,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
   const field = T ? { minHeight: 'var(--dp-touch)', fontSize: 'var(--dp-text-body)' } : undefined;
 
   return (
-    <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)' } : undefined}>
+    <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)', fontWeight: 400 } : undefined}>
       <div style={styles.header}>
         <div>
           <h1 style={T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, lineHeight: 1.15, margin: 0 } : styles.title}>{isAdmin ? 'Belt Testing' : 'Tapes'}</h1>
@@ -123,18 +123,18 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
 
       {isAdmin && (
         <div style={{ ...styles.card, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          <CalendarDays size={22} color="#BE1C21" />
+          <CalendarDays size={22} color="var(--dp-hankook-red)" />
           <div style={{ flex: '1 1 240px' }}>
             {next ? (
               <>
                 <div style={{ fontSize: 15, fontWeight: 600 }}>Next test: {next.title || 'Belt testing'} — {formatDate(next.test_date)}</div>
-                <div style={{ fontSize: 13, color: '#5B5F56' }}>
+                <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>
                   {daysTo(next.test_date) === 0 ? 'Today' : `In ${daysTo(next.test_date)} day${daysTo(next.test_date) === 1 ? '' : 's'}`}
                   {entryCount != null && ` · ${entryCount} on the test list`} · {stats.ready} ready now (all tapes + {MIN_CLASSES} classes)
                 </div>
               </>
             ) : (
-              <div style={{ fontSize: 14, color: '#5B5F56' }}>No upcoming test. Click “New test” to set the date.</div>
+              <div style={{ fontSize: 14, color: 'var(--dp-ink-soft)' }}>No upcoming test. Click “New test” to set the date.</div>
             )}
           </div>
           {next && (
@@ -155,7 +155,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
 
       <div style={{ ...styles.filterBar, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ ...styles.searchBox, ...(T ? { minHeight: 'var(--dp-touch)' } : {}) }}>
-          <Search size={T ? 18 : 15} color="#8A8D84" aria-hidden="true" />
+          <Search size={T ? 18 : 15} color="var(--dp-ink-faint)" aria-hidden="true" />
           <input aria-label="Find student" style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: T ? 'var(--dp-text-title)' : 14, flex: 1, fontFamily: 'inherit', background: 'transparent' }} placeholder="Find student…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <select className="dp-select" style={field} aria-label="Class" value={cls} onChange={(e) => setCls(e.target.value)}>
@@ -177,9 +177,9 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
 
       <div style={styles.card}>
         {students === null ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Loading…</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>Loading…</p>
         ) : filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: T ? 'var(--dp-text-title)' : 14 }}>No students match.</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: T ? 'var(--dp-text-title)' : 14 }}>No students match.</p>
         ) : T ? (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
             {filtered.map(({ s, n, tp, ready, enough }, i) => (
@@ -222,9 +222,9 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
                   <tr key={s.id} className="dp-row" data-student={s.name}>
                     <td style={{ fontWeight: 500 }}>
                       {isAdmin ? (
-                        <a href={`#students/${s.id}`} style={{ color: '#20241F', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }}>{s.name}</a>
+                        <a href={`#students/${s.id}`} style={{ color: 'var(--dp-ink)', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }}>{s.name}</a>
                       ) : s.name}
-                      <div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>{s.class_name}</div>
+                      <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{s.class_name}</div>
                     </td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, whiteSpace: 'nowrap' }}>
@@ -233,9 +233,9 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
                       </span>
                     </td>
                     <td><TapeTracker student={s} earned={tp} onChange={(set) => setOne(s.id, set)} /></td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: enough ? '#2A5A30' : '#20241F' }}><b>{n}</b> / {MIN_CLASSES}</td>
-                    <td style={{ fontSize: 12.5, color: '#5B5F56', whiteSpace: 'nowrap' }}>{nextBelt(s.belt)}</td>
-                    <td>{ready && <span style={{ fontSize: 11.5, color: '#2A5A30', background: '#E8F1E9', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>Ready</span>}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: enough ? 'var(--dp-success)' : 'var(--dp-ink)' }}><b>{n}</b> / {MIN_CLASSES}</td>
+                    <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', whiteSpace: 'nowrap' }}>{nextBelt(s.belt)}</td>
+                    <td>{ready && <span style={{ fontSize: 12.5, color: 'var(--dp-success)', background: 'var(--dp-success-tint)', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>Ready</span>}</td>
                   </tr>
                 );
               })}
@@ -256,7 +256,7 @@ function Metric({ label, value, tone, onClick, T }) {
       onClick={onClick}
     >
       <p style={{ ...styles.metricLabel, ...(T ? { fontSize: 'var(--dp-text-label)' } : {}) }}>{label}</p>
-      <p style={{ ...styles.metricValue, ...(T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' } : {}), color: tone === 'good' ? '#2A5A30' : '#20241F' }}>{value}</p>
+      <p style={{ ...styles.metricValue, ...(T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' } : {}), color: tone === 'good' ? 'var(--dp-success)' : 'var(--dp-ink)' }}>{value}</p>
     </Tag>
   );
 }

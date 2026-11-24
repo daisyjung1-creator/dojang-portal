@@ -142,20 +142,20 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
             {info.next ? (
               <>
-                <span style={{ fontSize: T ? 'var(--dp-text-display)' : 22, fontWeight: T ? 700 : 600, color: info.daysLeft <= 14 ? '#854F0B' : '#20241F', fontVariantNumeric: 'tabular-nums' }}>{info.daysLeft === 0 ? 'Today' : `${info.daysLeft} day${info.daysLeft === 1 ? '' : 's'}`}</span>
-                <span style={{ fontSize: T ? 'var(--dp-text-body)' : 13, color: '#5B5F56' }}>to {info.next.title || 'belt testing'} · {shortDay(info.next.test_date)}</span>
+                <span style={{ fontSize: T ? 'var(--dp-text-display)' : 22, fontWeight: T ? 700 : 600, color: info.daysLeft <= 14 ? 'var(--dp-warning)' : 'var(--dp-ink)', fontVariantNumeric: 'tabular-nums' }}>{info.daysLeft === 0 ? 'Today' : `${info.daysLeft} day${info.daysLeft === 1 ? '' : 's'}`}</span>
+                <span style={{ fontSize: T ? 'var(--dp-text-body)' : 13, color: 'var(--dp-ink-soft)' }}>to {info.next.title || 'belt testing'} · {shortDay(info.next.test_date)}</span>
               </>
             ) : (
               <>
                 <span style={{ fontSize: T ? 'var(--dp-text-title)' : 15, fontWeight: 600 }}>Next test not scheduled</span>
-                <span style={{ fontSize: T ? 'var(--dp-text-body)' : 13, color: '#5B5F56' }}>
+                <span style={{ fontSize: T ? 'var(--dp-text-body)' : 13, color: 'var(--dp-ink-soft)' }}>
                   — pacing assumes about {shortDay(info.end)} ({cycleWeeks} weeks after {info.prev ? shortDay(info.prev.test_date) : 'now'}).{' '}
                   {!readOnly && <button style={link} onClick={() => setActiveTab('testing')}>Set the date</button>}
                 </span>
               </>
             )}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: T ? 'var(--dp-text-label)' : 12, color: T ? 'var(--dp-ink-soft)' : '#8A8D84', margin: '8px 0 4px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: T ? 'var(--dp-text-label)' : 12, color: T ? 'var(--dp-ink-soft)' : 'var(--dp-ink-faint)', margin: '8px 0 4px' }}>
             <span>Week {Math.min(info.weekNo, info.weeks)} of {info.weeks}</span>
             <span>{pct}% of the way</span>
           </div>
@@ -166,19 +166,19 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
               <div
                 key={i}
                 title={`${p.label}: ${shortDay(p.from)} – ${shortDay(p.to)}`}
-                style={{ flex: Number(p.weeks) || 1, background: i < cur ? '#BFDCC3' : i === cur ? '#2A5A30' : '#F1EFE7', color: i === cur ? '#fff' : i < cur ? '#2A5A30' : '#8A8D84', fontSize: T ? 'var(--dp-text-caption)' : 10.5, fontWeight: T && i === cur ? 600 : 400, display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}
+                style={{ flex: Number(p.weeks) || 1, background: i < cur ? 'var(--dp-success-tint)' : i === cur ? 'var(--dp-success)' : 'var(--dp-canvas)', color: i === cur ? '#fff' : i < cur ? 'var(--dp-success)' : 'var(--dp-ink-faint)', fontSize: T ? 'var(--dp-text-caption)' : 10.5, fontWeight: T && i === cur ? 600 : 400, display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}
               >
-                {T ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span> : p.label}
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span>
               </div>
             ))}
-            <div style={{ position: 'absolute', top: -2, bottom: -2, left: `calc(${pct}% - 1px)`, width: 2, background: '#20241F' }} />
+            <div style={{ position: 'absolute', top: -2, bottom: -2, left: `calc(${pct}% - 1px)`, width: 2, background: 'var(--dp-ink)' }} />
           </div>
           <div style={{ fontSize: T ? 'var(--dp-text-body)' : 13, marginTop: T ? 14 : 10, lineHeight: 1.5 }}>
             <div>
-              <b style={T ? { fontSize: 'var(--dp-text-title)' } : undefined}>Classes should be on: {now.label}</b> <span style={{ color: '#8A8D84' }}>(until {shortDay(now.to)})</span>
+              <b style={T ? { fontSize: 'var(--dp-text-title)' } : undefined}>Classes should be on: {now.label}</b> <span style={{ color: 'var(--dp-ink-faint)' }}>(until {shortDay(now.to)})</span>
             </div>
-            {now.detail && <div style={{ color: '#5B5F56' }}>{now.detail}</div>}
-            {after && <div style={{ color: T ? 'var(--dp-ink-soft)' : '#8A8D84', fontSize: T ? 'var(--dp-text-label)' : 12.5 }}>Next: {after.label} from {shortDay(after.from)}</div>}
+            {now.detail && <div style={{ color: 'var(--dp-ink-soft)' }}>{now.detail}</div>}
+            {after && <div style={{ color: T ? 'var(--dp-ink-soft)' : 'var(--dp-ink-faint)', fontSize: T ? 'var(--dp-text-label)' : 12.5 }}>Next: {after.label} from {shortDay(after.from)}</div>}
             <button style={{ ...link, marginTop: 4 }} onClick={() => setPerClass(!perClass)} aria-expanded={perClass}>{perClass ? 'Hide' : 'Show'} what each class works on now</button>
           </div>
           {perClass && (
@@ -192,14 +192,14 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
                   const rows = Object.entries(belts).sort((a, b) => beltIndex(a[0]) - beltIndex(b[0]));
                   return (
                     <tr key={cn}>
-                      <td style={{ fontWeight: T ? 600 : 500, verticalAlign: 'top', width: 140, fontSize: T ? 'var(--dp-text-body)' : 13 }}>{cn}<div style={{ fontSize: T ? 'var(--dp-text-label)' : 11.5, color: T ? 'var(--dp-ink-soft)' : '#8A8D84', fontWeight: 400 }}>{kids.length} student{kids.length === 1 ? "" : "s"}</div></td>
+                      <td style={{ fontWeight: T ? 600 : 500, verticalAlign: 'top', width: 140, fontSize: T ? 'var(--dp-text-body)' : 13 }}>{cn}<div style={{ fontSize: T ? 'var(--dp-text-label)' : 11.5, color: T ? 'var(--dp-ink-soft)' : 'var(--dp-ink-faint)', fontWeight: 400 }}>{kids.length} student{kids.length === 1 ? "" : "s"}</div></td>
                       <td style={{ fontSize: T ? 'var(--dp-text-body)' : 12.5 }}>
                         {rows.map(([b, n]) => {
                           const item = phaseItem(now.label, curByBelt[b]);
                           return (
                             <div key={b} style={T ? { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '2px 0' } : undefined}>
                               {T && <BeltStrip belt={b} width={44} />}
-                              <span style={{ color: '#5B5F56' }}>{b} ×{n}</span>
+                              <span style={{ color: 'var(--dp-ink-soft)' }}>{b} ×{n}</span>
                               {item && <span> — {item}</span>}
                             </div>
                           );
@@ -214,7 +214,7 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
         </div>
 
         {/* Students vs the class minimum */}
-        <div style={{ borderTop: `1px solid ${T ? 'var(--dp-line)' : '#F1EFE7'}`, padding: T ? '14px 16px' : '10px 14px 12px' }}>
+        <div style={{ borderTop: `1px solid ${T ? 'var(--dp-line)' : 'var(--dp-canvas)'}`, padding: T ? '14px 16px' : '10px 14px 12px' }}>
           <div style={{ fontSize: T ? 'var(--dp-text-body)' : 13, marginBottom: T ? 10 : 6, lineHeight: T ? 2 : undefined }}>
             <b>{MIN_CLASSES} classes</b> needed since their last test
             <Tag touch={T} c={GREEN}>{counts.ready} ready</Tag>
@@ -222,7 +222,7 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
             <Tag touch={T} c={counts.behind ? RED : GREY}>{counts.behind} behind</Tag>
           </div>
           {behind.length === 0 ? (
-            <div style={{ fontSize: T ? 'var(--dp-text-body)' : 12.5, color: '#2A5A30' }}>Everyone can reach {MIN_CLASSES} classes by the test at their usual pace.</div>
+            <div style={{ fontSize: T ? 'var(--dp-text-body)' : 12.5, color: 'var(--dp-success)' }}>Everyone can reach {MIN_CLASSES} classes by the test at their usual pace.</div>
           ) : (
             <>
               <table className="dp-table">
@@ -235,15 +235,15 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}><BeltStrip belt={x.s.belt} width={44} /><span style={{ fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)' }}>{x.s.belt || 'White'}</span></div>
                         </td>
                       ) : (
-                        <td style={{ fontSize: 13 }}>{x.s.name}<span style={{ fontSize: 11.5, color: '#8A8D84' }}> · {x.s.belt || 'White'}</span></td>
+                        <td style={{ fontSize: 13 }}>{x.s.name}<span style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}> · {x.s.belt || 'White'}</span></td>
                       )}
                       <td style={{ fontSize: T ? 'var(--dp-text-body)' : 12.5, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                         <b>{x.n}</b>/{MIN_CLASSES}
-                        <div style={{ height: T ? 6 : 4, width: T ? 80 : 70, background: '#F1EFE7', borderRadius: 3, marginTop: 4 }}>
-                          <div style={{ height: T ? 6 : 4, width: `${Math.min((x.n / MIN_CLASSES) * 100, 100)}%`, background: '#9A2B2B', borderRadius: 2 }} />
+                        <div style={{ height: T ? 6 : 4, width: T ? 80 : 70, background: 'var(--dp-canvas)', borderRadius: 3, marginTop: 4 }}>
+                          <div style={{ height: T ? 6 : 4, width: `${Math.min((x.n / MIN_CLASSES) * 100, 100)}%`, background: 'var(--dp-danger)', borderRadius: 2 }} />
                         </div>
                       </td>
-                      <td style={{ fontSize: T ? 'var(--dp-text-label)' : 12, color: '#854F0B' }}>
+                      <td style={{ fontSize: T ? 'var(--dp-text-label)' : 12, color: 'var(--dp-warning)' }}>
                         needs {x.need} more{Number.isFinite(x.perWeekNeeded) ? ` · ${Math.ceil(x.perWeekNeeded * 10) / 10}/week (usually ${x.per})` : ''}
                       </td>
                     </tr>
@@ -253,7 +253,7 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
               {behind.length > 6 && (
                 <button style={{ ...link, marginTop: 6 }} onClick={() => setShowAll(!showAll)}>{showAll ? 'Show fewer' : `Show all ${behind.length}`}</button>
               )}
-              <div style={{ fontSize: T ? 'var(--dp-text-label)' : 11.5, color: T ? 'var(--dp-ink-soft)' : '#8A8D84', marginTop: 6, lineHeight: 1.45 }}>Behind = at their usual classes per week they won't reach {MIN_CLASSES} by the test. Makeup or extra classes help.</div>
+              <div style={{ fontSize: T ? 'var(--dp-text-label)' : 11.5, color: T ? 'var(--dp-ink-soft)' : 'var(--dp-ink-faint)', marginTop: 6, lineHeight: 1.45 }}>Behind = at their usual classes per week they won't reach {MIN_CLASSES} by the test. Makeup or extra classes help.</div>
             </>
           )}
         </div>
@@ -271,17 +271,17 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
             </>
           }
         >
-          <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>
             In teaching order. The weeks are stretched or squeezed to fit the real time between two tests. Labels with “Basics”, “Poomsae”, “Kicking” or “Breaking” also show each belt's item from the testing sheets.
           </p>
           {edit.list.map((p, i) => {
             const upd = (patch) => setEdit({ ...edit, list: edit.list.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
             return (
               <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-                <span style={{ width: 18, fontSize: 12, color: '#8A8D84' }}>{i + 1}.</span>
+                <span style={{ width: 18, fontSize: 12, color: 'var(--dp-ink-faint)' }}>{i + 1}.</span>
                 <input className="dp-input" style={{ flex: '1 1 160px' }} placeholder="Phase" value={p.label} onChange={(e) => upd({ label: e.target.value })} />
                 <input type="number" min="1" className="dp-input" style={{ width: 64 }} value={p.weeks} onChange={(e) => upd({ weeks: e.target.value })} />
-                <span style={{ fontSize: 12, color: '#8A8D84' }}>wks</span>
+                <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>wks</span>
                 <input className="dp-input" style={{ flex: '2 1 200px' }} placeholder="What to cover" value={p.detail || ''} onChange={(e) => upd({ detail: e.target.value })} />
                 <button className="dp-btn dp-btn-danger" style={{ padding: 5 }} aria-label="Remove" onClick={() => setEdit({ ...edit, list: edit.list.filter((_x, j) => j !== i) })}><Trash2 size={12} /></button>
               </div>
@@ -293,7 +293,7 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
               <input type="number" min="4" className="dp-input" style={{ width: 80 }} value={edit.cycle} onChange={(e) => setEdit({ ...edit, cycle: e.target.value })} />
             </Field>
           </div>
-          {edit.error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{edit.error}</p>}
+          {edit.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{edit.error}</p>}
         </Modal>
       )}
     </>

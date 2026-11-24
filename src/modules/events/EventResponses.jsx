@@ -47,9 +47,9 @@ export default function EventResponses({ event: e, students }) {
         {rows?.length > 0 && <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={csv}><Download size={13} /> Download CSV</button>}
       </div>
       {rows == null ? (
-        <p style={{ padding: '4px 14px 14px', color: '#8A8D84', fontSize: 13 }}>Loading…</p>
+        <p style={{ padding: '4px 14px 14px', color: 'var(--dp-ink-faint)', fontSize: 13 }}>Loading…</p>
       ) : rows.length === 0 ? (
-        <p style={{ padding: '4px 14px 14px', color: '#8A8D84', fontSize: 13 }}>No answers yet. Families fill in the form when they sign up in the parent portal.</p>
+        <p style={{ padding: '4px 14px 14px', color: 'var(--dp-ink-faint)', fontSize: 13 }}>No answers yet. Families fill in the form when they sign up in the parent portal.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table className="dp-table">
@@ -65,9 +65,9 @@ export default function EventResponses({ event: e, students }) {
                 const kids = kidsOf(r);
                 return (
                   <tr key={r.id} className="dp-row" data-response={kids.map((k) => k.name).join(', ')}>
-                    <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{kids.map((k) => <div key={k.id}>{k.name}</div>)}<div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>{when(r.created_at)}</div></td>
+                    <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{kids.map((k) => <div key={k.id}>{k.name}</div>)}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{when(r.created_at)}</div></td>
                     {form.map((q) => (
-                      <td key={q.id} style={{ fontSize: 13, maxWidth: 260 }}>{answerText(q, r.answers, kids) || <span style={{ color: '#8A8D84' }}>—</span>}</td>
+                      <td key={q.id} style={{ fontSize: 13, maxWidth: 260 }}>{answerText(q, r.answers, kids) || <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}</td>
                     ))}
                     {e.signature_required && (
                       <td>
@@ -76,9 +76,9 @@ export default function EventResponses({ event: e, students }) {
                             <img src={r.signature_data} alt={`Signature of ${r.signer_name || 'parent'}`} style={{ height: 34, display: 'block' }} />
                           </button>
                         ) : (
-                          <span style={{ color: '#8A8D84', fontSize: 12.5 }}>Not signed</span>
+                          <span style={{ color: 'var(--dp-ink-faint)', fontSize: 12.5 }}>Not signed</span>
                         )}
-                        {r.signer_name && <div style={{ fontSize: 11.5, color: '#5B5F56' }}>{r.signer_name}</div>}
+                        {r.signer_name && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{r.signer_name}</div>}
                       </td>
                     )}
                   </tr>
@@ -110,7 +110,7 @@ function SignedBody({ e, form, r, kids }) {
   return (
       <div style={{ fontSize: 14, lineHeight: 1.5 }}>
         <h3 style={{ margin: '0 0 2px' }}>{e.title}</h3>
-        <div style={{ color: '#5B5F56', fontSize: 13, marginBottom: 10 }}>Champion Hankook Taekwondo · {kids.map((k) => k.name).join(', ')}</div>
+        <div style={{ color: 'var(--dp-ink-soft)', fontSize: 13, marginBottom: 10 }}>Champion Hankook Taekwondo · {kids.map((k) => k.name).join(', ')}</div>
         {form.map((q) => (
           <div key={q.id} style={{ marginBottom: 8 }}>
             <div style={{ fontWeight: 600 }}>{q.label}</div>
@@ -121,11 +121,11 @@ function SignedBody({ e, form, r, kids }) {
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 18, flexWrap: 'wrap' }}>
           <div>
             <img src={r.signature_data} alt="Signature" style={{ height: 90, border: '1px solid #E4E6DF', borderRadius: 6 }} />
-            <div style={{ fontSize: 12, color: '#5B5F56', display: 'flex', alignItems: 'center', gap: 4 }}><PenLine size={12} /> Signature</div>
+            <div style={{ fontSize: 12, color: 'var(--dp-ink-soft)', display: 'flex', alignItems: 'center', gap: 4 }}><PenLine size={12} /> Signature</div>
           </div>
           <div style={{ fontSize: 13 }}>
             <div><b>{r.signer_name}</b></div>
-            <div style={{ color: '#5B5F56' }}>Signed {when(r.signed_at)}</div>
+            <div style={{ color: 'var(--dp-ink-soft)' }}>Signed {when(r.signed_at)}</div>
           </div>
         </div>
       </div>

@@ -35,16 +35,16 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
     if (narrow) document.getElementById('dp-score-sheet')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  if (!rows.length) return <div style={{ ...styles.card, padding: 20, fontSize: 14, color: '#5B5F56' }}>Add students to the test first.</div>;
+  if (!rows.length) return <div style={{ ...styles.card, padding: 20, fontSize: 14, color: 'var(--dp-ink-soft)' }}>Add students to the test first.</div>;
 
   return (
     <>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
         <button className="dp-btn dp-btn-primary" onClick={() => onPrint(rows)}><Printer size={15} /> Print all reports ({rows.length})</button>
         {cur && <button className="dp-btn" onClick={() => onPrint([cur])}><Printer size={15} /> Print {cur.s.name.split(' ')[0]}’s report</button>}
-        <span style={{ fontSize: 12.5, color: '#5B5F56', marginLeft: 8 }}>Signed by</span>
+        <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginLeft: 8 }}>Signed by</span>
         <input className="dp-input" style={{ width: 230, padding: '5px 8px', fontSize: 13 }} value={examiner} onChange={(e) => setExaminer(e.target.value)} onBlur={() => examiner !== (test.examiner || DEFAULT_EXAMINER) && onExaminer(examiner.trim() || null)} />
-        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#8A8D84' }}>In the print window choose “Save as PDF” to get the PDF.</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>In the print window choose “Save as PDF” to get the PDF.</span>
       </div>
 
       {narrow ? (
@@ -57,7 +57,7 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
                 return <option key={e.id} value={e.id}>{`${i + 1}. ${s.name}${sum.complete ? ' ✓' : sum.any ? ' …' : ''}`}</option>;
               })}
             </select>
-            <span style={{ fontSize: 12.5, color: '#5B5F56', flex: 'none' }}>{idx + 1}/{rows.length}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', flex: 'none' }}>{idx + 1}/{rows.length}</span>
             <button className="dp-btn" style={{ padding: '10px 11px', flex: 'none' }} disabled={idx >= rows.length - 1} aria-label="Next student" onClick={() => go(1)}><ChevronRight size={18} /></button>
           </div>
           <div id="dp-score-sheet" style={{ scrollMarginTop: 64 }} />
@@ -74,13 +74,13 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
               <button
                 key={e.id}
                 onClick={() => setSel(e.id)}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderBottom: '1px solid #F1EFE7', background: on ? '#20241F' : 'transparent', color: on ? '#fff' : '#20241F', cursor: 'pointer', fontFamily: 'inherit' }}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderBottom: '1px solid var(--dp-canvas)', background: on ? 'var(--dp-ink)' : 'transparent', color: on ? '#fff' : 'var(--dp-ink)', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500, flex: 1 }}>{s.name}</span>
-                  {sum.complete ? <Check size={14} color={on ? '#BFDCC3' : '#2A5A30'} /> : sum.any ? <span style={{ fontSize: 11, color: on ? '#DEDACC' : '#854F0B' }}>…</span> : null}
+                  {sum.complete ? <Check size={14} color={on ? 'var(--dp-success-tint)' : 'var(--dp-success)'} /> : sum.any ? <span style={{ fontSize: 12, color: on ? 'var(--dp-line)' : 'var(--dp-warning)' }}>…</span> : null}
                 </div>
-                <div style={{ fontSize: 11.5, color: on ? '#C9C6BA' : '#8A8D84' }}>{e.current_belt} → {e.target_belt}</div>
+                <div style={{ fontSize: 12.5, color: on ? 'var(--dp-line)' : 'var(--dp-ink-faint)' }}>{e.current_belt} → {e.target_belt}</div>
               </button>
             );
           })}
@@ -122,7 +122,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
             type="button"
             title={SCORE_GUIDE[v].title}
             onClick={() => mark(k, n, i, v)}
-            style={{ width: narrow ? undefined : 34, flex: narrow ? 1 : undefined, height: narrow ? 42 : 30, borderRadius: 6, border: `1px solid ${on ? '#20241F' : '#DEDACC'}`, background: on ? '#20241F' : '#fff', color: on ? '#fff' : '#5B5F56', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ width: narrow ? undefined : 34, flex: narrow ? 1 : undefined, height: narrow ? 42 : 30, borderRadius: 6, border: `1px solid ${on ? 'var(--dp-ink)' : 'var(--dp-line)'}`, background: on ? 'var(--dp-ink)' : '#fff', color: on ? '#fff' : 'var(--dp-ink-soft)', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             {v}
           </button>
@@ -131,7 +131,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
     </div>
   );
 
-  const Rank = ({ r }) => (r ? <span style={{ fontWeight: 700, color: RANK_COLOR[r] || '#5B5F56', fontSize: 13 }}>{r}</span> : <span style={{ color: '#C9C6BA', fontSize: 12 }}>—</span>);
+  const Rank = ({ r }) => (r ? <span style={{ fontWeight: 700, color: RANK_COLOR[r] || 'var(--dp-ink-soft)', fontSize: 13 }}>{r}</span> : <span style={{ color: 'var(--dp-line)', fontSize: 12 }}>—</span>);
 
   return (
     <div style={styles.card}>
@@ -139,12 +139,12 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
         {!narrow && <button className="dp-btn" style={{ padding: 5 }} disabled={!onPrev} aria-label="Previous student" onClick={onPrev}><ChevronLeft size={16} /></button>}
         <div style={{ flex: 1, minWidth: narrow ? '100%' : 0 }}>
           <div style={{ fontSize: 16, fontWeight: 600 }}>{s.name}</div>
-          <div style={{ fontSize: 12.5, color: '#5B5F56' }}>{e.current_belt} → {e.target_belt}</div>
+          <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{e.current_belt} → {e.target_belt}</div>
         </div>
         <div style={{ display: 'flex', gap: 10, fontSize: 12 }}>
           {sum.sections.map((x) => (
             <span key={x.key} style={{ textAlign: 'center' }}>
-              <div style={{ color: '#8A8D84', fontSize: 10.5 }}>{x.label.split(' ')[0]}</div>
+              <div style={{ color: 'var(--dp-ink-faint)', fontSize: 12.5 }}>{x.label.split(' ')[0]}</div>
               <Rank r={x.rank} />
             </span>
           ))}
@@ -153,16 +153,16 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
       </div>
 
       <div style={{ padding: narrow ? '10px 10px 14px' : '10px 16px 16px' }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11.5, color: '#8A8D84', marginBottom: 8 }}>
-          {SCORE_GUIDE.map((g) => <span key={g.n}><b style={{ color: '#20241F' }}>{g.n}</b> {g.title}</span>)}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--dp-ink-faint)', marginBottom: 8 }}>
+          {SCORE_GUIDE.map((g) => <span key={g.n}><b style={{ color: 'var(--dp-ink)' }}>{g.n}</b> {g.title}</span>)}
           <span>· tap again to clear</span>
         </div>
 
         {sum.sections.map((sec) => (
           <div key={sec.key} style={{ border: '1px solid #EDEAE0', borderRadius: 8, marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', background: '#FAF9F5', borderBottom: '1px solid #EDEAE0', borderRadius: '8px 8px 0 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', background: 'var(--dp-canvas)', borderBottom: '1px solid #EDEAE0', borderRadius: '8px 8px 0 0' }}>
               <span style={{ fontWeight: 600, fontSize: 13.5, flex: 1 }}>{sec.label}</span>
-              <span style={{ fontSize: 12.5, color: '#5B5F56', marginRight: 10 }}>Total {sec.marks.some((m) => m != null) ? sec.total : '–'} / {sec.max}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginRight: 10 }}>Total {sec.marks.some((m) => m != null) ? sec.total : '–'} / {sec.max}</span>
               <Rank r={sec.rank} />
             </div>
             <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(200px, 0.8fr)', gap: 12, padding: '8px 12px' }}>
@@ -187,8 +187,8 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
         ))}
 
         <div style={{ border: '1px solid #EDEAE0', borderRadius: 8 }}>
-          <div style={{ padding: '7px 12px', background: '#FAF9F5', borderBottom: '1px solid #EDEAE0', borderRadius: '8px 8px 0 0', fontWeight: 600, fontSize: 13.5 }}>
-            {MENTAL.label} <span style={{ fontWeight: 400, fontSize: 12, color: '#8A8D84' }}>· 0 = NI, 1–2 = MS, 3 = ES</span>
+          <div style={{ padding: '7px 12px', background: 'var(--dp-canvas)', borderBottom: '1px solid #EDEAE0', borderRadius: '8px 8px 0 0', fontWeight: 600, fontSize: 13.5 }}>
+            {MENTAL.label} <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--dp-ink-faint)' }}>· 0 = NI, 1–2 = MS, 3 = ES</span>
           </div>
           <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(200px, 0.8fr)', gap: 12, padding: '8px 12px' }}>
             <div>
@@ -197,7 +197,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
                   <span style={{ flex: 1, minWidth: 0, fontSize: narrow ? 14 : 13 }}>
                     {c}
                     {narrow && <span style={{ marginLeft: 8 }}><Rank r={mentalRank((scores.mental || [])[i])} /></span>}
-                    {i === 2 && <div style={{ fontSize: 11, color: '#8A8D84' }}>{MENTAL.note}</div>}
+                    {i === 2 && <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>{MENTAL.note}</div>}
                   </span>
                   <Marks k={MENTAL.key} n={MENTAL.criteria.length} i={i} />
                   {!narrow && <span style={{ width: 26, textAlign: 'right' }}><Rank r={mentalRank((scores.mental || [])[i])} /></span>}
@@ -215,7 +215,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
           </div>
         </div>
         <div style={{ marginTop: 10 }}>
-          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, marginBottom: 4 }}>Instructor’s comments &amp; next goals <span style={{ fontWeight: 400, fontSize: 12, color: '#8A8D84' }}>· printed at the bottom of the report (left blank = lines to write on)</span></span>
+          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, marginBottom: 4 }}>Instructor’s comments &amp; next goals <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--dp-ink-faint)' }}>· printed at the bottom of the report (left blank = lines to write on)</span></span>
           <textarea
             className="dp-input"
             style={{ width: '100%', minHeight: 56, fontSize: 12.5, resize: 'vertical' }}

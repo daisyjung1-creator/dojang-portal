@@ -24,27 +24,28 @@ export const BELTS = [
 
 export const LEAD_SOURCES = ['Phone', 'Walk-in', 'Online', 'Referral', 'Other'];
 
+// Status chips use the design-token colours (DESIGN.md); screen use only.
 export const LEAD_STATUSES = [
-  { value: 'New Inquiry', bg: '#F1EFE7', text: '#5B5F56', border: '#DEDACC' },
-  { value: 'Consultation Scheduled', bg: '#E6F0F6', text: '#1E4566', border: '#B9D3E4' },
-  { value: 'Consultation Done', bg: '#FAEEDA', text: '#854F0B', border: '#F0D9A8' },
-  { value: 'Enrolled', bg: '#E8F1E9', text: '#2A5A30', border: '#BFDCC3' },
-  { value: 'Not Enrolled', bg: '#FBEAEA', text: '#9A2B2B', border: '#E4B8B8' },
+  { value: 'New Inquiry', bg: 'var(--dp-canvas)', text: 'var(--dp-ink-soft)', border: 'var(--dp-line)' },
+  { value: 'Consultation Scheduled', bg: 'var(--dp-canvas)', text: 'var(--dp-info)', border: 'var(--dp-line)' },
+  { value: 'Consultation Done', bg: 'var(--dp-warning-tint)', text: 'var(--dp-warning)', border: 'var(--dp-warning-tint)' },
+  { value: 'Enrolled', bg: 'var(--dp-success-tint)', text: 'var(--dp-success)', border: 'var(--dp-success-tint)' },
+  { value: 'Not Enrolled', bg: 'var(--dp-danger-tint)', text: 'var(--dp-danger)', border: 'var(--dp-danger-tint)' },
 ];
 
 export const TRYOUT_STATUSES = [
-  { value: 'Scheduled', bg: '#E6F0F6', text: '#1E4566', border: '#B9D3E4' },
-  { value: 'Attended', bg: '#E8F1E9', text: '#2A5A30', border: '#BFDCC3' },
-  { value: 'No-show', bg: '#FBEAEA', text: '#9A2B2B', border: '#E4B8B8' },
-  { value: 'Converted', bg: '#FAEEDA', text: '#854F0B', border: '#F0D9A8' },
-  { value: 'Not joining', bg: '#F1EFE7', text: '#5B5F56', border: '#DEDACC' },
+  { value: 'Scheduled', bg: 'var(--dp-canvas)', text: 'var(--dp-info)', border: 'var(--dp-line)' },
+  { value: 'Attended', bg: 'var(--dp-success-tint)', text: 'var(--dp-success)', border: 'var(--dp-success-tint)' },
+  { value: 'No-show', bg: 'var(--dp-danger-tint)', text: 'var(--dp-danger)', border: 'var(--dp-danger-tint)' },
+  { value: 'Converted', bg: 'var(--dp-warning-tint)', text: 'var(--dp-warning)', border: 'var(--dp-warning-tint)' },
+  { value: 'Not joining', bg: 'var(--dp-canvas)', text: 'var(--dp-ink-soft)', border: 'var(--dp-line)' },
 ];
 
 export const MAKEUP_STATUSES = {
-  pending: { label: 'Not Scheduled', bg: '#F1EFE7', text: '#5B5F56', border: '#DEDACC' },
-  reserved: { label: 'Reserved', bg: '#E6F0F6', text: '#1E4566', border: '#B9D3E4' },
-  completed: { label: 'Completed', bg: '#E8F1E9', text: '#2A5A30', border: '#BFDCC3' },
-  expired: { label: 'Expired', bg: '#FBEAEA', text: '#9A2B2B', border: '#E4B8B8' },
+  pending: { label: 'Not Scheduled', bg: 'var(--dp-canvas)', text: 'var(--dp-ink-soft)', border: 'var(--dp-line)' },
+  reserved: { label: 'Reserved', bg: 'var(--dp-canvas)', text: 'var(--dp-info)', border: 'var(--dp-line)' },
+  completed: { label: 'Completed', bg: 'var(--dp-success-tint)', text: 'var(--dp-success)', border: 'var(--dp-success-tint)' },
+  expired: { label: 'Expired', bg: 'var(--dp-danger-tint)', text: 'var(--dp-danger)', border: 'var(--dp-danger-tint)' },
 };
 
 export function formatCurrency(n) {

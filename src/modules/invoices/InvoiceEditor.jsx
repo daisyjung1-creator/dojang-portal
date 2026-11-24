@@ -151,7 +151,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     }
   }
 
-  const th = { fontSize: 12, color: '#5B5F56', fontWeight: 500, textAlign: 'left', padding: '6px 4px' };
+  const th = { fontSize: 12, color: 'var(--dp-ink-soft)', fontWeight: 500, textAlign: 'left', padding: '6px 4px' };
   const td = { padding: '4px' };
 
   return (
@@ -190,7 +190,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
       </div>
 
       {quickAdd && (
-        <div style={{ background: '#FAF8F2', border: '1px solid #EDEAE0', borderRadius: 8, padding: 12, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <div style={{ background: 'var(--dp-canvas)', border: '1px solid #EDEAE0', borderRadius: 8, padding: 12, marginBottom: 12, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <Field label="New customer name" required><input className="dp-input" autoFocus value={quickAdd.name} onChange={(e) => setQuickAdd({ ...quickAdd, name: e.target.value })} /></Field>
           <Field label="Email"><input className="dp-input" value={quickAdd.email} onChange={(e) => setQuickAdd({ ...quickAdd, email: e.target.value })} /></Field>
           <Field label="Phone"><input className="dp-input" value={quickAdd.phone} onChange={(e) => setQuickAdd({ ...quickAdd, phone: e.target.value })} /></Field>
@@ -202,7 +202,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
       )}
 
       {form.customer_id && (
-        <div style={{ fontSize: 12.5, color: '#5B5F56', margin: '-4px 0 12px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '-4px 0 12px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <span>Email: {form.customer_email || <em>none</em>}</span>
           {linkedStudents.length > 0 && (
             <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={addLinkedTuition}>
@@ -245,18 +245,18 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
                     const orig = isEdit ? Number(editing.lines.find((x) => x.id === l.id && x.fee_item_id === l.fee_item_id && (x.size || '') === (l.size || ''))?.quantity || 0) : 0;
                     const left = stock[`${l.fee_item_id}|${l.size || ''}`] + orig;
                     const short = Number(l.quantity) > left;
-                    return <div style={{ fontSize: 10.5, color: short ? '#9A2B2B' : '#8A8D84', marginTop: 2, whiteSpace: 'nowrap' }}>{short ? `only ${left} in stock` : `${left} in stock`}</div>;
+                    return <div style={{ fontSize: 12.5, color: short ? 'var(--dp-danger)' : 'var(--dp-ink-faint)', marginTop: 2, whiteSpace: 'nowrap' }}>{short ? `only ${left} in stock` : `${left} in stock`}</div>;
                   })()}
                 </td>
                 <td style={td}>
                   {l.pct ? (
-                    <span style={{ fontSize: 12.5, color: '#2A5A30', whiteSpace: 'nowrap' }}>−{l.pct}%</span>
+                    <span style={{ fontSize: 12.5, color: 'var(--dp-success)', whiteSpace: 'nowrap' }}>−{l.pct}%</span>
                   ) : (
                     <input type="number" step="0.01" className="dp-input" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.unit_price} onChange={(e) => updateLine(i, { unit_price: e.target.value })} />
                   )}
                 </td>
                 <td style={{ ...td, textAlign: 'center' }}><input type="checkbox" checked={!!l.taxable} onChange={(e) => updateLine(i, { taxable: e.target.checked })} /></td>
-                <td style={{ ...td, textAlign: 'right', fontSize: 13, color: lineAmount(effLines[i]) < 0 ? '#2A5A30' : undefined }}>{money(lineAmount(effLines[i]))}</td>
+                <td style={{ ...td, textAlign: 'right', fontSize: 13, color: lineAmount(effLines[i]) < 0 ? 'var(--dp-success)' : undefined }}>{money(lineAmount(effLines[i]))}</td>
                 <td style={td}>
                   <button className="dp-btn dp-btn-danger" style={{ padding: 5 }} aria-label="Remove line" onClick={() => setLines((prev) => (prev.length > 1 ? prev.filter((_, idx) => idx !== i) : [blankLine()]))}>
                     <Trash2 size={13} />
@@ -277,12 +277,12 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
             <Plus size={13} /> Credit
           </button>
           {adj && (
-            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', background: '#FAF8F2', border: '1px solid #EDEAE0', borderRadius: 8, padding: '4px 8px', flexWrap: 'wrap' }}>
-              <b style={{ fontSize: 12.5 }}>{adj.kind === 'credit' ? 'Credit' : 'Discount'}</b>
+            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', background: 'var(--dp-canvas)', border: '1px solid #EDEAE0', borderRadius: 8, padding: '4px 8px', flexWrap: 'wrap' }}>
+              <b style={{ fontWeight: 500, fontSize: 12.5 }}>{adj.kind === 'credit' ? 'Credit' : 'Discount'}</b>
               {adj.kind === 'discount' && (
-                <span style={{ display: 'inline-flex', border: '1px solid #DEDACC', borderRadius: 6, overflow: 'hidden' }}>
+                <span style={{ display: 'inline-flex', border: '1px solid var(--dp-line)', borderRadius: 6, overflow: 'hidden' }}>
                   {['%', '$'].map((t) => (
-                    <button key={t} type="button" onClick={() => setAdj({ ...adj, type: t })} style={{ border: 'none', padding: '3px 10px', fontSize: 12.5, cursor: 'pointer', background: adj.type === t ? '#20241F' : '#fff', color: adj.type === t ? '#fff' : '#20241F' }}>{t}</button>
+                    <button key={t} type="button" onClick={() => setAdj({ ...adj, type: t })} style={{ border: 'none', padding: '3px 10px', fontSize: 12.5, cursor: 'pointer', background: adj.type === t ? 'var(--dp-ink)' : '#fff', color: adj.type === t ? '#fff' : 'var(--dp-ink)' }}>{t}</button>
                   ))}
                 </span>
               )}
@@ -293,7 +293,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
             </span>
           )}
         </div>
-        <div style={{ fontSize: 11.5, color: '#8A8D84', margin: '0 4px 6px' }}>Discount comes off before GST. Credit comes off the total (no GST).</div>
+        <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: '0 4px 6px' }}>Discount comes off before GST. Credit comes off the total (no GST).</div>
       </div>
 
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
@@ -302,7 +302,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
             <textarea className="dp-input" rows={3} style={{ width: '100%', resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
           {famCredit > 0.004 && (
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 6, color: '#2A5A30' }}>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, marginBottom: 6, color: 'var(--dp-success)' }}>
               <input type="checkbox" checked={useFamCredit} onChange={(e) => setUseFamCredit(e.target.checked)} />
               Use the family's account credit ({money(famCredit)} available) on this invoice
             </label>
@@ -319,18 +319,18 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
         </div>
         <table style={{ fontSize: 13.5, minWidth: 240, borderCollapse: 'collapse' }}>
           <tbody>
-            <tr><td style={{ padding: '4px 8px', color: '#5B5F56' }}>Subtotal</td><td style={{ padding: '4px 8px', textAlign: 'right' }}>{money(totals.subtotal)}</td></tr>
+            <tr><td style={{ padding: '4px 8px', color: 'var(--dp-ink-soft)' }}>Subtotal</td><td style={{ padding: '4px 8px', textAlign: 'right' }}>{money(totals.subtotal)}</td></tr>
             <tr>
-              <td style={{ padding: '4px 8px', color: '#5B5F56' }}>
+              <td style={{ padding: '4px 8px', color: 'var(--dp-ink-soft)' }}>
                 GST <input type="number" className="dp-input" style={{ width: 52, padding: '2px 4px', fontSize: 12.5 }} value={form.gst_rate} onChange={(e) => setForm({ ...form, gst_rate: e.target.value })} /> %
               </td>
               <td style={{ padding: '4px 8px', textAlign: 'right' }}>{money(totals.gst)}</td>
             </tr>
-            <tr style={{ borderTop: '1px solid #20241F' }}><td style={{ padding: '6px 8px', fontWeight: 600 }}>Total</td><td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, fontSize: 16 }}>{money(totals.total)}</td></tr>
+            <tr style={{ borderTop: '1px solid var(--dp-ink)' }}><td style={{ padding: '6px 8px', fontWeight: 500 }}>Total</td><td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 500, fontSize: 16 }}>{money(totals.total)}</td></tr>
           </tbody>
         </table>
       </div>
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '8px 0 0' }}>{error}</p>}
     </Modal>
   );
 }

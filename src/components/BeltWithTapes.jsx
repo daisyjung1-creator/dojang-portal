@@ -1,11 +1,13 @@
 import React from 'react';
 import { TAPES, hasTapes } from '../lib/tapes';
-import { BELTS } from '../lib/constants';
+import { beltPaint } from './BeltStrip';
 
 // A belt swatch with the curriculum tapes the student has earned wrapped
 // around its end (in order white → green), like the real belt.
 export default function BeltWithTapes({ belt, tapes, width = 40, height = 14, outline }) {
-  const b = BELTS.find((x) => x.value === (belt || 'White')) || BELTS[0];
+  // Same look as BeltStrip: stripe belts have a lengthwise stripe of the next colour.
+  const p = beltPaint(belt || 'White');
+  const bg = p.stripe ? `linear-gradient(to bottom, ${p.fill} 0 35%, ${p.stripe} 35% 65%, ${p.fill} 65%)` : p.fill;
   const earned = hasTapes(belt) && tapes ? TAPES.filter((t) => tapes.has(t.id)) : [];
   const band = Math.max(2, Math.round(height / 4.5));
   return (
@@ -18,8 +20,8 @@ export default function BeltWithTapes({ belt, tapes, width = 40, height = 14, ou
         width,
         height,
         borderRadius: Math.min(4, height / 3),
-        background: b.bg,
-        border: outline || `1px solid ${b.border}`,
+        background: bg,
+        border: outline || `1px solid ${p.edge}`,
         boxSizing: 'border-box',
         overflow: 'hidden',
         flexShrink: 0,

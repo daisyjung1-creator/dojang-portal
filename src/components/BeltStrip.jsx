@@ -33,6 +33,13 @@ const RANKS = {
   'Black Belt 3rd Dan': ['Black', null, 0, 3],
 };
 
+// Colours for a rank: band, lengthwise stripe, edge, black-stripe marks and dan.
+export function beltPaint(belt) {
+  const [baseName, stripeName, marks = 0, dan = 0] = RANKS[belt] || RANKS.White;
+  const base = COLORS[baseName];
+  return { fill: base.fill, stripe: stripeName ? COLORS[stripeName].fill : null, edge: dan ? GOLD : base.edge, marks, dan };
+}
+
 export default function BeltStrip({ belt, width = 52, style }) {
   const [baseName, stripeName, marks = 0, dan = 0] = RANKS[belt] || RANKS.White;
   const base = COLORS[baseName];

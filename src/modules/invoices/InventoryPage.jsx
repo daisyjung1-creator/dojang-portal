@@ -93,7 +93,7 @@ export default function InventoryPage() {
         </div>
         <button className="dp-btn" onClick={() => setModal({ mode: 'track' })}><Plus size={15} /> Choose Items to Track</button>
       </div>
-      {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
+      {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
 
       <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
         <Metric label="Items tracked" value={groups.length} />
@@ -103,19 +103,19 @@ export default function InventoryPage() {
       </div>
 
       {counts.uncounted > 0 && (
-        <p style={{ fontSize: 13, color: '#5C3A07', background: '#FAEEDA', border: '1px solid #F0D9A8', borderRadius: 8, padding: '8px 12px', margin: '0 0 14px' }}>
-          Click <b>Count</b> on each item and enter how many you have right now (per size for sized gear). Stock is tracked from that moment on.
+        <p style={{ fontSize: 13, color: 'var(--dp-warning)', background: 'var(--dp-warning-tint)', border: '1px solid var(--dp-warning-tint)', borderRadius: 8, padding: '8px 12px', margin: '0 0 14px' }}>
+          Click <b style={{ fontWeight: 500 }}>Count</b> on each item and enter how many you have right now (per size for sized gear). Stock is tracked from that moment on.
         </p>
       )}
       {counts.low + counts.out > 0 && (
-        <p style={{ fontSize: 13, color: '#7A1F1F', background: '#FBEAEA', border: '1px solid #F0C9C9', borderRadius: 8, padding: '8px 12px', margin: '0 0 14px' }}>
-          Running low — an <b>Order</b> reminder has been added to the To-do on Home for each item/size. It clears itself once you record the new stock.
+        <p style={{ fontSize: 13, color: 'var(--dp-danger)', background: 'var(--dp-danger-tint)', border: '1px solid #F0C9C9', borderRadius: 8, padding: '8px 12px', margin: '0 0 14px' }}>
+          Running low — an <b style={{ fontWeight: 500 }}>Order</b> reminder has been added to the To-do on Home for each item/size. It clears itself once you record the new stock.
         </p>
       )}
 
       <div style={{ ...styles.filterBar, alignItems: 'center' }}>
         <div style={styles.searchBox}>
-          <Search size={15} color="#8A8D84" />
+          <Search size={15} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Find item…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="dp-select" value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -128,7 +128,7 @@ export default function InventoryPage() {
 
       <div style={styles.card}>
         {filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>{levels.length ? 'No matching items.' : 'No items are being tracked. Click "Choose Items to Track".'}</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>{levels.length ? 'No matching items.' : 'No items are being tracked. Click "Choose Items to Track".'}</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -144,31 +144,31 @@ export default function InventoryPage() {
             </thead>
             <tbody>
               {filtered.map((g) => {
-                const color = g.worst === 'out' ? '#9A2B2B' : g.worst === 'low' ? '#854F0B' : '#20241F';
+                const color = g.worst === 'out' ? 'var(--dp-danger)' : g.worst === 'low' ? 'var(--dp-warning)' : 'var(--dp-ink)';
                 return (
                   <tr key={g.fee_item_id} className="dp-row" data-item={g.name}>
                     <td style={{ fontWeight: 500 }}>
                       {g.name}
-                      {g.description && g.description !== g.name && <div style={{ fontSize: 12, color: '#8A8D84', fontWeight: 400 }}>{g.description}</div>}
+                      {g.description && g.description !== g.name && <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{g.description}</div>}
                     </td>
                     <td>
                       {g.inventory_since == null ? (
-                        <span style={{ color: '#8A8D84', fontSize: 13 }}>not counted{g.sized ? ` · sizes ${g.rows.map((r) => r.size).join(' / ')}` : ''}</span>
+                        <span style={{ color: 'var(--dp-ink-faint)', fontSize: 13 }}>not counted{g.sized ? ` · sizes ${g.rows.map((r) => r.size).join(' / ')}` : ''}</span>
                       ) : g.sized ? (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {g.rows.map((r) => <SizeChip key={r.size} r={r} />)}
                         </div>
                       ) : (
-                        <span style={{ fontSize: 12.5, color: '#8A8D84' }}>no sizes</span>
+                        <span style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>no sizes</span>
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>{money(g.default_amount)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600, color }}>
+                    <td style={{ textAlign: 'right', fontWeight: 500, color }}>
                       {g.total === null ? '—' : g.total}
-                      {!g.sized && g.worst === 'low' && <span style={{ fontSize: 11, fontWeight: 400 }}> low</span>}
+                      {!g.sized && g.worst === 'low' && <span style={{ fontSize: 12, fontWeight: 400 }}> low</span>}
                     </td>
                     <td style={{ textAlign: 'right' }}>{g.sold30 || ''}</td>
-                    <td style={{ color: '#5B5F56' }}>{g.last}</td>
+                    <td style={{ color: 'var(--dp-ink-soft)' }}>{g.last}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                         <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setModal({ mode: 'count', item: g })}><ClipboardCheck size={13} /> Count</button>
@@ -196,16 +196,16 @@ export default function InventoryPage() {
 
 function SizeChip({ r }) {
   const st = status(r);
-  const c = st === 'out' ? ['#FBEAEA', '#9A2B2B'] : st === 'low' ? ['#FAEEDA', '#854F0B'] : ['#F1EFE7', '#20241F'];
+  const c = st === 'out' ? ['var(--dp-danger-tint)', 'var(--dp-danger)'] : st === 'low' ? ['var(--dp-warning-tint)', 'var(--dp-warning)'] : ['var(--dp-canvas)', 'var(--dp-ink)'];
   return (
     <span data-size={r.size} data-status={st} style={{ background: c[0], color: c[1], borderRadius: 6, padding: '2px 7px', fontSize: 12, whiteSpace: 'nowrap' }}>
-      <span style={{ color: '#8A8D84' }}>{r.size || '—'}</span> <b style={{ fontWeight: 600 }}>{r.on_hand === null ? '–' : Number(r.on_hand)}</b>
+      <span style={{ color: 'var(--dp-ink-faint)' }}>{r.size || '—'}</span> <b style={{ fontWeight: 500 }}>{r.on_hand === null ? '–' : Number(r.on_hand)}</b>
     </span>
   );
 }
 
 function Metric({ label, value, tone, onClick }) {
-  const color = tone === 'bad' ? '#9A2B2B' : tone === 'warn' ? '#854F0B' : '#20241F';
+  const color = tone === 'bad' ? 'var(--dp-danger)' : tone === 'warn' ? 'var(--dp-warning)' : 'var(--dp-ink)';
   return (
     <div style={{ ...styles.metricCard, cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
       <p style={styles.metricLabel}>{label}</p>
@@ -247,13 +247,13 @@ function CountModal({ item, onClose, onDone }) {
   }
   return (
     <Modal title={`Count — ${item.name}`} onClose={onClose} maxWidth={460} footer={<><button className="dp-btn" onClick={onClose}>Cancel</button><button className="dp-btn dp-btn-primary" onClick={save}><Check size={15} /> Save</button></>}>
-      <p style={{ fontSize: 13, color: '#5B5F56', marginTop: 0 }}>{first ? 'How many do you have right now? Tracking starts from this count.' : 'Enter what you actually counted.'}</p>
+      <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 0 }}>{first ? 'How many do you have right now? Tracking starts from this count.' : 'Enter what you actually counted.'}</p>
       {sized ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8, marginBottom: 12 }}>
           {item.rows.map((r, i) => (
-            <label key={r.size} style={{ fontSize: 12.5, color: '#5B5F56' }}>
-              Size <b style={{ color: '#20241F' }}>{r.size || '(none)'}</b>
-              {!first && <span style={{ color: '#8A8D84' }}> · {r.on_hand === null ? 'new' : `was ${r.on_hand}`}</span>}
+            <label key={r.size} style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>
+              Size <b style={{ fontWeight: 500, color: 'var(--dp-ink)' }}>{r.size || '(none)'}</b>
+              {!first && <span style={{ color: 'var(--dp-ink-faint)' }}> · {r.on_hand === null ? 'new' : `was ${r.on_hand}`}</span>}
               <input type="number" min="0" autoFocus={i === 0} aria-label={`Size ${r.size}`} className="dp-input" style={{ width: '100%', marginTop: 3 }} value={qty[r.size]} onChange={(e) => setQty((q) => ({ ...q, [r.size]: e.target.value }))} />
             </label>
           ))}
@@ -262,7 +262,7 @@ function CountModal({ item, onClose, onDone }) {
         <Field label={first ? 'On hand now' : `On hand now (system says ${item.rows[0].on_hand})`} required><input type="number" min="0" autoFocus className="dp-input" style={{ width: '100%' }} value={qty['']} onChange={(e) => setQty({ '': e.target.value })} /></Field>
       )}
       <Field label={sized ? 'Warn me when any size is at or below' : 'Warn me when stock is at or below'}><input type="number" min="0" className="dp-input" style={{ width: '100%' }} placeholder="e.g. 3" value={low} onChange={(e) => setLow(e.target.value)} /></Field>
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{error}</p>}
     </Modal>
   );
 }
@@ -296,7 +296,7 @@ function MoveModal({ item, onClose, onDone }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {item.rows.map((r) => (
               <button key={r.size} type="button" className={`dp-btn${size === r.size ? ' dp-btn-primary' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setSize(r.size)}>
-                {r.size} <span style={{ fontSize: 11, opacity: 0.7 }}>({r.on_hand})</span>
+                {r.size} <span style={{ fontSize: 12, opacity: 0.7 }}>({r.on_hand})</span>
               </button>
             ))}
           </div>
@@ -307,8 +307,8 @@ function MoveModal({ item, onClose, onDone }) {
         <Field label="Date"><input type="date" className="dp-input" style={{ width: '100%' }} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
       </div>
       <Field label="Note"><input className="dp-input" style={{ width: '100%' }} placeholder="Supplier, order #, reason…" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
-      <p style={{ fontSize: 12.5, color: '#8A8D84', margin: 0 }}>Sales come off automatically when the item is on an invoice — no need to enter them here.</p>
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: 0 }}>Sales come off automatically when the item is on an invoice — no need to enter them here.</p>
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{error}</p>}
     </Modal>
   );
 }
@@ -334,17 +334,17 @@ function HistoryModal({ item, onClose }) {
   }, [item.fee_item_id]);
   return (
     <Modal title={`History — ${item.name}`} onClose={onClose} maxWidth={680}>
-      {!rows ? <p style={{ fontSize: 14, color: '#5B5F56' }}>Loading…</p> : rows.length === 0 ? <p style={{ fontSize: 14, color: '#5B5F56' }}>Nothing yet.</p> : (
+      {!rows ? <p style={{ fontSize: 14, color: 'var(--dp-ink-soft)' }}>Loading…</p> : rows.length === 0 ? <p style={{ fontSize: 14, color: 'var(--dp-ink-soft)' }}>Nothing yet.</p> : (
         <table className="dp-table">
           <thead><tr><th>Date</th>{sized && <th>Size</th>}<th>What</th><th>Who / note</th><th style={{ textAlign: 'right' }}>Qty</th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.key}>
                 <td>{formatDate(r.date)}</td>
-                {sized && <td>{r.size || <span style={{ color: '#9A2B2B' }}>no size</span>}</td>}
+                {sized && <td>{r.size || <span style={{ color: 'var(--dp-danger)' }}>no size</span>}</td>}
                 <td>{r.what}</td>
-                <td style={{ color: '#5B5F56' }}>{r.who}</td>
-                <td style={{ textAlign: 'right', color: r.qty < 0 ? '#9A2B2B' : '#2A5A30', fontWeight: 500 }}>{r.qty > 0 ? '+' : ''}{r.qty}</td>
+                <td style={{ color: 'var(--dp-ink-soft)' }}>{r.who}</td>
+                <td style={{ textAlign: 'right', color: r.qty < 0 ? 'var(--dp-danger)' : 'var(--dp-success)', fontWeight: 500 }}>{r.qty > 0 ? '+' : ''}{r.qty}</td>
               </tr>
             ))}
           </tbody>
@@ -375,8 +375,8 @@ function SizesModal({ item, onClose, onDone }) {
         <button type="button" className="dp-btn" style={{ fontSize: 12.5 }} onClick={() => setList('')}>No sizes</button>
       </div>
       <Field label="Sizes, in order (comma separated)"><input className="dp-input" style={{ width: '100%' }} placeholder="e.g. S, M, L" value={list} onChange={(e) => setList(e.target.value)} /></Field>
-      {item.inventory_since != null && <p style={{ fontSize: 12.5, color: '#8A8D84', margin: 0 }}>After changing sizes, use <b>Count</b> to enter how many you have of each new size.</p>}
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}
+      {item.inventory_since != null && <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: 0 }}>After changing sizes, use <b style={{ fontWeight: 500 }}>Count</b> to enter how many you have of each new size.</p>}
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{error}</p>}
     </Modal>
   );
 }
@@ -400,11 +400,11 @@ function TrackModal({ items, onClose, onDone }) {
           <label key={i.id} style={{ display: 'flex', gap: 8, fontSize: 13, padding: '3px 2px' }}>
             <input type="checkbox" checked={sel.has(i.id)} onChange={(e) => { const s = new Set(sel); e.target.checked ? s.add(i.id) : s.delete(i.id); setSel(s); }} />
             <span style={{ fontWeight: 500 }}>{i.name}</span>
-            <span style={{ color: '#8A8D84' }}>{i.description}</span>
+            <span style={{ color: 'var(--dp-ink-faint)' }}>{i.description}</span>
           </label>
         ))}
       </div>
-      <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '8px 0 0' }}>Turn tracking on for things you keep in stock (gear, uniforms, belts). Fees and plans don't need it.</p>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>Turn tracking on for things you keep in stock (gear, uniforms, belts). Fees and plans don't need it.</p>
     </Modal>
   );
 }

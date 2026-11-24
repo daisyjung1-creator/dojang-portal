@@ -65,7 +65,7 @@ export default function StaffHomePage({ setActiveTab }) {
   const TONE = { warn: 'var(--dp-warning)', good: 'var(--dp-success)' };
 
   return (
-    <div style={{ fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)' }}>
+    <div style={{ fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)', fontWeight: 400 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 'var(--dp-text-display)', fontWeight: 700, lineHeight: 1.15, margin: 0 }}>{longDay(today)}</h1>

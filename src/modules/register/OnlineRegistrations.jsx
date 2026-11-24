@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { SCHOOL, INTRO, TERMS, boldParts, EMERGENCY_AUTH, ACKNOWLEDGMENTS, PHOTO_YES, PHOTO_NO, FREQUENCIES } from '../../lib/agreement';
+import { notice } from '../../lib/dialogs';
 
 // Registrations families sent from the public /join form, waiting for review.
 export const JOIN_URL = `${window.location.origin}/join`;
@@ -35,14 +36,14 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
     setAskDismiss(null);
     if (r.card_profile_code) {
       const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'reg_card_remove', registration_id: r.id } });
-      if (error || data?.error) return alert('The saved card could not be deleted from TD: ' + (data?.error || error.message) + '\nNothing was dismissed.');
+      if (error || data?.error) return notice('The saved card could not be deleted from TD: ' + (data?.error || error.message) + '\nNothing was dismissed.', { title: 'Not dismissed' });
     }
     await supabase.from('registrations').update({ status: 'dismissed', handled_at: new Date().toISOString() }).eq('id', r.id);
     setView(null);
     load();
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(JOIN_URL); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', JOIN_URL); }
+    try { await navigator.clipboard.writeText(JOIN_URL); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { notice(JOIN_URL, { title: 'Copy this link' }); }
   };
 
   const list = showDone ? handled : pending;
@@ -133,7 +134,7 @@ function summaryHtml(r) {
 // The full signed agreement as a printable page (Save as PDF to keep a copy).
 export function printAgreement(r) {
   const w = window.open('', '_blank');
-  if (!w) return alert('Allow pop-ups to print.');
+  if (!w) return notice('Allow pop-ups for this site to print the agreement.', { title: 'Pop-up blocked' });
   const terms = TERMS.map(
     (t) => `<h3>${esc(t.title)}</h3>${t.body.map((b) => (typeof b === 'string' ? `<p>${rich(b)}</p>` : `<ul>${b.list.map((x) => `<li>${rich(x)}</li>`).join('')}</ul>`)).join('')}${t.initial ? `<div class="init">Initials: <b>${esc(r.initials?.[t.key] || '____')}</b></div>` : ''}`
   ).join('');

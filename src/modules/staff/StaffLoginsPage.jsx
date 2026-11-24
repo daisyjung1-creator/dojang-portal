@@ -10,9 +10,9 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 // Attendance and Trials — no billing, family contact lists or settings.
 
 const ROLE = {
-  admin: ['Admin — everything', '#4B3A86', '#EEEAF6'],
-  staff: ['Staff — Today, Attendance, Trials', '#2A5A30', '#E8F1E9'],
-  coach: ['Tournament coach', '#1E4566', '#E6F0F6'],
+  admin: ['Admin — everything', 'var(--dp-ink-soft)', 'var(--dp-canvas)'],
+  staff: ['Staff — Today, Attendance, Trials', 'var(--dp-success)', 'var(--dp-success-tint)'],
+  coach: ['Tournament coach', 'var(--dp-info)', 'var(--dp-canvas)'],
 };
 
 async function call(body) {
@@ -78,10 +78,10 @@ export default function StaffLoginsPage() {
         </div>
         <button className="dp-btn dp-btn-primary" onClick={() => setForm({ mode: 'new', name: '', email: '', password: '', msg: '' })}><Plus size={14} /> Add staff login</button>
       </div>
-      {err && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{err}</p>}
+      {err && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{err}</p>}
       <div style={styles.card}>
         {!users ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>{err ? '' : 'Loading…'}</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>{err ? '' : 'Loading…'}</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -100,8 +100,8 @@ export default function StaffLoginsPage() {
                   <tr key={u.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>{u.name || '—'}</td>
                     <td style={{ fontSize: 13 }}>{u.email}</td>
-                    <td><span style={{ fontSize: 11.5, color: r[1], background: r[2], borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{r[0]}</span></td>
-                    <td className="dp-hide-sm" style={{ fontSize: 12.5, color: '#5B5F56' }}>{u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never'}</td>
+                    <td><span style={{ fontSize: 12.5, color: r[1], background: r[2], borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{r[0]}</span></td>
+                    <td className="dp-hide-sm" style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                         <button className="dp-btn" style={{ padding: 6 }} aria-label="Rename" title="Change name" onClick={() => setForm({ mode: 'rename', user: u, name: u.name || '', msg: '' })}><Pencil size={13} /></button>
@@ -148,8 +148,8 @@ export default function StaffLoginsPage() {
               <input className="dp-input" style={{ width: '100%' }} type="text" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value, msg: '' })} />
             </Field>
           )}
-          {form.mode === 'new' && <p style={{ fontSize: 12.5, color: '#8A8D84', margin: 0 }}>The email is just the login name — no email is sent. Sign in on the iPad with this email and password.</p>}
-          {form.msg && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{form.msg}</p>}
+          {form.mode === 'new' && <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: 0 }}>The email is just the login name — no email is sent. Sign in on the iPad with this email and password.</p>}
+          {form.msg && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '8px 0 0' }}>{form.msg}</p>}
         </Modal>
       )}
 

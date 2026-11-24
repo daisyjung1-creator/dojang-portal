@@ -53,11 +53,11 @@ export default function ItemLookup({ onOpenInvoice }) {
 
   return (
     <div style={{ ...styles.card, padding: 16, marginBottom: 18 }}>
-      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Who bought what</div>
-      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>Search invoices by item or service (e.g. uniform, belt test, sparring gear) to see who bought it and when.</p>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Who bought what</div>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>Search invoices by item or service (e.g. uniform, belt test, sparring gear) to see who bought it and when.</p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #DEDACC', borderRadius: 8, padding: '0 10px', background: '#fff', flex: '1 1 240px' }}>
-          <Search size={14} color="#8A8D84" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--dp-line)', borderRadius: 8, padding: '0 10px', background: '#fff', flex: '1 1 240px' }}>
+          <Search size={14} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '8px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Item, service or description…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
         </div>
         <select className="dp-select" value={period} onChange={(e) => { setPeriod(e.target.value); if (e.target.value !== 'custom') setRange(periodRange(e.target.value)); }}>
@@ -89,7 +89,7 @@ export default function ItemLookup({ onOpenInvoice }) {
             )}
           </div>
           {rows.length === 0 ? (
-            <p style={{ fontSize: 13, color: '#8A8D84' }}>Nothing found for "{q}" in this period.</p>
+            <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>Nothing found for "{q}" in this period.</p>
           ) : (
             <div style={{ maxHeight: 420, overflow: 'auto' }}>
               <table className="dp-table">
@@ -100,10 +100,10 @@ export default function ItemLookup({ onOpenInvoice }) {
                   {rows.map((r) => (
                     <tr key={r.id} className="dp-row">
                       <td style={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>{formatDate(r.date)}</td>
-                      <td><button style={{ background: 'none', border: 'none', padding: 0, color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' }} onClick={() => onOpenInvoice && onOpenInvoice(r.invoice_id)}>#{r.number}</button></td>
+                      <td><button style={{ background: 'none', border: 'none', padding: 0, color: 'var(--dp-info)', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' }} onClick={() => onOpenInvoice && onOpenInvoice(r.invoice_id)}>#{r.number}</button></td>
                       <td style={{ fontSize: 13 }}>{r.customer}</td>
                       <td style={{ fontSize: 13 }}>{r.student || '—'}</td>
-                      <td style={{ fontSize: 12.5 }}>{r.item_name && <b>{r.item_name} </b>}<span style={{ color: '#5B5F56' }}>{r.description}</span></td>
+                      <td style={{ fontSize: 12.5 }}>{r.item_name && <b style={{ fontWeight: 500 }}>{r.item_name} </b>}<span style={{ color: 'var(--dp-ink-soft)' }}>{r.description}</span></td>
                       <td style={{ textAlign: 'right' }}>{r.quantity}</td>
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{money(r.amount)}</td>
                       <td style={{ fontSize: 12 }}>{r.status}</td>

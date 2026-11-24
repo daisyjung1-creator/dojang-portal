@@ -117,7 +117,7 @@ export default function ReportsPage() {
         <Metric label={`${MONTHS[selMonth]} net sales (before GST)`} value={money(sel.netSales)} note={sel.refundSales ? `${money(sel.subtotal)} sales − ${money(sel.refundSales)} refunds` : ''} />
         <Metric label={`${MONTHS[selMonth]} net GST collected`} value={money(sel.gst)} note={sel.refundGst ? `${money(sel.grossGst)} − ${money(sel.refundGst)} refunded` : ''} />
         <Metric label={`${MONTHS[selMonth]} received (net)`} value={money(sel.received)} note={sel.refunded ? `${money(sel.paidIn)} in − ${money(sel.refunded)} refunded` : ''} />
-        <div style={styles.metricCard}><p style={styles.metricLabel}>Owing now (all customers)</p><p style={{ ...styles.metricValue, color: totalOwing > 0 ? '#9A2B2B' : '#20241F' }}>{money(totalOwing)}</p></div>
+        <div style={styles.metricCard}><p style={styles.metricLabel}>Owing now (all customers)</p><p style={{ ...styles.metricValue, color: totalOwing > 0 ? 'var(--dp-danger)' : 'var(--dp-ink)' }}>{money(totalOwing)}</p></div>
       </div>
 
       <div style={{ ...styles.card, padding: '16px 16px 8px', marginBottom: 18 }}>
@@ -125,9 +125,9 @@ export default function ReportsPage() {
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 150 }}>
           {rows.map((r, i) => (
             <button key={r.key} onClick={() => setSelMonth(i)} title={`${r.label}: ${money(r.total)}`} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
-              <span style={{ fontSize: 10.5, color: '#5B5F56', marginBottom: 3 }}>{r.total ? '$' + Math.round(r.total / 100) / 10 + 'k' : ''}</span>
-              <span style={{ width: '100%', maxWidth: 40, height: `${(r.total / maxTotal) * 110}px`, minHeight: r.total ? 2 : 0, background: i === selMonth ? '#9A2B2B' : '#C9A9A9', borderRadius: '4px 4px 0 0' }} />
-              <span style={{ fontSize: 11.5, marginTop: 4, color: i === selMonth ? '#20241F' : '#8A8D84', fontWeight: i === selMonth ? 600 : 400 }}>{r.label}</span>
+              <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 3 }}>{r.total ? '$' + Math.round(r.total / 100) / 10 + 'k' : ''}</span>
+              <span style={{ width: '100%', maxWidth: 40, height: `${(r.total / maxTotal) * 110}px`, minHeight: r.total ? 2 : 0, background: i === selMonth ? 'var(--dp-danger)' : '#C9A9A9', borderRadius: '4px 4px 0 0' }} />
+              <span style={{ fontSize: 12.5, marginTop: 4, color: i === selMonth ? 'var(--dp-ink)' : 'var(--dp-ink-faint)', fontWeight: i === selMonth ? 600 : 400 }}>{r.label}</span>
             </button>
           ))}
         </div>
@@ -145,22 +145,22 @@ export default function ReportsPage() {
                   <td style={{ fontWeight: 500 }}>{r.label}</td>
                   <td style={num}>{r.count || ''}</td>
                   <td style={num}>{r.subtotal ? money(r.subtotal) : ''}</td>
-                  <td style={{ ...num, color: '#4B3A86' }}>{r.refundSales ? '-' + money(r.refundSales) : ''}</td>
+                  <td style={{ ...num, color: 'var(--dp-ink-soft)' }}>{r.refundSales ? '-' + money(r.refundSales) : ''}</td>
                   <td style={num}>{r.netSales ? money(r.netSales) : ''}</td>
-                  <td style={{ ...num, color: '#2A5A30' }}>{r.other ? money(r.other) : ''}</td>
+                  <td style={{ ...num, color: 'var(--dp-success)' }}>{r.other ? money(r.other) : ''}</td>
                   <td style={{ ...num, fontWeight: 500 }}>{r.income ? money(r.income) : ''}</td>
                   <td style={num}>{r.gst ? money(r.gst) : ''}</td>
                   <td style={num}>{r.received ? money(r.received) : ''}</td>
-                  <td style={{ ...num, color: r.unpaid ? '#9A2B2B' : undefined }}>{r.unpaid ? money(r.unpaid) : ''}</td>
+                  <td style={{ ...num, color: r.unpaid ? 'var(--dp-danger)' : undefined }}>{r.unpaid ? money(r.unpaid) : ''}</td>
                 </tr>
               ))}
-              <tr style={{ fontWeight: 600 }}>
+              <tr style={{ fontWeight: 500 }}>
                 <td>Total</td>
                 <td style={num}>{sum('count')}</td>
                 <td style={num}>{money(sum('subtotal'))}</td>
-                <td style={{ ...num, color: '#4B3A86' }}>{sum('refundSales') ? '-' + money(sum('refundSales')) : ''}</td>
+                <td style={{ ...num, color: 'var(--dp-ink-soft)' }}>{sum('refundSales') ? '-' + money(sum('refundSales')) : ''}</td>
                 <td style={num}>{money(sum('netSales'))}</td>
-                <td style={{ ...num, color: '#2A5A30' }}>{sum('other') ? money(sum('other')) : ''}</td>
+                <td style={{ ...num, color: 'var(--dp-success)' }}>{sum('other') ? money(sum('other')) : ''}</td>
                 <td style={num}>{money(sum('income'))}</td>
                 <td style={num}>{money(sum('gst'))}</td>
                 <td style={num}>{money(sum('received'))}</td>
@@ -180,26 +180,26 @@ export default function ReportsPage() {
                   <tr key={q.label}>
                     <td>
                       {q.label}
-                      {q.refundGst > 0 && <div style={{ fontSize: 11.5, color: '#8A8D84' }}>{money(q.grossGst)} − {money(q.refundGst)} refunded</div>}
+                      {q.refundGst > 0 && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{money(q.grossGst)} − {money(q.refundGst)} refunded</div>}
                     </td>
                     <td style={num}>{money(q.gst)}</td>
                   </tr>
                 ))}
-                <tr style={{ fontWeight: 600 }}><td>{year} total</td><td style={num}>{money(sum('gst'))}</td></tr>
+                <tr style={{ fontWeight: 500 }}><td>{year} total</td><td style={num}>{money(sum('gst'))}</td></tr>
               </tbody>
             </table>
           </div>
           <div style={styles.card}>
             <p style={{ ...styles.metricLabel, padding: '12px 12px 0' }}>{MONTHS[selMonth]} {year} received by method</p>
             {selMethods.length === 0 ? (
-              <p style={{ padding: '0 12px 12px', fontSize: 13, color: '#8A8D84' }}>No payments.</p>
+              <p style={{ padding: '0 12px 12px', fontSize: 13, color: 'var(--dp-ink-faint)' }}>No payments.</p>
             ) : (
               <table className="dp-table">
                 <tbody>
                   {selMethods.map((m) => (
-                    <tr key={m.method}><td>{m.method} <span style={{ color: '#8A8D84' }}>({m.payment_count})</span></td><td style={num}>{money(m.amount)}</td></tr>
+                    <tr key={m.method}><td>{m.method} <span style={{ color: 'var(--dp-ink-faint)' }}>({m.payment_count})</span></td><td style={num}>{money(m.amount)}</td></tr>
                   ))}
-                  {sel.refunded > 0 && <tr><td style={{ color: '#4B3A86' }}>Refunds paid out</td><td style={{ ...num, color: '#4B3A86' }}>-{money(sel.refunded)}</td></tr>}
+                  {sel.refunded > 0 && <tr><td style={{ color: 'var(--dp-ink-soft)' }}>Refunds paid out</td><td style={{ ...num, color: 'var(--dp-ink-soft)' }}>-{money(sel.refunded)}</td></tr>}
                 </tbody>
               </table>
             )}
@@ -210,7 +210,7 @@ export default function ReportsPage() {
       <div style={{ ...styles.card, marginTop: 18 }}>
         <p style={{ ...styles.metricLabel, padding: '12px 12px 0' }}>Unpaid accounts</p>
         {owing.length === 0 ? (
-          <p style={{ padding: '0 12px 12px', fontSize: 13, color: '#8A8D84' }}>Nobody owes anything.</p>
+          <p style={{ padding: '0 12px 12px', fontSize: 13, color: 'var(--dp-ink-faint)' }}>Nobody owes anything.</p>
         ) : (
           <table className="dp-table">
             <thead><tr><th>Customer</th><th>Email</th><th>Phone</th><th>Last invoice</th><th style={num}>Owing</th></tr></thead>
@@ -221,7 +221,7 @@ export default function ReportsPage() {
                   <td>{r.customer?.email}</td>
                   <td>{r.customer?.phone}</td>
                   <td>{r.last_invoice_date}</td>
-                  <td style={{ ...num, color: '#9A2B2B' }}>{money(r.balance)}</td>
+                  <td style={{ ...num, color: 'var(--dp-danger)' }}>{money(r.balance)}</td>
                 </tr>
               ))}
             </tbody>
@@ -237,7 +237,7 @@ function Metric({ label, value, note }) {
     <div style={styles.metricCard}>
       <p style={styles.metricLabel}>{label}</p>
       <p style={styles.metricValue}>{value}</p>
-      {note && <p style={{ fontSize: 11.5, color: '#8A8D84', margin: '4px 0 0' }}>{note}</p>}
+      {note && <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: '4px 0 0' }}>{note}</p>}
     </div>
   );
 }
@@ -264,7 +264,7 @@ function OtherIncomeCard({ year, list, onChanged }) {
     setErr('');
     onChanged();
   }
-  const lbl = { fontSize: 11.5, color: '#5B5F56', display: 'block', marginTop: 6 };
+  const lbl = { fontSize: 12.5, color: 'var(--dp-ink-soft)', display: 'block', marginTop: 6 };
   return (
     <div style={styles.card}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 12px 0' }}>
@@ -281,7 +281,7 @@ function OtherIncomeCard({ year, list, onChanged }) {
           </div>
           <label style={lbl}>Students / note</label>
           <input className="dp-input" style={{ width: '100%' }} placeholder="e.g. Arkan, Naija, Robsan Hamid" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
-          {err && <p style={{ color: '#9A2B2B', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+          {err && <p style={{ color: 'var(--dp-danger)', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
             <button className="dp-btn" onClick={() => { setForm(null); setErr(''); }}>Cancel</button>
             <button className="dp-btn dp-btn-primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
@@ -289,7 +289,7 @@ function OtherIncomeCard({ year, list, onChanged }) {
         </div>
       )}
       {list.length === 0 ? (
-        !form && <p style={{ padding: '6px 12px 12px', fontSize: 13, color: '#8A8D84' }}>None yet. Add KidSport cheques here so they count as income.</p>
+        !form && <p style={{ padding: '6px 12px 12px', fontSize: 13, color: 'var(--dp-ink-faint)' }}>None yet. Add KidSport cheques here so they count as income.</p>
       ) : (
         <table className="dp-table">
           <tbody>
@@ -297,7 +297,7 @@ function OtherIncomeCard({ year, list, onChanged }) {
               <tr key={x.id}>
                 <td>
                   {x.source}{x.reference ? ` · #${x.reference}` : ''}
-                  <div style={{ fontSize: 11.5, color: '#8A8D84' }}>{formatDate(x.received_on)}{x.note ? ` · ${x.note}` : ''}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{formatDate(x.received_on)}{x.note ? ` · ${x.note}` : ''}</div>
                 </td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {money(x.amount)}
@@ -305,7 +305,7 @@ function OtherIncomeCard({ year, list, onChanged }) {
                 </td>
               </tr>
             ))}
-            <tr style={{ fontWeight: 600 }}><td>{year} total</td><td style={{ textAlign: 'right' }}>{money(total)}</td></tr>
+            <tr style={{ fontWeight: 500 }}><td>{year} total</td><td style={{ textAlign: 'right' }}>{money(total)}</td></tr>
           </tbody>
         </table>
       )}

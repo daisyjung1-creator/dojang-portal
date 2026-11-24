@@ -43,10 +43,10 @@ export default function TapeList({ student, onChange, editable = true }) {
     <div data-testid="tape-list" data-count={earned}>
       <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 10 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, flex: 1 }}>Curriculum tapes on {belt}</h2>
-        <span style={{ fontSize: 13, color: earned >= TAPE_COUNT ? '#2A5A30' : '#5B5F56', fontWeight: earned >= TAPE_COUNT ? 600 : 400 }}>{earned} of {TAPE_COUNT} earned</span>
+        <span style={{ fontSize: 13, color: earned >= TAPE_COUNT ? 'var(--dp-success)' : 'var(--dp-ink-soft)', fontWeight: earned >= TAPE_COUNT ? 600 : 400 }}>{earned} of {TAPE_COUNT} earned</span>
       </div>
       {!rows ? (
-        <p style={{ fontSize: 13, color: '#8A8D84' }}>Loading…</p>
+        <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>Loading…</p>
       ) : (
         <div style={{ display: 'grid', gap: 6 }}>
           {TAPES.map((t) => {
@@ -76,8 +76,8 @@ export default function TapeList({ student, onChange, editable = true }) {
               >
                 <span style={{ width: 6, alignSelf: 'stretch', minHeight: 30, borderRadius: 3, background: t.color, border: t.id === 'white' ? '1px solid #BDB9AC' : 'none' }} />
                 <span style={{ flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600, color: '#20241F' }}>{t.label} tape</span>
-                  <span style={{ display: 'block', fontSize: 12.5, color: '#8A8D84' }}>{on ? `Earned ${formatDate(rows[t.id])}` : editable ? 'Tap when earned' : 'Not yet'}</span>
+                  <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600, color: 'var(--dp-ink)' }}>{t.label} tape</span>
+                  <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{on ? `Earned ${formatDate(rows[t.id])}` : editable ? 'Tap when earned' : 'Not yet'}</span>
                 </span>
                 <span
                   style={{
@@ -98,7 +98,7 @@ export default function TapeList({ student, onChange, editable = true }) {
           })}
         </div>
       )}
-      {err && <p style={{ fontSize: 12.5, color: '#9A2B2B' }}>{err}</p>}
+      {err && <p style={{ fontSize: 12.5, color: 'var(--dp-danger)' }}>{err}</p>}
     </div>
   );
 }

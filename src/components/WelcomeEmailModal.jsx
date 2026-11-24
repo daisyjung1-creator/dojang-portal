@@ -63,13 +63,13 @@ export default function WelcomeEmailModal({ student, students: many, onClose, on
         </>
       }
     >
-      {student.welcome_sent_at && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '0 0 10px' }}>Already sent on {new Date(student.welcome_sent_at).toLocaleDateString('en-CA')}.</p>}
+      {student.welcome_sent_at && <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '0 0 10px' }}>Already sent on {new Date(student.welcome_sent_at).toLocaleDateString('en-CA')}.</p>}
       <Field label="To (comma-separated)"><input className="dp-input" style={{ width: '100%' }} value={state.to} onChange={(e) => setState({ ...state, to: e.target.value })} /></Field>
       <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={state.subject} onChange={(e) => setState({ ...state, subject: e.target.value })} /></Field>
       <Field label="Message (edit for this family if needed)">
         <textarea className="dp-input" rows={16} style={{ width: '100%', resize: 'vertical', fontSize: 13, lineHeight: 1.5 }} value={state.message} onChange={(e) => setState({ ...state, message: e.target.value })} />
       </Field>
-      {state.error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: 0 }}>{state.error}</p>}
+      {state.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: 0 }}>{state.error}</p>}
     </Modal>
   );
 }
