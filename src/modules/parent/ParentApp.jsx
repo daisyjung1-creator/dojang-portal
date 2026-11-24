@@ -306,6 +306,7 @@ function ParentPortal({ onSignOut }) {
       {modal?.kind === 'test' && <TestModal d={d} student={modal.student} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'signup' && <SignUpModal d={d} event={modal.event} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'invoice' && <DocModal title={`Invoice #${modal.invoice.invoice_number}`} onClose={() => setModal(null)} doc={<InvoiceDoc d={d} invoice={modal.invoice} />} />}
+      {modal?.kind === 'many' && <DocModal title={modal.title} onClose={() => setModal(null)} doc={<>{modal.docs.map((doc, i) => <div key={i} style={{ breakAfter: 'page', pageBreakAfter: 'always' }}>{doc}</div>)}</>} />}
       {modal?.kind === 'receipt' && <DocModal title={`Receipt #${modal.payment.receipt_number}`} onClose={() => setModal(null)} doc={<ReceiptDoc d={d} payment={modal.payment} />} />}
     </Shell>
   );
@@ -671,28 +672,36 @@ function Billing({ d, open, onDoc }) {
         {(d.cards || []).length > 0 && <p style={{ fontSize: 16, color: C.faint, margin: '8px 0 0' }}>You can add cards and choose which one is used for tuition. A card can be removed only when you have another card saved.</p>}
       </div>
 
-      <div style={card}>
-        <h2 style={h2}><Receipt size={17} /> Payments & receipts</h2>
-        {d.payments.length === 0 ? (
-          <p style={{ margin: 0, color: C.soft, fontSize: 16 }}>No payments yet.</p>
-        ) : (
-          d.payments.slice(0, 60).map((p) => (
-            <Row key={p.id}>
-              <div style={{ flex: 1 }}>
-                {fdate(p.payment_date)} <span style={{ color: C.soft }}>· Receipt #{p.receipt_number}</span>
-                <div style={{ fontSize: 16, color: C.faint }}>{p.method}</div>
-              </div>
-              <div style={{ fontWeight: 600, marginRight: 8 }}>{money(p.amount)}</div>
-              <button style={{ ...btn, padding: '8px 14px', fontSize: 16 }} onClick={() => onDoc({ kind: 'receipt', payment: p })}>Receipt</button>
-            </Row>
-          ))
+      <DocList
+        testid="receipts"
+        title="Payments & receipts"
+        icon={Receipt}
+        noun="receipt"
+        empty="No payments yet."
+        items={[...d.payments].sort((a, b) => (a.payment_date < b.payment_date ? 1 : a.payment_date > b.payment_date ? -1 : Number(b.receipt_number) - Number(a.receipt_number)))}
+        dateOf={(p) => p.payment_date}
+        row={(p) => (
+          <Row key={p.id}>
+            <div style={{ flex: 1 }}>
+              {fdate(p.payment_date)} <span style={{ color: C.soft }}>· Receipt #{p.receipt_number}</span>
+              <div style={{ fontSize: 16, color: C.faint }}>{p.method}</div>
+            </div>
+            <div style={{ fontWeight: 600, marginRight: 8 }}>{money(p.amount)}</div>
+            <button style={{ ...btn, padding: '8px 14px', fontSize: 16 }} onClick={() => onDoc({ kind: 'receipt', payment: p })}>Receipt</button>
+          </Row>
         )}
-      </div>
+        onDownload={(list, label) => onDoc({ kind: 'many', title: `Receipts — ${label}`, docs: list.map((p) => <ReceiptDoc key={p.id} d={d} payment={p} />) })}
+      />
 
       {paid.length > 0 && (
-        <div style={card}>
-          <h2 style={h2}><FileText size={17} /> Past invoices</h2>
-          {paid.slice(0, 60).map((i) => (
+        <DocList
+          testid="past-invoices"
+          title="Past invoices"
+          icon={FileText}
+          noun="invoice"
+          items={[...paid].sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : a.invoice_date > b.invoice_date ? -1 : Number(b.invoice_number) - Number(a.invoice_number)))}
+          dateOf={(i) => i.invoice_date}
+          row={(i) => (
             <Row key={i.id}>
               <div style={{ flex: 1 }}>
                 Invoice #{i.invoice_number} <span style={{ color: C.soft }}>· {fdate(i.invoice_date)}</span>
@@ -700,13 +709,59 @@ function Billing({ d, open, onDoc }) {
               <div style={{ marginRight: 8 }}>{money(i.total)}</div>
               <button style={{ ...btn, padding: '8px 14px', fontSize: 16 }} onClick={() => onDoc({ kind: 'invoice', invoice: i })}>View</button>
             </Row>
-          ))}
-        </div>
+          )}
+          onDownload={(list, label) => onDoc({ kind: 'many', title: `Invoices — ${label}`, docs: list.map((i) => <InvoiceDoc key={i.id} d={d} invoice={i} />) })}
+        />
       )}
     </>
   );
 }
 const h2 = { fontSize: 20, fontWeight: 700, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 };
+
+// Receipts / invoices, newest first. The latest few show; past that, pick
+// dates (or a year) to list older ones and download them all as one PDF.
+const RECENT = 5;
+const MAX_DOWNLOAD = 60;
+function DocList({ testid, title, icon: Icon, noun, empty, items, dateOf, row, onDownload }) {
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const years = [...new Set(items.map((x) => (dateOf(x) || '').slice(0, 4)).filter(Boolean))];
+  const many = items.length > RECENT;
+  const ranged = many && (from || to);
+  const inRange = items.filter((x) => (!from || dateOf(x) >= from) && (!to || dateOf(x) <= to));
+  const shown = ranged ? inRange : items.slice(0, RECENT);
+  const label = from && to && from.slice(0, 4) === to.slice(0, 4) && from.endsWith('-01-01') && to.endsWith('-12-31') ? from.slice(0, 4) : `${from ? fdate(from) : 'start'} – ${to ? fdate(to) : 'today'}`;
+  const pickYear = (y) => { setFrom(`${y}-01-01`); setTo(`${y}-12-31`); };
+  const chip = (on) => ({ ...btn, padding: '6px 12px', fontSize: 15, ...(on ? { background: C.ink, color: '#fff', border: `1px solid ${C.ink}` } : {}) });
+  return (
+    <div style={card} data-testid={testid}>
+      <h2 style={h2}><Icon size={17} /> {title}</h2>
+      {items.length === 0 && <p style={{ margin: 0, color: C.soft, fontSize: 16 }}>{empty}</p>}
+      {many && (
+        <div style={{ background: C.bg, borderRadius: 10, padding: '10px 12px', marginBottom: 6 }}>
+          <div style={{ fontSize: 15, color: C.soft, marginBottom: 6 }}>{ranged ? `${inRange.length} ${noun}${inRange.length === 1 ? '' : 's'} from ${label}` : `Showing the latest ${RECENT} of ${items.length}. Pick dates to find older ${noun}s or download them.`}</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            {years.map((y) => <button key={y} type="button" style={chip(from === `${y}-01-01` && to === `${y}-12-31`)} onClick={() => pickYear(y)}>{y}</button>)}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 15, color: C.soft }}>From <input type="date" aria-label={`${title} from`} style={{ ...input, width: 'auto', display: 'inline-block', padding: '7px 8px' }} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
+            <label style={{ fontSize: 15, color: C.soft }}>To <input type="date" aria-label={`${title} to`} style={{ ...input, width: 'auto', display: 'inline-block', padding: '7px 8px' }} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
+            {ranged && <button type="button" style={{ ...btn, padding: '7px 12px', fontSize: 15 }} onClick={() => { setFrom(''); setTo(''); }}>Latest only</button>}
+          </div>
+          {ranged && inRange.length > 0 && (
+            <button type="button" style={{ ...primary, marginTop: 10 }} disabled={inRange.length > MAX_DOWNLOAD} onClick={() => onDownload([...inRange].reverse(), label)}>
+              <Download size={16} /> Download {inRange.length} {noun}{inRange.length === 1 ? '' : 's'} (PDF)
+            </button>
+          )}
+          {ranged && inRange.length > MAX_DOWNLOAD && <div style={{ fontSize: 14, color: C.red, marginTop: 6 }}>Up to {MAX_DOWNLOAD} at a time — please pick a shorter range.</div>}
+        </div>
+      )}
+      {ranged && !inRange.length && <p style={{ margin: '8px 0 0', color: C.soft, fontSize: 16 }}>No {noun}s in these dates.</p>}
+      {shown.map(row)}
+    </div>
+  );
+}
+
 function Row({ children }) {
   return <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderTop: `1px solid ${C.line}`, fontSize: 16, flexWrap: 'wrap' }}>{children}</div>;
 }
