@@ -4,6 +4,10 @@ import { TAPES, TAPE_COUNT, hasTapes, setTape } from '../lib/tapes';
 
 // The 7 curriculum tapes for one student's current belt. Tap a tape to tick
 // or untick it (instructors and the admin).
+// Not earned yet: the tape's own colour, faint, with a dashed edge in that colour,
+// so every slot shows which tape it is.
+const faint = (t) => ({ background: `${t.color}2E`, border: `dashed ${t.id === 'white' ? '#BDB9AC' : `${t.border}B3`}` });
+
 export default function TapeTracker({ student, earned, onChange, size = 'md', editable = true, showCount = true }) {
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
@@ -56,8 +60,8 @@ export default function TapeTracker({ student, earned, onChange, size = 'md', ed
               padding: 0,
               borderRadius: 3,
               cursor: editable ? 'pointer' : 'default',
-              border: `1.5px ${on ? 'solid' : 'dashed'} ${on ? t.border : '#CFCBBE'}`,
-              background: on ? t.color : 'transparent',
+              border: on ? `1.5px solid ${t.border}` : `1.5px ${faint(t).border}`,
+              background: on ? t.color : faint(t).background,
               opacity: busy === t.id ? 0.5 : 1,
               display: 'inline-flex',
               alignItems: 'center',
@@ -65,7 +69,7 @@ export default function TapeTracker({ student, earned, onChange, size = 'md', ed
             }}
           >
             {touch ? (
-              <span style={{ width: w, height: h, borderRadius: 4, border: `2px ${on ? 'solid' : 'dashed'} ${on ? t.border : '#BDB9AC'}`, background: on ? t.color : 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ width: w, height: h, borderRadius: 4, border: on ? `2px solid ${t.border}` : `2px ${faint(t).border}`, background: on ? t.color : faint(t).background, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                 {on && <Check size={15} color={t.text} strokeWidth={3} />}
               </span>
             ) : on && big && <Check size={13} color={t.text} />}
