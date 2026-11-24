@@ -260,3 +260,12 @@ table.dp-table td {
 @media (max-width: 820px) {
   .dp-student-split { grid-template-columns: minmax(0, 1fr) !important; }
 }
+
+/* Kiosk tiles: visible keyboard focus, pressed feedback on touch */
+.dp-kiosk-tap:focus-visible {
+  outline: 3px solid var(--dp-ink);
+  outline-offset: -3px;
+}
+.dp-kiosk-tap:active {
+  filter: brightness(0.96);
+}
