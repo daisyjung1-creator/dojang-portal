@@ -366,7 +366,7 @@ function Kids({ d, onAbsence, onTest }) {
               <div style={{ height: 6, background: '#F1EFE7', borderRadius: 3, margin: '5px 0 4px', overflow: 'hidden' }}>
                 <div style={{ width: `${Math.min(100, (n / MIN_CLASSES) * 100)}%`, height: '100%', background: n >= MIN_CLASSES ? C.green : C.red }} />
               </div>
-              <TestStatus d={d} s={s} n={n} onHold={onHold} onTest={onTest} />
+              <TestStatus d={d} s={s} n={n} tapes={tapes.size} onHold={onHold} onTest={onTest} />
             </Section>
 
             <Section title="Recent classes">
@@ -402,11 +402,13 @@ function Kids({ d, onAbsence, onTest }) {
 
 // Belt test: how close the child is, and registration once eligible.
 const INVITE_ONLY = ['Black Stripe 4', 'Black Belt 1st Dan', 'Black Belt 2nd Dan', 'Black Belt 3rd Dan'];
-function TestStatus({ d, s, n, onHold, onTest }) {
+function TestStatus({ d, s, n, tapes, onHold, onTest }) {
   const nt = d.next_test;
   const today = todayISO();
   const entry = (d.test_entries || []).find((e) => e.student_id === s.id);
   const need = Math.max(0, MIN_CLASSES - n);
+  const needTapes = hasTapes(s.belt) ? Math.max(0, TAPE_COUNT - tapes) : 0;
+  const missing = [need && `${need} more class${need === 1 ? '' : 'es'}`, needTapes && `${needTapes} more tape${needTapes === 1 ? '' : 's'}`].filter(Boolean).join(' and ');
   const box = (bg, c) => ({ fontSize: 13.5, padding: '8px 10px', borderRadius: 8, background: bg, color: c, marginTop: 6 });
   if (entry)
     return (
@@ -416,19 +418,20 @@ function TestStatus({ d, s, n, onHold, onTest }) {
       </div>
     );
   if (!nt)
-    return <div style={{ fontSize: 13, color: C.soft }}>{need ? `${need} more class${need === 1 ? '' : 'es'} to be eligible for the next belt test.` : 'Eligible for the next belt test ✓'} The next test date will be posted soon.</div>;
+    return <div style={{ fontSize: 13, color: C.soft }}>{missing ? `${missing} to be eligible for the next belt test.` : 'Eligible for the next belt test ✓'} The next test date will be posted soon.</div>;
   if (INVITE_ONLY.includes(s.belt))
     return <div style={{ fontSize: 13, color: C.soft }}>Next belt test: {fdate(nt.date)}. Black belt testing is by invitation from Master Daisy.</div>;
-  if (need > 0)
+  if (missing)
     return (
       <div style={{ fontSize: 13, color: C.soft }} data-testid="test-need">
-        <b style={{ color: C.ink, fontWeight: 600 }}>{need} more class{need === 1 ? '' : 'es'}</b> to be eligible for the belt test on {fdate(nt.date)}.
+        <b style={{ color: C.ink, fontWeight: 600 }}>{missing}</b> to be eligible for the belt test on {fdate(nt.date)}.
+        <div style={{ fontSize: 12, color: C.faint }}>To test: {MIN_CLASSES} classes since the last test{hasTapes(s.belt) ? ` and all ${TAPE_COUNT} curriculum tapes` : ''}.</div>
       </div>
     );
   const open = nt.date > today && !onHold;
   return (
     <div style={box('#FDF6E3', '#6B4B0B')} data-testid="test-ready">
-      <b>Ready for the belt test on {fdate(nt.date)}</b> — {MIN_CLASSES}+ classes ✓
+      <b>Ready for the belt test on {fdate(nt.date)}</b> — {MIN_CLASSES}+ classes ✓{hasTapes(s.belt) ? ` · ${TAPE_COUNT} tapes ✓` : ''}
       {open ? (
         <button style={{ ...primary, marginTop: 8, width: '100%', justifyContent: 'center' }} onClick={() => onTest(s)}>
           <Award size={16} /> Register for the belt test
