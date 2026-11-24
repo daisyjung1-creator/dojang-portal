@@ -71,7 +71,7 @@ export default function PayPage({ token }) {
       .then(() => {
         const c = window.customcheckout();
         cc.current = c;
-        const style = { style: { base: { fontSize: '16px', color: C.ink, fontFamily: 'Helvetica, Arial, sans-serif' }, error: { color: C.red } } };
+        const style = { style: { base: { fontSize: '16px', color: '#20241F', fontFamily: 'Helvetica, Arial, sans-serif' }, error: { color: '#9A2B2B' } } };
         const fields = [
           ['card-number', { ...style, placeholder: '1234 5678 9012 3456', brands: ['visa', 'mastercard', 'amex'] }],
           ['expiry', { ...style, placeholder: 'MM / YY' }],
@@ -126,11 +126,11 @@ export default function PayPage({ token }) {
   return (
     <Page subtitle="Pay your invoice">
       {!inv && !err && <p style={{ color: C.soft }}>Loading…</p>}
-      {!inv && err && <div style={{ ...box, color: C.red }}>{err}</div>}
+      {!inv && err && <div style={{ ...box, color: C.danger }}>{err}</div>}
       {inv && (
         <>
           {inv.mode === 'test' && (
-            <div style={{ ...box, background: '#FFF6E0', borderColor: '#F0D9A8', marginBottom: 14, fontSize: 13.5 }}>
+            <div style={{ ...box, background: '#FFF6E0', borderColor: '#F0D9A8', marginBottom: 14, fontSize: 14 }}>
               <b>Test mode</b> — no real money is charged and nothing is recorded on the invoice. Use the test card 4030 0000 1000 1234, any future expiry, CVV 123.
             </div>
           )}
@@ -156,11 +156,11 @@ export default function PayPage({ token }) {
                   <span style={{ whiteSpace: 'nowrap' }}>{money(l.amount)}</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, color: C.soft, paddingTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: C.soft, paddingTop: 4 }}>
                 <span>GST</span>
                 <span>{money(inv.gst)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5, fontWeight: 700, paddingTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, paddingTop: 4 }}>
                 <span>Total</span>
                 <span>{money(inv.total)}</span>
               </div>
@@ -170,7 +170,7 @@ export default function PayPage({ token }) {
           {done ? (
             <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Thank you — payment received!</div>
-              <p style={{ fontSize: 14.5, margin: '8px 0 0', lineHeight: 1.55 }}>
+              <p style={{ fontSize: 16, margin: '8px 0 0', lineHeight: 1.55 }}>
                 {money(done.amount)} was charged{done.card ? ` to the card ending ${done.card}` : ''}.
                 {done.auto && !done.auto.error ? (done.auto.saved ? ` Your card is saved for automatic tuition; the next charge is on ${fdate(done.auto.first)}. A receipt is emailed after each charge.` : ` Automatic tuition is set up: ${money(done.auto.amount)} ${done.auto.months === 3 ? 'every 3 months' : 'every month'} from ${fdate(done.auto.first)}. A receipt is emailed after each charge.`) : ''}
                 {done.auto?.error ? ' (Automatic tuition could not be set up — the Dojang has been notified and will contact you.)' : ''}
@@ -187,23 +187,23 @@ export default function PayPage({ token }) {
               <In label="Name on card" placeholder="As shown on the card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
               <div style={lbl}>Card number</div>
               <div id="cc-card-number" style={fieldBox} />
-              {fieldErr['card-number'] && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr['card-number']}</div>}
+              {fieldErr['card-number'] && <div style={{ color: C.danger, fontSize: 13, marginTop: 4 }}>{fieldErr['card-number']}</div>}
               <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={lbl}>Expiry</div>
                   <div id="cc-expiry" style={fieldBox} />
-                  {fieldErr.expiry && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr.expiry}</div>}
+                  {fieldErr.expiry && <div style={{ color: C.danger, fontSize: 13, marginTop: 4 }}>{fieldErr.expiry}</div>}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={lbl}>CVV</div>
                   <div id="cc-cvv" style={fieldBox} />
-                  {fieldErr.cvv && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr.cvv}</div>}
+                  {fieldErr.cvv && <div style={{ color: C.danger, fontSize: 13, marginTop: 4 }}>{fieldErr.cvv}</div>}
                 </div>
               </div>
               <p style={{ fontSize: 13, color: C.soft, margin: '10px 0 0' }}>Credit cards only. Debit cards (including Visa Debit and Debit Mastercard) can't be used.</p>
               {inv.auto && (
                 <div style={{ marginTop: 14, padding: '12px 12px', border: `1px solid ${saveCard ? C.ink : C.line}`, borderRadius: 10, background: saveCard ? '#fff' : C.paper }}>
-                  <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 15, cursor: 'pointer', fontWeight: 600 }}>
+                  <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 16, cursor: 'pointer', fontWeight: 600 }}>
                     <input type="checkbox" checked={saveCard} onChange={(e) => setSaveCard(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2, flex: 'none' }} />
                     <span>
                       {inv.auto.replace ? 'Use this card for future tuition' : 'Pay tuition automatically with this card'}
@@ -216,11 +216,11 @@ export default function PayPage({ token }) {
                       </span>
                     </span>
                   </label>
-                  {(saveCard || inv.auto_required) && <p style={{ fontSize: 12.5, color: C.soft, lineHeight: 1.55, margin: '8px 0 0 28px' }}>{SAVE_CONSENT}</p>}
-                  {inv.auto_required && !saveCard && <p style={{ fontSize: 13, color: C.red, margin: '8px 0 0 28px', fontWeight: 600 }}>Required: your membership is paid by pre-authorized credit card. Please tick the box to agree to automatic tuition payments.</p>}
+                  {(saveCard || inv.auto_required) && <p style={{ fontSize: 14, color: C.soft, lineHeight: 1.55, margin: '8px 0 0 28px' }}>{SAVE_CONSENT}</p>}
+                  {inv.auto_required && !saveCard && <p style={{ fontSize: 13, color: C.danger, margin: '8px 0 0 28px', fontWeight: 600 }}>Required: your membership is paid by pre-authorized credit card. Please tick the box to agree to automatic tuition payments.</p>}
                 </div>
               )}
-              {err && <div style={{ color: C.red, fontSize: 14, marginTop: 12 }}>{err}</div>}
+              {err && <div style={{ color: C.danger, fontSize: 14, marginTop: 12 }}>{err}</div>}
               <button
                 type="button"
                 disabled={!allReady || busy}
@@ -229,7 +229,7 @@ export default function PayPage({ token }) {
               >
                 {busy ? 'Processing…' : saveCard ? `Pay ${money(inv.balance)} and ${inv.auto?.replace ? 'save this card' : 'set up automatic tuition'}` : `Pay ${money(inv.balance)}`}
               </button>
-              <p style={{ fontSize: 12, color: C.faint, margin: '10px 0 0', lineHeight: 1.5 }}>
+              <p style={{ fontSize: 13, color: C.faint, margin: '10px 0 0', lineHeight: 1.5 }}>
                 Card details are entered on TD Online Mart's secure form and are never stored by the Dojang. A receipt is emailed after payment.
               </p>
             </div>

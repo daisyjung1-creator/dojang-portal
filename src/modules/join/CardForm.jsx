@@ -24,7 +24,7 @@ const CardForm = forwardRef(function CardForm({ onSave, replaceLast4, consentNot
       .then(() => {
         const c = window.customcheckout();
         cc.current = c;
-        const style = { style: { base: { fontSize: '16px', color: C.ink, fontFamily: 'Helvetica, Arial, sans-serif' }, error: { color: C.red } } };
+        const style = { style: { base: { fontSize: '16px', color: '#20241F', fontFamily: 'Helvetica, Arial, sans-serif' }, error: { color: '#9A2B2B' } } };
         [
           ['card-number', { ...style, placeholder: '1234 5678 9012 3456', brands: ['visa', 'mastercard', 'amex'] }],
           ['expiry', { ...style, placeholder: 'MM / YY' }],
@@ -94,21 +94,21 @@ const CardForm = forwardRef(function CardForm({ onSave, replaceLast4, consentNot
   return (
     <div style={box}>
       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{title}</div>
-      {replaceLast4 && <p style={{ fontSize: 13.5, color: C.soft, margin: '0 0 10px' }}>This replaces the saved card ending {replaceLast4}.</p>}
+      {replaceLast4 && <p style={{ fontSize: 14, color: C.soft, margin: '0 0 10px' }}>This replaces the saved card ending {replaceLast4}.</p>}
       <In label="Name on card" placeholder="As shown on the card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
       <div style={lbl}>Card number</div>
       <div id="cc-card-number" style={fieldBox} />
-      {fieldErr['card-number'] && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr['card-number']}</div>}
+      {fieldErr['card-number'] && <div style={{ color: C.danger, fontSize: 13, marginTop: 4 }}>{fieldErr['card-number']}</div>}
       <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={lbl}>Expiry</div>
           <div id="cc-expiry" style={fieldBox} />
-          {fieldErr.expiry && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr.expiry}</div>}
+          {fieldErr.expiry && <div style={{ color: C.danger, fontSize: 13, marginTop: 4 }}>{fieldErr.expiry}</div>}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={lbl}>CVV</div>
           <div id="cc-cvv" style={fieldBox} />
-          {fieldErr.cvv && <div style={{ color: C.red, fontSize: 13, marginTop: 4 }}>{fieldErr.cvv}</div>}
+          {fieldErr.cvv && <div style={{ color: C.danger, fontSize: 13, marginTop: 4 }}>{fieldErr.cvv}</div>}
         </div>
       </div>
       <p style={{ fontSize: 13, color: C.soft, margin: '10px 0 0' }}>Credit cards only. Debit cards (including Visa Debit and Debit Mastercard) can't be used.</p>
@@ -116,10 +116,10 @@ const CardForm = forwardRef(function CardForm({ onSave, replaceLast4, consentNot
         <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2, flex: 'none' }} />
         <span style={{ lineHeight: 1.5 }}>
           <b>I agree to automatic tuition payments with this card.</b>
-          <span style={{ display: 'block', fontSize: 12.5, color: C.soft, marginTop: 4 }}>{SAVE_CONSENT}{consentNote ? ' ' + consentNote : ''}</span>
+          <span style={{ display: 'block', fontSize: 14, color: C.soft, marginTop: 4 }}>{SAVE_CONSENT}{consentNote ? ' ' + consentNote : ''}</span>
         </span>
       </label>
-      {err && <div style={{ color: C.red, fontSize: 14, marginTop: 12 }}>{err}</div>}
+      {err && <div style={{ color: C.danger, fontSize: 14, marginTop: 12 }}>{err}</div>}
       {!inline && <button
         type="button"
         disabled={!allReady || busy}
@@ -128,7 +128,7 @@ const CardForm = forwardRef(function CardForm({ onSave, replaceLast4, consentNot
       >
         {busy ? 'Saving…' : buttonLabel}
       </button>}
-      <p style={{ fontSize: 12, color: C.faint, margin: '10px 0 0', lineHeight: 1.5 }}>
+      <p style={{ fontSize: 13, color: C.faint, margin: '10px 0 0', lineHeight: 1.5 }}>
         Card details are entered on TD Online Mart's secure form and are never stored by the Dojang.
       </p>
     </div>
