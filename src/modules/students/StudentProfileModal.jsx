@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import TapeList from '../../components/TapeList';
 import BeltWithTapes from '../../components/BeltWithTapes';
+import { CardLinkButton } from '../invoices/CardLink';
 import { hasTapes, loadTapes, TAPE_COUNT } from '../../lib/tapes';
 import StudentFlags from '../../components/StudentFlags';
 import { BELTS } from '../../lib/constants';
@@ -194,7 +195,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <Row k="Every week">
             {plan.length ? (
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {plan.map((c, i) => <Pill key={i} c="#2A5A30" bg="#EEF2EA">{WD[c.weekday]} {shortTime(c.start_time)} · {c.class_name}</Pill>)}
+                {plan.map((c, i) => <Pill key={i} wrap c="#2A5A30" bg="#EEF2EA">{WD[c.weekday]} {shortTime(c.start_time)} · {c.class_name}</Pill>)}
               </span>
             ) : '—'}
           </Row>
@@ -230,6 +231,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
               <>
                 <Row k="Plan">{s.plan || '1 Month'} · {s.tuition ? `${money(s.tuition)}${planMonths(s) > 1 ? ' / 3 months' : ' / month'} + GST` : 'tuition not set'}</Row>
                 <Row k="Pays by">{family?.payment_type === 'manual' ? 'Manual (debit / cash / e-transfer)' : 'Pre-authorized credit card'}</Row>
+                {s.customer_id && <Row k="Card"><FamilyCard customerId={s.customer_id} /></Row>}
                 <Row k="Next billing">{s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? formatDate(next) : '—'}</Row>
                 {s.family_discount && <Row k="Discount">Big family −20%</Row>}
                 {s.subsidy && (
@@ -342,14 +344,14 @@ function Box({ title, action, children }) {
 function Row({ k, children }) {
   return (
     <div style={{ display: 'flex', gap: 10, fontSize: 13, padding: '3px 0', lineHeight: 1.45 }}>
-      <span style={{ width: 120, flexShrink: 0, color: '#8A8D84' }}>{k}</span>
-      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{children}</span>
+      <span style={{ width: 110, flexShrink: 0, color: '#8A8D84' }}>{k}</span>
+      <span style={{ minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}>{children}</span>
     </div>
   );
 }
 
-function Pill({ c, bg, children }) {
-  return <span style={{ fontSize: 11.5, color: c, background: bg, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{children}</span>;
+function Pill({ c, bg, children, wrap }) {
+  return <span style={{ fontSize: 11.5, color: c, background: bg, borderRadius: wrap ? 8 : 999, padding: '2px 8px', whiteSpace: wrap ? 'normal' : 'nowrap', maxWidth: '100%', overflowWrap: 'anywhere' }}>{children}</span>;
 }
 
 // Parent portal login for this family: who has one, and (re)send the invite
@@ -495,6 +497,39 @@ function BeltJourney({ s, since, tapes }) {
           {hint.includes('more') ? `${hint} and ${first} is ready to test for ${next}.`.replace(' and ' + first, `, then ${first}`) : `${first} is ready to test for ${next}.`}
         </p>
       )}
+    </div>
+  );
+}
+
+// Saved card (TD payment profile) for the family, with the same "Change card /
+// Card link" email as the Customers page, and a shortcut to the family's
+// payment settings there.
+function FamilyCard({ customerId }) {
+  const [c, setC] = useState(null);
+  useEffect(() => {
+    supabase.from('customers').select('*').eq('id', customerId).single().then(({ data }) => setC(data || {}));
+  }, [customerId]);
+  if (!c) return <span style={{ color: '#8A8D84' }}>…</span>;
+  return (
+    <div>
+      {c.card_profile_code ? (
+        <div style={{ color: c.card_declined_at ? '#9A2B2B' : '#20241F' }}>
+          {c.card_type || 'Card'} ···{c.card_last4 || '????'}
+          {c.card_expiry ? ` · exp ${String(c.card_expiry).replace(/^(\d\d)(\d\d)$/, '$1/$2')}` : ''}
+          {c.card_profile_mode === 'test' ? ' · TEST' : ''}
+          {c.card_declined_at && <div style={{ fontSize: 12 }}>Declined {String(c.card_declined_at).slice(0, 10)}{c.card_decline_message ? `: ${c.card_decline_message}` : ''}</div>}
+        </div>
+      ) : c.rb_account_id ? (
+        <div>TD Recurring Billing{c.rb_card_last4 ? ` · ···${c.rb_card_last4}` : ''}</div>
+      ) : (
+        <div style={{ color: '#8A8D84' }}>No card saved</div>
+      )}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+        <CardLinkButton customer={c} onSent={(at) => setC((x) => ({ ...x, card_link_sent_at: at }))} />
+        <button type="button" className="dp-btn" style={{ padding: '1px 8px', fontSize: 11.5 }} onClick={() => (window.location.hash = `customers/${customerId}`)}>
+          Payment settings
+        </button>
+      </div>
     </div>
   );
 }

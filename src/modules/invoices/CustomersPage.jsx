@@ -62,6 +62,16 @@ export default function CustomersPage() {
     setStudents(s || []);
   }
 
+  // #customers/<id> (e.g. "Payment settings" on a student page) opens that family.
+  const [openFromLink, setOpenFromLink] = useState(() => (/^#customers\/([0-9a-f-]{8,})/i.exec(window.location.hash) || [])[1] || null);
+  useEffect(() => {
+    if (!openFromLink || !customers.length) return;
+    const c = customers.find((x) => x.id === openFromLink);
+    setOpenFromLink(null);
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#customers`);
+    if (c) openEdit(c);
+  }, [openFromLink, customers, students]);
+
   const studentsByCustomer = useMemo(() => {
     const m = {};
     students.forEach((s) => s.customer_id && (m[s.customer_id] = [...(m[s.customer_id] || []), s]));
