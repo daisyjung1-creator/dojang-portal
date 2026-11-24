@@ -10,6 +10,7 @@ import ReceiptPreview from './ReceiptPreview';
 import { loadInvoiceFull, queueEmail, loadCredit, applyCredit, chargeSavedCards, loadCustomers, loadItems } from './api';
 import { money, formatDate, INVOICE_STATUS_STYLES } from '../../lib/invoiceUtils';
 import { confirmSend } from '../../components/ConfirmSend';
+import { askConfirm } from '../../lib/dialogs';
 
 export function PrintPortal({ children }) {
   const [el] = useState(() => {
@@ -131,7 +132,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                 disabled={charging}
                 title="Charge the card this family saved online (TD Online Mart)"
                 onClick={async () => {
-                  if (!window.confirm(`${invoice.saved_card.legacyPending ? 'This family may still have an active TD Recurring Billing account — make sure it is closed or this charge could be a double charge.\n\n' : ''}Charge ${money(invoice.balance)} to ${invoice.saved_card.type || 'card'} ···${invoice.saved_card.last4 || ''}${invoice.saved_card.mode === 'test' ? ' (TEST account)' : ''}?`)) return;
+                  if (!(await askConfirm(`${invoice.saved_card.legacyPending ? 'This family may still have an active TD Recurring Billing account — make sure it is closed or this charge could be a double charge.\n\n' : ''}Charge ${money(invoice.balance)} to ${invoice.saved_card.type || 'card'} ···${invoice.saved_card.last4 || ''}${invoice.saved_card.mode === 'test' ? ' (TEST account)' : ''}?`, { title: 'Charge saved card', confirmLabel: 'Charge card' }))) return;
                   setCharging(true);
                   try {
                     const r = await chargeSavedCards([invoice.id]);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { HeartPulse, CameraOff } from 'lucide-react';
+import { notice } from '../lib/dialogs';
 
 // Small alerts next to a student's name: medical info coaches should know,
 // and "no photos" when the family said NO to promotional photos/videos.
@@ -12,7 +13,7 @@ export default function StudentFlags({ s, size = 14, style }) {
   return (
     <span style={{ display: 'inline-flex', gap: 4, verticalAlign: 'middle', ...style }}>
       {med && (
-        <span title={`Medical: ${med}`} aria-label={`Medical: ${med}`} style={chip('#FBEAEA', '#9A2B2B')} onClick={(e) => { e.stopPropagation(); window.alert(`${s.name} — medical:\n\n${med}`); }}>
+        <span title={`Medical: ${med}`} aria-label={`Medical: ${med}`} style={chip('#FBEAEA', '#9A2B2B')} onClick={(e) => { e.stopPropagation(); notice(med, { title: `${s.name} — medical` }); }}>
           <HeartPulse size={size - 2} /> Medical
         </span>
       )}

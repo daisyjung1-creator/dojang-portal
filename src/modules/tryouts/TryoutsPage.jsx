@@ -11,6 +11,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import EmailComposeModal from '../../components/EmailComposeModal';
 import { useAuth } from '../../auth/AuthContext';
 import { fillTemplate, tryoutVars, timeLabel, trialFollowup } from '../../lib/emailTemplates';
+import { notice } from '../../lib/dialogs';
 
 const norm = (n) => String(n || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
@@ -204,7 +205,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button className="dp-btn" style={T ? tb : undefined} onClick={async () => { try { await navigator.clipboard.writeText(bookingLink); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', bookingLink); } }}>
+          <button className="dp-btn" style={T ? tb : undefined} onClick={async () => { try { await navigator.clipboard.writeText(bookingLink); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { notice(bookingLink, { title: 'Copy this link' }); } }}>
             {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy link'}
           </button>
           <a className="dp-btn" href={bookingLink} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', ...(T ? tb : {}) }}>Open</a>
