@@ -27,9 +27,11 @@ import JoinPage from './modules/join/JoinPage';
 import TrialPage from './modules/join/TrialPage';
 import PayPage from './modules/join/PayPage';
 import CardPage from './modules/join/CardPage';
+import ParentApp from './modules/parent/ParentApp';
+import EventsPage from './modules/events/EventsPage';
 import { IS_DEMO } from './demo/isDemo';
 
-const TABS = ['home', 'today', 'tapes', 'students', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
+const TABS = ['home', 'today', 'tapes', 'students', 'events', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
 const tabFromHash = () => {
   // #students/<id> = a student's page inside the Students tab.
   const t = decodeURIComponent(window.location.hash.slice(1)).split('/')[0];
@@ -37,7 +39,7 @@ const tabFromHash = () => {
 };
 
 export default function App() {
-  const { session, loading, isAdmin } = useAuth();
+  const { session, loading, isAdmin, role } = useAuth();
   // null = start page (Home for admins). The page is kept in the address
   // (#students) so a refresh stays on it.
   const [activeTab, setActiveTab] = useState(tabFromHash);
@@ -48,7 +50,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     const p = window.location.pathname;
-    if (p === '/join' || p === '/trial' || p.startsWith('/pay/') || p.startsWith('/card/')) return;
+    if (p === '/join' || p === '/trial' || p.startsWith('/pay/') || p.startsWith('/card/') || p.startsWith('/parent')) return;
     const want = activeTab ? `#${activeTab}` : '';
     if (activeTab && window.location.hash.startsWith(`${want}/`)) return; // keep a sub-page (e.g. a student)
     if (window.location.hash !== want) window.history.replaceState(null, '', `${p}${window.location.search}${want}`);
@@ -60,6 +62,8 @@ export default function App() {
   if (publicPath === '/trial') return <TrialPage />;
   if (publicPath.startsWith('/pay/')) return <PayPage token={publicPath.slice(5)} />;
   if (publicPath.startsWith('/card/')) return <CardPage token={publicPath.slice(6)} />;
+  // Parent portal: /parent, and any parent login that lands on the main address.
+  if (publicPath === '/parent' || role === 'parent') return <ParentApp />;
 
   if (loading) {
     return <div style={{ padding: 40, color: '#5B5F56' }}>Loading...</div>;
@@ -68,10 +72,11 @@ export default function App() {
   if (!session) {
     return <LoginPage />;
   }
+  if (!role) return <div style={{ padding: 40, color: '#5B5F56' }}>Loading...</div>;
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
-  const adminOnlyTabs = ['home', 'students', 'email', 'leads', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
+  const adminOnlyTabs = ['home', 'students', 'events', 'email', 'leads', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
   const startTab = activeTab || (isAdmin ? 'home' : 'today');
   const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'today' : isAdmin && startTab === 'today' ? 'home' : isAdmin && startTab === 'tapes' ? 'testing' : startTab;
 
@@ -94,6 +99,7 @@ export default function App() {
         {(effectiveTab === 'leads' || effectiveTab === 'tryouts') && <LeadsTrialsPage view={effectiveTab} setActiveTab={setActiveTab} />}
         {isAdmin && effectiveTab === 'register' && <RegisterPage />}
         {isAdmin && effectiveTab === 'testing' && <TestingPage />}
+        {isAdmin && effectiveTab === 'events' && <EventsPage setActiveTab={setActiveTab} />}
         {!isAdmin && effectiveTab === 'tapes' && <ProgressOverview isAdmin={false} />}
         {isAdmin && effectiveTab === 'payroll' && <PayrollPage />}
         {isAdmin && effectiveTab === 'billing' && <BillingPage />}

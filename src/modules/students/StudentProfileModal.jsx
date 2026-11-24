@@ -214,6 +214,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
               </>
             )}
             {family?.name && <Row k="Family account">{family.name}</Row>}
+            {isAdmin && s.customer_id && <Row k="Parent portal"><ParentInvite customerId={s.customer_id} /></Row>}
           </Box>
         )}
 
@@ -317,4 +318,56 @@ function Row({ k, children }) {
 
 function Pill({ c, bg, children }) {
   return <span style={{ fontSize: 11.5, color: c, background: bg, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{children}</span>;
+}
+
+// Parent portal login for this family: who has one, and (re)send the invite
+// email with a "set your password" link (one per email on the family).
+function ParentInvite({ customerId }) {
+  const [state, setState] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  async function load() {
+    const [{ data: c }, { data: p }] = await Promise.all([
+      supabase.from('customers').select('email, portal_invited_at').eq('id', customerId).single(),
+      supabase.from('profiles').select('id').eq('role', 'parent').eq('customer_id', customerId),
+    ]);
+    setState({ email: c?.email || '', invited: c?.portal_invited_at, logins: (p || []).length });
+  }
+  useEffect(() => {
+    load();
+  }, [customerId]);
+  async function invite() {
+    setBusy(true);
+    setMsg('');
+    const { data, error } = await supabase.functions.invoke('parent-portal', { body: { action: 'invite', customer_id: customerId, origin: window.location.origin } });
+    setBusy(false);
+    let err = error?.message;
+    if (error) {
+      try {
+        const j = await error.context?.json?.();
+        if (j?.error) err = j.error;
+      } catch {
+        /* keep message */
+      }
+    }
+    if (err) return setMsg(err);
+    const parts = [];
+    if (data?.sent?.length) parts.push(`Invite emailed to ${data.sent.join(', ')}.`);
+    (data?.skipped || []).forEach((x) => parts.push(`Not sent to ${x.email}: ${x.reason}.`));
+    setMsg(parts.join(' '));
+    load();
+  }
+  if (!state) return <span style={{ color: '#8A8D84' }}>…</span>;
+  return (
+    <div>
+      <span style={{ color: state.logins ? '#2A5A30' : '#5B5F56' }}>
+        {state.logins ? `${state.logins} login${state.logins > 1 ? 's' : ''}` : 'Not invited'}
+        {state.invited ? ` · invited ${formatDate(String(state.invited).slice(0, 10))}` : ''}
+      </span>{' '}
+      <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12 }} disabled={busy || !state.email} title={state.email ? `Email ${state.email}` : 'Add an email to the family first'} onClick={invite}>
+        {busy ? 'Sending…' : state.invited ? 'Resend invite' : 'Send invite'}
+      </button>
+      {msg && <div style={{ fontSize: 12, color: '#5B5F56', marginTop: 3 }}>{msg}</div>}
+    </div>
+  );
 }

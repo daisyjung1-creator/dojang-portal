@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import BrandMark from './BrandMark';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X, KeyRound, Sun } from 'lucide-react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X, KeyRound, Sun, Ticket } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 import { useBadges } from '../lib/badges';
@@ -17,6 +17,7 @@ export const ALL_TABS = [
   // Instructors tick curriculum tapes on the front-desk iPad (admins do it in Belt Testing).
   { id: 'tapes', label: 'Tapes', icon: Award, staffOnly: true, staff: true },
   { id: 'testing', label: 'Belt Testing', icon: Award, adminOnly: true },
+  { id: 'events', label: 'Events', icon: Ticket, adminOnly: true },
   { id: 'billing', label: 'Billing', icon: Wallet, adminOnly: true },
   { id: 'email', label: 'Email', icon: Mail, adminOnly: true },
   { id: 'invoices', label: 'Invoices', icon: FileText, adminOnly: true, section: 'Invoicing' },
