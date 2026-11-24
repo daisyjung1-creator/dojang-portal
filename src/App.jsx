@@ -27,7 +27,6 @@ import JoinPage from './modules/join/JoinPage';
 import TrialPage from './modules/join/TrialPage';
 import PayPage from './modules/join/PayPage';
 import CardPage from './modules/join/CardPage';
-import { IS_DEMO } from './demo/isDemo';
 
 const TABS = ['home', 'today', 'students', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
 const tabFromHash = () => {
@@ -74,12 +73,6 @@ export default function App() {
   const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'today' : isAdmin && startTab === 'today' ? 'home' : startTab;
 
   return (
-    <>
-    {IS_DEMO && (
-      <div style={{ position: 'sticky', top: 0, zIndex: 50, background: '#BE1C21', color: '#fff', fontSize: 13, padding: '6px 14px', textAlign: 'center' }}>
-        <b>Demo</b> — all students, families and payments are made up. Changes are not saved (refresh to start over), and no emails or card charges go out.
-      </div>
-    )}
     <div className="dp-shell" style={styles.shell}>
       <Sidebar activeTab={effectiveTab} setActiveTab={setActiveTab} />
       <ConfirmSendHost />
@@ -104,6 +97,5 @@ export default function App() {
         {isAdmin && effectiveTab === 'invoice-settings' && <InvoiceSettingsPage />}
       </div>
     </div>
-    </>
   );
 }
