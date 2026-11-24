@@ -33,8 +33,8 @@ const primary = { ...btn, background: C.red, borderColor: C.red, color: '#fff' }
 const input = { width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 15, fontFamily: 'inherit' };
 const label = { display: 'block', fontSize: 13, color: C.soft, margin: '10px 0 4px' };
 
-async function callFn(body) {
-  const { data, error } = await supabase.functions.invoke('parent-portal', { body: { origin: window.location.origin, ...body } });
+async function callFn(body, token) {
+  const { data, error } = await supabase.functions.invoke('parent-portal', { body: { origin: window.location.origin, ...body }, ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) });
   if (error) {
     let msg = error.message;
     try {
@@ -51,6 +51,7 @@ async function callFn(body) {
 export default function ParentApp() {
   const { session, loading, role, signOut } = useAuth();
   const [mode, setMode] = useState(null); // 'setpw' after following an emailed link
+  const [linkLogin, setLinkLogin] = useState(null); // { token, email } from the link
   const [linkError, setLinkError] = useState('');
   const [verifying, setVerifying] = useState(() => new URLSearchParams(window.location.search).has('token_hash'));
 
@@ -61,14 +62,19 @@ export default function ParentApp() {
     if (!token) return;
     (async () => {
       touch();
-      const { error } = await supabase.auth.verifyOtp({ token_hash: token, type: q.get('type') || 'recovery' });
+      const { data, error } = await supabase.auth.verifyOtp({ token_hash: token, type: q.get('type') || 'recovery' });
       window.history.replaceState(null, '', '/parent');
-      if (error) setLinkError('This link has expired or was already used. Enter your email below and click "Forgot password?" to get a new one.');
-      else setMode('setpw');
+      if (error || !data?.session) setLinkError('This link has expired or was already used. Enter your email below and click "Forgot password?" to get a new one.');
+      else {
+        setLinkLogin({ token: data.session.access_token, email: data.user?.email || data.session.user?.email || '' });
+        setMode('setpw');
+      }
       setVerifying(false);
     })();
   }, []);
 
+  // Set the password first (works even if the browser didn't keep the login).
+  if (mode === 'setpw' && linkLogin) return <SetPassword login={linkLogin} onDone={() => { setMode(null); setLinkLogin(null); }} />;
   if (loading || verifying || (session && !role)) return <Shell><p style={{ color: C.soft }}>Loading…</p></Shell>;
   if (!session) return <ParentLogin notice={linkError} />;
   if (role !== 'parent')
@@ -80,7 +86,6 @@ export default function ParentApp() {
         </div>
       </Shell>
     );
-  if (mode === 'setpw') return <SetPassword onDone={() => setMode(null)} />;
   return <ParentPortal onSignOut={signOut} />;
 }
 
@@ -155,7 +160,7 @@ function ParentLogin({ notice }) {
   );
 }
 
-function SetPassword({ onDone }) {
+function SetPassword({ login, onDone }) {
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [error, setError] = useState('');
@@ -165,16 +170,24 @@ function SetPassword({ onDone }) {
     if (pw.length < 8) return setError('Use at least 8 characters.');
     if (pw !== pw2) return setError("The two passwords don't match.");
     setBusy(true);
-    const { error: err } = await supabase.auth.updateUser({ password: pw });
+    // Saved on the server for the login in the emailed link…
+    const r = await callFn({ action: 'set_password', password: pw }, login.token);
+    if (r.error) {
+      setBusy(false);
+      return setError(r.error);
+    }
+    // …then sign in with it as usual.
+    touch();
+    const { error: err } = await supabase.auth.signInWithPassword({ email: r.email || login.email, password: pw });
     setBusy(false);
-    if (err) return setError(err.message);
+    if (err) return setError(`Your password is saved. Please sign in with it below. (${err.message})`);
     onDone();
   }
   return (
     <Shell>
       <form onSubmit={save} style={card}>
         <h1 style={{ fontSize: 20, margin: '0 0 4px' }}>Set your password</h1>
-        <p style={{ fontSize: 13.5, color: C.soft, margin: 0 }}>You'll use this with your email to sign in next time.</p>
+        <p style={{ fontSize: 13.5, color: C.soft, margin: 0 }}>You'll use this with your email{login.email ? ` (${login.email})` : ''} to sign in next time.</p>
         <label style={label}>New password (8+ characters)</label>
         <input type="password" autoComplete="new-password" style={input} value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
         <label style={label}>Type it again</label>

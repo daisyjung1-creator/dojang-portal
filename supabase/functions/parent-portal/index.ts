@@ -6,6 +6,10 @@
 // POST { action: 'reset', email, origin }              (anyone)
 //   Emails a parent a new "set your password" link. Always answers ok, so it
 //   can't be used to find out which emails have a login.
+// POST { action: 'set_password', password }   (parent, from the emailed link)
+//   Sets the password for the login in the Authorization header (the one the
+//   emailed link just signed in), on the server — so it never depends on what
+//   the browser has stored (e.g. an admin signed in in another tab).
 // POST { action: 'absence', student_id, date, class_name, note }   (parent)
 // POST { action: 'message', subject, message }                      (parent)
 //   Run the checked database functions as the parent (so a parent can only
@@ -93,6 +97,14 @@ async function sendMail(to: string, subject: string, message: string, business: 
   if (replyTo) body.reply_to = replyTo;
   const r = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`Email failed: ${r.status} ${await r.text()}`);
+}
+
+// The caller's login, from the Authorization header.
+async function callerUser(req: Request) {
+  const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const { data } = await admin.auth.getUser(token);
+  return data?.user || null;
 }
 
 // A client that acts as the caller (their login), so database checks apply.
@@ -226,10 +238,22 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (body.action === 'set_password') {
+      const u = await callerUser(req);
+      if (!u) return json({ error: 'This link has expired. Click "Forgot password?" to get a new one.' }, 401);
+      const { data: prof } = await admin.from('profiles').select('role').eq('id', u.id).maybeSingle();
+      if (prof?.role !== 'parent') return json({ error: 'This is not a parent portal login.' }, 403);
+      const pw = String(body.password || '');
+      if (pw.length < 8) return json({ error: 'Use at least 8 characters.' }, 400);
+      const { error } = await admin.auth.admin.updateUserById(u.id, { password: pw });
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true, email: u.email });
+    }
+
     if (body.action === 'absence' || body.action === 'message') {
       const caller = asCaller(req);
-      const { data: u } = await caller.auth.getUser();
-      const who = u?.user?.email || '';
+      const u = await callerUser(req);
+      const who = u?.email || '';
       if (!who) return json({ error: 'Please sign in again.' }, 401);
       if (body.action === 'absence') {
         const { data, error } = await caller.rpc('parent_absence', { p_student: body.student_id, p_date: body.date, p_class: body.class_name || null, p_note: body.note || null });
