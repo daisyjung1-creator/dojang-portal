@@ -8,6 +8,8 @@ import SearchSelect from '../../components/SearchSelect';
 import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { fetchAll } from '../invoices/api';
 import MonthlyCalendars from './MonthlyCalendars';
+import FormBuilder, { cleanForm, formProblem } from './FormBuilder';
+import EventResponses from './EventResponses';
 
 // Events: camps, tournaments, movie nights… Signing a student up adds an
 // invoice for the family (price per student + GST), which they can pay with
@@ -21,7 +23,7 @@ export const EVENT_KINDS = {
   seminar: 'Seminar / clinic',
   other: 'Other',
 };
-const empty = { title: '', kind: 'camp', description: '', start_date: '', end_date: '', start_time: '', end_time: '', location: '', price: '', taxable: true, fee_item_id: '', signup_deadline: '', capacity: '', published: true, allow_guests: false, guest_price: '', question: '', question_required: false };
+const empty = { title: '', kind: 'camp', description: '', start_date: '', end_date: '', start_time: '', end_time: '', location: '', price: '', taxable: true, fee_item_id: '', signup_deadline: '', capacity: '', published: true, allow_guests: false, guest_price: '', question: '', question_required: false, form: [], signature_required: false, signature_text: '' };
 const ftime = (t) => {
   if (!t) return '';
   const [h, m] = String(t).split(':').map(Number);
@@ -260,6 +262,7 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
           </table>
         </div>
       )}
+      <EventResponses event={e} students={students} />
       <p style={{ fontSize: 12.5, color: '#8A8D84' }}>{active.length + guests.length}{e.capacity ? ` of ${e.capacity}` : ''} spots taken{guests.length ? ` (incl. ${guests.length} guest${guests.length > 1 ? 's' : ''})` : ''}.</p>
       {editModal}
     </>
@@ -267,7 +270,13 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
 }
 
 function EventForm({ event, items, onClose, onDone }) {
-  const [f, setF] = useState({ ...empty, ...Object.fromEntries(Object.entries(event).map(([k, v]) => [k, v ?? ''])) });
+  const [f, setF] = useState(() => {
+    const x = { ...empty, ...Object.fromEntries(Object.entries(event).map(([k, v]) => [k, v ?? ''])) };
+    x.form = Array.isArray(event.form) ? event.form : [];
+    // an old single question becomes the first form question
+    if (event.question && !x.form.length) x.form = [{ id: 'q_legacy', type: 'short', label: event.question, help: '', required: !!event.question_required, per_child: false, options: [] }];
+    return x;
+  });
   const [error, setError] = useState('');
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e }));
   const itemOptions = items.map((it) => ({ value: it.id, label: it.name, hint: it.description || '' }));
@@ -278,6 +287,9 @@ function EventForm({ event, items, onClose, onDone }) {
   async function save() {
     if (!f.title.trim()) return setError('Give the event a name.');
     if (!f.start_date) return setError('Pick the date.');
+    const problem = formProblem(f.form);
+    if (problem) return setError(problem);
+    if (f.signature_required && !String(f.signature_text).trim()) return setError('Add the text the parent agrees to when signing.');
     const row = {
       title: f.title.trim(),
       kind: f.kind,
@@ -295,8 +307,11 @@ function EventForm({ event, items, onClose, onDone }) {
       published: !!f.published,
       allow_guests: !!f.allow_guests,
       guest_price: f.allow_guests ? Number(f.guest_price) || 0 : 0,
-      question: f.question.trim() || null,
-      question_required: !!f.question.trim() && !!f.question_required,
+      question: null,
+      question_required: false,
+      form: cleanForm(f.form),
+      signature_required: !!f.signature_required,
+      signature_text: f.signature_required ? String(f.signature_text).trim() : null,
     };
     const { error: e } = event.id ? await supabase.from('events').update(row).eq('id', event.id) : await supabase.from('events').insert(row);
     if (e) return setError(e.message);
@@ -310,7 +325,7 @@ function EventForm({ event, items, onClose, onDone }) {
     <Modal
       title={event.id ? 'Edit event' : 'New event'}
       onClose={onClose}
-      maxWidth={620}
+      maxWidth={720}
       footer={
         <>
           {event.id && <button className="dp-btn" style={{ marginRight: 'auto' }} onClick={archive}>Archive</button>}
@@ -353,8 +368,14 @@ function EventForm({ event, items, onClose, onDone }) {
           </div>
         )}
       </div>
-      <Field label="Question for families (optional)"><input className="dp-input" style={{ width: '100%' }} value={f.question} onChange={set('question')} placeholder="e.g. What food will you bring?" /></Field>
-      {f.question.trim() && <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center', margin: '-4px 0 10px' }}><input type="checkbox" checked={!!f.question_required} onChange={set('question_required')} /> Answer required</label>}
+      <FormBuilder
+        form={f.form}
+        onForm={(form) => setF((x) => ({ ...x, form }))}
+        signatureRequired={!!f.signature_required}
+        onSignatureRequired={(v) => setF((x) => ({ ...x, signature_required: v }))}
+        signatureText={f.signature_text}
+        onSignatureText={(v) => setF((x) => ({ ...x, signature_text: v }))}
+      />
       <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center', marginBottom: 6 }}><input type="checkbox" checked={!!f.taxable} onChange={set('taxable')} /> Add GST</label>
       <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center' }}><input type="checkbox" checked={!!f.published} onChange={set('published')} /> Show in the parent portal (parents can sign up)</label>
       {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}

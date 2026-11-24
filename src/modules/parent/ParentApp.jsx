@@ -13,6 +13,7 @@ import { weeklyPlan, splitClasses } from '../../lib/classes';
 import { nextDueDate, todayISO } from '../../lib/billingDates';
 import { money } from '../../lib/invoiceUtils';
 import { holidaysBetween } from '../../lib/holidays';
+import { FormQuestions, SignaturePad, checkAnswers } from '../../components/EventFormFields';
 
 // Parent portal (/parent). Parents sign in with the email the dojang has on
 // file (invited by the dojang, password set from the emailed link). Everything
@@ -757,10 +758,10 @@ function Events({ d, onSignUp }) {
   });
 }
 
-function Modal({ title, children, onClose, footer }) {
+function Modal({ title, children, onClose, footer, maxWidth = 480, sticky = false }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(20,22,18,.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 12px', zIndex: 50, overflowY: 'auto' }} onClick={onClose}>
-      <div role="dialog" aria-label={title} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 480, padding: 18 }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(20,22,18,.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 12px', zIndex: 50, overflowY: 'auto' }} onClick={sticky ? undefined : onClose}>
+      <div role="dialog" aria-label={title} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth, padding: 18 }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
           <h2 style={{ fontSize: 18, margin: 0, flex: 1 }}>{title}</h2>
           <button aria-label="Close" style={{ ...btn, border: 'none', padding: 4 }} onClick={onClose}><X size={18} /></button>
@@ -888,7 +889,9 @@ function SignUpModal({ d, event, onClose, onDone }) {
   const already = taken.size > 0 && d.students.some((k) => taken.has(k.id));
   const [pick, setPick] = useState(() => (kids.length === 1 ? [kids[0].id] : []));
   const [guests, setGuests] = useState([]);
-  const [answer, setAnswer] = useState('');
+  const [answers, setAnswers] = useState({});
+  const [signer, setSigner] = useState('');
+  const [signature, setSignature] = useState(null);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -898,15 +901,29 @@ function SignUpModal({ d, event, onClose, onDone }) {
   const names = guests.map((g) => g.trim()).filter(Boolean);
   const sub = price * pick.length + (event.allow_guests ? gprice * names.length : 0);
   const total = sub + (event.taxable ? Math.round(sub * 5) / 100 : 0);
-  const needAnswer = event.question && event.question_required && pick.length > 0;
+  const form = Array.isArray(event.form) ? event.form : [];
+  const pickedKids = kids.filter((k) => pick.includes(k.id));
+  const needSign = event.signature_required && pick.length > 0;
   async function go() {
     if (!pick.length && !names.length) return setError(kids.length ? 'Choose who is coming.' : 'Add at least one guest.');
     if (!pick.length && !already) return setError('Choose at least one student — guests come with a student.');
     if (guests.some((g) => !g.trim())) return setError("Enter each guest's name (or remove the empty line).");
-    if (needAnswer && !answer.trim()) return setError(`Please answer: ${event.question}`);
+    if (pick.length) {
+      const problem = checkAnswers(form, pickedKids, answers);
+      if (problem) return setError(problem);
+      if (needSign && !signature) return setError('Please sign in the signature box.');
+      if (needSign && !signer.trim()) return setError('Please type your full name under the signature.');
+    }
     setBusy(true);
     setError('');
-    const { data, error: err } = await supabase.rpc('event_register', { p_event: event.id, p_students: pick, p_note: note || null, p_guests: names, p_answer: answer || null });
+    // keep only the answers for the children being signed up
+    const sent = Object.fromEntries(
+      form.map((q) => [q.id, q.per_child ? Object.fromEntries(pick.map((id) => [id, answers?.[q.id]?.[id]]).filter(([, v]) => v != null)) : answers?.[q.id]]).filter(([, v]) => v != null),
+    );
+    const { data, error: err } = await supabase.rpc('event_register_form', {
+      p_event: event.id, p_students: pick, p_note: note || null, p_guests: names,
+      p_answers: pick.length ? sent : {}, p_signer: needSign ? signer.trim() : null, p_signature: needSign ? signature : null,
+    });
     setBusy(false);
     if (err) return setError(err.message);
     const what = `${event.title}${names.length ? ` (with ${names.length} guest${names.length > 1 ? 's' : ''})` : ''}`;
@@ -924,7 +941,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
       </Modal>
     );
   return (
-    <Modal title={`${kids.length ? 'Sign up' : 'Add guests'} — ${event.title}`} onClose={onClose} footer={<><button style={btn} onClick={onClose}>Cancel</button><button style={primary} onClick={go} disabled={busy || (!pick.length && !names.length)}>{kids.length ? 'Sign up' : 'Add guests'}{sub > 0 ? ` · ${money(total)}` : ''}</button></>}>
+    <Modal title={`${kids.length ? 'Sign up' : 'Add guests'} — ${event.title}`} onClose={onClose} maxWidth={form.length || event.signature_required ? 620 : 480} sticky footer={<><button style={btn} onClick={onClose}>Cancel</button><button style={primary} onClick={go} disabled={busy || (!pick.length && !names.length)}>{kids.length ? 'Sign up' : 'Add guests'}{sub > 0 ? ` · ${money(total)}` : ''}</button></>}>
       {kids.length > 0 && (
         <>
           <label style={label}>Who is coming?</label>
@@ -948,17 +965,22 @@ function SignUpModal({ d, event, onClose, onDone }) {
           {guests.length < 10 && <button type="button" style={{ ...btn, padding: '6px 12px', fontSize: 13.5 }} onClick={() => setGuests((x) => [...x, ''])}>+ Add guest</button>}
         </div>
       )}
-      {event.question && kids.length > 0 && (
-        <>
-          <label style={label}>{event.question}{event.question_required ? ' *' : ' (optional)'}</label>
-          <input style={input} value={answer} onChange={(e) => setAnswer(e.target.value)} maxLength={300} />
-        </>
-      )}
+      {kids.length > 0 && form.length > 0 && <FormQuestions form={form} kids={pickedKids} answers={answers} onChange={setAnswers} st={{ input }} />}
       {kids.length > 0 && (
         <>
           <label style={label}>Note for the dojang (optional)</label>
           <input style={input} placeholder="Allergies, pick-up time…" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
         </>
+      )}
+      {needSign && (
+        <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: '12px 14px', margin: '14px 0 4px', background: '#FBFAF6' }} data-testid="signature">
+          <div style={{ fontSize: 15, fontWeight: 600 }}>Parent / guardian signature <span style={{ color: C.red }}>*</span></div>
+          {event.signature_text && <p style={{ fontSize: 13.5, color: C.soft, whiteSpace: 'pre-wrap', margin: '6px 0 10px', lineHeight: 1.5 }}>{event.signature_text}</p>}
+          <SignaturePad onChange={setSignature} />
+          <label style={label}>Full name of parent / guardian *</label>
+          <input style={input} value={signer} onChange={(e) => setSigner(e.target.value)} maxLength={120} aria-label="Full name of parent or guardian" />
+          <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>Signed {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })} for {pickedKids.map((k) => k.name).join(', ')}.</div>
+        </div>
       )}
       {sub > 0 && <p style={{ fontSize: 13, color: C.soft }}>An invoice for {money(total)} (incl. GST) is added to your account. You can pay it right away or later under Billing.</p>}
       {error && <p style={{ color: C.red, fontSize: 13 }}>{error}</p>}
