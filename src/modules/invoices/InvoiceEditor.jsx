@@ -46,8 +46,8 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
   useEffect(() => {
     supabase
       .from('inventory_levels')
-      .select('fee_item_id, on_hand')
-      .then(({ data }) => setStock(Object.fromEntries((data || []).filter((r) => r.on_hand !== null).map((r) => [r.fee_item_id, Number(r.on_hand)]))));
+      .select('fee_item_id, size, on_hand')
+      .then(({ data }) => setStock(Object.fromEntries((data || []).filter((r) => r.on_hand !== null).map((r) => [`${r.fee_item_id}|${r.size || ''}`, Number(r.on_hand)]))));
   }, []);
 
   const [adj, setAdj] = useState(null); // { kind: 'discount' | 'credit', type: '$' | '%', value, label }
@@ -95,9 +95,17 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
   }
   function pickItem(i, itemId) {
     const it = items.find((x) => x.id === itemId);
-    if (!it) return updateLine(i, { fee_item_id: '', item_name: '' });
-    updateLine(i, { fee_item_id: itemId, item_name: it.name, description: it.description || it.name, unit_price: it.default_amount ?? '', taxable: it.taxable !== false });
+    if (!it) return updateLine(i, { fee_item_id: '', item_name: '', size: null });
+    updateLine(i, { fee_item_id: itemId, item_name: it.name, description: it.description || it.name, unit_price: it.default_amount ?? '', taxable: it.taxable !== false, size: null });
   }
+  // Sized gear: the size is kept on the line (stock is per size) and shown in the description.
+  function pickSize(i, size) {
+    const l = lines[i];
+    const it = items.find((x) => x.id === l.fee_item_id);
+    const base = String(l.description || it?.description || it?.name || '').replace(/ \(Size [^)]*\)$/, '');
+    updateLine(i, { size: size || null, description: size ? `${base} (Size ${size})` : base });
+  }
+  const sizesOf = (l) => items.find((x) => x.id === l.fee_item_id)?.sizes || [];
   function addLinkedTuition() {
     const newLines = linkedStudents
       .filter((s) => Number(s.tuition))
@@ -121,6 +129,8 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     if (!form.invoice_date) return setError('Please set the invoice date.');
     if (!lines.some((l) => (l.description || '').trim() || Number(l.unit_price))) return setError('Add at least one line.');
     if (totals.total < 0) return setError('The total is below $0 — make the discount or credit smaller.');
+    const noSize = lines.find((l) => !l.id && l.fee_item_id && sizesOf(l).length && !l.size);
+    if (noSize) return setError(`Pick a size for ${noSize.item_name || 'the item'} (stock is kept by size).`);
     let sendTo = null;
     if (action === 'email') {
       sendTo = await confirmSend({ what: `Invoice (PDF) — ${form.customer_name || ''}`, to: form.customer_email, note: 'The invoice is saved and emailed.', extra: true });
@@ -220,14 +230,20 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
               <tr key={i}>
                 <td style={td}>
                   <SearchSelect options={itemOptions} value={l.fee_item_id || ''} onChange={(v) => pickItem(i, v)} placeholder="Custom" inputStyle={{ fontSize: 13, padding: '6px', paddingRight: 40 }} />
+                  {sizesOf(l).length > 0 && (
+                    <select className="dp-select" aria-label="Size" style={{ width: '100%', fontSize: 12.5, padding: '4px 6px', marginTop: 4, borderColor: l.size ? undefined : '#D9A441' }} value={l.size || ''} onChange={(e) => pickSize(i, e.target.value)}>
+                      <option value="">Size…</option>
+                      {sizesOf(l).map((z) => <option key={z} value={z}>Size {z}{stock[`${l.fee_item_id}|${z}`] !== undefined ? ` (${stock[`${l.fee_item_id}|${z}`]} in stock)` : ''}</option>)}
+                    </select>
+                  )}
                 </td>
                 <td style={td}><input className="dp-input" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} /></td>
                 <td style={td}>
                   <input type="number" className="dp-input" style={{ width: '100%', fontSize: 13, padding: '6px' }} value={l.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} />
-                  {l.fee_item_id && stock[l.fee_item_id] !== undefined && (() => {
+                  {l.fee_item_id && stock[`${l.fee_item_id}|${l.size || ''}`] !== undefined && (() => {
                     // When editing, this invoice's own original qty is already taken out of stock.
-                    const orig = isEdit ? Number(editing.lines.find((x) => x.id === l.id && x.fee_item_id === l.fee_item_id)?.quantity || 0) : 0;
-                    const left = stock[l.fee_item_id] + orig;
+                    const orig = isEdit ? Number(editing.lines.find((x) => x.id === l.id && x.fee_item_id === l.fee_item_id && (x.size || '') === (l.size || ''))?.quantity || 0) : 0;
+                    const left = stock[`${l.fee_item_id}|${l.size || ''}`] + orig;
                     const short = Number(l.quantity) > left;
                     return <div style={{ fontSize: 10.5, color: short ? '#9A2B2B' : '#8A8D84', marginTop: 2, whiteSpace: 'nowrap' }}>{short ? `only ${left} in stock` : `${left} in stock`}</div>;
                   })()}

@@ -1,17 +1,29 @@
 import logo from '../assets/logo.png';
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { IDLE_FLAG, touch } from './AuthContext';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  // Shown once after an automatic sign-out for inactivity.
+  const [idle] = useState(() => {
+    try {
+      const v = sessionStorage.getItem(IDLE_FLAG);
+      sessionStorage.removeItem(IDLE_FLAG);
+      return !!v;
+    } catch {
+      return false;
+    }
+  });
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
     setSubmitting(true);
+    touch(); // start the inactivity clock (set before the session arrives)
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     setSubmitting(false);
     if (signInError) setError('Login failed. Please check your email and password.');
@@ -24,6 +36,7 @@ export default function LoginPage() {
           <img src={logo} alt="Hankook Taekwondo" style={{ width: 170, maxWidth: '70%', height: 'auto' }} />
           <div style={{ ...styles.brandText, fontSize: 14, color: '#5B5F56', marginTop: 6 }}>Dojang Portal</div>
         </div>
+        {idle && <p style={{ background: '#FAEEDA', color: '#854F0B', fontSize: 13, padding: '8px 10px', borderRadius: 8, margin: '0 0 12px' }}>You were signed out after 1 hour of no activity. Please sign in again.</p>}
         <label style={styles.label}>
           Email
           <input

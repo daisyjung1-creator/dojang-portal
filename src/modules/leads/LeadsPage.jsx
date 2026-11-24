@@ -20,7 +20,7 @@ function emptyForm() {
   return { student_name: '', guardian_name: '', phone: '', email: '', student_age: '', source: 'Phone', inquiry_date: todayISO(), status: 'New Inquiry', notes: '', linked_student_id: null };
 }
 
-export default function LeadsPage({ setActiveTab }) {
+export default function LeadsPage({ setActiveTab, tabs }) {
   const [leads, setLeads] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -170,7 +170,7 @@ export default function LeadsPage({ setActiveTab }) {
     <>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>Leads</h1>
+          {tabs || <h1 style={styles.title}>Leads</h1>}
           <p style={styles.subtitle}>{leads.length} inquiries on record</p>
         </div>
         <button className="dp-btn dp-btn-primary" onClick={openAdd}>

@@ -1,0 +1,47 @@
+/* Design tokens from DESIGN.md ("The Dojang Floor").
+   Defined here only; screens move onto them one at a time in later steps,
+   so loading this file changes nothing on screen yet. */
+:root {
+  /* Neutrals */
+  --dp-ink: #20241F;
+  --dp-ink-soft: #5B5F56;
+  --dp-ink-faint: #8A8D84;
+  --dp-paper: #FFFFFF;
+  --dp-canvas: #F6F5F2;
+  --dp-line: #E2DFD6;
+
+  /* Brand */
+  --dp-hankook-red: #BE1C21;
+  --dp-hankook-red-deep: #9A2B2B;
+  --dp-hp-orange: #E8701A;
+
+  /* Status */
+  --dp-success: #2A5A30;
+  --dp-success-tint: #E8F1E9;
+  --dp-warning: #854F0B;
+  --dp-warning-tint: #FAEEDA;
+  --dp-danger: #9A2B2B;
+  --dp-danger-tint: #FBEAEA;
+  --dp-info: #1E4566;
+
+  /* Type */
+  --dp-font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --dp-text-display: 28px;
+  --dp-text-headline: 20px;
+  --dp-text-title: 16px;
+  --dp-text-body: 14px;
+  --dp-text-label: 13px;
+  --dp-text-caption: 12px;
+
+  /* Shape and space */
+  --dp-radius-sm: 6px;
+  --dp-radius-md: 10px;
+  --dp-radius-lg: 12px;
+  --dp-radius-pill: 999px;
+  --dp-space-xs: 4px;
+  --dp-space-sm: 8px;
+  --dp-space-md: 12px;
+  --dp-space-lg: 20px;
+  --dp-space-xl: 32px;
+  --dp-touch: 44px;
+}

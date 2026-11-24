@@ -3,6 +3,20 @@ import { SCHOOL } from '../../lib/agreement';
 import { Page, C, box } from './JoinPage';
 import { SAVE_CONSENT, money, fdate, call } from './PayPage';
 import CardForm from './CardForm';
+import { supabase } from '../../supabaseClient';
+
+// Card wallet calls (list / add / default / delete) for this family's link.
+async function wallet(body) {
+  const { data, error } = await supabase.functions.invoke('card-wallet', { body });
+  if (error) {
+    try {
+      return await error.context.json();
+    } catch (_e) {
+      return { error: error.message };
+    }
+  }
+  return data || {};
+}
 
 // Public "save your card" page for one family: /card/<card_link_token>
 // For families moving from TD Recurring Billing to a saved card. Nothing is
@@ -13,6 +27,10 @@ export default function CardPage({ token }) {
   const [info, setInfo] = useState(null);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(null);
+  const [cards, setCards] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [busy, setBusy] = useState('');
+  const [cardMsg, setCardMsg] = useState('');
 
   useEffect(() => {
     document.title = `Card for tuition · ${SCHOOL.name}`;
@@ -20,13 +38,29 @@ export default function CardPage({ token }) {
       if (d?.error) setErr(d.error);
       else setInfo(d);
     });
+    wallet({ action: 'list', card_token: token }).then((w) => setCards(w?.cards || []));
   }, [token]);
 
   async function save(cardToken, name) {
     const nextLine = info.upcoming?.[0] ? ` — tuition currently ${money(info.upcoming[0].total)}, next on ${fdate(info.upcoming[0].date)}` : '';
-    const r = await call({ action: 'card_save', card_token: token, token: cardToken, name, consent: `${SAVE_CONSENT}${nextLine}` });
-    if (r?.ok) setDone(r);
+    const r = await wallet({ action: 'add', card_token: token, token: cardToken, name, consent: `${SAVE_CONSENT}${nextLine}` });
+    if (r?.ok) {
+      setDone(r);
+      setCards(r.cards || []);
+      setAdding(false);
+    }
     return r;
+  }
+
+  async function act(action, card) {
+    setBusy(card.id + action);
+    setCardMsg('');
+    const r = await wallet({ action, card_token: token, card_id: card.id });
+    setBusy('');
+    if (r?.error) return setCardMsg(r.error);
+    setCards(r.cards || []);
+    setDone(null);
+    setCardMsg(action === 'default' ? `${card.type || 'Card'} ending ${card.last4} will be used for tuition from now on.` : `${card.type || 'Card'} ending ${card.last4} was removed.`);
   }
 
   return (
@@ -57,18 +91,55 @@ export default function CardPage({ token }) {
             )}
           </div>
 
-          {done ? (
-            <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1' }}>
+          {cards && cards.length > 0 && (
+            <div style={{ ...box, marginBottom: 16 }} data-testid="saved-cards">
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Your saved cards</div>
+              {cards.map((k) => (
+                <div key={k.id} data-card={k.last4} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${C.line}`, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{k.type || 'Card'} ending {k.last4 || '····'}</div>
+                    <div style={{ fontSize: 12.5, color: C.soft }}>{k.expiry ? `Expires ${k.expiry}` : ''}{k.mode === 'test' ? ' · TEST' : ''}</div>
+                  </div>
+                  {k.is_default ? (
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: C.green, background: '#E8F1E9', borderRadius: 999, padding: '3px 10px' }}>Used for tuition</span>
+                  ) : (
+                    <>
+                      <button type="button" disabled={!!busy} onClick={() => act('default', k)} style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.line}`, background: '#fff', fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Use for tuition
+                      </button>
+                      {cards.length >= 2 && (
+                        <button type="button" disabled={!!busy} onClick={() => act('delete', k)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #F0C9C9', background: '#fff', color: C.red, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Remove
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+              <p style={{ fontSize: 12.5, color: C.faint, margin: '8px 0 0' }}>
+                Saved cards can't be removed while they're your only card or the card used for tuition — add another card and choose it for tuition first.
+              </p>
+              {cardMsg && <p style={{ fontSize: 13.5, color: C.green, margin: '8px 0 0' }}>{cardMsg}</p>}
+            </div>
+          )}
+
+          {done && (
+            <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1', marginBottom: 16 }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Thank you — your card is saved!</div>
               <p style={{ fontSize: 14.5, margin: '8px 0 0', lineHeight: 1.55 }}>
                 {done.saved?.type || 'Card'} ending {done.saved?.last4 || '····'} will be used for tuition from now on. Nothing was charged today. You'll get an emailed receipt after each charge.
               </p>
             </div>
-          ) : !info.enabled ? (
-            <div style={box}>Saving a card online isn't available right now. Please contact the Dojang at {SCHOOL.email}.</div>
-          ) : (
-            <CardForm onSave={save} replaceLast4={info.saved?.last4} />
           )}
+          {!info.enabled ? (
+            <div style={box}>Saving a card online isn't available right now. Please contact the Dojang at {SCHOOL.email}.</div>
+          ) : cards && cards.length > 0 && !adding ? (
+            <button type="button" onClick={() => { setAdding(true); setDone(null); }} style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: C.red, color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              + Add another card
+            </button>
+          ) : cards ? (
+            <CardForm onSave={save} buttonLabel={cards.length ? 'Save this card' : 'Save card for tuition'} title={cards.length ? 'Add a card' : 'Credit card for tuition'} />
+          ) : null}
         </>
       )}
     </Page>

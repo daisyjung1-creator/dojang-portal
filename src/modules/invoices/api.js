@@ -87,6 +87,7 @@ export async function saveInvoice(form, lines, existingId) {
       invoice_id: invoice.id,
       position: i,
       fee_item_id: l.fee_item_id || null,
+      size: l.size || null,
       student_id: l.student_id || null,
       // Tuition lines made from Billing remember which billing cycle they cover.
       cycle_start: l.cycle_start || null,

@@ -75,7 +75,24 @@ export default function StudentsPage() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [cancelFor, setCancelFor] = useState(null);
   const [poeFor, setPoeFor] = useState(null);
-  const [profileId, setProfileId] = useState(null);
+  const [profileId, setProfileIdRaw] = useState(() => {
+    const m = /^#students\/([0-9a-f-]{8,})/i.exec(window.location.hash);
+    return m ? m[1] : null;
+  });
+  const setProfileId = (id) => {
+    setProfileIdRaw(id);
+    const want = id ? `#students/${id}` : '#students';
+    if (window.location.hash !== want) window.history.pushState(null, '', `${window.location.pathname}${window.location.search}${want}`);
+    window.scrollTo(0, 0);
+  };
+  useEffect(() => {
+    const onPop = () => {
+      const m = /^#students\/([0-9a-f-]{8,})/i.exec(window.location.hash);
+      setProfileIdRaw(m ? m[1] : null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const [holdFor, setHoldFor] = useState(null);
   const [statementFor, setStatementFor] = useState(null);
   const [reactivateFor, setReactivateFor] = useState(null);
@@ -345,8 +362,33 @@ export default function StudentsPage() {
     }
   }
 
+  // Student page (full page, not a pop-up). Kept in the address (#students/<id>)
+  // so a refresh or the browser's Back button works.
+  const profileStudent = profileId ? students.find((x) => x.id === profileId) : null;
+  const closeProfile = () => setProfileId(null);
+  const profilePage = profileStudent && (
+    <StudentProfileModal
+      key={profileStudent.id}
+      student={profileStudent}
+      isAdmin={isAdmin}
+      family={families[profileStudent.customer_id]}
+      siblings={profileStudent.customer_id ? (siblingsBy[profileStudent.customer_id] || []).filter((x) => x.id !== profileStudent.id) : []}
+      onClose={closeProfile}
+      onEdit={() => openEdit(profileStudent)}
+      onPoe={() => setPoeFor(profileStudent)}
+      onHold={() => setHoldFor(profileStudent)}
+      onStatement={() => setStatementFor(profileStudent)}
+      onCancel={() => setCancelFor(profileStudent)}
+      onWelcome={() => setWelcomeFor(profileStudent)}
+      onWithdraw={() => setStudentStatus(profileStudent.id, 'withdrawn')}
+      onReactivate={() => setReactivateFor(profileStudent)}
+      onDelete={() => { closeProfile(); setConfirmDeleteId(profileStudent.id); }}
+    />
+  );
+
   return (
     <>
+      {profileStudent ? profilePage : (<>
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Students</h1>
@@ -522,6 +564,7 @@ export default function StudentsPage() {
           </table>
         )}
       </div>
+      </>)}
 
       {modalOpen && (
         <Modal
@@ -747,29 +790,6 @@ export default function StudentsPage() {
         </Modal>
       )}
 
-      {profileId && (() => {
-        const ps = students.find((x) => x.id === profileId);
-        if (!ps) return null;
-        const close = () => setProfileId(null);
-        return (
-          <StudentProfileModal
-            student={ps}
-            isAdmin={isAdmin}
-            family={families[ps.customer_id]}
-            siblings={ps.customer_id ? (siblingsBy[ps.customer_id] || []).filter((x) => x.id !== ps.id) : []}
-            onClose={close}
-            onEdit={() => { close(); openEdit(ps); }}
-            onPoe={() => setPoeFor(ps)}
-            onHold={() => setHoldFor(ps)}
-            onStatement={() => setStatementFor(ps)}
-            onCancel={() => setCancelFor(ps)}
-            onWelcome={() => setWelcomeFor(ps)}
-            onWithdraw={() => setStudentStatus(ps.id, 'withdrawn')}
-            onReactivate={() => setReactivateFor(ps)}
-            onDelete={() => { close(); setConfirmDeleteId(ps.id); }}
-          />
-        );
-      })()}
 
       {statementFor && <StatementModal customer={families[statementFor.customer_id] || null} student={statementFor} onClose={() => setStatementFor(null)} />}
 

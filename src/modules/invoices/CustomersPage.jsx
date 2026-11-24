@@ -11,6 +11,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, downloadCSV, localISO } from '../../lib/invoiceUtils';
 import { loadCustomers, fetchAll } from './api';
 import { CardLinkButton } from './CardLink';
+import CardWallet from '../../components/CardWallet';
 import { StatusPill } from './InvoicesPage';
 
 const IMPORT_FIELDS = [
@@ -61,6 +62,16 @@ export default function CustomersPage() {
     setBalances(Object.fromEntries((b || []).map((r) => [r.customer_id, r])));
     setStudents(s || []);
   }
+
+  // #customers/<id> (e.g. "Payment settings" on a student page) opens that family.
+  const [openFromLink, setOpenFromLink] = useState(() => (/^#customers\/([0-9a-f-]{8,})/i.exec(window.location.hash) || [])[1] || null);
+  useEffect(() => {
+    if (!openFromLink || !customers.length) return;
+    const c = customers.find((x) => x.id === openFromLink);
+    setOpenFromLink(null);
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#customers`);
+    if (c) openEdit(c);
+  }, [openFromLink, customers, students]);
 
   const studentsByCustomer = useMemo(() => {
     const m = {};
@@ -361,10 +372,8 @@ export default function CustomersPage() {
                   )}
                   {f.card_profile_code && (
                     <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${f.card_declined_at ? '#E7B7B7' : '#CFE3D0'}`, background: f.card_declined_at ? '#FBEDEC' : '#F1F8F1', fontSize: 12.5 }}>
-                      <b>Saved card:</b> {f.card_type || 'Card'} ···{f.card_last4 || '????'}
-                      {f.card_expiry ? ` · exp ${f.card_expiry}` : ''}
-                      {f.card_profile_mode === 'test' ? ' · TEST account' : ''}
-                      {f.card_saved_at ? ` · saved ${String(f.card_saved_at).slice(0, 10)}` : ''}
+                      <b>Saved cards</b> (the <i>tuition</i> one is charged automatically)
+                      <div style={{ margin: '4px 0 2px' }}><CardWallet customerId={f.id} /></div>
                       {f.card_declined_at && <div style={{ color: '#9A2B2B', marginTop: 2 }}>Last charge declined {String(f.card_declined_at).slice(0, 10)}: {f.card_decline_message}</div>}
                       {f.card_legacy_rb_pending && (
                         <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 6, background: '#FFF6E0', border: '1px solid #F0D9A8', color: '#854F0B' }}>
@@ -382,20 +391,7 @@ export default function CustomersPage() {
                           </label>
                         </div>
                       )}
-                      <button
-                        type="button"
-                        className="dp-btn"
-                        style={{ padding: '1px 8px', fontSize: 11.5, marginLeft: 8 }}
-                        onClick={async () => {
-                          if (!window.confirm(`Delete the saved card${f.card_last4 ? ` ending ${f.card_last4}` : ''} from ${f.name || 'this family'}?\n\nIt is deleted from TD Online Mart too, and tuition will no longer be charged to it automatically. This can't be undone — the family would need to save the card again.`)) return;
-                          // Deletes the TD Payment Profile first, so the same card can be saved again (TD blocks duplicates).
-                          const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'card_remove', customer_id: f.id } });
-                          if (error || data?.error) return alert('The card could not be removed: ' + (data?.error || error.message));
-                          set({ card_profile_code: null, card_profile_mode: null, card_series_id: null, card_last4: null, card_expiry: null, card_type: null, card_saved_at: null, card_consent: null, card_declined_at: null, card_decline_message: null, card_legacy_rb_pending: false });
-                        }}
-                      >
-                        Remove
-                      </button>
+                      
                       <CardLinkButton customer={f} style={{ marginLeft: 6 }} onSent={(at) => set({ card_link_sent_at: at })} />
                     </div>
                   )}

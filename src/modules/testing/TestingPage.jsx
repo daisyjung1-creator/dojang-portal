@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Printer, Mail, FileText, Award, Search, Check, AlertTriangle, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Printer, Mail, FileText, Award, Search, Check, AlertTriangle, Pencil } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
@@ -13,6 +13,7 @@ import ScoresView from './ScoresView';
 import SparringView from './SparringView';
 import PapersView from './PapersView';
 import AwardsView from './AwardsView';
+import ProgressOverview from './ProgressOverview';
 import { openReports, openBracket } from './testReports';
 import { MIN_CLASSES, TEST_FEE_ITEMS, feeItemFor, nextBelt, beltMeta, beltIndex, countStart, classesSince, matchFees, NOTICE_SUBJECT, NOTICE_MESSAGE } from '../../lib/beltTesting';
 
@@ -52,6 +53,8 @@ export default function TestingPage() {
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState('list'); // list | scores | sparring
+  // First screen = everyone's progress (tapes, classes); "Open test" shows the test list.
+  const [screen, setScreen] = useState('overview');
 
   const test = tests.find((t) => t.id === testId);
   const say = (text, error = false) => setFlash({ text, error });
@@ -349,8 +352,17 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
     w.document.close();
   }
 
+  if (screen === 'overview')
+    return (
+      <ProgressOverview
+        onOpenTest={(id) => { setTestId(id); setScreen('test'); }}
+        onNewTest={() => { setScreen('test'); setModal('new'); }}
+      />
+    );
+
   return (
     <>
+      <button className="dp-btn" style={{ marginBottom: 12, padding: '5px 10px', fontSize: 12.5 }} onClick={() => setScreen('overview')}><ArrowLeft size={14} /> All students & tapes</button>
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Belt Testing</h1>
