@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { LogOut, CalendarX, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X } from 'lucide-react';
+import { LogOut, CalendarX, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import logo from '../../assets/logo.png';
 import { supabase } from '../../supabaseClient';
 import { useAuth, IDLE_FLAG, touch } from '../../auth/AuthContext';
@@ -147,7 +147,7 @@ function ParentLogin({ notice }) {
         <label style={label}>Email</label>
         <input type="email" autoComplete="email" style={input} value={email} onChange={(e) => setEmail(e.target.value)} required />
         <label style={label}>Password</label>
-        <input type="password" autoComplete="current-password" style={input} value={password} onChange={(e) => setPassword(e.target.value)} />
+        <PasswordInput autoComplete="current-password" value={password} onChange={setPassword} />
         {error && <p style={{ color: C.red, fontSize: 13 }}>{error}</p>}
         {info && <p style={{ color: C.green, fontSize: 13 }}>{info}</p>}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 14 }}>
@@ -157,6 +157,25 @@ function ParentLogin({ notice }) {
       </form>
       <p style={{ fontSize: 12.5, color: C.faint, textAlign: 'center' }}>No account yet? Ask the dojang to send you a parent portal invite.</p>
     </Shell>
+  );
+}
+
+// Password box with an eye button to show / hide what's typed.
+function PasswordInput({ value, onChange, autoComplete, autoFocus }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <input type={show ? 'text' : 'password'} autoComplete={autoComplete} autoFocus={autoFocus} style={{ ...input, paddingRight: 44 }} value={value} onChange={(e) => onChange(e.target.value)} />
+      <button
+        type="button"
+        aria-label={show ? 'Hide password' : 'Show password'}
+        title={show ? 'Hide password' : 'Show password'}
+        onClick={() => setShow((v) => !v)}
+        style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', padding: 8, cursor: 'pointer', color: C.soft, display: 'flex' }}
+      >
+        {show ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </div>
   );
 }
 
@@ -189,9 +208,9 @@ function SetPassword({ login, onDone }) {
         <h1 style={{ fontSize: 20, margin: '0 0 4px' }}>Set your password</h1>
         <p style={{ fontSize: 13.5, color: C.soft, margin: 0 }}>You'll use this with your email{login.email ? ` (${login.email})` : ''} to sign in next time.</p>
         <label style={label}>New password (8+ characters)</label>
-        <input type="password" autoComplete="new-password" style={input} value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
+        <PasswordInput autoComplete="new-password" value={pw} onChange={setPw} autoFocus />
         <label style={label}>Type it again</label>
-        <input type="password" autoComplete="new-password" style={input} value={pw2} onChange={(e) => setPw2(e.target.value)} />
+        <PasswordInput autoComplete="new-password" value={pw2} onChange={setPw2} />
         {error && <p style={{ color: C.red, fontSize: 13 }}>{error}</p>}
         <button type="submit" style={{ ...primary, marginTop: 14 }} disabled={busy}>Save password</button>
       </form>
@@ -210,7 +229,7 @@ function ParentPortal({ onSignOut }) {
   async function load() {
     const today = todayISO();
     const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
-    const [{ data: core, error: e1 }, inv, pays, att, tapes, events, signups, notices] = await Promise.all([
+    const [{ data: core, error: e1 }, inv, pays, att, tapes, events, signups, notices, closed] = await Promise.all([
       supabase.rpc('parent_portal_data'),
       supabase.from('invoice_summary').select('*').eq('voided', false).order('invoice_date', { ascending: false }),
       supabase.from('invoice_payments').select('*').order('payment_date', { ascending: false }),
@@ -219,9 +238,10 @@ function ParentPortal({ onSignOut }) {
       supabase.from('events').select('*').order('start_date'),
       supabase.from('event_signups').select('*'),
       supabase.from('absence_notices').select('*').gte('absence_date', today).order('absence_date'),
+      supabase.from('class_cancellations').select('date, class_name, reason').gte('date', today),
     ]);
     if (e1) return setError(e1.message);
-    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], notices: notices.data || [] });
+    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], notices: notices.data || [], closed: closed.data || [] });
   }
   useEffect(() => {
     load();
@@ -548,55 +568,112 @@ function Modal({ title, children, onClose, footer }) {
   );
 }
 
-function nextClassDate(s, schedule) {
-  const plan = weeklyPlan(s, schedule);
-  const today = new Date(todayISO() + 'T12:00:00');
-  for (let k = 0; k < 14; k++) {
-    const day = new Date(today.getTime() + k * 864e5);
-    const c = plan.find((p) => p.weekday === day.getDay());
-    if (c) return { date: day.toISOString().slice(0, 10), cls: c.class_name };
+// Class days for this child over the next weeks (closures left out).
+function classDays(student, d, weeks = 5) {
+  const plan = weeklyPlan(student, d.schedule);
+  const out = [];
+  const start = new Date(todayISO() + 'T12:00:00');
+  for (let k = 0; k < weeks * 7; k++) {
+    const day = new Date(start.getTime() + k * 864e5);
+    const iso = day.toISOString().slice(0, 10);
+    const classes = plan
+      .filter((p) => p.weekday === day.getDay())
+      .filter((p) => !(d.closed || []).some((c) => c.date === iso && (!c.class_name || c.class_name === p.class_name)));
+    if (classes.length) out.push({ date: iso, classes });
   }
-  return { date: todayISO(), cls: splitClasses(s.class_name)[0] || '' };
+  return out;
 }
 
 function AbsenceModal({ d, student, onClose, onDone }) {
-  const first = nextClassDate(student, d.schedule);
-  const [date, setDate] = useState(first.date);
-  const classes = splitClasses(student.class_name);
-  const [cls, setCls] = useState(first.cls);
+  const today = todayISO();
+  const days = useMemo(() => classDays(student, d), [student, d]);
+  const byDate = Object.fromEntries(days.map((x) => [x.date, x]));
+  const told = new Set(d.notices.filter((x) => x.student_id === student.id).map((x) => x.absence_date));
+  const [date, setDate] = useState(() => days.find((x) => !told.has(x.date))?.date || '');
+  const [cls, setCls] = useState(() => byDate[days.find((x) => !told.has(x.date))?.date]?.classes[0]?.class_name || '');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const wd = new Date(date + 'T12:00:00').getDay();
-  const that = weeklyPlan(student, d.schedule).filter((p) => p.weekday === wd);
-  useEffect(() => {
-    if (that.length && !that.some((p) => p.class_name === cls)) setCls(that[0].class_name);
-  }, [date]);
+  const onHold = student.hold_from && student.hold_from <= today && (!student.hold_until || student.hold_until >= today);
+  const first = student.name.split(' ')[0];
+  function pick(iso) {
+    setDate(iso);
+    setCls(byDate[iso]?.classes[0]?.class_name || '');
+  }
   async function send() {
+    if (!date) return setError('Pick the class day.');
     setError('');
     setBusy(true);
     const r = await callFn({ action: 'absence', student_id: student.id, date, class_name: cls, note });
     setBusy(false);
     if (r.error) return setError(r.error);
-    onDone(`Thanks — we've let the dojang know ${student.name.split(' ')[0]} will be absent on ${fday(date)}.`);
+    onDone(`Thanks — we've let the dojang know ${first} will be absent on ${fday(date)}.`);
   }
+  // calendar: weeks from this week's Sunday
+  const start = new Date(today + 'T12:00:00');
+  start.setDate(start.getDate() - start.getDay());
+  const cells = Array.from({ length: 35 }, (_, k) => new Date(start.getTime() + k * 864e5).toISOString().slice(0, 10));
+  const chosen = byDate[date];
   return (
-    <Modal title={`Absence — ${student.name}`} onClose={onClose} footer={<><button style={btn} onClick={onClose}>Cancel</button><button style={primary} onClick={send} disabled={busy}>Send to the dojang</button></>}>
-      <label style={label}>Date</label>
-      <input type="date" style={input} value={date} min={todayISO()} onChange={(e) => setDate(e.target.value)} />
-      {that.length === 0 && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '4px 0 0' }}>{student.name.split(' ')[0]} doesn't usually have class on this day.</p>}
-      {classes.length > 0 && (
-        <>
-          <label style={label}>Class</label>
-          <select style={input} value={cls} onChange={(e) => setCls(e.target.value)}>
-            {classes.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </>
+    <Modal title={`Absence — ${student.name}`} onClose={onClose} footer={<><button style={btn} onClick={onClose}>Cancel</button><button style={primary} onClick={send} disabled={busy || !date}>Send to the dojang</button></>}>
+      <label style={label}>Which class will {first} miss?</label>
+      <div data-testid="absence-calendar" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center' }}>
+        {WD.map((w) => <div key={w} style={{ fontSize: 11.5, color: C.faint, padding: '2px 0' }}>{w}</div>)}
+        {cells.map((iso) => {
+          const ok = !!byDate[iso] && !told.has(iso);
+          const on = iso === date;
+          const dt = new Date(iso + 'T12:00:00');
+          return (
+            <button
+              key={iso}
+              type="button"
+              disabled={!ok}
+              data-day={iso}
+              data-open={ok ? '1' : '0'}
+              onClick={() => pick(iso)}
+              title={told.has(iso) ? 'Already told the dojang' : ok ? byDate[iso].classes.map((c) => c.class_name).join(', ') : ''}
+              style={{
+                padding: '7px 0',
+                borderRadius: 8,
+                fontSize: 14,
+                fontFamily: 'inherit',
+                border: on ? `2px solid ${C.red}` : `1px solid ${ok ? '#CFE3D1' : 'transparent'}`,
+                background: on ? '#FBEAEA' : ok ? '#F1F7F1' : 'transparent',
+                color: ok ? C.ink : told.has(iso) ? C.green : '#C9C6BA',
+                fontWeight: ok ? 600 : 400,
+                cursor: ok ? 'pointer' : 'default',
+              }}
+            >
+              {told.has(iso) ? '✓' : dt.getDate()}
+              {dt.getDate() === 1 || iso === cells[0] ? <div style={{ fontSize: 9.5, fontWeight: 400, color: C.faint }}>{dt.toLocaleDateString('en-CA', { month: 'short' })}</div> : null}
+            </button>
+          );
+        })}
+      </div>
+      {days.length === 0 && <p style={{ fontSize: 13, color: '#854F0B' }}>No upcoming classes found for {first}. Please email the dojang instead.</p>}
+      {chosen && (
+        <p style={{ fontSize: 14, margin: '10px 0 0' }}>
+          <b>{fday(date)}</b>
+          {chosen.classes.length === 1 ? ` · ${chosen.classes[0].class_name} ${ftime(chosen.classes[0].start_time)}` : ''}
+        </p>
+      )}
+      {chosen && chosen.classes.length > 1 && (
+        <select style={{ ...input, marginTop: 6 }} value={cls} onChange={(e) => setCls(e.target.value)}>
+          {chosen.classes.map((c) => <option key={c.class_name} value={c.class_name}>{c.class_name} · {ftime(c.start_time)}</option>)}
+        </select>
       )}
       <label style={label}>Note (optional)</label>
-      <textarea style={{ ...input, minHeight: 70 }} placeholder="e.g. sick, family trip" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
-      <p style={{ fontSize: 12.5, color: C.faint, margin: '8px 0 0' }}>Telling us before class counts as an excused absence (make-up classes are only for excused absences).</p>
+      <textarea style={{ ...input, minHeight: 60 }} placeholder="e.g. sick, family trip" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
+      {onHold && <p style={{ fontSize: 13, color: '#854F0B', margin: '8px 0 0' }}>{first}'s membership is on a break right now, so make-up classes can't be booked until it's active again.</p>}
       {error && <p style={{ color: C.red, fontSize: 13 }}>{error}</p>}
+      <div style={{ marginTop: 14, padding: '10px 12px', background: C.bg, borderRadius: 8, fontSize: 12.5, color: C.soft, lineHeight: 1.5 }}>
+        <div style={{ fontWeight: 700, color: C.ink, marginBottom: 2 }}>Make-up class policy</div>
+        <div>• Make-ups are only for excused absences — please tell us <b>before</b> the class.</div>
+        <div>• Take the make-up within <b>30 days</b> of the missed class (you can also do it before).</div>
+        <div>• The membership must be <b>active</b> — no make-ups while on a break (hold) or after the membership ends.</div>
+        <div>• No make-ups for statutory holidays or dojang closures.</div>
+        <div>• Competition Team is unlimited, so it doesn't need make-ups.</div>
+      </div>
     </Modal>
   );
 }
