@@ -14,6 +14,21 @@ export const DOJANG_CLASSES = [
   'Comp Team',
 ];
 
+// One colour per class (DESIGN.md → Class colours): dark text on a light tint.
+// Use these wherever a class is shown as a chip so each class is easy to spot.
+export const CLASS_COLORS = {
+  Beginner: { text: '#27500A', bg: '#EAF3DE' },
+  'Intermediate B': { text: '#0C447C', bg: '#E6F1FB' },
+  'Beginner/Intermediate': { text: '#085041', bg: '#E1F5EE' },
+  'Intermediate A': { text: '#3C3489', bg: '#EEEDFE' },
+  'Intermediate/Advance': { text: '#72243E', bg: '#FBEAF0' },
+  'Advance Poomsae': { text: '#633806', bg: '#FAEEDA' },
+  'Advance Sparring': { text: '#791F1F', bg: '#FCEBEB' },
+  HP: { text: '#8A3A08', bg: '#FDEBDD' },
+  'Comp Team': { text: '#2C2C2A', bg: '#E9E7E0' },
+};
+export const classColor = (name) => CLASS_COLORS[String(name || '').trim()] || { text: 'var(--dp-ink)', bg: 'var(--dp-canvas)' };
+
 export function splitClasses(v) {
   return String(v || '')
     .split(',')

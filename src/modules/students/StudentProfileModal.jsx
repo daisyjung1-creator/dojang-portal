@@ -10,7 +10,7 @@ import { hasTapes, loadTapes, TAPE_COUNT } from '../../lib/tapes';
 import StudentFlags from '../../components/StudentFlags';
 import { BELTS } from '../../lib/constants';
 import { todayISO, addDaysISO, billingAnchor, nextDueDate, planMonths } from '../../lib/billingDates';
-import { weeklyPlan, splitClasses } from '../../lib/classes';
+import { weeklyPlan, splitClasses, classColor } from '../../lib/classes';
 import { MIN_CLASSES, classesSince } from '../../lib/beltTesting';
 import { formatDate, money } from '../../lib/invoiceUtils';
 import { PATCHES } from '../../lib/testAwards';
@@ -197,7 +197,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <Row k="Every week">
             {plan.length ? (
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {plan.map((c, i) => <Pill key={i} wrap c="var(--dp-ink)" bg="var(--dp-canvas)">{WD[c.weekday]} {shortTime(c.start_time)} · {c.class_name}</Pill>)}
+                {plan.map((c, i) => { const cc = classColor(c.class_name); return <Pill key={i} wrap c={cc.text} bg={cc.bg}>{WD[c.weekday]} {shortTime(c.start_time)} · {c.class_name}</Pill>; })}
               </span>
             ) : '—'}
           </Row>
