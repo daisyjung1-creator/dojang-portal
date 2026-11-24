@@ -456,7 +456,7 @@ const field = { width: '100%', boxSizing: 'border-box', border: `1px solid #D6D2
 
 export function Page({ children, subtitle = 'Student Registration & Membership Agreement' }) {
   return (
-    <div style={{ minHeight: '100vh', background: C.paper, fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', color: C.ink }}>
+    <div style={{ minHeight: '100vh', background: C.paper, fontFamily: 'var(--dp-font)', color: C.ink }}>
       <div style={{ background: C.ink, color: '#fff', padding: '18px 16px' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 14 }}>
           <img src={markImg} alt="Hankook Taekwondo" style={{ width: 50, height: 50, objectFit: 'contain', background: '#fff', borderRadius: 10, padding: 3, flex: 'none' }} />

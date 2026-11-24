@@ -183,7 +183,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
   const prettyDate = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }) : '—');
 
   return (
-    <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)' } : undefined}>
+    <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)', fontWeight: 400 } : undefined}>
       <div style={styles.header}>
         <div>
           {tabs || <h1 style={T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, lineHeight: 1.15, margin: 0 } : styles.title}>Trials</h1>}

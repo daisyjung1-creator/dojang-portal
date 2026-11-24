@@ -96,7 +96,7 @@ export default function ParentApp() {
 
 function Shell({ children, right, wide }) {
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", color: C.ink }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--dp-font)', color: C.ink }}>
       <div style={{ background: '#fff', borderBottom: `1px solid ${C.line}` }}>
         <div style={{ maxWidth: wide ? 980 : 560, margin: '0 auto', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <img src={logo} alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />

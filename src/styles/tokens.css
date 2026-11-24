@@ -1,3 +1,38 @@
+/* Helvetica from the visitor's own device (Mac / iPad have Light, Regular, Bold
+   and Oblique built in). Nothing is downloaded: Helvetica's licence doesn't allow
+   putting the font files on a website. Devices without Helvetica fall through to
+   Helvetica Neue / Arial in --dp-font. */
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 300;
+  font-style: normal;
+  src: local('Helvetica Light'), local('Helvetica-Light'), local('Helvetica Neue Light'), local('HelveticaNeue-Light');
+}
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 400;
+  font-style: normal;
+  src: local('Helvetica'), local('Helvetica Neue'), local('HelveticaNeue');
+}
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 500;
+  font-style: normal;
+  src: local('Helvetica Neue Medium'), local('HelveticaNeue-Medium'), local('Helvetica'), local('Helvetica Neue');
+}
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 600 700;
+  font-style: normal;
+  src: local('Helvetica Bold'), local('Helvetica-Bold'), local('Helvetica Neue Bold'), local('HelveticaNeue-Bold');
+}
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 300 500;
+  font-style: italic;
+  src: local('Helvetica Oblique'), local('Helvetica-Oblique'), local('Helvetica Neue Italic'), local('HelveticaNeue-Italic');
+}
+
 /* Design tokens from DESIGN.md ("The Dojang Floor").
    Defined here only; screens move onto them one at a time in later steps,
    so loading this file changes nothing on screen yet. */
@@ -25,7 +60,9 @@
   --dp-info: #1E4566;
 
   /* Type */
-  --dp-font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --dp-font: 'Dojang Helvetica', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  /* Admin screens read in Helvetica Light; touch screens (kiosk, Today, Tapes, Trials, parents) stay Regular. */
+  --dp-weight-admin: 300;
   --dp-text-display: 28px;
   --dp-text-headline: 20px;
   --dp-text-title: 16px;

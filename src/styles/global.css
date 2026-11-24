@@ -102,6 +102,10 @@ select.dp-select {
 .dp-btn-danger:hover {
   background: var(--dp-danger-tint);
 }
+/* Admin pages: light body text (easier on the eyes for long sessions). */
+.dp-main {
+  font-weight: var(--dp-weight-admin);
+}
 .dp-row:hover {
   background: var(--dp-canvas);
 }

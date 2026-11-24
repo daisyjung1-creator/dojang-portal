@@ -102,7 +102,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
   const field = T ? { minHeight: 'var(--dp-touch)', fontSize: 'var(--dp-text-body)' } : undefined;
 
   return (
-    <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)' } : undefined}>
+    <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)', fontWeight: 400 } : undefined}>
       <div style={styles.header}>
         <div>
           <h1 style={T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, lineHeight: 1.15, margin: 0 } : styles.title}>{isAdmin ? 'Belt Testing' : 'Tapes'}</h1>
