@@ -255,3 +255,8 @@ table.dp-table td {
     padding: 10px 14px calc(78px + env(safe-area-inset-bottom)) !important;
   }
 }
+
+/* Student page: tapes + family stack on narrow screens */
+@media (max-width: 820px) {
+  .dp-student-split { grid-template-columns: minmax(0, 1fr) !important; }
+}

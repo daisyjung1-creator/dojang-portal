@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Pencil, FileText, CalendarX, Mail, Trash2, Eye, EyeOff, Copy, Check, PauseCircle, Receipt } from 'lucide-react';
+import { ArrowLeft, Phone, Pencil, FileText, CalendarX, Mail, Trash2, Eye, EyeOff, Copy, Check, PauseCircle, Receipt } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
-import TapeTracker from '../../components/TapeTracker';
-import { hasTapes, loadTapes } from '../../lib/tapes';
+import TapeList from '../../components/TapeList';
+import { hasTapes, loadTapes, TAPE_COUNT } from '../../lib/tapes';
 import StudentFlags from '../../components/StudentFlags';
 import { BELTS } from '../../lib/constants';
 import { todayISO, addDaysISO, billingAnchor, nextDueDate, planMonths } from '../../lib/billingDates';
@@ -78,6 +78,8 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const last = att?.find((r) => ['present', 'double'].includes(r.status));
   const withdrawn = s.status === 'withdrawn';
   const next = billingAnchor(s) ? nextDueDate(s, todayISO()) : null;
+  const streak = att ? weekStreak(att) : 0;
+  const card = { border: '1px solid #E4E6DF', borderRadius: 10, padding: '16px 18px', background: '#fff' };
 
   async function saveBb() {
     const row = { student_id: s.id, updated_at: new Date().toISOString() };
@@ -114,8 +116,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
                 <button className="dp-btn" style={btn} onClick={onWithdraw}>Withdraw</button>
                 <button className="dp-btn" style={{ ...btn, ...(s.billing_end_date ? { color: '#9A2B2B', borderColor: '#E4B8B8' } : {}) }} onClick={onCancel}><CalendarX size={13} /> Cancellation</button>
                 <button className="dp-btn" style={btn} disabled={!s.guardian_email} onClick={onWelcome}><Mail size={13} /> Welcome email{s.welcome_sent_at ? ' ✓' : ''}</button>
-                <button className="dp-btn" style={btn} onClick={onPoe}><FileText size={13} /> Proof of enrollment</button>
-                <button className="dp-btn" style={btn} onClick={onStatement}><Receipt size={13} /> Statement</button>
               </>
             )}
           </>
@@ -124,21 +124,67 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   // A full page (not a pop-up). Changes go through "Edit details".
   return (
     <div data-testid="student-page">
-      <button className="dp-btn" style={{ ...btn, marginBottom: 12 }} onClick={onClose}><ArrowLeft size={14} /> All students</button>
-      <div style={{ ...styles.header, alignItems: 'flex-start' }}>
-        <div>
-          <h1 style={styles.title}>{s.name}</h1>
+      <button className="dp-link-back" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', padding: 0, marginBottom: 14, color: '#5B5F56', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }} onClick={onClose}>
+        <ArrowLeft size={15} /> Students
+      </button>
+
+      {/* Header: who, belt, status, streak, age, joined */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+        <div aria-hidden style={{ width: 64, height: 64, borderRadius: 12, border: '1.5px dashed #D8D5CA', background: '#FAF9F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 600, color: '#5B5F56', flexShrink: 0 }}>
+          {initials(s.name)}
         </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <h1 style={{ ...styles.title, fontSize: 26, margin: '0 0 6px' }}>{s.name}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14 }}>
+              <span style={{ width: 30, height: 12, borderRadius: 3, background: belt.bg, border: `1px solid ${belt.border}` }} />
+              {s.belt || 'White'}
+            </span>
+            {withdrawn ? (
+              <Pill c="#5B5F56" bg="#F1EFE7">Withdrawn{s.withdrawn_date ? ` ${formatDate(s.withdrawn_date)}` : ''}</Pill>
+            ) : s.hold_until && s.hold_until >= todayISO() ? (
+              <Pill c="#3A4250" bg="#EEF0F3">On hold {s.hold_from && s.hold_from > todayISO() ? `from ${formatDate(s.hold_from)} ` : ''}until {formatDate(s.hold_until)}{s.hold_reason ? ` — ${s.hold_reason}` : ''}</Pill>
+            ) : (
+              <Pill c="#2A5A30" bg="#E8F1E9">● Active</Pill>
+            )}
+            {streak > 1 && <Pill c="#854F0B" bg="#FAEEDA">🔥 {streak}-week streak</Pill>}
+            {age != null && <span style={{ fontSize: 14, color: '#5B5F56' }}>Age {age}</span>}
+            {s.enroll_date && <span style={{ fontSize: 14, color: '#5B5F56' }}>Joined {formatDate(s.enroll_date)}</span>}
+            <StudentFlags s={s} />
+            {s.billing_end_date && !withdrawn && <Pill c="#9A2B2B" bg="#FBEAEA">Membership ends {formatDate(s.billing_end_date)}</Pill>}
+          </div>
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+        {s.guardian_phone && <a className="dp-btn" href={`tel:${s.guardian_phone}`} style={{ textDecoration: 'none' }}><Phone size={14} /> Call</a>}
+        {s.guardian_email && <a className="dp-btn" href={`mailto:${s.guardian_email}`} style={{ textDecoration: 'none' }}><Mail size={14} /> Email family</a>}
+        {isAdmin && !withdrawn && <button className="dp-btn" onClick={onPoe}><FileText size={14} /> Proof of enrollment</button>}
+        {isAdmin && <button className="dp-btn" onClick={onStatement}><Receipt size={14} /> Statement</button>}
         {isAdmin && <button className="dp-btn dp-btn-primary" onClick={onEdit}><Pencil size={14} /> Edit details</button>}
       </div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '-4px 0 14px' }}>
-        <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 13, background: belt.bg, color: belt.text, border: `1px solid ${belt.border}` }}>{s.belt || 'White'}</span>
-        {age != null && <span style={{ fontSize: 13, color: '#5B5F56' }}>{age} years old</span>}
-        <StudentFlags s={s} />
-        {withdrawn && <Pill c="#5B5F56" bg="#F1EFE7">Withdrawn{s.withdrawn_date ? ` ${formatDate(s.withdrawn_date)}` : ''}</Pill>}
-        {s.hold_until && s.hold_until >= todayISO() && <Pill c="#3A4250" bg="#EEF0F3">On hold {s.hold_from && s.hold_from > todayISO() ? `from ${formatDate(s.hold_from)} ` : ''}until {formatDate(s.hold_until)}{s.hold_reason ? ` — ${s.hold_reason}` : ''}</Pill>}
-        {s.billing_end_date && !withdrawn && <Pill c="#9A2B2B" bg="#FBEAEA">Membership ends {formatDate(s.billing_end_date)}</Pill>}
+
+      <BeltJourney s={s} since={since} tapes={tapes} />
+
+      {/* Tapes + family side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: hasTapes(s.belt) ? 'minmax(0, 2fr) minmax(260px, 1fr)' : 'minmax(0, 1fr)', gap: 14, marginBottom: 14 }} className="dp-student-split">
+        {hasTapes(s.belt) && (
+          <div style={card}>
+            <TapeList student={s} onChange={setTapes} editable />
+          </div>
+        )}
+        <div style={card}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Family</h2>
+          <Row k="Parent / guardian">{s.guardian_name || '—'}</Row>
+          <Row k="Phone">{s.guardian_phone ? <a href={`tel:${s.guardian_phone}`}>{s.guardian_phone}</a> : '—'}</Row>
+          <Row k="Email">{s.guardian_email || '—'}</Row>
+          <Row k="Address">{s.address || '—'}</Row>
+          <Row k="Emergency">{[s.emergency_name, s.emergency_phone].filter(Boolean).join(' · ') || '—'}</Row>
+          {siblings.length > 0 && <Row k="Siblings">{siblings.map((x) => x.name).join(', ')}</Row>}
+          {family?.name && <Row k="Family account">{family.name}</Row>}
+          {isAdmin && s.customer_id && <Row k="Parent portal"><ParentInvite customerId={s.customer_id} /></Row>}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
@@ -166,20 +212,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           </Row>
           <Row k="This month">{thisMonth == null ? '…' : `${thisMonth} class${thisMonth === 1 ? '' : 'es'}`}</Row>
           <Row k="Last class">{last ? `${WD[new Date(last.date + 'T00:00:00').getDay()]} ${formatDate(last.date)}` : '—'}</Row>
-          {hasTapes(s.belt) && (
-            <Row k="Tapes">
-              {tapes === null ? '…' : <TapeTracker student={s} earned={tapes} onChange={setTapes} size="lg" />}
-            </Row>
-          )}
-        </Box>
-
-        <Box title="Family & contact">
-          <Row k="Guardian">{s.guardian_name || '—'}</Row>
-          <Row k="Phone">{s.guardian_phone ? <a href={`tel:${s.guardian_phone}`}>{s.guardian_phone}</a> : '—'}</Row>
-          <Row k="Email">{s.guardian_email || '—'}</Row>
-          <Row k="Address">{s.address || '—'}</Row>
-          <Row k="Emergency">{[s.emergency_name, s.emergency_phone].filter(Boolean).join(' · ') || '—'}</Row>
-          {siblings.length > 0 && <Row k="Siblings">{siblings.map((x) => x.name).join(', ')}</Row>}
         </Box>
 
         <Box title="Health & consent">
@@ -213,8 +245,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
                 {s.reregistration_fee_due && <Row k="Next invoice">+ $20 re-registration fee</Row>}
               </>
             )}
-            {family?.name && <Row k="Family account">{family.name}</Row>}
-            {isAdmin && s.customer_id && <Row k="Parent portal"><ParentInvite customerId={s.customer_id} /></Row>}
           </Box>
         )}
 
@@ -368,6 +398,95 @@ function ParentInvite({ customerId }) {
         {busy ? 'Sending…' : state.invited ? 'Resend invite' : 'Send invite'}
       </button>
       {msg && <div style={{ fontSize: 12, color: '#5B5F56', marginTop: 3 }}>{msg}</div>}
+    </div>
+  );
+}
+
+const initials = (name) =>
+  String(name || '?')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
+
+// Weeks in a row (Mon–Sun) with at least one class, counting back from this
+// week (a week with no class yet doesn't break the streak until it's over).
+function weekStreak(att) {
+  const weekOf = (iso) => {
+    const d = new Date(iso + 'T12:00:00');
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  };
+  const weeks = new Set(att.filter((r) => ['present', 'double'].includes(r.status)).map((r) => weekOf(r.date)));
+  const cur = new Date(weekOf(todayISO()) + 'T12:00:00');
+  let n = 0;
+  if (!weeks.has(cur.toISOString().slice(0, 10))) cur.setDate(cur.getDate() - 7);
+  while (weeks.has(cur.toISOString().slice(0, 10))) {
+    n++;
+    cur.setDate(cur.getDate() - 7);
+  }
+  return n;
+}
+
+// White → Black Belt 1st Dan as one bar; the current belt is outlined.
+const JOURNEY = BELTS.slice(0, BELTS.findIndex((b) => b.value === 'Black Belt 1st Dan') + 1);
+function BeltJourney({ s, since, tapes }) {
+  const i = Math.max(0, JOURNEY.findIndex((b) => b.value === (s.belt || 'White')));
+  const done = i >= JOURNEY.length - 1 || BELTS.findIndex((b) => b.value === s.belt) >= JOURNEY.length - 1;
+  const pct = done ? 100 : Math.round((i / (JOURNEY.length - 1)) * 100);
+  const next = done ? null : JOURNEY[i + 1]?.value;
+  const first = String(s.name || '').split(' ')[0];
+  const taped = hasTapes(s.belt);
+  const left = taped && tapes ? TAPE_COUNT - tapes.size : null;
+  const classesLeft = since == null ? null : Math.max(0, MIN_CLASSES - since);
+  const hint = done
+    ? `${first} is a black belt.`
+    : [
+        taped && left != null ? (left > 0 ? `${left} more tape${left === 1 ? '' : 's'}` : 'all tapes ✓') : null,
+        classesLeft != null ? (classesLeft > 0 ? `${classesLeft} more class${classesLeft === 1 ? '' : 'es'}` : `${MIN_CLASSES} classes ✓`) : null,
+      ]
+        .filter(Boolean)
+        .join(' and ');
+  return (
+    <div style={{ border: '1px solid #E4E6DF', borderRadius: 10, padding: '16px 18px', background: '#fff', marginBottom: 14 }} data-testid="belt-journey">
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Black belt journey</h2>
+          <div style={{ fontSize: 13.5, color: '#5B5F56', marginTop: 2 }}>
+            {first} is on belt {i + 1} of {JOURNEY.length}
+            {next && <> · next up: <b style={{ color: '#20241F' }}>{next}</b></>}
+          </div>
+        </div>
+        <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1 }}>{pct}<span style={{ fontSize: 14, color: '#5B5F56' }}>%</span></div>
+      </div>
+      <div style={{ display: 'flex', gap: 3, margin: '14px 0 4px' }}>
+        {JOURNEY.map((b, k) => (
+          <div
+            key={b.value}
+            title={b.value}
+            style={{
+              flex: 1,
+              height: 20,
+              borderRadius: 4,
+              background: b.bg,
+              opacity: k <= i ? 1 : 0.22,
+              border: k === i ? '2.5px solid #20241F' : `1px solid ${b.border}`,
+              boxSizing: 'border-box',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', fontSize: 12, color: '#8A8D84' }}>
+        <span style={{ flex: 1 }}>White</span>
+        <span>Black belt</span>
+      </div>
+      {!done && hint && (
+        <p style={{ fontSize: 13.5, color: '#5B5F56', margin: '10px 0 0' }}>
+          {hint.includes('more') ? `${hint} and ${first} is ready to test for ${next}.`.replace(' and ' + first, `, then ${first}`) : `${first} is ready to test for ${next}.`}
+        </p>
+      )}
     </div>
   );
 }
