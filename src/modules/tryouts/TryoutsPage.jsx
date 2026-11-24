@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Check, Mail, Link2, MessageSquare, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Mail, Link2, MessageSquare, Copy, Clock } from 'lucide-react';
 import { TRIAL_LINK, JOIN_LINK } from '../leads/LeadMessageModal';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
@@ -166,14 +166,29 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
   const filtered = useMemo(() => tryouts.filter((t) => statusFilter === 'all' || t.status === statusFilter), [tryouts, statusFilter]);
   const statusMeta = (status) => TRYOUT_STATUSES.find((s) => s.value === status) || TRYOUT_STATUSES[0];
 
+  // Staff iPad: DESIGN.md touch sizes, bookings grouped Today / Coming up / Earlier.
+  const T = !isAdmin;
+  const tb = { minHeight: 'var(--dp-touch)', padding: '8px 14px', fontSize: 'var(--dp-text-label)', fontWeight: 600 };
+  const staffGroups = useMemo(() => {
+    if (!T) return [];
+    const today = todayISO();
+    const byTime = (a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.time || '').localeCompare(String(b.time || ''));
+    return [
+      ['Today', filtered.filter((t) => t.date === today).sort(byTime)],
+      ['Coming up', filtered.filter((t) => t.date > today).sort(byTime)],
+      ['Earlier', filtered.filter((t) => !t.date || t.date < today).sort((a, b) => byTime(b, a))],
+    ].filter(([, list]) => list.length);
+  }, [T, filtered]);
+  const prettyDate = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }) : '—');
+
   return (
-    <>
+    <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)' } : undefined}>
       <div style={styles.header}>
         <div>
-          {tabs || <h1 style={styles.title}>Trials</h1>}
-          <p style={styles.subtitle}>{tryouts.length} trial bookings</p>
+          {tabs || <h1 style={T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, lineHeight: 1.15, margin: 0 } : styles.title}>Trials</h1>}
+          <p style={T ? { fontSize: 'var(--dp-text-body)', color: 'var(--dp-ink-soft)', margin: '6px 0 0' } : styles.subtitle}>{tryouts.length} trial bookings</p>
         </div>
-        <button className="dp-btn dp-btn-primary" onClick={openAdd}>
+        <button className="dp-btn dp-btn-primary" style={T ? { ...tb, background: 'var(--dp-ink)', borderColor: 'var(--dp-ink)' } : undefined} onClick={openAdd}>
           <Plus size={15} /> Add Booking
         </button>
       </div>
@@ -182,17 +197,17 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
       <div style={{ ...styles.card, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <Link2 size={18} style={{ color: '#BF1C21' }} />
         <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>Online trial booking link</div>
+          <div style={{ fontWeight: 600, fontSize: T ? 'var(--dp-text-title)' : 14 }}>Online trial booking link</div>
           <a href={bookingLink} target="_blank" rel="noreferrer" style={{ fontSize: 15, color: '#1E4566', wordBreak: 'break-all' }}>{bookingLink}</a>
-          <div style={{ fontSize: 12, color: '#8A8D84', marginTop: 2 }}>
+          <div style={{ fontSize: T ? 'var(--dp-text-label)' : 12, color: T ? 'var(--dp-ink-soft)' : '#8A8D84', marginTop: 2, lineHeight: 1.45 }}>
             Families pick a date themselves · up to {settings.trial_capacity ?? 3} trials per class · next {settings.trial_days_ahead ?? 21} days · bookings show below as “Booked online” and in Leads
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button className="dp-btn" onClick={async () => { try { await navigator.clipboard.writeText(bookingLink); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', bookingLink); } }}>
+          <button className="dp-btn" style={T ? tb : undefined} onClick={async () => { try { await navigator.clipboard.writeText(bookingLink); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', bookingLink); } }}>
             {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy link'}
           </button>
-          <a className="dp-btn" href={bookingLink} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open</a>
+          <a className="dp-btn" href={bookingLink} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', ...(T ? tb : {}) }}>Open</a>
         </div>
       </div>
 
@@ -253,7 +268,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
       )}
 
       <div style={styles.filterBar}>
-        <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <select className="dp-select" aria-label="Status" style={T ? { minHeight: 'var(--dp-touch)', fontSize: 'var(--dp-text-body)' } : undefined} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All Statuses</option>
           {TRYOUT_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
@@ -263,6 +278,71 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
         </select>
       </div>
 
+      {T ? (
+        filtered.length === 0 ? (
+          <div style={{ ...styles.card, padding: 20, color: 'var(--dp-ink-soft)', fontSize: 'var(--dp-text-title)' }}>No bookings.</div>
+        ) : (
+          staffGroups.map(([label, list]) => (
+            <section key={label} aria-label={label} style={{ marginBottom: 20 }}>
+              <h2 style={{ fontSize: 'var(--dp-text-headline)', fontWeight: 700, margin: '0 0 10px' }}>{label} <span style={{ fontSize: 'var(--dp-text-body)', fontWeight: 400, color: 'var(--dp-ink-soft)' }}>{list.length}</span></h2>
+              <div style={{ background: 'var(--dp-paper)', border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-lg)', overflow: 'hidden' }}>
+                {list.map((t, i) => {
+                  const meta = statusMeta(t.status);
+                  return (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', padding: '12px 16px', borderBottom: i < list.length - 1 ? '1px solid var(--dp-line)' : 'none' }}>
+                      <div style={{ width: 110, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                        <div style={{ fontSize: 'var(--dp-text-body)', fontWeight: 600 }}>{label === 'Today' ? 'Today' : prettyDate(t.date)}</div>
+                        <div style={{ fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={13} aria-hidden="true" /> {timeLabel(t.time) || '—'}</div>
+                      </div>
+                      <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                        <div style={{ fontSize: 'var(--dp-text-title)', fontWeight: 600 }}>
+                          {t.student_name}
+                          {t.student_age != null && <span style={{ fontWeight: 400, color: 'var(--dp-ink-soft)' }}> · {t.student_age}y</span>}
+                        </div>
+                        <div style={{ fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', marginTop: 2 }}>
+                          {t.class_name || 'Class not set'}
+                          {t.guardian_name && ` · ${t.guardian_name}`}
+                          {t.guardian_phone && ` · ${t.guardian_phone}`}
+                        </div>
+                        {(t.experience && t.experience !== 'None') || /^Booked online/.test(t.notes || '') ? (
+                          <div style={{ fontSize: 'var(--dp-text-label)', marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            {t.experience && t.experience !== 'None' && <span style={{ color: 'var(--dp-warning)', fontWeight: 600 }}>{t.experience === 'Black belt' ? 'Black belt (Adv)' : 'Color belt (Inter)'}</span>}
+                            {/^Booked online/.test(t.notes || '') && <span style={{ color: 'var(--dp-info)' }}>Booked online</span>}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {t.guardian_email && (
+                          <button className="dp-btn" style={tb} onClick={() => openEmail(t)}>
+                            {t.confirmation_sent ? <Check size={15} aria-hidden="true" /> : <Mail size={15} aria-hidden="true" />} {t.confirmation_sent ? 'Email sent' : 'Email'}
+                          </button>
+                        )}
+                        {t.guardian_phone && (
+                          <a className="dp-btn" style={{ ...tb, textDecoration: 'none' }} href={smsHref(t)} onClick={() => markTexted(t)}>
+                            <MessageSquare size={15} aria-hidden="true" /> {!t.guardian_email && t.confirmation_sent ? 'Texted' : 'Text'}
+                          </a>
+                        )}
+                        <select
+                          className="dp-select"
+                          aria-label={`Status for ${t.student_name}`}
+                          style={{ minHeight: 'var(--dp-touch)', fontSize: 'var(--dp-text-label)', fontWeight: 600, background: meta.bg, color: meta.text, borderColor: meta.border }}
+                          value={t.status}
+                          onChange={(e) => setStatus(t.id, e.target.value)}
+                        >
+                          {TRYOUT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.value}</option>)}
+                        </select>
+                        <button aria-label={`Edit ${t.student_name}`} className="dp-btn" style={{ ...tb, width: 'var(--dp-touch)', justifyContent: 'center', padding: 0 }} onClick={() => openEdit(t)}>
+                          <Pencil size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ))
+        )
+      ) : (
       <div style={styles.card}>
         {filtered.length === 0 ? (
           <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No bookings.</p>
@@ -356,6 +436,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
           </table>
         )}
       </div>
+      )}
 
       {modalOpen && (
         <Modal
@@ -457,6 +538,6 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
       )}
 
       {confirmDeleteId && <ConfirmDialog message="Delete this booking? This can't be undone." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
-    </>
+    </div>
   );
 }

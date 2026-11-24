@@ -9,6 +9,7 @@ import { inClass, DOJANG_CLASSES } from '../../lib/classes';
 import { formatDate, localISO } from '../../lib/invoiceUtils';
 import { loadTapes, hasTapes, TAPE_COUNT } from '../../lib/tapes';
 import TapeTracker from '../../components/TapeTracker';
+import BeltStrip from '../../components/BeltStrip';
 
 // Belt Testing — first screen: every active student, their curriculum tapes
 // (tick them here) and classes since the last test. "Open test" goes on to the
@@ -96,13 +97,16 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
     ready: rows.filter((r) => r.ready).length,
   };
   const setOne = (id, set) => setTapes((m) => ({ ...m, [id]: set }));
+  // Staff iPad ("Tapes"): touch sizes from DESIGN.md. Admin keeps the table.
+  const T = !isAdmin;
+  const field = T ? { minHeight: 'var(--dp-touch)', fontSize: 'var(--dp-text-body)' } : undefined;
 
   return (
-    <>
+    <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)' } : undefined}>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>{isAdmin ? 'Belt Testing' : 'Tapes'}</h1>
-          <p style={styles.subtitle}>Every active student: curriculum tapes (tap to tick) and classes since their last test · {MIN_CLASSES} classes to be eligible</p>
+          <h1 style={T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, lineHeight: 1.15, margin: 0 } : styles.title}>{isAdmin ? 'Belt Testing' : 'Tapes'}</h1>
+          <p style={T ? { fontSize: 'var(--dp-text-body)', color: 'var(--dp-ink-soft)', margin: '6px 0 0', maxWidth: '60ch' } : styles.subtitle}>Every active student: curriculum tapes (tap to tick) and classes since their last test · {MIN_CLASSES} classes to be eligible</p>
         </div>
         {isAdmin && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -142,28 +146,28 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
       )}
 
       <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
-        <Metric label="Active students" value={stats.active} />
-        <Metric label="Avg. tapes (colour belts)" value={`${stats.avg} / ${TAPE_COUNT}`} />
-        <Metric label="All 7 tapes" value={stats.allTapes} onClick={() => setShow('all')} />
-        <Metric label={`${MIN_CLASSES}+ classes`} value={stats.enough} />
-        <Metric label="Ready to test" value={stats.ready} tone="good" onClick={() => setShow('ready')} />
+        <Metric T={T} label="Active students" value={stats.active} />
+        <Metric T={T} label="Avg. tapes (colour belts)" value={`${stats.avg} / ${TAPE_COUNT}`} />
+        <Metric T={T} label="All 7 tapes" value={stats.allTapes} onClick={() => setShow('all')} />
+        <Metric T={T} label={`${MIN_CLASSES}+ classes`} value={stats.enough} />
+        <Metric T={T} label="Ready to test" value={stats.ready} tone="good" onClick={() => setShow('ready')} />
       </div>
 
       <div style={{ ...styles.filterBar, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={styles.searchBox}>
-          <Search size={15} color="#8A8D84" />
-          <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Find student…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div style={{ ...styles.searchBox, ...(T ? { minHeight: 'var(--dp-touch)' } : {}) }}>
+          <Search size={T ? 18 : 15} color="#8A8D84" aria-hidden="true" />
+          <input aria-label="Find student" style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: T ? 'var(--dp-text-title)' : 14, flex: 1, fontFamily: 'inherit', background: 'transparent' }} placeholder="Find student…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <select className="dp-select" aria-label="Class" value={cls} onChange={(e) => setCls(e.target.value)}>
+        <select className="dp-select" style={field} aria-label="Class" value={cls} onChange={(e) => setCls(e.target.value)}>
           <option value="all">All classes</option>
           {classes.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select className="dp-select" aria-label="Belts" value={belt} onChange={(e) => setBelt(e.target.value)}>
+        <select className="dp-select" style={field} aria-label="Belts" value={belt} onChange={(e) => setBelt(e.target.value)}>
           <option value="all">All belts</option>
           <option value="color">Colour belts</option>
           <option value="black">Black stripes & black belts</option>
         </select>
-        <select className="dp-select" aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)}>
+        <select className="dp-select" style={field} aria-label="Show" value={show} onChange={(e) => setShow(e.target.value)}>
           <option value="all">Everyone</option>
           <option value="ready">Ready to test</option>
           <option value="tapes">Still need tapes</option>
@@ -175,7 +179,30 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
         {students === null ? (
           <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Loading…</p>
         ) : filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No students match.</p>
+          <p style={{ padding: 20, color: '#5B5F56', fontSize: T ? 'var(--dp-text-title)' : 14 }}>No students match.</p>
+        ) : T ? (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {filtered.map(({ s, n, tp, ready, enough }, i) => (
+              <li key={s.id} data-student={s.name} style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', padding: '12px 16px', borderBottom: i < filtered.length - 1 ? '1px solid var(--dp-line)' : 'none' }}>
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 'var(--dp-text-title)', fontWeight: 600 }}>{s.name}</span>
+                    {ready && <span style={{ fontSize: 'var(--dp-text-label)', fontWeight: 600, color: 'var(--dp-success)', background: 'var(--dp-success-tint)', borderRadius: 'var(--dp-radius-pill)', padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Award size={13} aria-hidden="true" /> Ready</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)' }}>
+                    <BeltStrip belt={s.belt} width={44} />
+                    <span>{s.belt || 'White'}</span>
+                    {s.class_name && <span>· {s.class_name}</span>}
+                  </div>
+                </div>
+                <TapeTracker size="touch" student={s} earned={tp} onChange={(set) => setOne(s.id, set)} />
+                <div style={{ width: 92, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ fontSize: 'var(--dp-text-title)', color: enough ? 'var(--dp-success)' : 'var(--dp-ink)' }}><b>{n}</b> / {MIN_CLASSES}</div>
+                  <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }}>classes</div>
+                </div>
+              </li>
+            ))}
+          </ul>
         ) : (
           <table className="dp-table">
             <thead>
@@ -216,15 +243,20 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
           </table>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
-function Metric({ label, value, tone, onClick }) {
+function Metric({ label, value, tone, onClick, T }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div style={{ ...styles.metricCard, cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
-      <p style={styles.metricLabel}>{label}</p>
-      <p style={{ ...styles.metricValue, color: tone === 'good' ? '#2A5A30' : '#20241F' }}>{value}</p>
-    </div>
+    <Tag
+      type={onClick ? 'button' : undefined}
+      style={{ ...styles.metricCard, cursor: onClick ? 'pointer' : 'default', textAlign: 'left', fontFamily: 'inherit', width: '100%', ...(T ? { borderRadius: 'var(--dp-radius-lg)', borderColor: 'var(--dp-line)', minHeight: 'var(--dp-touch)' } : {}) }}
+      onClick={onClick}
+    >
+      <p style={{ ...styles.metricLabel, ...(T ? { fontSize: 'var(--dp-text-label)' } : {}) }}>{label}</p>
+      <p style={{ ...styles.metricValue, ...(T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' } : {}), color: tone === 'good' ? '#2A5A30' : '#20241F' }}>{value}</p>
+    </Tag>
   );
 }
