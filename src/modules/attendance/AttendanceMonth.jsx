@@ -8,12 +8,12 @@ import { splitClasses, inClass } from '../../lib/classes';
 
 // Every student × every day of one month: who came when, at a glance.
 const MARK = {
-  present: { t: '✓', c: '#2A5A30', bg: '#E8F1E9' },
-  double: { t: '2', c: '#1E4566', bg: '#E6F0F6' },
-  private: { t: 'Pr', c: '#4B3A86', bg: '#EEEAF6' },
-  absent: { t: 'A', c: '#9A2B2B', bg: '#FBEAEA' },
-  excused: { t: 'E', c: '#854F0B', bg: '#FAEEDA' },
-  vacation: { t: 'V', c: '#854F0B', bg: '#FAEEDA' },
+  present: { t: '✓', c: 'var(--dp-success)', bg: 'var(--dp-success-tint)' },
+  double: { t: '2', c: 'var(--dp-info)', bg: 'var(--dp-canvas)' },
+  private: { t: 'Pr', c: 'var(--dp-ink-soft)', bg: 'var(--dp-canvas)' },
+  absent: { t: 'A', c: 'var(--dp-danger)', bg: 'var(--dp-danger-tint)' },
+  excused: { t: 'E', c: 'var(--dp-warning)', bg: 'var(--dp-warning-tint)' },
+  vacation: { t: 'V', c: 'var(--dp-warning)', bg: 'var(--dp-warning-tint)' },
 };
 const RANK = { double: 6, present: 5, private: 4, excused: 3, vacation: 2, absent: 1 };
 const pad = (n) => String(n).padStart(2, '0');
@@ -78,7 +78,7 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
           {classes.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <div style={{ ...styles.searchBox, minWidth: 200 }}>
-          <Search size={15} color="#8A8D84" />
+          <Search size={15} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Student…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
       </div>
@@ -87,23 +87,23 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
         <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 12.5, minWidth: '100%' }}>
           <thead>
             <tr>
-              <th style={{ ...stickyCell, textAlign: 'left', padding: '8px 10px', fontWeight: 500, color: '#5B5F56', borderBottom: '1px solid #EDEAE0', zIndex: 2 }}>{rows.length} students</th>
+              <th style={{ ...stickyCell, textAlign: 'left', padding: '8px 10px', fontWeight: 500, color: 'var(--dp-ink-soft)', borderBottom: '1px solid #EDEAE0', zIndex: 2 }}>{rows.length} students</th>
               {dayInfo.map(({ d, wd, n, weekend }) => (
-                <th key={d} style={{ width: cellW, minWidth: cellW, padding: '4px 0', fontWeight: d === today ? 700 : 400, color: d === today ? '#fff' : weekend ? '#A7AAA1' : '#5B5F56', background: d === today ? '#20241F' : weekend ? '#FAF9F5' : '#fff', borderBottom: '1px solid #EDEAE0', textAlign: 'center' }}>
+                <th key={d} style={{ width: cellW, minWidth: cellW, padding: '4px 0', fontWeight: d === today ? 700 : 400, color: d === today ? '#fff' : weekend ? 'var(--dp-ink-faint)' : 'var(--dp-ink-soft)', background: d === today ? 'var(--dp-ink)' : weekend ? 'var(--dp-canvas)' : '#fff', borderBottom: '1px solid #EDEAE0', textAlign: 'center' }}>
                   <div style={{ fontSize: 12 }}>{'SMTWTFS'[wd]}</div>
                   <div>{n}</div>
                 </th>
               ))}
-              <th style={{ padding: '4px 10px', fontWeight: 500, color: '#5B5F56', borderBottom: '1px solid #EDEAE0', textAlign: 'right', whiteSpace: 'nowrap' }}>Classes</th>
-              <th style={{ padding: '4px 10px', fontWeight: 500, color: '#5B5F56', borderBottom: '1px solid #EDEAE0', textAlign: 'right' }}>Absent</th>
+              <th style={{ padding: '4px 10px', fontWeight: 500, color: 'var(--dp-ink-soft)', borderBottom: '1px solid #EDEAE0', textAlign: 'right', whiteSpace: 'nowrap' }}>Classes</th>
+              <th style={{ padding: '4px 10px', fontWeight: 500, color: 'var(--dp-ink-soft)', borderBottom: '1px solid #EDEAE0', textAlign: 'right' }}>Absent</th>
             </tr>
           </thead>
           <tbody>
             {rows.map(({ s, weekdays, total, absent }) => (
               <tr key={s.id}>
-                <td style={{ ...stickyCell, padding: '5px 10px', borderBottom: '1px solid #F1EFE7', whiteSpace: 'nowrap' }}>
+                <td style={{ ...stickyCell, padding: '5px 10px', borderBottom: '1px solid var(--dp-canvas)', whiteSpace: 'nowrap' }}>
                   <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
-                  <div style={{ fontSize: 12, color: '#8A8D84', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.class_name || '—'}{s.classes_per_week ? ` · ${s.classes_per_week}x/wk` : ''}{s.class_days?.length ? ` · ${[...new Set(s.class_days.map((k) => 'SMTWTFS'[Number(k.split(':')[0])]))].join('')}` : ''}</div>
+                  <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.class_name || '—'}{s.classes_per_week ? ` · ${s.classes_per_week}x/wk` : ''}{s.class_days?.length ? ` · ${[...new Set(s.class_days.map((k) => 'SMTWTFS'[Number(k.split(':')[0])]))].join('')}` : ''}</div>
                 </td>
                 {dayInfo.map(({ d, wd, weekend, allCancelled }) => {
                   const recs = (byStudentDay[s.id]?.[d] || []).filter((r) => cls === 'all' || r.class_name === cls || r.status === 'private');
@@ -116,33 +116,33 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
                     <td
                       key={d}
                       title={recs.length ? recs.map((r) => `${r.class_name}: ${ATTENDANCE_KINDS[r.status]?.label || r.status}${r.is_makeup ? ' (makeup)' : ''}`).join('\n') : cancelled ? 'Cancelled' : classDay ? 'Class day' : ''}
-                      style={{ textAlign: 'center', padding: 0, height: 34, borderBottom: '1px solid #F1EFE7', background: d === today ? '#F3F1EA' : weekend ? '#FAF9F5' : '#fff' }}
+                      style={{ textAlign: 'center', padding: 0, height: 34, borderBottom: '1px solid var(--dp-canvas)', background: d === today ? '#F3F1EA' : weekend ? 'var(--dp-canvas)' : '#fff' }}
                     >
                       {mk ? (
                         <span style={{ display: 'inline-block', minWidth: 20, lineHeight: '20px', borderRadius: 4, fontSize: 12.5, fontWeight: 600, color: mk.c, background: mk.bg }}>{mk.t}</span>
                       ) : cancelled ? (
-                        <span style={{ color: '#C9C6BA', fontSize: 12 }}>✕</span>
+                        <span style={{ color: 'var(--dp-line)', fontSize: 12 }}>✕</span>
                       ) : classDay && d < today ? (
-                        <span style={{ color: '#C9C6BA' }}>·</span>
+                        <span style={{ color: 'var(--dp-line)' }}>·</span>
                       ) : null}
                     </td>
                   );
                 })}
-                <td style={{ textAlign: 'right', padding: '0 10px', borderBottom: '1px solid #F1EFE7', fontWeight: 600 }}>{total}</td>
-                <td style={{ textAlign: 'right', padding: '0 10px', borderBottom: '1px solid #F1EFE7', color: absent ? '#9A2B2B' : '#C9C6BA' }}>{absent}</td>
+                <td style={{ textAlign: 'right', padding: '0 10px', borderBottom: '1px solid var(--dp-canvas)', fontWeight: 600 }}>{total}</td>
+                <td style={{ textAlign: 'right', padding: '0 10px', borderBottom: '1px solid var(--dp-canvas)', color: absent ? 'var(--dp-danger)' : 'var(--dp-line)' }}>{absent}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12, color: '#5B5F56', marginTop: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12, color: 'var(--dp-ink-soft)', marginTop: 8 }}>
         {[['present', 'Came'], ['double', 'Two classes'], ['absent', 'Absent'], ['excused', 'Excused'], ['vacation', 'Vacation'], ['private', 'Private']].map(([k, l]) => (
           <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <span style={{ display: 'inline-block', minWidth: 18, lineHeight: '18px', textAlign: 'center', borderRadius: 4, fontSize: 12, fontWeight: 600, color: MARK[k].c, background: MARK[k].bg }}>{MARK[k].t}</span>{l}
           </span>
         ))}
-        <span><span style={{ color: '#A7AAA1' }}>·</span> class day, no record</span>
-        <span><span style={{ color: '#A7AAA1' }}>✕</span> cancelled</span>
+        <span><span style={{ color: 'var(--dp-ink-faint)' }}>·</span> class day, no record</span>
+        <span><span style={{ color: 'var(--dp-ink-faint)' }}>✕</span> cancelled</span>
       </div>
     </>
   );

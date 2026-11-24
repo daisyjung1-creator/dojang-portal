@@ -196,11 +196,11 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
 
       {/* The link families use to book a free trial themselves */}
       <div style={{ ...styles.card, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <Link2 size={18} style={{ color: '#BF1C21' }} />
+        <Link2 size={18} style={{ color: 'var(--dp-hankook-red)' }} />
         <div style={{ flex: '1 1 260px', minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: T ? 'var(--dp-text-title)' : 14 }}>Online trial booking link</div>
-          <a href={bookingLink} target="_blank" rel="noreferrer" style={{ fontSize: 15, color: '#1E4566', wordBreak: 'break-all' }}>{bookingLink}</a>
-          <div style={{ fontSize: T ? 'var(--dp-text-label)' : 12, color: T ? 'var(--dp-ink-soft)' : '#8A8D84', marginTop: 2, lineHeight: 1.45 }}>
+          <a href={bookingLink} target="_blank" rel="noreferrer" style={{ fontSize: 15, color: 'var(--dp-info)', wordBreak: 'break-all' }}>{bookingLink}</a>
+          <div style={{ fontSize: T ? 'var(--dp-text-label)' : 12, color: T ? 'var(--dp-ink-soft)' : 'var(--dp-ink-faint)', marginTop: 2, lineHeight: 1.45 }}>
             Families pick a date themselves · up to {settings.trial_capacity ?? 3} trials per class · next {settings.trial_days_ahead ?? 21} days · bookings show below as “Booked online” and in Leads
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 220 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>Tried a class, not joined yet ({notJoined.length})</div>
-              <div style={{ fontSize: 12, color: '#8A8D84' }}>
+              <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>
                 Trials in the last 90 days with no student record. {waiting ? `${waiting} not followed up yet — ` : 'All followed up. '}ask if they'd like to join (email or text).
               </div>
             </div>
@@ -234,11 +234,11 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                     <tr key={t.id} className="dp-row">
                       <td style={{ fontWeight: 500 }}>
                         {t.student_name}
-                        {t.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84' }}> · {t.student_age}y</span>}
-                        {t.status === 'Scheduled' && <div style={{ fontSize: 12, color: '#854F0B', fontWeight: 400 }}>Status not updated — did they come?</div>}
+                        {t.student_age != null && <span style={{ fontWeight: 400, color: 'var(--dp-ink-faint)' }}> · {t.student_age}y</span>}
+                        {t.status === 'Scheduled' && <div style={{ fontSize: 12, color: 'var(--dp-warning)', fontWeight: 400 }}>Status not updated — did they come?</div>}
                       </td>
-                      <td style={{ fontSize: 13 }}>{t.guardian_name || '—'}<div style={{ fontSize: 12.5, color: '#8A8D84' }}>{t.guardian_phone || ''}</div></td>
-                      <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{t.date} · {t.class_name || '—'}<div style={{ fontSize: 12.5, color: '#8A8D84' }}>{daysAgo(t.date)}</div></td>
+                      <td style={{ fontSize: 13 }}>{t.guardian_name || '—'}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{t.guardian_phone || ''}</div></td>
+                      <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{t.date} · {t.class_name || '—'}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{daysAgo(t.date)}</div></td>
                       <td>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                           {t.guardian_email && (
@@ -249,8 +249,8 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                               <MessageSquare size={12} /> Text
                             </a>
                           )}
-                          {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12, color: '#8A8D84' }}>No contact</span>}
-                          {t.followup_sent_at && <span style={{ fontSize: 12.5, color: '#2A5A30' }}>Sent ✓ {t.followup_sent_at.slice(5, 10).replace('-', '/')}</span>}
+                          {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>No contact</span>}
+                          {t.followup_sent_at && <span style={{ fontSize: 12.5, color: 'var(--dp-success)' }}>Sent ✓ {t.followup_sent_at.slice(5, 10).replace('-', '/')}</span>}
                         </div>
                       </td>
                       <td>
@@ -346,7 +346,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
       ) : (
       <div style={styles.card}>
         {filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No bookings.</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No bookings.</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -369,9 +369,9 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                   <tr key={t.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
                       {t.student_name}
-                      {t.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84' }}> · {t.student_age}y</span>}
-                      {t.experience && t.experience !== 'None' && <div style={{ fontSize: 12, color: '#854F0B', fontWeight: 600 }}>{t.experience === 'Black belt' ? 'Black belt (Adv)' : 'Color belt (Inter)'}</div>}
-                      {/^Booked online/.test(t.notes || '') && <div style={{ fontSize: 12, color: '#1E4566', fontWeight: 400 }}>Booked online</div>}
+                      {t.student_age != null && <span style={{ fontWeight: 400, color: 'var(--dp-ink-faint)' }}> · {t.student_age}y</span>}
+                      {t.experience && t.experience !== 'None' && <div style={{ fontSize: 12, color: 'var(--dp-warning)', fontWeight: 600 }}>{t.experience === 'Black belt' ? 'Black belt (Adv)' : 'Color belt (Inter)'}</div>}
+                      {/^Booked online/.test(t.notes || '') && <div style={{ fontSize: 12, color: 'var(--dp-info)', fontWeight: 400 }}>Booked online</div>}
                     </td>
                     <td>{t.guardian_name || '—'}</td>
                     <td>{t.guardian_phone || '—'}</td>
@@ -388,7 +388,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                         {t.guardian_phone && (
                           <a
                             className="dp-btn"
-                            style={{ padding: '3px 8px', fontSize: 12, textDecoration: 'none', ...(!t.guardian_email && !t.confirmation_sent ? { background: '#BF1C21', color: '#fff', borderColor: '#BF1C21' } : {}) }}
+                            style={{ padding: '3px 8px', fontSize: 12, textDecoration: 'none', ...(!t.guardian_email && !t.confirmation_sent ? { background: 'var(--dp-hankook-red)', color: '#fff', borderColor: 'var(--dp-hankook-red)' } : {}) }}
                             href={smsHref(t)}
                             title="Opens your phone's messages with the confirmation written"
                             onClick={() => markTexted(t)}
@@ -396,7 +396,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                             <MessageSquare size={12} /> {!t.guardian_email && t.confirmation_sent ? 'Texted ✓' : 'Text'}
                           </a>
                         )}
-                        {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12.5, color: '#8A8D84' }}>No contact</span>}
+                        {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>No contact</span>}
                       </div>
                     </td>
                     <td>
@@ -517,7 +517,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
           <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
-          {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
+          {formError && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
 

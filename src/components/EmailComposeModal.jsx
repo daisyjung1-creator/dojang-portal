@@ -39,13 +39,13 @@ export default function EmailComposeModal({ draft, onClose, onSent }) {
         </>
       }
     >
-      {d.note && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '0 0 10px' }}>{d.note}</p>}
+      {d.note && <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '0 0 10px' }}>{d.note}</p>}
       <Field label="To (comma-separated)"><input className="dp-input" style={{ width: '100%' }} value={d.to} onChange={(e) => setD({ ...d, to: e.target.value })} /></Field>
       <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={d.subject} onChange={(e) => setD({ ...d, subject: e.target.value })} /></Field>
       <Field label="Message (you can edit it before sending)">
         <textarea className="dp-input" rows={12} style={{ width: '100%', resize: 'vertical', fontSize: 13, lineHeight: 1.5 }} value={d.message} onChange={(e) => setD({ ...d, message: e.target.value })} />
       </Field>
-      {d.error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: 0 }}>{d.error}</p>}
+      {d.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: 0 }}>{d.error}</p>}
     </Modal>
   );
 }

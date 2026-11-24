@@ -108,14 +108,14 @@ export default function EventsPage() {
         </div>
         <button className="dp-btn dp-btn-primary" onClick={() => setEdit({ ...empty })}><Plus size={15} /> New event</button>
       </div>
-      {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
-      <label style={{ fontSize: 13, color: '#5B5F56', display: 'inline-flex', gap: 6, alignItems: 'center', marginBottom: 12 }}>
+      {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
+      <label style={{ fontSize: 13, color: 'var(--dp-ink-soft)', display: 'inline-flex', gap: 6, alignItems: 'center', marginBottom: 12 }}>
         <input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} /> Show past events
       </label>
       {events === null ? (
-        <p style={{ color: '#5B5F56' }}>Loading…</p>
+        <p style={{ color: 'var(--dp-ink-soft)' }}>Loading…</p>
       ) : list.length === 0 ? (
-        <div style={{ ...styles.card, padding: 20, color: '#5B5F56', fontSize: 14 }}>No upcoming events. Click “New event”.</div>
+        <div style={{ ...styles.card, padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No upcoming events. Click “New event”.</div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
           {list.map((e) => {
@@ -123,15 +123,15 @@ export default function EventsPage() {
             return (
               <button key={e.id} data-event={e.title} onClick={() => setOpenId(e.id)} style={{ ...styles.card, textAlign: 'left', padding: 16, cursor: 'pointer', fontFamily: 'inherit', border: '1px solid #EDEAE0' }}>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: '#8A8D84', flex: 1 }}>{EVENT_KINDS[e.kind] || e.kind}</span>
-                  <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 999, background: e.published ? '#E8F1E9' : '#F1EFE7', color: e.published ? '#2A5A30' : '#5B5F56' }}>{e.published ? 'In parent portal' : 'Hidden from parents'}</span>
+                  <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--dp-ink-faint)', flex: 1 }}>{EVENT_KINDS[e.kind] || e.kind}</span>
+                  <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 999, background: e.published ? 'var(--dp-success-tint)' : 'var(--dp-canvas)', color: e.published ? 'var(--dp-success)' : 'var(--dp-ink-soft)' }}>{e.published ? 'In parent portal' : 'Hidden from parents'}</span>
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: '#20241F' }}>{e.title}</div>
-                <div style={{ fontSize: 13, color: '#5B5F56', margin: '2px 0 8px' }}>{when(e)}</div>
-                <div style={{ display: 'flex', gap: 14, fontSize: 13, color: '#20241F' }}>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--dp-ink)' }}>{e.title}</div>
+                <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '2px 0 8px' }}>{when(e)}</div>
+                <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--dp-ink)' }}>
                   <span><Users size={13} style={{ verticalAlign: -2 }} /> {st.count}{st.guests ? ` + ${st.guests} guest${st.guests > 1 ? 's' : ''}` : ''}{e.capacity ? ` / ${e.capacity}` : ''} signed up</span>
                   <span>{Number(e.price) > 0 ? money(e.price) : 'Free'}</span>
-                  {st.owing > 0 && <span style={{ color: '#9A2B2B' }}>{money(st.owing)} unpaid</span>}
+                  {st.owing > 0 && <span style={{ color: 'var(--dp-danger)' }}>{money(st.owing)} unpaid</span>}
                 </div>
               </button>
             );
@@ -203,8 +203,8 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
         </div>
       </div>
       {e.description && <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '0 0 14px' }}>{e.description}</p>}
-      {msg && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
-      {err && <p style={{ background: '#FBEAEA', color: '#7A1F1F', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{err}</p>}
+      {msg && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
+      {err && <p style={{ background: 'var(--dp-danger-tint)', color: 'var(--dp-danger)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{err}</p>}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, maxWidth: 560 }}>
         <div style={{ flex: 1 }}><SearchSelect options={options} value={pick} onChange={setPick} placeholder="Add a student…" /></div>
@@ -213,7 +213,7 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
 
       <div style={styles.card}>
         {active.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No one signed up yet.</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No one signed up yet.</p>
         ) : (
           <table className="dp-table">
             <thead><tr><th>Student</th>{e.question && <th>{e.question}</th>}<th>Signed up</th><th>Invoice</th><th style={{ textAlign: 'right' }}>Balance</th><th></th></tr></thead>
@@ -224,11 +224,11 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
                 const paid = inv && Number(inv.balance) <= 0.004;
                 return (
                   <tr key={su.id} className="dp-row" data-signup={s?.name}>
-                    <td style={{ fontWeight: 500 }}>{s?.name || '—'}{su.note && <div style={{ fontSize: 12, color: '#8A8D84', fontWeight: 400 }}>“{su.note}”</div>}</td>
-                    {e.question && <td style={{ fontSize: 13 }}>{su.answer || <span style={{ color: '#8A8D84' }}>—</span>}</td>}
-                    <td style={{ fontSize: 13, color: '#5B5F56' }}>{formatDate(su.created_at?.slice(0, 10))} · {su.source === 'parent' ? 'by parent' : 'by you'}</td>
+                    <td style={{ fontWeight: 500 }}>{s?.name || '—'}{su.note && <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>“{su.note}”</div>}</td>
+                    {e.question && <td style={{ fontSize: 13 }}>{su.answer || <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}</td>}
+                    <td style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>{formatDate(su.created_at?.slice(0, 10))} · {su.source === 'parent' ? 'by parent' : 'by you'}</td>
                     <td>{inv ? `#${inv.invoice_number}${inv.voided ? ' (void)' : ''}` : Number(e.price) > 0 ? '—' : 'free'}</td>
-                    <td style={{ textAlign: 'right', color: paid ? '#2A5A30' : '#9A2B2B', fontWeight: 500 }}>{inv ? (paid ? <><Check size={13} /> Paid</> : money(inv.balance)) : ''}</td>
+                    <td style={{ textAlign: 'right', color: paid ? 'var(--dp-success)' : 'var(--dp-danger)', fontWeight: 500 }}>{inv ? (paid ? <><Check size={13} /> Paid</> : money(inv.balance)) : ''}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                         {inv && !paid && !inv.voided && <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => copy(payUrl(inv.pay_token))}><Copy size={12} /> Pay link</button>}
@@ -254,7 +254,7 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
                 return (
                   <tr key={g.id} className="dp-row" data-guest={g.name}>
                     <td style={{ fontWeight: 500 }}>{g.name}</td>
-                    <td style={{ fontSize: 13, color: '#5B5F56' }}>{signups.filter((x) => x.customer_id === g.customer_id && x.status === 'signed_up').map((x) => byId[x.student_id]?.name).filter(Boolean).join(', ') || fam?.name || '—'}</td>
+                    <td style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>{signups.filter((x) => x.customer_id === g.customer_id && x.status === 'signed_up').map((x) => byId[x.student_id]?.name).filter(Boolean).join(', ') || fam?.name || '—'}</td>
                     <td style={{ fontSize: 13 }}>{inv ? `#${inv.invoice_number}${Number(inv.balance) <= 0.004 ? ' · paid' : ''}` : Number(e.guest_price) > 0 ? '—' : 'free'}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={async () => { await supabase.from('event_guests').update({ removed_at: new Date().toISOString() }).eq('id', g.id); setMsg(`${g.name} removed.${inv && !inv.voided ? ` Adjust invoice #${inv.invoice_number} in Invoices if needed.` : ''}`); reload(); }}><X size={12} /> Remove</button>
@@ -272,7 +272,7 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
           <PreviewBody event={e} form={Array.isArray(e.form) ? e.form : []} signatureRequired={!!e.signature_required} signatureText={e.signature_text} />
         </Modal>
       )}
-      <p style={{ fontSize: 12.5, color: '#8A8D84' }}>{active.length + guests.length}{e.capacity ? ` of ${e.capacity}` : ''} spots taken{guests.length ? ` (incl. ${guests.length} guest${guests.length > 1 ? 's' : ''})` : ''}.</p>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{active.length + guests.length}{e.capacity ? ` of ${e.capacity}` : ''} spots taken{guests.length ? ` (incl. ${guests.length} guest${guests.length > 1 ? 's' : ''})` : ''}.</p>
       {editModal}
     </>
   );
@@ -387,7 +387,7 @@ function EventForm({ event, items, onClose, onDone }) {
       />
       <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center', marginBottom: 6 }}><input type="checkbox" checked={!!f.taxable} onChange={set('taxable')} /> Add GST</label>
       <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center' }}><input type="checkbox" checked={!!f.published} onChange={set('published')} /> Show in the parent portal (parents can sign up)</label>
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{error}</p>}
     </Modal>
   );
 }

@@ -33,8 +33,8 @@ export default function CardWallet({ customerId, onChanged, compact }) {
     onChanged?.(r.cards || []);
   }
 
-  if (!cards) return <span style={{ color: '#8A8D84', fontSize: 12.5 }}>…</span>;
-  if (!cards.length) return <span style={{ color: '#8A8D84', fontSize: 12.5 }}>No card saved</span>;
+  if (!cards) return <span style={{ color: 'var(--dp-ink-faint)', fontSize: 12.5 }}>…</span>;
+  if (!cards.length) return <span style={{ color: 'var(--dp-ink-faint)', fontSize: 12.5 }}>No card saved</span>;
   const btn = { padding: '1px 8px', fontSize: 12.5 };
   return (
     <div data-testid="card-wallet" style={{ display: 'grid', gap: compact ? 3 : 5 }}>
@@ -46,18 +46,18 @@ export default function CardWallet({ customerId, onChanged, compact }) {
             {k.mode === 'test' ? ' · TEST' : ''}
           </span>
           {k.is_default ? (
-            <span style={{ fontSize: 12, color: '#2A5A30', background: '#E8F1E9', borderRadius: 999, padding: '1px 7px' }}>tuition</span>
+            <span style={{ fontSize: 12, color: 'var(--dp-success)', background: 'var(--dp-success-tint)', borderRadius: 999, padding: '1px 7px' }}>tuition</span>
           ) : (
             <>
               <button type="button" className="dp-btn" style={btn} disabled={!!busy} onClick={() => act('default', k)}>Use for tuition</button>
               {cards.length >= 2 && (
-                <button type="button" className="dp-btn" style={{ ...btn, color: '#9A2B2B' }} disabled={!!busy} onClick={() => act('delete', k)}>Remove</button>
+                <button type="button" className="dp-btn" style={{ ...btn, color: 'var(--dp-danger)' }} disabled={!!busy} onClick={() => act('delete', k)}>Remove</button>
               )}
             </>
           )}
         </div>
       ))}
-      {msg && <div style={{ fontSize: 12, color: '#9A2B2B' }}>{msg}</div>}
+      {msg && <div style={{ fontSize: 12, color: 'var(--dp-danger)' }}>{msg}</div>}
     </div>
   );
 }

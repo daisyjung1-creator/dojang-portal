@@ -65,7 +65,7 @@ export default function MonthlyCalendars() {
   return (
     <div style={{ ...styles.card, padding: 16, marginTop: 20 }} data-testid="admin-calendars">
       <h2 style={{ fontSize: 16, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 7 }}><CalendarDays size={17} /> Monthly calendar for families</h2>
-      <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
+      <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 12px' }}>
         Upload the month's schedule (image or PDF). Families see this month's and later calendars in the parent portal's Calendar tab, together with holiday closures and cancelled classes.
       </p>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -74,18 +74,18 @@ export default function MonthlyCalendars() {
           <Upload size={15} /> {busy ? 'Uploading…' : `Upload ${monthLabel(month + '-01')}`}
           <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} disabled={busy} onChange={(e) => { upload(e.target.files[0]); e.target.value = ''; }} />
         </label>
-        <span style={{ fontSize: 12, color: '#8A8D84' }}>Uploading again for the same month replaces it.</span>
+        <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>Uploading again for the same month replaces it.</span>
       </div>
-      {msg && <p style={{ color: '#2A5A30', fontSize: 13, margin: '8px 0 0' }}>{msg}</p>}
-      {err && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{err}</p>}
+      {msg && <p style={{ color: 'var(--dp-success)', fontSize: 13, margin: '8px 0 0' }}>{msg}</p>}
+      {err && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '8px 0 0' }}>{err}</p>}
       {list?.length > 0 && (
         <table className="dp-table" style={{ marginTop: 12, width: '100%' }}>
           <tbody>
             {list.map((m) => (
               <tr key={m.month}>
                 <td style={{ fontWeight: 500 }}>{monthLabel(m.month)}</td>
-                <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{m.file_name}</td>
-                <td style={{ fontSize: 12.5 }}>{m.month >= thisMonth ? <span style={{ color: '#2A5A30' }}>Shown to families</span> : <span style={{ color: '#8A8D84' }}>Past</span>}</td>
+                <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{m.file_name}</td>
+                <td style={{ fontSize: 12.5 }}>{m.month >= thisMonth ? <span style={{ color: 'var(--dp-success)' }}>Shown to families</span> : <span style={{ color: 'var(--dp-ink-faint)' }}>Past</span>}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => openData(m.file_data)}>View</button>{' '}
                   <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} aria-label={`Delete ${monthLabel(m.month)}`} onClick={() => setDel(m)}><Trash2 size={13} /></button>

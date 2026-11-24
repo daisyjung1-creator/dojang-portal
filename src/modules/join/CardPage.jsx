@@ -101,7 +101,7 @@ export default function CardPage({ token }) {
                     <div style={{ fontSize: 14, color: C.soft }}>{k.expiry ? `Expires ${k.expiry}` : ''}{k.mode === 'test' ? ' · TEST' : ''}</div>
                   </div>
                   {k.is_default ? (
-                    <span style={{ fontSize: 14, fontWeight: 600, color: C.green, background: '#E8F1E9', borderRadius: 999, padding: '3px 10px' }}>Used for tuition</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: C.green, background: 'var(--dp-success-tint)', borderRadius: 999, padding: '3px 10px' }}>Used for tuition</span>
                   ) : (
                     <>
                       <button type="button" disabled={!!busy} onClick={() => act('default', k)} style={{ padding: '8px 14px', minHeight: 44, borderRadius: 10, border: '1px solid #D6D2C4', background: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -124,7 +124,7 @@ export default function CardPage({ token }) {
           )}
 
           {done && (
-            <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1', marginBottom: 16 }}>
+            <div style={{ ...box, borderColor: 'var(--dp-success-tint)', background: 'var(--dp-success-tint)', marginBottom: 16 }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Thank you — your card is saved!</div>
               <p style={{ fontSize: 16, margin: '8px 0 0', lineHeight: 1.55 }}>
                 {done.saved?.type || 'Card'} ending {done.saved?.last4 || '····'} will be used for tuition from now on. Nothing was charged today. You'll get an emailed receipt after each charge.
@@ -148,7 +148,7 @@ export default function CardPage({ token }) {
 
 export function TestNote() {
   return (
-    <div style={{ ...box, background: '#FFF6E0', borderColor: '#F0D9A8', marginBottom: 14, fontSize: 14 }}>
+    <div style={{ ...box, background: 'var(--dp-warning-tint)', borderColor: 'var(--dp-warning-tint)', marginBottom: 14, fontSize: 14 }}>
       <b>Test mode</b> — the card is saved on the TD test account only. Use the test card 4030 0000 1000 1234, any future expiry, CVV 123.
     </div>
   );

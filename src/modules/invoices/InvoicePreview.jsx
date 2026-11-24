@@ -180,17 +180,17 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
       >
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', fontSize: 13 }}>
           <span style={{ background: st.bg, color: st.text, border: `1px solid ${st.border}`, borderRadius: 999, padding: '2px 10px', fontSize: 12.5 }}>{invoice.status}</span>
-          <span style={{ color: '#5B5F56' }}>Balance {money(invoice.balance)}</span>
-          {Number(invoice.amount_refunded) > 0 && <span style={{ color: '#4B3A86' }}>· Refunded {money(invoice.amount_refunded)}</span>}
-          {invoice.emailed_at && <span style={{ color: '#5B5F56' }}>· Emailed {new Date(invoice.emailed_at).toLocaleString('en-CA')}</span>}
+          <span style={{ color: 'var(--dp-ink-soft)' }}>Balance {money(invoice.balance)}</span>
+          {Number(invoice.amount_refunded) > 0 && <span style={{ color: 'var(--dp-ink-soft)' }}>· Refunded {money(invoice.amount_refunded)}</span>}
+          {invoice.emailed_at && <span style={{ color: 'var(--dp-ink-soft)' }}>· Emailed {new Date(invoice.emailed_at).toLocaleString('en-CA')}</span>}
         </div>
-        {msg && <p style={{ background: '#E6F0F6', color: '#1E4566', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
+        {msg && <p style={{ background: 'var(--dp-canvas)', color: 'var(--dp-info)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
         <div style={{ border: '1px solid #EDEAE0', borderRadius: 8 }}>
           <InvoiceDocument invoice={invoice} lines={lines} payments={payments} refunds={refunds} settings={settings} />
         </div>
         {payments.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>Payments</p>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 6px' }}>Payments</p>
             <table className="dp-table">
               <tbody>
                 {payments.map((p) => (
@@ -201,7 +201,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                     <td>{p.reference}</td>
                     <td style={{ textAlign: 'right' }}>
                       {money(p.amount)}
-                      {Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 12.5, color: '#2A5A30' }}>{money(p.credit_amount)} to family credit</div>}
+                      {Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 12.5, color: 'var(--dp-success)' }}>{money(p.credit_amount)} to family credit</div>}
                     </td>
                     <td style={{ width: 90 }}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setReceiptId(p.id)}><Printer size={12} /> Receipt</button>
@@ -214,7 +214,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
         )}
         {credits.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>Account credit used</p>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 6px' }}>Account credit used</p>
             <table className="dp-table">
               <tbody>
                 {credits.map((c) => (
@@ -245,7 +245,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
         )}
         {refunds.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>Refunds</p>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 6px' }}>Refunds</p>
             <table className="dp-table">
               <tbody>
                 {refunds.map((r) => (
@@ -253,8 +253,8 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                     <td>{formatDate(r.refund_date)}</td>
                     <td>Refund #{r.refund_number}</td>
                     <td>{r.method}</td>
-                    <td style={{ color: '#5B5F56' }}>{r.reason}</td>
-                    <td style={{ textAlign: 'right', color: '#5B5F56' }}>GST {money(r.gst_amount)}</td>
+                    <td style={{ color: 'var(--dp-ink-soft)' }}>{r.reason}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--dp-ink-soft)' }}>GST {money(r.gst_amount)}</td>
                     <td style={{ textAlign: 'right' }}>-{money(r.amount)}</td>
                   </tr>
                 ))}

@@ -24,6 +24,8 @@ const CardForm = forwardRef(function CardForm({ onSave, replaceLast4, consentNot
       .then(() => {
         const c = window.customcheckout();
         cc.current = c;
+        // Literal colours on purpose: these fields live in the payment provider's iframe,
+        // where the portal's CSS variables don't exist.
         const style = { style: { base: { fontSize: '16px', color: '#20241F', fontFamily: 'Helvetica, Arial, sans-serif' }, error: { color: '#9A2B2B' } } };
         [
           ['card-number', { ...style, placeholder: '1234 5678 9012 3456', brands: ['visa', 'mastercard', 'amex'] }],

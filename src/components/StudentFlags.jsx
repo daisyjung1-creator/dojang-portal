@@ -13,12 +13,12 @@ export default function StudentFlags({ s, size = 14, style }) {
   return (
     <span style={{ display: 'inline-flex', gap: 4, verticalAlign: 'middle', ...style }}>
       {med && (
-        <span title={`Medical: ${med}`} aria-label={`Medical: ${med}`} style={chip('#FBEAEA', '#9A2B2B')} onClick={(e) => { e.stopPropagation(); notice(med, { title: `${s.name} — medical` }); }}>
+        <span title={`Medical: ${med}`} aria-label={`Medical: ${med}`} style={chip('var(--dp-danger-tint)', 'var(--dp-danger)')} onClick={(e) => { e.stopPropagation(); notice(med, { title: `${s.name} — medical` }); }}>
           <HeartPulse size={size - 2} /> Medical
         </span>
       )}
       {noPhoto && (
-        <span title="No promotional photos or videos" aria-label="No photos" style={chip('#EEF0F3', '#3A4250')}>
+        <span title="No promotional photos or videos" aria-label="No photos" style={chip('var(--dp-canvas)', 'var(--dp-ink-soft)')}>
           <CameraOff size={size - 2} /> No photos
         </span>
       )}

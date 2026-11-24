@@ -35,7 +35,7 @@ export default function RegCardStep({ token, estimate, saveError }) {
   if (done || info.saved) {
     const c = done?.saved || info.saved;
     return (
-      <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1' }}>
+      <div style={{ ...box, borderColor: 'var(--dp-success-tint)', background: 'var(--dp-success-tint)' }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Your card is saved</div>
         <p style={{ fontSize: 16, margin: '8px 0 0', lineHeight: 1.55 }}>
           {c?.type || 'Card'} ending {c?.last4 || '····'} is saved for automatic tuition. <b>Nothing was charged.</b> Master Daisy will confirm the tuition amount and your first payment date by email before the first charge.

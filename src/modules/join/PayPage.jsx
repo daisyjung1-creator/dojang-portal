@@ -71,6 +71,8 @@ export default function PayPage({ token }) {
       .then(() => {
         const c = window.customcheckout();
         cc.current = c;
+        // Literal colours on purpose: these fields live in the payment provider's iframe,
+        // where the portal's CSS variables don't exist.
         const style = { style: { base: { fontSize: '16px', color: '#20241F', fontFamily: 'Helvetica, Arial, sans-serif' }, error: { color: '#9A2B2B' } } };
         const fields = [
           ['card-number', { ...style, placeholder: '1234 5678 9012 3456', brands: ['visa', 'mastercard', 'amex'] }],
@@ -130,7 +132,7 @@ export default function PayPage({ token }) {
       {inv && (
         <>
           {inv.mode === 'test' && (
-            <div style={{ ...box, background: '#FFF6E0', borderColor: '#F0D9A8', marginBottom: 14, fontSize: 14 }}>
+            <div style={{ ...box, background: 'var(--dp-warning-tint)', borderColor: 'var(--dp-warning-tint)', marginBottom: 14, fontSize: 14 }}>
               <b>Test mode</b> — no real money is charged and nothing is recorded on the invoice. Use the test card 4030 0000 1000 1234, any future expiry, CVV 123.
             </div>
           )}
@@ -168,7 +170,7 @@ export default function PayPage({ token }) {
           </div>
 
           {done ? (
-            <div style={{ ...box, borderColor: '#BFD9C1', background: '#F1F8F1' }}>
+            <div style={{ ...box, borderColor: 'var(--dp-success-tint)', background: 'var(--dp-success-tint)' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Thank you — payment received!</div>
               <p style={{ fontSize: 16, margin: '8px 0 0', lineHeight: 1.55 }}>
                 {money(done.amount)} was charged{done.card ? ` to the card ending ${done.card}` : ''}.

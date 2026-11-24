@@ -25,7 +25,7 @@ export default function LeadsTrialsPage({ view, setActiveTab }) {
               role="tab"
               aria-selected={on}
               onClick={() => setActiveTab(id)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', border: 'none', background: on ? '#20241F' : '#fff', color: on ? '#fff' : '#20241F', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', border: 'none', background: on ? 'var(--dp-ink)' : '#fff', color: on ? '#fff' : 'var(--dp-ink)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               <Icon size={14} /> {label}
             </button>

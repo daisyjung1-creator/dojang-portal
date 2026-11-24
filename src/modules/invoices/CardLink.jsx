@@ -83,7 +83,7 @@ export function CardLinkButton({ customer, onSent, style }) {
             </>
           }
         >
-          <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 8px' }}>
             {hasCard
               ? `The family enters the new card on a secure page (nothing is charged). It replaces the saved card ending ${customer.card_last4 || '····'}, the old card is deleted from TD Online Mart, and you get an email when it's done.`
               : 'The family enters their card on a secure page (nothing is charged). Their next tuition amount and date are shown there, so check the family\'s tuition is right before sending. After they save it, close their old Recurring Billing account in TD Online Mart and tick "Old TD Recurring Billing is closed" on the family — automatic charges only start then.'}
@@ -94,14 +94,14 @@ export function CardLinkButton({ customer, onSent, style }) {
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             {(hasCard ? [['change', 'Change card']] : [['new', 'New family'], ['existing', 'Existing family (moving from old system)']]).map(([k, l]) => (
-              <button key={k} className="dp-btn" style={{ fontSize: 12, background: kind === k ? '#20241F' : '#fff', color: kind === k ? '#fff' : '#20241F' }} onClick={() => { setKind(k); setMail(cardEmail(customer, k)); }}>{l}</button>
+              <button key={k} className="dp-btn" style={{ fontSize: 12, background: kind === k ? 'var(--dp-ink)' : '#fff', color: kind === k ? '#fff' : 'var(--dp-ink)' }} onClick={() => { setKind(k); setMail(cardEmail(customer, k)); }}>{l}</button>
             ))}
           </div>
-          <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
+          <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Subject</label>
           <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={mail.subject} onChange={(e) => setMail({ ...mail, subject: e.target.value })} />
-          <label style={{ fontSize: 12, color: '#5B5F56' }}>Message to {customer.email || '(no email)'}</label>
+          <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Message to {customer.email || '(no email)'}</label>
           <textarea className="dp-input" style={{ width: '100%', minHeight: 280, fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.5 }} value={mail.message} onChange={(e) => setMail({ ...mail, message: e.target.value })} />
-          {msg && <p style={{ fontSize: 12.5, color: msg.startsWith('Link') ? '#2A5A30' : '#9A2B2B', margin: '6px 0 0' }}>{msg}</p>}
+          {msg && <p style={{ fontSize: 12.5, color: msg.startsWith('Link') ? 'var(--dp-success)' : 'var(--dp-danger)', margin: '6px 0 0' }}>{msg}</p>}
         </Modal>
       )}
     </>

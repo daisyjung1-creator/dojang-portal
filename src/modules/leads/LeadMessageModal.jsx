@@ -190,7 +190,7 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
   const smsHref = `sms:${phone}${/iPhone|iPad|Mac/i.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(body)}`;
 
   const tab = (k, Icon, label) => (
-    <button className="dp-btn" onClick={() => setKind(k)} style={{ background: kind === k ? '#20241F' : '#fff', color: kind === k ? '#fff' : '#20241F' }}>
+    <button className="dp-btn" onClick={() => setKind(k)} style={{ background: kind === k ? 'var(--dp-ink)' : '#fff', color: kind === k ? '#fff' : 'var(--dp-ink)' }}>
       <Icon size={14} /> {label}
     </button>
   );
@@ -202,7 +202,7 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
       onClose={() => onClose()}
       footer={
         <>
-          {msg && <span style={{ marginRight: 'auto', fontSize: 12.5, color: msg.startsWith('Could') || msg.startsWith('Add') ? '#9A2B2B' : '#2A5A30' }}>{msg}</span>}
+          {msg && <span style={{ marginRight: 'auto', fontSize: 12.5, color: msg.startsWith('Could') || msg.startsWith('Add') ? 'var(--dp-danger)' : 'var(--dp-success)' }}>{msg}</span>}
           <button className="dp-btn" onClick={() => onClose()}>Close</button>
           {kind === 'email' ? (
             <button className="dp-btn dp-btn-primary" disabled={busy || kids.some((k) => !k.cls)} onClick={sendEmail}><Send size={14} /> Send email</button>
@@ -227,19 +227,19 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
       <div style={{ marginBottom: 10 }}>
         {kids.map((k, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
-            <span style={{ minWidth: 110, fontSize: 13.5, fontWeight: 500 }}>{k.name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>{kids.length > 1 ? `Child ${i + 1}` : 'Child'} (no name)</span>}</span>
+            <span style={{ minWidth: 110, fontSize: 13.5, fontWeight: 500 }}>{k.name || <span style={{ color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{kids.length > 1 ? `Child ${i + 1}` : 'Child'} (no name)</span>}</span>
             <input className="dp-input" inputMode="numeric" aria-label="Age" placeholder="Age" style={{ width: 58 }} value={k.age} onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 2); setKid(i, v === '' ? { age: v } : { age: v, cls: classForAge(v, k.experience) }); }} />
             <select className="dp-select" aria-label="Taekwondo experience" value={k.experience || 'None'} style={{ fontSize: 12.5 }} onChange={(e) => { const x = e.target.value === 'None' ? '' : e.target.value; setKid(i, { experience: x, cls: (k.age === '' || k.age == null) && !x ? k.cls : classForAge(k.age, x) }); }}>
               {EXPERIENCE.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
             </select>
             {Object.entries(TRIAL_CLASSES).map(([c, t]) => (
-              <button key={c} className="dp-btn" onClick={() => setKid(i, { cls: c })} style={{ fontSize: 12.5, background: k.cls === c ? '#20241F' : '#fff', color: k.cls === c ? '#fff' : '#20241F' }}>
+              <button key={c} className="dp-btn" onClick={() => setKid(i, { cls: c })} style={{ fontSize: 12.5, background: k.cls === c ? 'var(--dp-ink)' : '#fff', color: k.cls === c ? '#fff' : 'var(--dp-ink)' }}>
                 {t.label} · {t.short}
               </button>
             ))}
           </div>
         ))}
-        {kids.some((k) => !k.cls) && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '2px 0 6px' }}>No age yet — pick the class you'd recommend{kids.length > 1 ? ' for each child' : ''}.</p>}
+        {kids.some((k) => !k.cls) && <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '2px 0 6px' }}>No age yet — pick the class you'd recommend{kids.length > 1 ? ' for each child' : ''}.</p>}
         <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
           <input type="checkbox" checked={kidsport} onChange={(e) => setKidsport(e.target.checked)} /> Include KidSport grant info
         </label>
@@ -250,27 +250,27 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
           <input type="checkbox" checked={book} onChange={(e) => setBook(e.target.checked)} /> Include the trial booking link
         </label>
       </div>
-      <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '-6px 0 12px' }}>New: under 11 → Beginner · 11 and up → Intermediate B. Color belt: under 12 → Intermediate A, 12 and up → Intermediate B. Black belt → Advance. Pick the experience next to the age.</p>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: '-6px 0 12px' }}>New: under 11 → Beginner · 11 and up → Intermediate B. Color belt: under 12 → Intermediate A, 12 and up → Intermediate B. Black belt → Advance. Pick the experience next to the age.</p>
 
       {kind === 'email' ? (
         <>
-          <label style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 8 }}>
+          <label style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 8 }}>
             To
             <input className="dp-input" style={{ display: 'block', width: '100%', marginTop: 3 }} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="parent@email.com" />
           </label>
-          <label style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 8 }}>
+          <label style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 8 }}>
             Subject
             <input className="dp-input" style={{ display: 'block', width: '100%', marginTop: 3 }} value={subject} onChange={(e) => setSubject(e.target.value)} />
           </label>
         </>
       ) : (
-        <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>
+        <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 8px' }}>
           To: <b>{lead.phone || 'no phone number'}</b> · “Open in Messages” opens your phone or computer’s messaging app with this text filled in.
         </p>
       )}
       <textarea className="dp-input" style={{ width: '100%', minHeight: kind === 'email' ? 280 : 170, fontSize: 13.5, lineHeight: 1.5 }} value={body} onChange={(e) => setBody(e.target.value)} />
       {lead.contacted_at && (
-        <p style={{ fontSize: 12, color: '#8A8D84', margin: '6px 0 0' }}>
+        <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '6px 0 0' }}>
           Last contacted {new Date(lead.contacted_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })} by {lead.contacted_by || '—'}.
         </p>
       )}

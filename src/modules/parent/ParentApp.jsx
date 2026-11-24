@@ -147,8 +147,8 @@ function ParentLogin({ notice }) {
       <form onSubmit={submit} style={card}>
         <h1 style={{ fontSize: 20, margin: '0 0 4px' }}>Sign in</h1>
         <p style={{ fontSize: 16, color: C.soft, margin: '0 0 6px' }}>Use the email address the dojang has on file for your family.</p>
-        {idle && <p style={{ background: '#FAEEDA', color: '#854F0B', fontSize: 13, padding: '8px 10px', borderRadius: 8 }}>You were signed out after 1 hour of no activity. Please sign in again.</p>}
-        {notice && <p style={{ background: '#FBEAEA', color: '#7A1F1F', fontSize: 13, padding: '8px 10px', borderRadius: 8 }}>{notice}</p>}
+        {idle && <p style={{ background: 'var(--dp-warning-tint)', color: 'var(--dp-warning)', fontSize: 13, padding: '8px 10px', borderRadius: 8 }}>You were signed out after 1 hour of no activity. Please sign in again.</p>}
+        {notice && <p style={{ background: 'var(--dp-danger-tint)', color: 'var(--dp-danger)', fontSize: 13, padding: '8px 10px', borderRadius: 8 }}>{notice}</p>}
         <label style={label}>Email</label>
         <input type="email" autoComplete="email" style={input} value={email} onChange={(e) => setEmail(e.target.value)} required />
         <label style={label}>Password</label>
@@ -911,7 +911,7 @@ function AbsenceModal({ d, student, onClose, onDone }) {
           );
         })}
       </div>
-      {days.length === 0 && <p style={{ fontSize: 13, color: '#854F0B' }}>No upcoming classes found for {first}. Please email the dojang instead.</p>}
+      {days.length === 0 && <p style={{ fontSize: 13, color: 'var(--dp-warning)' }}>No upcoming classes found for {first}. Please email the dojang instead.</p>}
       {chosen && (
         <p style={{ fontSize: 16, margin: '10px 0 0' }}>
           <b>{fday(date)}</b>
@@ -925,7 +925,7 @@ function AbsenceModal({ d, student, onClose, onDone }) {
       )}
       <label style={label}>Note (optional)</label>
       <textarea style={{ ...input, minHeight: 60 }} placeholder="e.g. sick, family trip" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
-      {onHold && <p style={{ fontSize: 13, color: '#854F0B', margin: '8px 0 0' }}>{first}'s membership is on a break right now, so make-up classes can't be booked until it's active again.</p>}
+      {onHold && <p style={{ fontSize: 13, color: 'var(--dp-warning)', margin: '8px 0 0' }}>{first}'s membership is on a break right now, so make-up classes can't be booked until it's active again.</p>}
       {error && <p style={{ color: C.red, fontSize: 13 }}>{error}</p>}
       <div style={{ marginTop: 14, padding: '10px 12px', background: C.bg, borderRadius: 8, fontSize: 16, color: C.soft, lineHeight: 1.5 }}>
         <div style={{ fontWeight: 700, color: C.ink, marginBottom: 2 }}>Make-up class policy</div>

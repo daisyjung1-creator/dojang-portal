@@ -410,7 +410,7 @@ export default function StudentsPage() {
 
       <div style={styles.filterBar}>
         <div style={styles.searchBox}>
-          <Search size={15} color="#5B5F56" />
+          <Search size={15} color="var(--dp-ink-soft)" />
           <input
             className="dp-input"
             aria-label="Search students"
@@ -435,7 +435,7 @@ export default function StudentsPage() {
         </select>
       </div>
 
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{error}</p>}
 
       {isAdmin && subsidyAlerts.length > 0 && (
         <div role="region" aria-label="Subsidies ending soon" style={{ background: 'var(--dp-warning-tint)', borderRadius: 'var(--dp-radius-lg)', padding: '12px 16px', marginBottom: 14, fontSize: 'var(--dp-text-label)', color: 'var(--dp-warning)' }}>
@@ -471,10 +471,10 @@ export default function StudentsPage() {
 
       <div style={styles.card}>
         {loading ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Loading...</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>Loading...</p>
         ) : filtered.length === 0 ? (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <p style={{ color: '#20241F', fontSize: 15, margin: '0 0 4px' }}>
+            <p style={{ color: 'var(--dp-ink)', fontSize: 15, margin: '0 0 4px' }}>
               {students.length === 0 ? 'No students yet.' : 'No matching results.'}
             </p>
           </div>
@@ -590,15 +590,15 @@ export default function StudentsPage() {
             <input className="dp-input" style={{ width: '100%' }} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
           {editingId && form.customer_id && (siblingsBy[form.customer_id] || []).some((x) => x.id !== editingId) && (
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '-6px 0 12px' }}>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '-6px 0 12px' }}>
               Family <b>{families[form.customer_id]?.name}</b> · siblings:{' '}
               {(siblingsBy[form.customer_id] || []).filter((x) => x.id !== editingId).map((x, i) => (
                 <React.Fragment key={x.id}>
                   {i > 0 && ', '}
-                  <button type="button" style={{ border: 'none', background: 'none', padding: 0, color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5 }} onClick={() => openEdit(x)}>{x.name}</button>
+                  <button type="button" style={{ border: 'none', background: 'none', padding: 0, color: 'var(--dp-info)', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5 }} onClick={() => openEdit(x)}>{x.name}</button>
                 </React.Fragment>
               ))}
-              <span style={{ color: '#8A8D84' }}> (change in Customers)</span>
+              <span style={{ color: 'var(--dp-ink-faint)' }}> (change in Customers)</span>
             </p>
           )}
           <Field label="Date of Birth">
@@ -616,7 +616,7 @@ export default function StudentsPage() {
             </Field>
           </div>
           <div style={{ marginBottom: 12 }}>
-            <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
+            <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>Classes (pick all that apply)</span>
             <ClassPicker value={form.class_name || ''} onChange={(v) => setForm({ ...form, class_name: v })} options={classes} />
           </div>
           <ClassDaysPicker classNames={form.class_name} perWeek={form.classes_per_week} value={form.class_days} onChange={(v) => setForm({ ...form, class_days: v })} />
@@ -686,7 +686,7 @@ export default function StudentsPage() {
             <div style={{ flex: 1 }} />
           </div>
           {(form.billing_start_date || form.enroll_date) && (
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '-4px 0 12px' }}>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '-4px 0 12px' }}>
               Bills every {form.plan === '3 Months' ? '3 months' : 'month'} · current cycle started {currentCycleStart(form, todayISO())} · next billing {nextDueDate(form, todayISO())}
             </p>
           )}
@@ -700,7 +700,7 @@ export default function StudentsPage() {
             </Field>
           )}
           {form.customer_id && families[form.customer_id]?.credit > 0.004 && (
-            <p style={{ background: '#E8F1E9', color: '#2A5A30', border: '1px solid #BFDCC3', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px' }}>
+            <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', border: '1px solid var(--dp-success-tint)', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px' }}>
               Family credit: <b>${Number(families[form.customer_id].credit).toFixed(2)}</b> — taken off the family’s next invoice automatically (from overpayments).
             </p>
           )}
@@ -717,7 +717,7 @@ export default function StudentsPage() {
             Receives a subsidy (KidSport etc.)
           </label>
           {form.subsidy && (
-            <div style={{ background: '#FAF8F2', border: '1px solid #EDEAE0', borderRadius: 8, padding: '12px 12px 0', marginBottom: 12 }}>
+            <div style={{ background: 'var(--dp-canvas)', border: '1px solid #EDEAE0', borderRadius: 8, padding: '12px 12px 0', marginBottom: 12 }}>
               <div style={styles.formRow}>
                 <Field label="Subsidy">
                   <input className="dp-input" style={{ width: '100%' }} list="subsidy-options" placeholder="KidSport" value={form.subsidy_name || ''} onChange={(e) => setForm({ ...form, subsidy_name: e.target.value })} />
@@ -743,7 +743,7 @@ export default function StudentsPage() {
                 </Field>
               </div>
               {form.subsidy_status && form.subsidy_status !== 'approved' && (
-                <p style={{ fontSize: 12, color: '#854F0B', margin: '-4px 0 10px' }}>Nothing comes off tuition invoices until it's marked Approved.</p>
+                <p style={{ fontSize: 12, color: 'var(--dp-warning)', margin: '-4px 0 10px' }}>Nothing comes off tuition invoices until it's marked Approved.</p>
               )}
               <div style={styles.formRow}>
                 <Field label="Grant total ($) — e.g. KidSport 300">
@@ -756,7 +756,7 @@ export default function StudentsPage() {
               <Field label="Subsidy ends" required={form.subsidy_status !== 'pending'}>
                 <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_end_date || ''} onChange={(e) => setForm({ ...form, subsidy_end_date: e.target.value })} />
               </Field>
-              <p style={{ fontSize: 12, color: '#5B5F56', margin: '-4px 0 12px' }}>
+              <p style={{ fontSize: 12, color: 'var(--dp-ink-soft)', margin: '-4px 0 12px' }}>
                 {Number(form.subsidy_total) > 0
                   ? `Each tuition invoice takes off ${form.subsidy_amount ? '$' + form.subsidy_amount : 'the amount above'} until the $${form.subsidy_total} is used up or the end date passes. The invoice shows how much is left and until when.`
                   : 'Add a grant total to track the balance (it shows on each invoice).'}
@@ -776,7 +776,7 @@ export default function StudentsPage() {
           <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
-          {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
+          {formError && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
 
@@ -823,7 +823,7 @@ export default function StudentsPage() {
           <p style={{ fontSize: 14, lineHeight: 1.55, margin: 0 }}>
             {reactivateFor.name.split(' ')[0]}'s membership ended{reactivateFor.withdrawn_date ? ` on ${reactivateFor.withdrawn_date}` : ''}. Coming back after a membership has ended has a <b>${REREGISTRATION_FEE} re-registration fee</b> (Part 7.4). It goes on the next tuition invoice.
           </p>
-          <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '8px 0 0' }}>No fee if it was only a temporary payment issue, or a mistake.</p>
+          <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>No fee if it was only a temporary payment issue, or a mistake.</p>
         </Modal>
       )}
 
@@ -851,14 +851,14 @@ export default function StudentsPage() {
           }
         >
           {reminder.student.subsidy_reminded_at && (
-            <p style={{ fontSize: 12.5, color: '#854F0B', margin: '0 0 10px' }}>Already sent on {new Date(reminder.student.subsidy_reminded_at).toLocaleDateString('en-CA')}.</p>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '0 0 10px' }}>Already sent on {new Date(reminder.student.subsidy_reminded_at).toLocaleDateString('en-CA')}.</p>
           )}
           <Field label="To (comma-separated)"><input className="dp-input" style={{ width: '100%' }} value={reminder.to} onChange={(e) => setReminder({ ...reminder, to: e.target.value })} /></Field>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={reminder.subject} onChange={(e) => setReminder({ ...reminder, subject: e.target.value })} /></Field>
           <Field label="Message (you can edit it for this family)">
             <textarea className="dp-input" rows={12} style={{ width: '100%', resize: 'vertical', fontSize: 13, lineHeight: 1.5 }} value={reminder.message} onChange={(e) => setReminder({ ...reminder, message: e.target.value })} />
           </Field>
-          {reminder.error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: 0 }}>{reminder.error}</p>}
+          {reminder.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: 0 }}>{reminder.error}</p>}
         </Modal>
       )}
 
@@ -884,17 +884,17 @@ export default function StudentsPage() {
             </>
           }
         >
-          {importState.error && <p style={{ color: '#9A2B2B', fontSize: 13, marginTop: 0 }}>{importState.error}</p>}
+          {importState.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 0 }}>{importState.error}</p>}
           {importState.headers && (
             <>
-              <p style={{ fontSize: 13, color: '#5B5F56', marginTop: 0 }}>
+              <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 0 }}>
                 Match each spreadsheet column to a field. ({importState.dataRows.length} rows found)
               </p>
               {FIELD_DEFS.map((f) => (
                 <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <span style={{ fontSize: 13.5, width: 150, color: '#20241F' }}>
+                  <span style={{ fontSize: 13.5, width: 150, color: 'var(--dp-ink)' }}>
                     {f.label}
-                    {f.required && <span style={{ color: '#9A2B2B' }}> *</span>}
+                    {f.required && <span style={{ color: 'var(--dp-danger)' }}> *</span>}
                   </span>
                   <select
                     className="dp-select"
@@ -920,7 +920,7 @@ export default function StudentsPage() {
 }
 
 function SectionLabel({ children }) {
-  return <div style={{ fontSize: 12, fontWeight: 600, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '6px 0 8px', paddingTop: 10, borderTop: '1px solid #EDEAE0' }}>{children}</div>;
+  return <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--dp-ink-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '6px 0 8px', paddingTop: 10, borderTop: '1px solid #EDEAE0' }}>{children}</div>;
 }
 
 // Status chips in the list (DESIGN.md: palette tints, 12px, text always present).

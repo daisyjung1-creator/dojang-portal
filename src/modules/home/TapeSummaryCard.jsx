@@ -48,13 +48,13 @@ export default function TapeSummaryCard({ students, setActiveTab }) {
               const max = Math.max(...view.dist, 1);
               return (
                 <div key={k} style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 12.5, color: '#5B5F56' }}>{v || ''}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{v || ''}</div>
                   <div style={{ height: Math.max(2, (v / max) * 30), background: k === TAPE_COUNT ? '#2E7D32' : k === 0 ? '#D8D5CA' : TAPES[k - 1].color, border: k >= 1 && TAPES[k - 1].id === 'white' ? '1px solid #BDB9AC' : 'none', borderRadius: 2 }} />
                 </div>
               );
             })}
           </div>
-          <div style={{ display: 'flex', fontSize: 12.5, color: '#8A8D84', marginBottom: 10 }}>
+          <div style={{ display: 'flex', fontSize: 12.5, color: 'var(--dp-ink-faint)', marginBottom: 10 }}>
             {view.dist.map((_, k) => <span key={k} style={{ flex: 1, textAlign: 'center' }}>{k}</span>)}
           </div>
           <table className="dp-table" style={{ marginBottom: 8 }}>
@@ -63,18 +63,18 @@ export default function TapeSummaryCard({ students, setActiveTab }) {
                 <tr key={r.c}>
                   <td style={{ fontSize: 13 }}>{r.c}</td>
                   <td style={{ width: 120 }}>
-                    <div style={{ height: 7, background: '#F1EFE7', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: 7, background: 'var(--dp-canvas)', borderRadius: 4, overflow: 'hidden' }}>
                       <div style={{ width: `${(r.avg / TAPE_COUNT) * 100}%`, height: '100%', background: '#2E7D32' }} />
                     </div>
                   </td>
-                  <td style={{ fontSize: 12.5, color: '#5B5F56', textAlign: 'right', whiteSpace: 'nowrap' }}>avg {r.avg.toFixed(1)} · {r.full}/{r.count} done</td>
+                  <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', textAlign: 'right', whiteSpace: 'nowrap' }}>avg {r.avg.toFixed(1)} · {r.full}/{r.count} done</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div style={{ fontSize: 13 }}>
-            <b style={{ fontWeight: 600, color: '#2A5A30' }}>{view.ready.length} ready to test</b>
-            <span style={{ color: '#5B5F56' }}> (all tapes + {MIN_CLASSES} classes){view.ready.length ? ': ' + view.ready.slice(0, 8).map((s) => s.name).join(', ') + (view.ready.length > 8 ? '…' : '') : ''}</span>
+            <b style={{ fontWeight: 600, color: 'var(--dp-success)' }}>{view.ready.length} ready to test</b>
+            <span style={{ color: 'var(--dp-ink-soft)' }}> (all tapes + {MIN_CLASSES} classes){view.ready.length ? ': ' + view.ready.slice(0, 8).map((s) => s.name).join(', ') + (view.ready.length > 8 ? '…' : '') : ''}</span>
           </div>
         </div>
       )}

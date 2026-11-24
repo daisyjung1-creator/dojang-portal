@@ -132,10 +132,10 @@ export default function EmailLog({ onReuse }) {
 
   return (
     <>
-      {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
+      {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
       <div style={{ ...styles.filterBar, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={styles.searchBox}>
-          <Search size={15} color="#8A8D84" />
+          <Search size={15} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Email, student, subject…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <select className="dp-select" value={kind} onChange={(e) => setKind(e.target.value)}>
@@ -152,9 +152,9 @@ export default function EmailLog({ onReuse }) {
       </div>
       <div style={styles.card}>
         {loading ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Loading…</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>Loading…</p>
         ) : shown.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No emails.</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No emails.</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -176,16 +176,16 @@ export default function EmailLog({ onReuse }) {
                     <td style={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>{new Date(r.created_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
                     <td style={{ fontSize: 12.5 }}>{TYPES[kindOf(r)] || r.type}</td>
                     <td style={{ fontSize: 12.5 }}>{whoOf(r)}</td>
-                    <td style={{ fontSize: 12.5, color: '#5B5F56', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.recipient_email}>{r.recipient_email}</td>
+                    <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.recipient_email}>{r.recipient_email}</td>
                     <td style={{ fontSize: 12.5 }}>{subjectOf(r)}</td>
                     <td>
                       <span
                         title={r.error || ''}
-                        style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999, background: st === 'sent' ? '#E8F1E9' : st === 'failed' ? '#FBEAEA' : '#FAEEDA', color: st === 'sent' ? '#2A5A30' : st === 'failed' ? '#9A2B2B' : '#854F0B' }}
+                        style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999, background: st === 'sent' ? 'var(--dp-success-tint)' : st === 'failed' ? 'var(--dp-danger-tint)' : 'var(--dp-warning-tint)', color: st === 'sent' ? 'var(--dp-success)' : st === 'failed' ? 'var(--dp-danger)' : 'var(--dp-warning)' }}
                       >
                         {st === 'sent' ? 'Sent' : st === 'failed' ? 'Failed' : 'Waiting'}
                       </span>
-                      {st === 'failed' && <div style={{ fontSize: 12, color: '#9A2B2B', maxWidth: 220, marginTop: 2 }}>{String(r.error).slice(0, 120)}</div>}
+                      {st === 'failed' && <div style={{ fontSize: 12, color: 'var(--dp-danger)', maxWidth: 220, marginTop: 2 }}>{String(r.error).slice(0, 120)}</div>}
                     </td>
                     <td>
                       {st !== 'waiting' && (
@@ -199,7 +199,7 @@ export default function EmailLog({ onReuse }) {
           </table>
         )}
       </div>
-      <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>Shows the last 500 emails. "Sent" means the email service accepted it for delivery. Click a written message (group email, makeup, absence…) to see it and copy it.</p>
+      <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginTop: 8 }}>Shows the last 500 emails. "Sent" means the email service accepted it for delivery. Click a written message (group email, makeup, absence…) to see it and copy it.</p>
       {viewing && <MessagePreview item={viewing} onClose={() => setViewing(null)} onReuse={onReuse} />}
     </>
   );

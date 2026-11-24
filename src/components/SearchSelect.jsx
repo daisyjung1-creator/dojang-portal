@@ -162,9 +162,9 @@ export default function SearchSelect({ options, value, onChange, placeholder = '
         onKeyDown={onKeyDown}
         autoComplete="off"
       />
-      <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 2, alignItems: 'center', color: '#8A8D84' }}>
+      <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 2, alignItems: 'center', color: 'var(--dp-ink-faint)' }}>
         {allowClear && selected && !disabled && (
-          <button type="button" aria-label="Clear" onMouseDown={(e) => e.preventDefault()} onClick={() => choose(null)} style={{ border: 'none', background: 'none', padding: 2, cursor: 'pointer', color: '#8A8D84', display: 'flex' }}>
+          <button type="button" aria-label="Clear" onMouseDown={(e) => e.preventDefault()} onClick={() => choose(null)} style={{ border: 'none', background: 'none', padding: 2, cursor: 'pointer', color: 'var(--dp-ink-faint)', display: 'flex' }}>
             <X size={13} />
           </button>
         )}
@@ -182,7 +182,7 @@ export default function SearchSelect({ options, value, onChange, placeholder = '
             maxHeight: Math.min(300, Math.max(above ? rect.top - 16 : spaceBelow - 16, 120)),
             overflowY: 'auto',
             background: '#FFFFFF',
-            border: '1px solid #DEDACC',
+            border: '1px solid var(--dp-line)',
             borderRadius: 8,
             boxShadow: '0 6px 20px rgba(32,36,31,0.15)',
             zIndex: 2000,
@@ -190,17 +190,17 @@ export default function SearchSelect({ options, value, onChange, placeholder = '
           }}
         >
           {results.length === 0 ? (
-            <div style={{ padding: '8px 10px', fontSize: 13, color: '#8A8D84' }}>{emptyLabel || 'No match'}</div>
+            <div style={{ padding: '8px 10px', fontSize: 13, color: 'var(--dp-ink-faint)' }}>{emptyLabel || 'No match'}</div>
           ) : (
             results.map((o, i) => (
               <div
                 key={o.value}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => choose(o)}
-                style={{ padding: '6px 10px', borderRadius: 6, cursor: 'pointer', background: i === active ? '#F1EEE4' : o.value === value ? '#FAF8F2' : 'transparent' }}
+                style={{ padding: '6px 10px', borderRadius: 6, cursor: 'pointer', background: i === active ? '#F1EEE4' : o.value === value ? 'var(--dp-canvas)' : 'transparent' }}
               >
-                <div style={{ fontSize: 13.5, color: '#20241F', fontWeight: o.value === value ? 500 : 400 }}>{o.label}</div>
-                {o.hint && <div style={{ fontSize: 12, color: '#8A8D84' }}>{o.hint}</div>}
+                <div style={{ fontSize: 13.5, color: 'var(--dp-ink)', fontWeight: o.value === value ? 500 : 400 }}>{o.label}</div>
+                {o.hint && <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>{o.hint}</div>}
               </div>
             ))
           )}

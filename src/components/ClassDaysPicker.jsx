@@ -58,7 +58,7 @@ export default function ClassDaysPicker({ classNames, perWeek, value, onChange, 
   return (
     <div style={{ marginBottom: compact ? 0 : 12 }}>
       {!compact && (
-        <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>
+        <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>
           Class days — tap the days they come{everyDay ? ' (none picked = every class day)' : ''}
         </span>
       )}
@@ -73,7 +73,7 @@ export default function ClassDaysPicker({ classNames, perWeek, value, onChange, 
               className="dp-btn"
               onClick={() => toggle(k)}
               aria-pressed={on}
-              style={{ padding: '3px 9px', fontSize: 12, background: on ? '#20241F' : '#fff', color: on ? '#fff' : '#5B5F56', borderColor: on ? '#20241F' : '#DEDACC' }}
+              style={{ padding: '3px 9px', fontSize: 12, background: on ? 'var(--dp-ink)' : '#fff', color: on ? '#fff' : 'var(--dp-ink-soft)', borderColor: on ? 'var(--dp-ink)' : 'var(--dp-line)' }}
             >
               {DAYS[c.weekday]} {t12(c.start_time)} · {c.class_name}
             </button>
@@ -81,7 +81,7 @@ export default function ClassDaysPicker({ classNames, perWeek, value, onChange, 
         })}
       </div>
       {mismatch ? (
-        <div style={{ fontSize: 12.5, color: '#854F0B', marginTop: 4 }}>
+        <div style={{ fontSize: 12.5, color: 'var(--dp-warning)', marginTop: 4 }}>
           {everyDay ? `Plan is ${want}x/week but they're in ${all.length} classes a week — tap the ${want} day${want === 1 ? '' : 's'} they come.` : `${chosen.length} day${chosen.length === 1 ? '' : 's'} picked, plan is ${want}x/week.`}
         </div>
       ) : null}

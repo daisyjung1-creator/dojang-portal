@@ -48,14 +48,14 @@ export default function MeetingsCard({ settings, today, onSaved }) {
             const soon = date === today ? 'Today' : date === addDaysISO(today, 1) ? 'Tomorrow' : null;
             const key = `${m.key}|${date}`;
             return (
-              <div key={key} style={{ padding: '9px 14px', borderBottom: i < upcoming.length - 1 ? '1px solid #F1EFE7' : 'none' }}>
+              <div key={key} style={{ padding: '9px 14px', borderBottom: i < upcoming.length - 1 ? '1px solid var(--dp-canvas)' : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500 }}>{m.name}</span>
                   {soon && <Tag c={soon === 'Today' ? AMBER : GREEN}>{soon}</Tag>}
-                  <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#5B5F56', whiteSpace: 'nowrap' }}>{shortDay(date)} · {time12(m.time)}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--dp-ink-soft)', whiteSpace: 'nowrap' }}>{shortDay(date)} · {time12(m.time)}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  <a className="dp-btn" style={{ ...smallBtn, textDecoration: 'none', background: '#E8F5EC', borderColor: '#BFDCC3', color: '#1F6B3A' }} href={whatsappLink(msg)} target="_blank" rel="noreferrer" title={msg}>
+                  <a className="dp-btn" style={{ ...smallBtn, textDecoration: 'none', background: 'var(--dp-success-tint)', borderColor: 'var(--dp-success-tint)', color: '#1F6B3A' }} href={whatsappLink(msg)} target="_blank" rel="noreferrer" title={msg}>
                     Post to WhatsApp
                   </a>
                   <button className="dp-btn" style={smallBtn} onClick={() => copy(msg, key)}><Copy size={11} /> {copied === key ? 'Copied' : 'Copy message'}</button>
@@ -64,7 +64,7 @@ export default function MeetingsCard({ settings, today, onSaved }) {
             );
           })}
         </div>
-        <p style={{ fontSize: 12.5, color: '#8A8D84', margin: 0, padding: '0 14px 10px' }}>
+        <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: 0, padding: '0 14px 10px' }}>
           A reminder email with the WhatsApp link also goes to the dojang inbox the day before and the morning of each meeting.
         </p>
       </Card>
@@ -96,7 +96,7 @@ export default function MeetingsCard({ settings, today, onSaved }) {
                   <button className="dp-btn dp-btn-danger" style={{ padding: 6, marginBottom: 12 }} aria-label="Remove" onClick={() => setEdit({ ...edit, list: edit.list.filter((_x, j) => j !== i) })}><Trash2 size={13} /></button>
                 </div>
                 <div style={{ display: 'flex', gap: 10, fontSize: 13, margin: '0 0 8px', flexWrap: 'wrap' }}>
-                  <span style={{ color: '#5B5F56' }}>Weeks of the month:</span>
+                  <span style={{ color: 'var(--dp-ink-soft)' }}>Weeks of the month:</span>
                   {[1, 2, 3, 4, 5].map((w) => (
                     <label key={w} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                       <input type="checkbox" checked={m.weeks.includes(w)} onChange={(e) => upd({ weeks: e.target.checked ? [...m.weeks, w] : m.weeks.filter((x) => x !== w) })} />
@@ -107,14 +107,14 @@ export default function MeetingsCard({ settings, today, onSaved }) {
                 <Field label="WhatsApp message ({day} and {time} are filled in)">
                   <textarea className="dp-input" rows={2} style={{ width: '100%', fontFamily: 'inherit' }} value={m.message || ''} onChange={(e) => upd({ message: e.target.value })} />
                 </Field>
-                <div style={{ fontSize: 12, color: '#8A8D84' }}>{m.weeks.length ? scheduleText(m) : 'Pick at least one week'}</div>
+                <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>{m.weeks.length ? scheduleText(m) : 'Pick at least one week'}</div>
               </div>
             );
           })}
           <button className="dp-btn" onClick={() => setEdit({ ...edit, list: [...edit.list, { key: '', name: '', weekday: 1, weeks: [1], time: '19:00', remind: [1, 0], message: '📣 Reminder: {day} at {time}.' }] })}>
             <Plus size={13} /> Add a meeting
           </button>
-          {edit.error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{edit.error}</p>}
+          {edit.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{edit.error}</p>}
         </Modal>
       )}
     </>

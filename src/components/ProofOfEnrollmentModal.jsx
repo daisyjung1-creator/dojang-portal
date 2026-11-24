@@ -118,7 +118,7 @@ export default function ProofOfEnrollmentModal({ student, onClose }) {
         </>
       }
     >
-      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 12px' }}>For KidSport: shows the club's name, the child's name, the program dates and the total registration cost.</p>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 12px' }}>For KidSport: shows the club's name, the child's name, the program dates and the total registration cost.</p>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <Field label="Program starts">
           <input type="date" className="dp-input" value={f.start} onChange={(e) => setPeriod(e.target.value, f.months)} />
@@ -139,7 +139,7 @@ export default function ProofOfEnrollmentModal({ student, onClose }) {
       <Field label="Total registration cost for these dates (incl. GST)">
         <input type="number" step="0.01" className="dp-input" style={{ width: 160 }} value={f.amount} onChange={(e) => set({ amount: e.target.value })} />
         {monthly > 0 && f.months > 0 && (
-          <span style={{ fontSize: 12, color: '#8A8D84', marginLeft: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginLeft: 8 }}>
             {money(monthly)}/month × {f.months} + {gst}% GST = {money(calc(f.months))}
           </span>
         )}
@@ -153,7 +153,7 @@ export default function ProofOfEnrollmentModal({ student, onClose }) {
       <Field label="Parent email">
         <input className="dp-input" style={{ width: '100%' }} value={f.to} onChange={(e) => set({ to: e.target.value })} />
       </Field>
-      {msg && <p style={{ fontSize: 13, margin: '6px 0 0', color: msg.err ? '#9A2B2B' : '#2A5A30' }}>{msg.text}</p>}
+      {msg && <p style={{ fontSize: 13, margin: '6px 0 0', color: msg.err ? 'var(--dp-danger)' : 'var(--dp-success)' }}>{msg.text}</p>}
     </Modal>
   );
 }

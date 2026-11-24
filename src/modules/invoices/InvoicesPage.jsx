@@ -154,18 +154,18 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
-      {loadError && <p style={{ background: '#FBEAEA', color: '#9A2B2B', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{loadError}</p>}
+      {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
+      {loadError && <p style={{ background: 'var(--dp-danger-tint)', color: 'var(--dp-danger)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{loadError}</p>}
 
       <div style={{ ...styles.filterBar, flexWrap: 'wrap', alignItems: 'center' }}>
         <select className="dp-select" value={period} onChange={(e) => changePeriod(e.target.value)}>
           {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         <input type="date" className="dp-input" value={range.start} onChange={(e) => { setPeriod('custom'); setRange({ ...range, start: e.target.value }); }} />
-        <span style={{ color: '#5B5F56', fontSize: 13 }}>to</span>
+        <span style={{ color: 'var(--dp-ink-soft)', fontSize: 13 }}>to</span>
         <input type="date" className="dp-input" value={range.end} onChange={(e) => { setPeriod('custom'); setRange({ ...range, end: e.target.value }); }} />
         <div style={styles.searchBox}>
-          <Search size={15} color="#8A8D84" />
+          <Search size={15} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Invoice #, customer…" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         </div>
         <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -180,9 +180,9 @@ export default function InvoicesPage() {
 
       <div style={styles.card}>
         {loading ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Loading…</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>Loading…</p>
         ) : filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No invoices in this period.</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No invoices in this period.</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -200,10 +200,10 @@ export default function InvoicesPage() {
               {filtered.map((i) => (
                 <tr key={i.id} className="dp-row" style={{ cursor: 'pointer', opacity: i.voided ? 0.55 : 1 }} onClick={() => setPreviewId(i.id)}>
                   <td>{i.invoice_date}</td>
-                  <td style={{ fontWeight: 500 }}>{i.is_opening_balance ? <span style={{ color: '#8A8D84', fontWeight: 400 }}>Opening</span> : i.invoice_number}</td>
+                  <td style={{ fontWeight: 500 }}>{i.is_opening_balance ? <span style={{ color: 'var(--dp-ink-faint)', fontWeight: 400 }}>Opening</span> : i.invoice_number}</td>
                   <td>{i.customer_name}</td>
                   <td style={{ textAlign: 'right' }}>{money(i.total)}</td>
-                  <td style={{ textAlign: 'right', color: Number(i.balance) > 0 && !i.voided ? '#9A2B2B' : '#8A8D84' }}>{Number(i.balance) > 0 && !i.voided ? money(i.balance) : ''}</td>
+                  <td style={{ textAlign: 'right', color: Number(i.balance) > 0 && !i.voided ? 'var(--dp-danger)' : 'var(--dp-ink-faint)' }}>{Number(i.balance) > 0 && !i.voided ? money(i.balance) : ''}</td>
                   <td><StatusPill status={i.status} /></td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -216,11 +216,11 @@ export default function InvoicesPage() {
             </tbody>
           </table>
         )}
-        <div style={{ padding: '10px 12px', fontSize: 13, color: '#5B5F56', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+        <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--dp-ink-soft)', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
           <span>{filtered.length} invoices</span>
-          <span>Total <b style={{ fontWeight: 500, color: '#20241F' }}>{money(totals.total)}</b></span>
+          <span>Total <b style={{ fontWeight: 500, color: 'var(--dp-ink)' }}>{money(totals.total)}</b></span>
           <span>GST {money(totals.gst)}</span>
-          <span>Owing <b style={{ fontWeight: 500, color: totals.owing > 0 ? '#9A2B2B' : '#20241F' }}>{money(totals.owing)}</b></span>
+          <span>Owing <b style={{ fontWeight: 500, color: totals.owing > 0 ? 'var(--dp-danger)' : 'var(--dp-ink)' }}>{money(totals.owing)}</b></span>
         </div>
       </div>
 

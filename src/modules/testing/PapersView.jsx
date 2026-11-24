@@ -33,14 +33,14 @@ export default function PapersView({ rows, test, tests, onPatchEntry, onPatchTes
       {/* Per-student: black stripes choose their own break */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{showAll ? 'Each student' : 'Black stripes'}</h3>
-        <span style={{ fontSize: 12.5, color: '#5B5F56' }}>Poomsae is filled in from their stripe; type each one’s board break.</span>
-        <label style={{ marginLeft: 'auto', fontSize: 12.5, color: '#5B5F56', display: 'flex', gap: 6, alignItems: 'center' }}>
+        <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>Poomsae is filled in from their stripe; type each one’s board break.</span>
+        <label style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--dp-ink-soft)', display: 'flex', gap: 6, alignItems: 'center' }}>
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show everyone (to change one student’s content)
         </label>
       </div>
       <div style={{ ...styles.card, marginBottom: 22 }}>
         {planRows.length === 0 ? (
-          <p style={{ padding: 16, margin: 0, fontSize: 13.5, color: '#5B5F56' }}>No black stripes on this test.</p>
+          <p style={{ padding: 16, margin: 0, fontSize: 13.5, color: 'var(--dp-ink-soft)' }}>No black stripes on this test.</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -91,7 +91,7 @@ function PlanRow({ e, s, plan, onSave }) {
     <tr>
       <td style={{ whiteSpace: 'nowrap' }}>
         <div style={{ fontWeight: 500 }}>{s.name}</div>
-        <div style={{ fontSize: 12, color: '#8A8D84' }}>{e.current_belt} → {e.target_belt}</div>
+        <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>{e.current_belt} → {e.target_belt}</div>
       </td>
       <td>{inp('poomsae', autoPoomsae || '—')}</td>
       <td>{inp('break_en', plan.black ? 'e.g. Tornado + reverse kick' : '')}</td>
@@ -128,7 +128,7 @@ function Leaders({ test, tests, onSave }) {
     <>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Leaders Club roles</h3>
-        <span style={{ fontSize: 12.5, color: '#5B5F56' }}>For this test only — pick a role from the list or type your own. Saves as you go.</span>
+        <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>For this test only — pick a role from the list or type your own. Saves as you go.</span>
         {previous && !test.leaders?.rows?.length && (
           <button className="dp-btn" style={{ marginLeft: 'auto', padding: '3px 10px', fontSize: 12.5 }} onClick={() => { setRows(previous.leaders.rows); setNotes(previous.leaders.notes ?? notes); save(previous.leaders.rows, previous.leaders.notes ?? notes, true); }}>
             <Copy size={13} /> Start from the last test’s list
@@ -156,11 +156,11 @@ function Leaders({ test, tests, onSave }) {
             ))}
           </tbody>
         </table>
-        <div style={{ padding: '8px 12px', borderTop: '1px solid #F1EFE7' }}>
+        <div style={{ padding: '8px 12px', borderTop: '1px solid var(--dp-canvas)' }}>
           <button className="dp-btn" onClick={() => setRows([...rows, { name: '', poomsae: '', sparring: '', board: '' }])}><Plus size={14} /> Add assistant</button>
         </div>
       </div>
-      <label style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', margin: '12px 0 4px' }}>Notes printed under the roles</label>
+      <label style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '12px 0 4px' }}>Notes printed under the roles</label>
       <textarea className="dp-input" style={{ width: '100%', minHeight: 110, fontSize: 13 }} value={notes} onChange={(ev) => { dirty.current = true; setNotes(ev.target.value); }} onBlur={() => save()} />
     </>
   );
@@ -181,7 +181,7 @@ function CurriculumModal({ curriculum, onClose, onSaved }) {
   }
   const f = (k, label, rows = 3) => (
     <label style={{ display: 'block', marginBottom: 10 }}>
-      <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 3 }}>{label}</span>
+      <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 3 }}>{label}</span>
       <textarea className="dp-input" rows={rows} style={{ width: '100%', fontSize: 13 }} value={form[k] || ''} onChange={(ev) => setForm({ ...form, [k]: ev.target.value })} />
     </label>
   );
@@ -192,16 +192,16 @@ function CurriculumModal({ curriculum, onClose, onSaved }) {
       onClose={onClose}
       footer={
         <>
-          {msg && <span style={{ marginRight: 'auto', fontSize: 12.5, color: '#2A5A30' }}>{msg}</span>}
+          {msg && <span style={{ marginRight: 'auto', fontSize: 12.5, color: 'var(--dp-success)' }}>{msg}</span>}
           <button className="dp-btn" onClick={onClose}>Close</button>
           <button className="dp-btn dp-btn-primary" onClick={save}>Save {belt}</button>
         </>
       }
     >
-      <p style={{ fontSize: 12.5, color: '#5B5F56', marginTop: 0 }}>By the belt the student holds now. One item per line. Black stripes get their poomsae from their stripe and their own break.</p>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginTop: 0 }}>By the belt the student holds now. One item per line. Black stripes get their poomsae from their stripe and their own break.</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 12 }}>
         {curriculum.filter((c) => c.belt !== 'Black Stripe').map((c) => (
-          <button key={c.belt} className="dp-btn" onClick={() => { setBelt(c.belt); setMsg(''); }} style={{ padding: '3px 10px', fontSize: 12.5, background: c.belt === belt ? '#20241F' : '#fff', color: c.belt === belt ? '#fff' : '#20241F' }}>{c.belt}</button>
+          <button key={c.belt} className="dp-btn" onClick={() => { setBelt(c.belt); setMsg(''); }} style={{ padding: '3px 10px', fontSize: 12.5, background: c.belt === belt ? 'var(--dp-ink)' : '#fff', color: c.belt === belt ? '#fff' : 'var(--dp-ink)' }}>{c.belt}</button>
         ))}
       </div>
       <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>

@@ -392,7 +392,7 @@ export default function HomePage({ setActiveTab }) {
     refreshBadges();
   }
 
-  if (!d) return <p style={{ color: '#5B5F56', fontSize: 14 }}>Loading…</p>;
+  if (!d) return <p style={{ color: 'var(--dp-ink-soft)', fontSize: 14 }}>Loading…</p>;
 
   const todayClasses = classesOn(today);
   const billToday = billing[today] || [];
@@ -529,14 +529,14 @@ export default function HomePage({ setActiveTab }) {
                     const mk = d.makeups.filter((m) => m.reservation_date === today && m.reservation_class_name === c.class_name).length;
                     return (
                       <tr key={c.id} style={c.cancelled ? { opacity: 0.55 } : undefined}>
-                        <td style={{ whiteSpace: 'nowrap', width: 150, fontSize: 13, color: '#5B5F56' }}>{t12(c.start_time)} – {t12(c.end_time)}</td>
+                        <td style={{ whiteSpace: 'nowrap', width: 150, fontSize: 13, color: 'var(--dp-ink-soft)' }}>{t12(c.start_time)} – {t12(c.end_time)}</td>
                         <td style={{ fontWeight: 500 }}>
                           {c.class_name}
                           {c.cancelled && <Tag c={RED}>Cancelled</Tag>}
                           {mk > 0 && <Tag c={PURPLE}>{mk} makeup</Tag>}
                         </td>
                         <td style={{ textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>
-                          {here > 0 ? <span style={{ color: '#2A5A30' }}>{here} / {roster} here</span> : <span style={{ color: '#8A8D84' }}>{roster} student{roster === 1 ? '' : 's'}</span>}
+                          {here > 0 ? <span style={{ color: 'var(--dp-success)' }}>{here} / {roster} here</span> : <span style={{ color: 'var(--dp-ink-faint)' }}>{roster} student{roster === 1 ? '' : 's'}</span>}
                         </td>
                       </tr>
                     );
@@ -559,7 +559,7 @@ export default function HomePage({ setActiveTab }) {
               <BillTable list={billToday} date={today} d={d} onOpen={setPreviewId} />
             )}
             {billSoon.length > 0 && (
-              <div style={{ padding: '8px 14px 12px', fontSize: 12.5, color: '#5B5F56', borderTop: '1px solid #F1EFE7' }}>
+              <div style={{ padding: '8px 14px 12px', fontSize: 12.5, color: 'var(--dp-ink-soft)', borderTop: '1px solid var(--dp-canvas)' }}>
                 <b style={{ fontWeight: 500 }}>Next 7 days:</b>{' '}
                 {billSoon.map(([date, list]) => (
                   <button key={date} className="dp-link" style={linkBtn} onClick={() => { setMonth(ym(date)); setDay(date); }}>
@@ -588,13 +588,13 @@ export default function HomePage({ setActiveTab }) {
                           <tr key={i.id} className="dp-row" style={{ cursor: 'pointer' }} onClick={() => setPreviewId(i.id)}>
                             <td style={{ fontWeight: 500 }}>{i.customer_name}{d.custById[i.customer_id] && !isManual(d.custById[i.customer_id]) && <Tag c={BLUE}>Card</Tag>}</td>
                             <td style={{ fontSize: 13 }}>#{i.invoice_number}</td>
-                            <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(due)} <span style={{ color: late > 30 ? '#9A2B2B' : '#854F0B' }}>· {late}d late</span></td>
-                            <td style={{ textAlign: 'right', fontWeight: 500, color: '#9A2B2B' }}>{money(i.balance)}</td>
+                            <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(due)} <span style={{ color: late > 30 ? 'var(--dp-danger)' : 'var(--dp-warning)' }}>· {late}d late</span></td>
+                            <td style={{ textAlign: 'right', fontWeight: 500, color: 'var(--dp-danger)' }}>{money(i.balance)}</td>
                             <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                               <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12.5 }} title="Email the overdue notice (classes may be suspended — agreement 7.3)" onClick={() => setNotice(i)}>
                                 <Mail size={12} /> {noticeAt[i.id] ? 'Again' : 'Notice'}
                               </button>
-                              {noticeAt[i.id] && <div style={{ fontSize: 12.5, color: '#8A8D84', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
+                              {noticeAt[i.id] && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
                             </td>
                           </tr>
                         );
@@ -615,13 +615,13 @@ export default function HomePage({ setActiveTab }) {
               <div style={{ padding: '4px 0' }}>
                 {headsUp.map((h, i) => {
                   const Icon = h.icon;
-                  const col = h.tone === 'warn' ? '#854F0B' : h.tone === 'good' ? '#2A5A30' : '#20241F';
+                  const col = h.tone === 'warn' ? 'var(--dp-warning)' : h.tone === 'good' ? 'var(--dp-success)' : 'var(--dp-ink)';
                   return (
-                    <button key={i} onClick={() => setActiveTab(h.tab)} style={{ display: 'flex', gap: 10, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: i < headsUp.length - 1 ? '1px solid #F1EFE7' : 'none', padding: '9px 14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <button key={i} onClick={() => setActiveTab(h.tab)} style={{ display: 'flex', gap: 10, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: i < headsUp.length - 1 ? '1px solid var(--dp-canvas)' : 'none', padding: '9px 14px', cursor: 'pointer', fontFamily: 'inherit' }}>
                       <Icon size={16} color={col} style={{ flexShrink: 0, marginTop: 2 }} />
                       <span>
                         <div style={{ fontSize: 13.5, fontWeight: 500, color: col }}>{h.title}</div>
-                        {h.detail && <div style={{ fontSize: 12.5, color: '#5B5F56', marginTop: 1 }}>{h.detail}</div>}
+                        {h.detail && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginTop: 1 }}>{h.detail}</div>}
                       </span>
                     </button>
                   );
@@ -634,13 +634,13 @@ export default function HomePage({ setActiveTab }) {
             <Calendar month={month} setMonth={setMonth} day={day} setDay={setDay} today={today} dayItems={dayItems} classesOn={classesOn} />
             <div style={{ borderTop: '1px solid #EDEAE0', padding: '12px 14px' }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>{day === today ? 'Today' : longDay(day)}</div>
-              {sel.test && <Line icon={Award} c="#9A2B2B">{sel.test.title || 'Belt testing'}</Line>}
-              {sel.cancels.map((c) => <Line key={c.id} icon={AlertTriangle} c="#9A2B2B">{c.class_name || 'All classes'} cancelled{c.reason ? ` — ${c.reason}` : ''}</Line>)}
-              {sel.trials.map((t) => <Line key={t.id} icon={CalendarDays} c="#1E4566">Trial: {t.student_name}{t.time ? ` · ${t.time.slice(0, 5)}` : ''}{t.class_name ? ` · ${t.class_name}` : ''}</Line>)}
-              {sel.makeups.map((m) => <Line key={m.id} icon={CalendarDays} c="#4B3A86">Makeup: {studentById[m.student_id]?.name || '?'} · {m.reservation_class_name}</Line>)}
-              {sel.billing.length > 0 && <Line icon={Wallet} c="#2A5A30">Billing: {sel.billing.map((s) => s.name).join(', ')}</Line>}
+              {sel.test && <Line icon={Award} c="var(--dp-danger)">{sel.test.title || 'Belt testing'}</Line>}
+              {sel.cancels.map((c) => <Line key={c.id} icon={AlertTriangle} c="var(--dp-danger)">{c.class_name || 'All classes'} cancelled{c.reason ? ` — ${c.reason}` : ''}</Line>)}
+              {sel.trials.map((t) => <Line key={t.id} icon={CalendarDays} c="var(--dp-info)">Trial: {t.student_name}{t.time ? ` · ${t.time.slice(0, 5)}` : ''}{t.class_name ? ` · ${t.class_name}` : ''}</Line>)}
+              {sel.makeups.map((m) => <Line key={m.id} icon={CalendarDays} c="var(--dp-ink-soft)">Makeup: {studentById[m.student_id]?.name || '?'} · {m.reservation_class_name}</Line>)}
+              {sel.billing.length > 0 && <Line icon={Wallet} c="var(--dp-success)">Billing: {sel.billing.map((s) => s.name).join(', ')}</Line>}
               {!sel.test && !sel.cancels.length && !sel.trials.length && !sel.makeups.length && !sel.billing.length && !sel.notes.length && (
-                <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 6 }}>{classesOn(day).length ? `${classesOn(day).length} classes · nothing else` : 'No classes'}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginBottom: 6 }}>{classesOn(day).length ? `${classesOn(day).length} classes · nothing else` : 'No classes'}</div>
               )}
               <NoteList notes={sel.notes} onToggle={toggleNote} onDelete={deleteNote} />
               <NoteInput value={draft} onChange={setDraft} onAdd={() => addNote(day, draft, setDraft)} placeholder={`Add a to-do for ${day === today ? 'today' : shortDay(day)}…`} />
@@ -736,21 +736,21 @@ function DeclinedModal({ cards, today, onClose, onChanged }) {
   if (edit)
     return (
       <Modal title={`${edit.reminder ? 'Reminder' : 'Email'} to ${edit.c.name}`} maxWidth={640} onClose={() => setEdit(null)} footer={<><button className="dp-btn" onClick={() => setEdit(null)}>Back</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
-        <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>To: {edit.c.email || invs[edit.c.card_declined_invoice_id]?.customer_email || '—'}</p>
-        <label style={{ fontSize: 12, color: '#5B5F56' }}>Also send to <span style={{ color: '#8A8D84' }}>— this email only, not saved to the family</span></label>
+        <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 8px' }}>To: {edit.c.email || invs[edit.c.card_declined_invoice_id]?.customer_email || '—'}</p>
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Also send to <span style={{ color: 'var(--dp-ink-faint)' }}>— this email only, not saved to the family</span></label>
         <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} placeholder="e.g. dad@example.com (separate several with commas)" value={edit.extra} onChange={(e) => setEdit({ ...edit, extra: e.target.value })} />
-        <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Subject</label>
         <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} />
-        <label style={{ fontSize: 12, color: '#5B5F56' }}>Message</label>
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Message</label>
         <textarea className="dp-input" style={{ width: '100%', minHeight: 300, fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.5 }} value={edit.message} onChange={(e) => setEdit({ ...edit, message: e.target.value })} />
-        <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 0 0' }}>The invoice PDF is attached and a "Pay now by credit card" button is added under the message.</p>
-        {msg && <p style={{ fontSize: 12.5, color: '#9A2B2B' }}>{msg}</p>}
+        <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>The invoice PDF is attached and a "Pay now by credit card" button is added under the message.</p>
+        {msg && <p style={{ fontSize: 12.5, color: 'var(--dp-danger)' }}>{msg}</p>}
       </Modal>
     );
   return (
     <Modal title="Saved card declined" maxWidth={760} onClose={onClose} footer={<button className="dp-btn" onClick={onClose}>Close</button>}>
-      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>Review and email the parent. The email has a Pay now link where they can pay with another card and make it their card for future tuition. A reminder is suggested {REMIND_AFTER_DAYS} days after the first email if it's still unpaid. Dismiss once it's sorted out another way.</p>
-      {msg && <p style={{ fontSize: 12.5, color: '#2A5A30' }}>{msg}</p>}
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>Review and email the parent. The email has a Pay now link where they can pay with another card and make it their card for future tuition. A reminder is suggested {REMIND_AFTER_DAYS} days after the first email if it's still unpaid. Dismiss once it's sorted out another way.</p>
+      {msg && <p style={{ fontSize: 12.5, color: 'var(--dp-success)' }}>{msg}</p>}
       <div style={{ overflowX: 'auto' }}>
         <table className="dp-table">
           <thead>
@@ -762,11 +762,11 @@ function DeclinedModal({ cards, today, onClose, onChanged }) {
               const unpaid = inv ? Number(inv.balance) > 0.004 : true;
               return (
                 <tr key={c.id}>
-                  <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>···{c.card_last4} · {c.card_decline_message || 'declined'}</div></td>
+                  <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>···{c.card_last4} · {c.card_decline_message || 'declined'}</div></td>
                   <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{shortDate(c.card_declined_at)}</td>
-                  <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{inv ? <>#{inv.invoice_number} · {unpaid ? money(inv.balance) : <span style={{ color: '#2A5A30' }}>paid</span>}</> : '—'}</td>
+                  <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{inv ? <>#{inv.invoice_number} · {unpaid ? money(inv.balance) : <span style={{ color: 'var(--dp-success)' }}>paid</span>}</> : '—'}</td>
                   <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-                    {c.card_decline_emailed_at ? `Sent ${shortDate(c.card_decline_emailed_at)}` : <span style={{ color: '#854F0B' }}>Not sent</span>}
+                    {c.card_decline_emailed_at ? `Sent ${shortDate(c.card_decline_emailed_at)}` : <span style={{ color: 'var(--dp-warning)' }}>Not sent</span>}
                     {c.card_decline_reminded_at && <div>Reminder {shortDate(c.card_decline_reminded_at)}</div>}
                   </td>
                   <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
@@ -836,27 +836,27 @@ function ExpiringModal({ cards, onClose, onChanged }) {
   if (edit)
     return (
       <Modal title={`Email to ${edit.c.name}`} maxWidth={640} onClose={() => setEdit(null)} footer={<><button className="dp-btn" onClick={() => setEdit(null)}>Back</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
-        <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>To: {edit.c.email || '—'}</p>
-        <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
+        <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 8px' }}>To: {edit.c.email || '—'}</p>
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Subject</label>
         <input className="dp-input" value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} style={{ marginBottom: 8 }} />
-        <label style={{ fontSize: 12, color: '#5B5F56' }}>Message</label>
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Message</label>
         <textarea className="dp-input" rows={13} value={edit.message} onChange={(e) => setEdit({ ...edit, message: e.target.value })} />
-        {msg && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{msg}</p>}
+        {msg && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{msg}</p>}
       </Modal>
     );
   return (
     <Modal title="Saved cards expiring" maxWidth={720} onClose={onClose} footer={<button className="dp-btn" onClick={onClose}>Close</button>}>
-      <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 10px' }}>Check each email before it goes out. The link opens the family's card page, where they add the new card (it becomes the tuition card).</p>
-      {msg && <p style={{ color: '#2A5A30', fontSize: 13, margin: '0 0 8px' }}>{msg}</p>}
+      <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>Check each email before it goes out. The link opens the family's card page, where they add the new card (it becomes the tuition card).</p>
+      {msg && <p style={{ color: 'var(--dp-success)', fontSize: 13, margin: '0 0 8px' }}>{msg}</p>}
       <table className="dp-table" style={{ width: '100%' }} data-testid="expiring">
         <tbody>
           {cards.map((c) => {
             const done = sent[c.id] || c.card_expiry_notice_for === c.card_expiry;
             return (
               <tr key={c.id} data-family={c.name}>
-                <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>···{c.card_last4} · {c.email || 'no email'}</div></td>
-                <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: c.expired ? '#9A2B2B' : '#854F0B' }}>{c.expired ? 'Expired' : 'Expires'} {c.card_expiry}</td>
-                <td style={{ fontSize: 12.5 }}>{done ? <span style={{ color: '#2A5A30' }}>Sent{c.card_expiry_notice_at && !sent[c.id] ? ` ${shortDate(c.card_expiry_notice_at)}` : ''}</span> : <span style={{ color: '#854F0B' }}>Not sent</span>}</td>
+                <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>···{c.card_last4} · {c.email || 'no email'}</div></td>
+                <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: c.expired ? 'var(--dp-danger)' : 'var(--dp-warning)' }}>{c.expired ? 'Expired' : 'Expires'} {c.card_expiry}</td>
+                <td style={{ fontSize: 12.5 }}>{done ? <span style={{ color: 'var(--dp-success)' }}>Sent{c.card_expiry_notice_at && !sent[c.id] ? ` ${shortDate(c.card_expiry_notice_at)}` : ''}</span> : <span style={{ color: 'var(--dp-warning)' }}>Not sent</span>}</td>
                 <td style={{ textAlign: 'right' }}>
                   <button className={`dp-btn${done ? '' : ' dp-btn-primary'}`} style={{ padding: '3px 10px', fontSize: 12 }} disabled={!c.card_link_token} onClick={() => { setMsg(''); setEdit({ c, ...expiryEmail(c) }); }}>{done ? 'Send again' : 'Review & send'}</button>
                 </td>
@@ -872,7 +872,7 @@ function ExpiringModal({ cards, onClose, onChanged }) {
 function ShortfallModal({ list, onClose, onAttendance }) {
   return (
     <Modal title="Short of guaranteed classes" maxWidth={720} onClose={onClose} footer={<><button className="dp-btn" onClick={onClose}>Close</button><button className="dp-btn dp-btn-primary" onClick={() => { onClose(); onAttendance(); }}>Go to Attendance</button></>}>
-      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 10px' }}>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>
         The agreement guarantees 8 / 12 / 16 classes per monthly service period (2 / 3 / 4 a week). Closures (Day off) leave these students with fewer of their regular classes, so the Dojang owes make-ups. Only closures count — classes a student missed on their own don't. Make-ups already booked for a closed day count.
       </p>
       <div style={{ overflowX: 'auto' }}>
@@ -883,13 +883,13 @@ function ShortfallModal({ list, onClose, onAttendance }) {
           <tbody>
             {list.map((x) => (
               <tr key={x.student.id + x.start}>
-                <td style={{ fontWeight: 500 }}>{x.student.name}<div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>{x.student.classes_per_week}x/week · {x.student.class_name}</div></td>
+                <td style={{ fontWeight: 500 }}>{x.student.name}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{x.student.classes_per_week}x/week · {x.student.class_name}</div></td>
                 <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{md(x.start)} – {md(x.end)}</td>
                 <td style={{ textAlign: 'right' }}>{x.need}</td>
                 <td style={{ textAlign: 'right' }}>{x.available}</td>
                 <td style={{ fontSize: 12 }}>{x.lostDates.map(md).join(', ')}</td>
                 <td style={{ textAlign: 'right' }}>{x.booked || '—'}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600, color: '#9A2B2B' }}>{x.short}</td>
+                <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--dp-danger)' }}>{x.short}</td>
               </tr>
             ))}
           </tbody>
@@ -904,17 +904,17 @@ function TodayPanel({ items, classesLine, setActiveTab }) {
     <div style={{ ...styles.card, marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', borderBottom: items.length ? '1px solid #EDEAE0' : 'none', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 600 }}>Today</span>
-        <span style={{ fontSize: 12.5, color: '#8A8D84' }}>{classesLine}</span>
-        {!items.length && <span style={{ fontSize: 13, color: '#2A5A30', marginLeft: 'auto' }}>Nothing extra today 👍</span>}
+        <span style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{classesLine}</span>
+        {!items.length && <span style={{ fontSize: 13, color: 'var(--dp-success)', marginLeft: 'auto' }}>Nothing extra today 👍</span>}
       </div>
       {items.map((it, i) => {
-        const col = it.tone === 'warn' ? '#854F0B' : it.tone === 'good' ? '#2A5A30' : '#20241F';
+        const col = it.tone === 'warn' ? 'var(--dp-warning)' : it.tone === 'good' ? 'var(--dp-success)' : 'var(--dp-ink)';
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: i < items.length - 1 ? '1px solid #F1EFE7' : 'none', flexWrap: 'wrap' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: i < items.length - 1 ? '1px solid var(--dp-canvas)' : 'none', flexWrap: 'wrap' }}>
             <span style={{ width: 7, height: 7, borderRadius: 99, background: it.tone === 'warn' ? '#D9962B' : it.tone === 'good' ? '#4F9A58' : '#B9B6AA', flexShrink: 0 }} />
             <span style={{ flex: '1 1 220px', fontSize: 13.5, color: col, fontWeight: it.tone === 'warn' ? 500 : 400 }}>{it.text}</span>
             {it.href ? (
-              <a className="dp-btn" style={{ padding: '3px 10px', fontSize: 12, textDecoration: 'none', background: '#E8F5EC', borderColor: '#BFDCC3', color: '#1F6B3A' }} href={it.href} target="_blank" rel="noreferrer">{it.label}</a>
+              <a className="dp-btn" style={{ padding: '3px 10px', fontSize: 12, textDecoration: 'none', background: 'var(--dp-success-tint)', borderColor: 'var(--dp-success-tint)', color: '#1F6B3A' }} href={it.href} target="_blank" rel="noreferrer">{it.label}</a>
             ) : it.onClick ? (
               <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={it.onClick}>{it.label}</button>
             ) : it.tab ? (
@@ -928,12 +928,12 @@ function TodayPanel({ items, classesLine, setActiveTab }) {
 }
 
 function Metric({ label, value, sub, tone, onClick }) {
-  const color = tone === 'bad' ? '#9A2B2B' : tone === 'good' ? '#2A5A30' : '#20241F';
+  const color = tone === 'bad' ? 'var(--dp-danger)' : tone === 'good' ? 'var(--dp-success)' : 'var(--dp-ink)';
   return (
     <button onClick={onClick} style={{ ...styles.metricCard, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
       <p style={styles.metricLabel}>{label}</p>
       <p style={{ ...styles.metricValue, color }}>{value}</p>
-      {sub && <p style={{ fontSize: 12, color: '#8A8D84', margin: '4px 0 0' }}>{sub}</p>}
+      {sub && <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '4px 0 0' }}>{sub}</p>}
     </button>
   );
 }
@@ -963,7 +963,7 @@ function BillTable({ list, date, d, onOpen }) {
             <tr key={s.id} className={inv ? 'dp-row' : undefined} style={inv ? { cursor: 'pointer' } : undefined} onClick={() => inv && onOpen(inv.id)}>
               <td style={{ fontWeight: 500 }}>
                 {s.name}
-                {fam && fam.name !== s.name && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {fam.name}</span>}
+                {fam && fam.name !== s.name && <span style={{ fontWeight: 400, color: 'var(--dp-ink-faint)', fontSize: 12.5 }}> · {fam.name}</span>}
               </td>
               <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{card ? <Tag c={BLUE}>Card (pre-auth)</Tag> : <Tag c={GREY}>Pays manually</Tag>}</td>
               <td style={{ fontSize: 13, textAlign: 'right', whiteSpace: 'nowrap' }}>{money(s.tuition)}{s.plan === '3 Months' ? ' / 3 mo' : ''}</td>
@@ -993,16 +993,16 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
         <button className="dp-btn" style={{ padding: 4 }} aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight size={15} /></button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-        {WEEKDAYS.map((w) => <div key={w} style={{ fontSize: 12, color: '#8A8D84', textAlign: 'center', padding: '2px 0' }}>{w}</div>)}
+        {WEEKDAYS.map((w) => <div key={w} style={{ fontSize: 12, color: 'var(--dp-ink-faint)', textAlign: 'center', padding: '2px 0' }}>{w}</div>)}
         {cells.map((x, i) => {
           if (!x) return <div key={'e' + i} />;
           const it = dayItems(x);
           const isSel = x === day, isToday = x === today;
           const noClass = classesOn(x).length === 0;
           const dots = [
-            it.test && '#9A2B2B',
-            it.cancels.length && '#9A2B2B',
-            it.trials.length && '#1E4566',
+            it.test && 'var(--dp-danger)',
+            it.cancels.length && 'var(--dp-danger)',
+            it.trials.length && 'var(--dp-info)',
             it.notes.length && '#C58A12',
           ].filter(Boolean);
           return (
@@ -1012,10 +1012,10 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
               title={[it.test && 'Belt test', it.billing.length && `${it.billing.length} billing`, it.trials.length && `${it.trials.length} trial`, it.notes.length && `${it.notes.length} to-do`, it.cancels.length && 'cancelled'].filter(Boolean).join(' · ')}
               style={{
                 minHeight: 46,
-                border: isSel ? '1.5px solid #20241F' : '1px solid #EDEAE0',
+                border: isSel ? '1.5px solid var(--dp-ink)' : '1px solid #EDEAE0',
                 borderRadius: 6,
-                background: isToday ? '#20241F' : it.test ? '#FBEAEA' : noClass ? '#FAF9F5' : '#fff',
-                color: isToday ? '#fff' : noClass ? '#A7AAA1' : '#20241F',
+                background: isToday ? 'var(--dp-ink)' : it.test ? 'var(--dp-danger-tint)' : noClass ? 'var(--dp-canvas)' : '#fff',
+                color: isToday ? '#fff' : noClass ? 'var(--dp-ink-faint)' : 'var(--dp-ink)',
                 cursor: 'pointer',
                 padding: '3px 4px',
                 display: 'flex',
@@ -1025,7 +1025,7 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
               }}
             >
               <span style={{ fontSize: 12.5, fontWeight: isToday || isSel ? 600 : 400 }}>{Number(x.slice(8))}</span>
-              {it.billing.length > 0 && <span style={{ fontSize: 12.5, color: isToday ? '#BFDCC3' : '#2A5A30', lineHeight: 1.2 }}>${it.billing.length}</span>}
+              {it.billing.length > 0 && <span style={{ fontSize: 12.5, color: isToday ? 'var(--dp-success-tint)' : 'var(--dp-success)', lineHeight: 1.2 }}>${it.billing.length}</span>}
               <span style={{ display: 'flex', gap: 2, marginTop: 'auto' }}>
                 {dots.map((c, k) => <span key={k} style={{ width: 5, height: 5, borderRadius: 3, background: c }} />)}
               </span>
@@ -1033,10 +1033,10 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
           );
         })}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 12, color: '#8A8D84' }}>
-        <span><span style={{ color: '#2A5A30' }}>$3</span> = 3 billing</span>
-        <Legend c="#9A2B2B">Test / cancelled</Legend>
-        <Legend c="#1E4566">Trial</Legend>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 12, color: 'var(--dp-ink-faint)' }}>
+        <span><span style={{ color: 'var(--dp-success)' }}>$3</span> = 3 billing</span>
+        <Legend c="var(--dp-danger)">Test / cancelled</Legend>
+        <Legend c="var(--dp-info)">Trial</Legend>
         <Legend c="#C58A12">To-do</Legend>
       </div>
     </div>
@@ -1053,8 +1053,8 @@ function NoteList({ notes, onToggle, onDelete }) {
       {notes.map((n) => (
         <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0', borderBottom: '1px solid #F6F4EE' }}>
           <input type="checkbox" checked={n.done} onChange={() => onToggle(n)} style={{ marginTop: 3 }} />
-          <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: n.done ? 'line-through' : 'none', color: n.done ? '#A7AAA1' : '#20241F' }}>{n.body}</span>
-          <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(n)}><Trash2 size={13} color="#8A8D84" /></button>
+          <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: n.done ? 'line-through' : 'none', color: n.done ? 'var(--dp-ink-faint)' : 'var(--dp-ink)' }}>{n.body}</span>
+          <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(n)}><Trash2 size={13} color="var(--dp-ink-faint)" /></button>
         </div>
       ))}
     </div>
@@ -1099,7 +1099,7 @@ function TodoCard({ todos, today, onAdd, onToggle, onDelete, setActiveTab }) {
   return (
     <Card title={`To-do${open.length ? ` (${open.length})` : ''}`} icon={ListTodo}>
       <div style={{ padding: '10px 14px 12px' }} data-testid="todo-card">
-        {open.length === 0 && <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 6 }}>Nothing to do. Add one below — a due date is optional.</div>}
+        {open.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginBottom: 6 }}>Nothing to do. Add one below — a due date is optional.</div>}
         {open.map((t) => (
           <TodoRow key={t.id} t={t} today={today} onToggle={onToggle} onDelete={onDelete} setActiveTab={setActiveTab} />
         ))}
@@ -1110,7 +1110,7 @@ function TodoCard({ todos, today, onAdd, onToggle, onDelete, setActiveTab }) {
         </div>
         {done.length > 0 && (
           <div style={{ marginTop: 10 }}>
-            <button className="dp-link" style={{ background: 'none', border: 'none', padding: 0, fontSize: 12.5, color: '#5B5F56', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => setShowDone((v) => !v)}>
+            <button className="dp-link" style={{ background: 'none', border: 'none', padding: 0, fontSize: 12.5, color: 'var(--dp-ink-soft)', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => setShowDone((v) => !v)}>
               {showDone ? 'Hide' : 'Show'} done ({done.length})
             </button>
             {showDone && <div style={{ marginTop: 4 }}>{done.slice().reverse().map((t) => <TodoRow key={t.id} t={t} today={today} onToggle={onToggle} onDelete={onDelete} setActiveTab={setActiveTab} />)}</div>}
@@ -1126,11 +1126,11 @@ function TodoRow({ t, today, onToggle, onDelete, setActiveTab }) {
   return (
     <div data-todo={t.body} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0', borderBottom: '1px solid #F6F4EE' }}>
       <input type="checkbox" checked={!!t.done} onChange={() => onToggle(t)} style={{ marginTop: 3 }} aria-label={`Done: ${t.body}`} />
-      <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: t.done ? 'line-through' : 'none', color: t.done ? '#A7AAA1' : '#20241F' }}>
-        {t.auto_key && <Package size={12} color="#854F0B" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
+      <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: t.done ? 'line-through' : 'none', color: t.done ? 'var(--dp-ink-faint)' : 'var(--dp-ink)' }}>
+        {t.auto_key && <Package size={12} color="var(--dp-warning)" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
         {t.body}
         {t.note_date && (
-          <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 6px', borderRadius: 5, background: late ? '#FBEAEA' : t.note_date === today ? '#FAEEDA' : '#F1EFE7', color: late ? '#9A2B2B' : t.note_date === today ? '#854F0B' : '#5B5F56', whiteSpace: 'nowrap' }}>
+          <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 6px', borderRadius: 5, background: late ? 'var(--dp-danger-tint)' : t.note_date === today ? 'var(--dp-warning-tint)' : 'var(--dp-canvas)', color: late ? 'var(--dp-danger)' : t.note_date === today ? 'var(--dp-warning)' : 'var(--dp-ink-soft)', whiteSpace: 'nowrap' }}>
             {t.note_date === today ? 'today' : late ? `due ${md(t.note_date)}` : md(t.note_date)}
           </span>
         )}
@@ -1138,7 +1138,7 @@ function TodoRow({ t, today, onToggle, onDelete, setActiveTab }) {
       {t.link_tab && !t.done && (
         <button className="dp-btn" style={{ padding: '1px 7px', fontSize: 12.5 }} onClick={() => setActiveTab(t.link_tab)}>Open</button>
       )}
-      <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(t)}><Trash2 size={13} color="#8A8D84" /></button>
+      <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(t)}><Trash2 size={13} color="var(--dp-ink-faint)" /></button>
     </div>
   );
 }

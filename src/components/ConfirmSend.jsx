@@ -52,15 +52,15 @@ export default function ConfirmSendHost() {
         </div>
         <div style={styles.modalBody}>
           <p style={{ margin: '0 0 6px', fontSize: 14 }}><b>{ask.what}</b></p>
-          {(ask.to || ask.extra) && <p style={{ margin: 0, fontSize: 13.5, color: '#5B5F56', wordBreak: 'break-word' }}>To: {ask.to || <span style={{ color: '#9A2B2B' }}>no email on file — add one below</span>}</p>}
-          {ask.note && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: '#854F0B' }}>{ask.note}</p>}
+          {(ask.to || ask.extra) && <p style={{ margin: 0, fontSize: 13.5, color: 'var(--dp-ink-soft)', wordBreak: 'break-word' }}>To: {ask.to || <span style={{ color: 'var(--dp-danger)' }}>no email on file — add one below</span>}</p>}
+          {ask.note && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--dp-warning)' }}>{ask.note}</p>}
           {ask.extra && (
             <div style={{ marginTop: 12 }}>
-              <label style={{ fontSize: 12, color: '#5B5F56' }}>Also send to <span style={{ color: '#8A8D84' }}>— this email only, not saved to the family</span></label>
+              <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Also send to <span style={{ color: 'var(--dp-ink-faint)' }}>— this email only, not saved to the family</span></label>
               <input className="dp-input" style={{ width: '100%', marginTop: 3 }} placeholder="e.g. dad@example.com (separate several with commas)" value={more} onChange={(e) => { setMore(e.target.value); setErr(''); }} />
             </div>
           )}
-          {err && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: '#9A2B2B' }}>{err}</p>}
+          {err && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--dp-danger)' }}>{err}</p>}
         </div>
         <div style={styles.modalFooter}>
           <button className="dp-btn" autoFocus onClick={() => done(false)}>Cancel</button>
