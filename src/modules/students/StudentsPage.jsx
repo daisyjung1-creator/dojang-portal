@@ -523,7 +523,7 @@ export default function StudentsPage() {
                     </td>
                     <td>{s.class_name || '—'}</td>
                     <td>{s.guardian_name || '—'}</td>
-                    <td>{s.guardian_phone || '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{s.guardian_phone || '—'}</td>
                     <td>
                       {s.billing_exempt ? <Badge c={GREY}>Staff · no invoice</Badge> : s.plan || '1 Month'}
                       {families[s.customer_id]?.payment_type === 'manual' && !s.billing_exempt && <Badge c={GREY} title="Pays manually (debit / cash)">Manual pay</Badge>}
@@ -534,7 +534,7 @@ export default function StudentsPage() {
                       {s.subsidy && s.subsidy_status === 'pending' && <Badge c={AMBER} title={`Applied ${s.subsidy_applied_on || '?'}`}>{(s.subsidy_name || 'Subsidy').trim()} — waiting</Badge>}
                       {s.subsidy && s.subsidy_status !== 'pending' && <Badge c={GREEN} title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`}>Subsidy</Badge>}
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: 'var(--dp-danger)', fontSize: 'var(--dp-text-label)', fontWeight: 600 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
                       {s.reregistration_fee_due && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-warning)' }}>+ re-registration fee</div>}
                     </td>

@@ -173,7 +173,7 @@ Desktop admin: left sidebar plus a content column of cards and tables. Below 820
 
 iPad kiosk: full-screen, tile grid (`minmax(170px, 1fr)`), header with the class and the "here / expected" count, footer with secondary actions. Keep the bottom-right corner clear of the Netlify badge.
 
-Navigation groups (target): Home · Students · Classes (Attendance, Belt Testing, Events) · Money (Billing, Invoices, Payments, Customers, Sales & GST, Payroll) · Settings. Show no more than five items per group.
+Navigation groups: see Components → Navigation.
 
 ## Elevation & Depth
 
@@ -202,7 +202,8 @@ Small, firm corners: 6px for controls, 10px for touch buttons, 12px for cards an
 - 38px tall, 6px radius, Line border; focus changes the border to Ink with a visible 2px focus ring.
 
 ### Navigation
-- Sidebar items: Label size, Ink Soft text; the active item gets Ink text and a 3px Hankook Red marker on the left. Counts show as red badges.
+- Sidebar (ink background): items 14px, light grey text; the active item gets white bold text, a soft white tint and a Hankook Red icon (no side stripe). Counts show as red badges.
+- Admin groups, each with a small plain heading: Home · People (Students, Leads & Trials, Enrollment, Email) · Classes (Attendance, Belt Testing, Events) · Money (Billing, Invoices, Payments, Customers, Sales & GST) · Admin (Payroll, Inventory, Invoice Settings, Staff Logins). Staff see only Today, Trials, Attendance, Tapes.
 
 ### Belt strip (signature component)
 One shared `<BeltStrip belt="..." />` used everywhere a rank appears (kiosk, student list, belt testing, parent portal). It replaces every other belt chip or color bar.

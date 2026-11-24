@@ -78,7 +78,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     background: '#F6F4EF',
-    fontFamily: "'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif",
+    fontFamily: 'var(--dp-font)',
   },
   card: {
     background: '#FFFFFF',
