@@ -3,6 +3,7 @@ import { ArrowLeft, Phone, Pencil, FileText, CalendarX, Mail, Trash2, Eye, EyeOf
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import TapeList from '../../components/TapeList';
+import BeltWithTapes from '../../components/BeltWithTapes';
 import { hasTapes, loadTapes, TAPE_COUNT } from '../../lib/tapes';
 import StudentFlags from '../../components/StudentFlags';
 import { BELTS } from '../../lib/constants';
@@ -107,7 +108,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const actions =
         isAdmin ? (
           <>
-            <button className="dp-btn dp-btn-danger" style={{ ...btn, marginLeft: 'auto' }} onClick={onDelete}><Trash2 size={13} /> Delete</button>
+            <button className="dp-btn dp-btn-danger" style={{ ...btn, order: 9, marginLeft: 'auto' }} onClick={onDelete}><Trash2 size={13} /> Delete</button>
             {withdrawn ? (
               <button className="dp-btn" style={btn} onClick={onReactivate}>Reactivate</button>
             ) : (
@@ -137,7 +138,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <h1 style={{ ...styles.title, fontSize: 26, margin: '0 0 6px' }}>{s.name}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 14 }}>
-              <span style={{ width: 30, height: 12, borderRadius: 3, background: belt.bg, border: `1px solid ${belt.border}` }} />
+              <BeltWithTapes belt={s.belt || 'White'} tapes={tapes} width={46} height={14} />
               {s.belt || 'White'}
             </span>
             {withdrawn ? (
@@ -187,7 +188,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
         <Box title="Classes">
           <Row k="Classes">{splitClasses(s.class_name).join(', ') || '—'}</Row>
           <Row k="Every week">
@@ -300,14 +301,14 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
       </div>
 
       {att && att.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#5B5F56', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Recent attendance</div>
+        <div style={{ marginTop: 14, border: '1px solid #E4E6DF', borderRadius: 10, padding: '16px 18px', background: '#fff' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Recent attendance</h2>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {att.slice(0, 16).map((r, i) => {
               const ok = ['present', 'double'].includes(r.status);
               const col = ok ? ['#2A5A30', '#E8F1E9'] : r.status === 'absent' ? ['#9A2B2B', '#FBEAEA'] : ['#854F0B', '#FAEEDA'];
               return (
-                <span key={i} title={`${r.class_name} · ${r.status}`} style={{ fontSize: 11.5, color: col[0], background: col[1], borderRadius: 6, padding: '2px 7px' }}>
+                <span key={i} title={`${r.class_name} · ${r.status}`} style={{ fontSize: 12.5, color: col[0], background: col[1], borderRadius: 6, padding: '3px 9px' }}>
                   {WD[new Date(r.date + 'T00:00:00').getDay()]} {r.date.slice(5).replace('-', '/')} {r.status === 'present' ? '✓' : r.status === 'double' ? '✓✓' : r.status[0].toUpperCase()}
                 </span>
               );
@@ -317,8 +318,9 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
       )}
 
       {actions && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 18, paddingTop: 14, borderTop: '1px solid #EDEAE0' }}>
-          {actions}
+        <div style={{ marginTop: 14, border: '1px solid #E4E6DF', borderRadius: 10, padding: '16px 18px', background: '#fff' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Membership</h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{actions}</div>
         </div>
       )}
     </div>
@@ -327,9 +329,9 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
 
 function Box({ title, action, children }) {
   return (
-    <div style={{ border: '1px solid #E4E6DF', borderRadius: 8, padding: '10px 12px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#5B5F56', textTransform: 'uppercase', letterSpacing: '0.04em', flex: 1 }}>{title}</span>
+    <div style={{ border: '1px solid #E4E6DF', borderRadius: 10, padding: '16px 18px', background: '#fff' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, flex: 1, color: '#20241F' }}>{title}</h2>
         {action}
       </div>
       {children}
@@ -462,21 +464,27 @@ function BeltJourney({ s, since, tapes }) {
         <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1 }}>{pct}<span style={{ fontSize: 14, color: '#5B5F56' }}>%</span></div>
       </div>
       <div style={{ display: 'flex', gap: 3, margin: '14px 0 4px' }}>
-        {JOURNEY.map((b, k) => (
-          <div
-            key={b.value}
-            title={b.value}
-            style={{
-              flex: 1,
-              height: 20,
-              borderRadius: 4,
-              background: b.bg,
-              opacity: k <= i ? 1 : 0.22,
-              border: k === i ? '2.5px solid #20241F' : `1px solid ${b.border}`,
-              boxSizing: 'border-box',
-            }}
-          />
-        ))}
+        {JOURNEY.map((b, k) =>
+          k === i ? (
+            <div key={b.value} style={{ flex: 1.6, display: 'flex' }}>
+              <BeltWithTapes belt={b.value} tapes={tapes} width="100%" height={22} outline="2.5px solid #20241F" />
+            </div>
+          ) : (
+            <div
+              key={b.value}
+              title={b.value}
+              style={{
+                flex: 1,
+                height: 22,
+                borderRadius: 4,
+                background: b.bg,
+                opacity: k < i ? 1 : 0.22,
+                border: `1px solid ${b.border}`,
+                boxSizing: 'border-box',
+              }}
+            />
+          )
+        )}
       </div>
       <div style={{ display: 'flex', fontSize: 12, color: '#8A8D84' }}>
         <span style={{ flex: 1 }}>White</span>
