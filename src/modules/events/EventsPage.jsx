@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Check, Pencil, Copy, ArrowLeft, Users, X } from 'lucide-react';
+import { Plus, Check, Pencil, Copy, ArrowLeft, Users, X, Eye } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
@@ -8,7 +8,7 @@ import SearchSelect from '../../components/SearchSelect';
 import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { fetchAll } from '../invoices/api';
 import MonthlyCalendars from './MonthlyCalendars';
-import FormBuilder, { cleanForm, formProblem } from './FormBuilder';
+import FormBuilder, { cleanForm, formProblem, PreviewBody } from './FormBuilder';
 import EventResponses from './EventResponses';
 
 // Events: camps, tournaments, movie nights… Signing a student up adds an
@@ -149,6 +149,7 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(false);
   const byId = useMemo(() => Object.fromEntries(students.map((s) => [s.id, s])), [students]);
   const active = signups.filter((s) => s.status === 'signed_up');
   const taken = new Set(active.map((s) => s.student_id));
@@ -196,7 +197,10 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
             {e.signup_deadline ? ` · sign up by ${formatDate(e.signup_deadline)}` : ''}
           </p>
         </div>
-        <button className="dp-btn" onClick={onEdit}><Pencil size={14} /> Edit event</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="dp-btn" onClick={() => setPreview(true)}><Eye size={14} /> Preview as parent</button>
+          <button className="dp-btn" onClick={onEdit}><Pencil size={14} /> Edit event</button>
+        </div>
       </div>
       {e.description && <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '0 0 14px' }}>{e.description}</p>}
       {msg && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
@@ -263,6 +267,11 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
         </div>
       )}
       <EventResponses event={e} students={students} />
+      {preview && (
+        <Modal title="Preview — what families see" maxWidth={640} onClose={() => setPreview(false)} footer={<button className="dp-btn" onClick={() => setPreview(false)}>Close preview</button>}>
+          <PreviewBody event={e} form={Array.isArray(e.form) ? e.form : []} signatureRequired={!!e.signature_required} signatureText={e.signature_text} />
+        </Modal>
+      )}
       <p style={{ fontSize: 12.5, color: '#8A8D84' }}>{active.length + guests.length}{e.capacity ? ` of ${e.capacity}` : ''} spots taken{guests.length ? ` (incl. ${guests.length} guest${guests.length > 1 ? 's' : ''})` : ''}.</p>
       {editModal}
     </>

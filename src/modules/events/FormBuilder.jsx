@@ -94,7 +94,7 @@ export default function FormBuilder({ form, onForm, signatureRequired, onSignatu
           <div style={{ fontWeight: 600, fontSize: 14 }}>Sign-up form</div>
           <div style={{ fontSize: 12.5, color: '#5B5F56' }}>Questions families answer when they sign up — like a Google Form.</div>
         </div>
-        {(list.length > 0 || signatureRequired) && <button type="button" className="dp-btn" style={{ padding: '4px 10px', fontSize: 12.5 }} onClick={() => setPreview(true)}><Eye size={13} /> Preview</button>}
+        <button type="button" className="dp-btn" style={{ padding: '4px 10px', fontSize: 12.5 }} onClick={() => setPreview(true)}><Eye size={13} /> Preview</button>
       </div>
       {list.map((q, i) => (
         <QuestionCard
@@ -130,12 +130,22 @@ export default function FormBuilder({ form, onForm, signatureRequired, onSignatu
   );
 }
 
-function PreviewBody({ form, signatureRequired, signatureText }) {
+export function PreviewBody({ form, signatureRequired, signatureText, event }) {
   const [answers, setAnswers] = useState({});
   const kids = [{ id: 'a', name: 'First Child' }, { id: 'b', name: 'Second Child' }];
   return (
     <div style={{ background: '#F7F5EF', margin: -4, padding: 8, borderRadius: 8 }}>
       <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 4px' }}>Shown with two sample children. Nothing is saved.</p>
+      {event && (
+        <div style={{ background: '#fff', border: '1px solid #E6E3DA', borderRadius: 10, padding: '12px 14px', marginTop: 8 }}>
+          <div style={{ fontSize: 17, fontWeight: 600 }}>Sign up — {event.title}</div>
+          {event.description && <div style={{ fontSize: 13.5, color: '#5B5F56', whiteSpace: 'pre-wrap', marginTop: 4 }}>{event.description}</div>}
+          <div style={{ fontSize: 13, color: '#5B5F56', margin: '10px 0 4px' }}>Who is coming?</div>
+          {kids.map((k) => <label key={k.id} style={{ display: 'flex', gap: 8, fontSize: 15, padding: '4px 0' }}><input type="checkbox" defaultChecked /> {k.name}</label>)}
+          {event.allow_guests && <div style={{ fontSize: 13, color: '#5B5F56', marginTop: 6 }}>Guests: families can add guest names{Number(event.guest_price) > 0 ? ` ($${Number(event.guest_price).toFixed(2)} each)` : ' (free)'}.</div>}
+        </div>
+      )}
+      {!form.length && !signatureRequired && <p style={{ fontSize: 13, color: '#8A8D84', margin: '10px 0 0' }}>This event has no questions or signature — families just choose who is coming.</p>}
       <FormQuestions form={form} kids={kids} answers={answers} onChange={setAnswers} />
       {signatureRequired && (
         <div style={{ border: '1px solid #E6E3DA', borderRadius: 10, padding: '12px 14px', background: '#fff', marginTop: 10 }}>
