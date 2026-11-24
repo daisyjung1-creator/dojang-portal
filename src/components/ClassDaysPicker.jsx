@@ -81,7 +81,7 @@ export default function ClassDaysPicker({ classNames, perWeek, value, onChange, 
         })}
       </div>
       {mismatch ? (
-        <div style={{ fontSize: 11.5, color: '#854F0B', marginTop: 4 }}>
+        <div style={{ fontSize: 12.5, color: '#854F0B', marginTop: 4 }}>
           {everyDay ? `Plan is ${want}x/week but they're in ${all.length} classes a week — tap the ${want} day${want === 1 ? '' : 's'} they come.` : `${chosen.length} day${chosen.length === 1 ? '' : 's'} picked, plan is ${want}x/week.`}
         </div>
       ) : null}

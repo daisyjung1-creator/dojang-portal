@@ -329,7 +329,7 @@ export default function EmailPage() {
                         {h.failed > 0 && (
                           <div>
                             <span style={{ color: '#9A2B2B' }}>{h.failed} failed </span>
-                            <button className="dp-btn" style={{ padding: '1px 6px', fontSize: 11.5 }} onClick={(e) => { e.stopPropagation(); retryFailed(); }}>Retry</button>
+                            <button className="dp-btn" style={{ padding: '1px 6px', fontSize: 12.5 }} onClick={(e) => { e.stopPropagation(); retryFailed(); }}>Retry</button>
                           </div>
                         )}
                       </td>

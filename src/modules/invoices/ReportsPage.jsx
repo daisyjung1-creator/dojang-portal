@@ -125,9 +125,9 @@ export default function ReportsPage() {
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 150 }}>
           {rows.map((r, i) => (
             <button key={r.key} onClick={() => setSelMonth(i)} title={`${r.label}: ${money(r.total)}`} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
-              <span style={{ fontSize: 10.5, color: '#5B5F56', marginBottom: 3 }}>{r.total ? '$' + Math.round(r.total / 100) / 10 + 'k' : ''}</span>
+              <span style={{ fontSize: 12.5, color: '#5B5F56', marginBottom: 3 }}>{r.total ? '$' + Math.round(r.total / 100) / 10 + 'k' : ''}</span>
               <span style={{ width: '100%', maxWidth: 40, height: `${(r.total / maxTotal) * 110}px`, minHeight: r.total ? 2 : 0, background: i === selMonth ? '#9A2B2B' : '#C9A9A9', borderRadius: '4px 4px 0 0' }} />
-              <span style={{ fontSize: 11.5, marginTop: 4, color: i === selMonth ? '#20241F' : '#8A8D84', fontWeight: i === selMonth ? 600 : 400 }}>{r.label}</span>
+              <span style={{ fontSize: 12.5, marginTop: 4, color: i === selMonth ? '#20241F' : '#8A8D84', fontWeight: i === selMonth ? 600 : 400 }}>{r.label}</span>
             </button>
           ))}
         </div>
@@ -180,7 +180,7 @@ export default function ReportsPage() {
                   <tr key={q.label}>
                     <td>
                       {q.label}
-                      {q.refundGst > 0 && <div style={{ fontSize: 11.5, color: '#8A8D84' }}>{money(q.grossGst)} − {money(q.refundGst)} refunded</div>}
+                      {q.refundGst > 0 && <div style={{ fontSize: 12.5, color: '#8A8D84' }}>{money(q.grossGst)} − {money(q.refundGst)} refunded</div>}
                     </td>
                     <td style={num}>{money(q.gst)}</td>
                   </tr>
@@ -237,7 +237,7 @@ function Metric({ label, value, note }) {
     <div style={styles.metricCard}>
       <p style={styles.metricLabel}>{label}</p>
       <p style={styles.metricValue}>{value}</p>
-      {note && <p style={{ fontSize: 11.5, color: '#8A8D84', margin: '4px 0 0' }}>{note}</p>}
+      {note && <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '4px 0 0' }}>{note}</p>}
     </div>
   );
 }
@@ -264,7 +264,7 @@ function OtherIncomeCard({ year, list, onChanged }) {
     setErr('');
     onChanged();
   }
-  const lbl = { fontSize: 11.5, color: '#5B5F56', display: 'block', marginTop: 6 };
+  const lbl = { fontSize: 12.5, color: '#5B5F56', display: 'block', marginTop: 6 };
   return (
     <div style={styles.card}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 12px 0' }}>
@@ -297,7 +297,7 @@ function OtherIncomeCard({ year, list, onChanged }) {
               <tr key={x.id}>
                 <td>
                   {x.source}{x.reference ? ` · #${x.reference}` : ''}
-                  <div style={{ fontSize: 11.5, color: '#8A8D84' }}>{formatDate(x.received_on)}{x.note ? ` · ${x.note}` : ''}</div>
+                  <div style={{ fontSize: 12.5, color: '#8A8D84' }}>{formatDate(x.received_on)}{x.note ? ` · ${x.note}` : ''}</div>
                 </td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {money(x.amount)}

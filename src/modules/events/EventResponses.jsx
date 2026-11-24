@@ -65,7 +65,7 @@ export default function EventResponses({ event: e, students }) {
                 const kids = kidsOf(r);
                 return (
                   <tr key={r.id} className="dp-row" data-response={kids.map((k) => k.name).join(', ')}>
-                    <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{kids.map((k) => <div key={k.id}>{k.name}</div>)}<div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>{when(r.created_at)}</div></td>
+                    <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{kids.map((k) => <div key={k.id}>{k.name}</div>)}<div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>{when(r.created_at)}</div></td>
                     {form.map((q) => (
                       <td key={q.id} style={{ fontSize: 13, maxWidth: 260 }}>{answerText(q, r.answers, kids) || <span style={{ color: '#8A8D84' }}>—</span>}</td>
                     ))}
@@ -78,7 +78,7 @@ export default function EventResponses({ event: e, students }) {
                         ) : (
                           <span style={{ color: '#8A8D84', fontSize: 12.5 }}>Not signed</span>
                         )}
-                        {r.signer_name && <div style={{ fontSize: 11.5, color: '#5B5F56' }}>{r.signer_name}</div>}
+                        {r.signer_name && <div style={{ fontSize: 12.5, color: '#5B5F56' }}>{r.signer_name}</div>}
                       </td>
                     )}
                   </tr>

@@ -623,7 +623,7 @@ export default function AttendancePage() {
                       <React.Fragment key={s.id + '|' + className}>
                         {header && (
                           <tr>
-                            <td colSpan={3} style={{ background: '#FAF8F2', fontSize: 11.5, fontWeight: 600, color: '#5B5F56', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{className}</td>
+                            <td colSpan={3} style={{ background: '#FAF8F2', fontSize: 12.5, fontWeight: 600, color: '#5B5F56', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{className}</td>
                           </tr>
                         )}
                         <tr className="dp-row">
@@ -632,7 +632,7 @@ export default function AttendancePage() {
                               {s.name}
                               <StudentFlags s={s} />
                               {s.classes_per_week ? (
-                                <span title="Classes this week / classes per week" style={{ fontSize: 11, color: wk >= s.classes_per_week ? '#2A5A30' : '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '0 6px', fontWeight: 400 }}>
+                                <span title="Classes this week / classes per week" style={{ fontSize: 12, color: wk >= s.classes_per_week ? '#2A5A30' : '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '0 6px', fontWeight: 400 }}>
                                   {wk}/{s.classes_per_week} this wk
                                 </span>
                               ) : null}
@@ -661,7 +661,7 @@ export default function AttendancePage() {
                               )}
                               {kindButton('vacation', st === 'vacation', () => setAttendanceStatus(s.id, checkinDate, className, 'vacation'), <Plane size={13} />)}
                               {record && (
-                                <button className="dp-btn" title="Clear" style={{ padding: '3px 6px', fontSize: 11.5, color: '#8A8D84', border: 'none' }} onClick={() => clearAttendance(record)}>
+                                <button className="dp-btn" title="Clear" style={{ padding: '3px 6px', fontSize: 12.5, color: '#8A8D84', border: 'none' }} onClick={() => clearAttendance(record)}>
                                   clear
                                 </button>
                               )}
@@ -679,7 +679,7 @@ export default function AttendancePage() {
                         <td style={{ fontWeight: 500 }}>
                           {st.name}
                           <StudentFlags s={st} style={{ marginLeft: 6 }} />
-                          <span style={{ marginLeft: 6, fontSize: 10.5, color: '#1E4566', border: '1px solid #B9D3E4', background: '#E6F0F6', borderRadius: 999, padding: '1px 6px' }}>Drop-in</span>
+                          <span style={{ marginLeft: 6, fontSize: 12.5, color: '#1E4566', border: '1px solid #B9D3E4', background: '#E6F0F6', borderRadius: 999, padding: '1px 6px' }}>Drop-in</span>
                         </td>
                         <td className="dp-hide-sm">{a.class_name} (home class: {st.class_name || 'Unassigned'})</td>
                         <td className="dp-att-actions">
@@ -690,7 +690,7 @@ export default function AttendancePage() {
                   })}
                   {makeupGuests.length > 0 && (
                     <tr>
-                      <td colSpan={3} style={{ background: '#FCFAF3', fontSize: 11.5, fontWeight: 600, color: '#854F0B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Makeup guests</td>
+                      <td colSpan={3} style={{ background: '#FCFAF3', fontSize: 12.5, fontWeight: 600, color: '#854F0B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Makeup guests</td>
                     </tr>
                   )}
                   {makeupGuests.map((m) => {
@@ -703,7 +703,7 @@ export default function AttendancePage() {
                         <td style={{ fontWeight: 500 }}>
                           {s.name}
                           <StudentFlags s={s} style={{ marginLeft: 6 }} />
-                          <span style={{ marginLeft: 6, fontSize: 10.5, color: '#854F0B', border: '1px solid #F0D9A8', background: '#FAEEDA', borderRadius: 999, padding: '1px 6px' }}>Makeup</span>
+                          <span style={{ marginLeft: 6, fontSize: 12.5, color: '#854F0B', border: '1px solid #F0D9A8', background: '#FAEEDA', borderRadius: 999, padding: '1px 6px' }}>Makeup</span>
                         </td>
                         <td className="dp-hide-sm">{className} (home class: {s.class_name || 'Unassigned'})</td>
                         <td className="dp-att-actions">
@@ -779,11 +779,11 @@ export default function AttendancePage() {
                       return (
                         <tr key={m.id} className="dp-row">
                           <td style={{ fontWeight: 500 }}>{student ? student.name : '(withdrawn / deleted)'}</td>
-                          <td>{m.absence_date}<div style={{ fontSize: 11.5, color: '#8A8D84' }}>{m.class_name}</div></td>
+                          <td>{m.absence_date}<div style={{ fontSize: 12.5, color: '#8A8D84' }}>{m.class_name}</div></td>
                           <td>
                             {m.expiration_date}
                             {m.conditional && (
-                              <div style={{ fontSize: 11, color: '#8A7A00', marginTop: 2 }}>
+                              <div style={{ fontSize: 12, color: '#8A7A00', marginTop: 2 }}>
                                 <CalendarClock size={11} style={{ verticalAlign: '-1px', marginRight: 3 }} />
                                 Awaiting payment
                               </div>
@@ -803,7 +803,7 @@ export default function AttendancePage() {
                               </select>
                             </div>
                             {m.reservation_date && m.expiration_date && m.reservation_date > m.expiration_date && m.status !== 'completed' && (
-                              <div style={{ fontSize: 11, color: '#9A2B2B', marginTop: 3 }}>After it expires ({m.expiration_date}) — must be within 30 days</div>
+                              <div style={{ fontSize: 12, color: '#9A2B2B', marginTop: 3 }}>After it expires ({m.expiration_date}) — must be within 30 days</div>
                             )}
                           </td>
                           <td>{statusBadge(m.status === 'pending' && m.expiration_date && m.expiration_date < todayISO() ? 'expired' : m.status)}</td>
@@ -860,7 +860,7 @@ export default function AttendancePage() {
                         <td>{minutesLabel(sum.privateUsed)}</td>
                         <td style={{ fontWeight: 600, color: sum.privateLeft <= 0 ? '#9A2B2B' : sum.privateLeft <= 30 ? '#854F0B' : '#2A5A30' }}>
                           {sum.privateLeft < 0 ? `${minutesLabel(-sum.privateLeft)} over` : minutesLabel(sum.privateLeft)}
-                          <div style={{ fontSize: 11, fontWeight: 400, color: '#8A8D84' }}>= {Math.max(sum.privateLeft, 0) / 30} × 30 min</div>
+                          <div style={{ fontSize: 12, fontWeight: 400, color: '#8A8D84' }}>= {Math.max(sum.privateLeft, 0) / 30} × 30 min</div>
                         </td>
                         <td style={{ fontSize: 12, color: '#5B5F56' }}>{lessons.slice(0, 6).map((r) => `${r.date.slice(5)} (${r.minutes || 30}m)`).join(', ')}{lessons.length > 6 ? ' …' : ''}</td>
                         <td>
@@ -1073,7 +1073,7 @@ export default function AttendancePage() {
             ['Emergency contact', contactFor.emergency_name, contactFor.emergency_phone],
           ].map(([label, name, phone]) => (
             <div key={label} style={{ border: '1px solid #E4E6DF', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
-              <div style={{ fontSize: 11.5, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+              <div style={{ fontSize: 12.5, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
               <div style={{ fontSize: 14.5, fontWeight: 500, margin: '2px 0' }}>{name || '—'}</div>
               {phone ? (
                 <a href={`tel:${String(phone).replace(/[^0-9+]/g, '')}`} className="dp-btn" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', padding: '5px 12px', textDecoration: 'none', fontSize: 14 }}><Phone size={14} /> {phone}</a>
@@ -1371,7 +1371,7 @@ export default function AttendancePage() {
                     ))}
                   </div>
                 )}
-                {it.date && it.m.expiration_date && it.date > it.m.expiration_date && <div style={{ fontSize: 11.5, color: '#9A2B2B', marginTop: 4 }}>After it expires — must be within 30 days.</div>}
+                {it.date && it.m.expiration_date && it.date > it.m.expiration_date && <div style={{ fontSize: 12.5, color: '#9A2B2B', marginTop: 4 }}>After it expires — must be within 30 days.</div>}
               </div>
             );
           })}

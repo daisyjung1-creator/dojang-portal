@@ -100,7 +100,7 @@ export default function StaffLoginsPage() {
                   <tr key={u.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>{u.name || '—'}</td>
                     <td style={{ fontSize: 13 }}>{u.email}</td>
-                    <td><span style={{ fontSize: 11.5, color: r[1], background: r[2], borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{r[0]}</span></td>
+                    <td><span style={{ fontSize: 12.5, color: r[1], background: r[2], borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{r[0]}</span></td>
                     <td className="dp-hide-sm" style={{ fontSize: 12.5, color: '#5B5F56' }}>{u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>

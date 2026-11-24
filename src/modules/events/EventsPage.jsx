@@ -123,8 +123,8 @@ export default function EventsPage() {
             return (
               <button key={e.id} data-event={e.title} onClick={() => setOpenId(e.id)} style={{ ...styles.card, textAlign: 'left', padding: 16, cursor: 'pointer', fontFamily: 'inherit', border: '1px solid #EDEAE0' }}>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#8A8D84', flex: 1 }}>{EVENT_KINDS[e.kind] || e.kind}</span>
-                  <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: e.published ? '#E8F1E9' : '#F1EFE7', color: e.published ? '#2A5A30' : '#5B5F56' }}>{e.published ? 'In parent portal' : 'Hidden from parents'}</span>
+                  <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: '#8A8D84', flex: 1 }}>{EVENT_KINDS[e.kind] || e.kind}</span>
+                  <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 999, background: e.published ? '#E8F1E9' : '#F1EFE7', color: e.published ? '#2A5A30' : '#5B5F56' }}>{e.published ? 'In parent portal' : 'Hidden from parents'}</span>
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 600, color: '#20241F' }}>{e.title}</div>
                 <div style={{ fontSize: 13, color: '#5B5F56', margin: '2px 0 8px' }}>{when(e)}</div>

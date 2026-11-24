@@ -201,7 +201,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                     <td>{p.reference}</td>
                     <td style={{ textAlign: 'right' }}>
                       {money(p.amount)}
-                      {Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }}>{money(p.credit_amount)} to family credit</div>}
+                      {Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 12.5, color: '#2A5A30' }}>{money(p.credit_amount)} to family credit</div>}
                     </td>
                     <td style={{ width: 90 }}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setReceiptId(p.id)}><Printer size={12} /> Receipt</button>

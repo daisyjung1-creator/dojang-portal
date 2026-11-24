@@ -78,9 +78,9 @@ export default function ScoresView({ rows, test, onPatch, onPrint, onExaminer })
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500, flex: 1 }}>{s.name}</span>
-                  {sum.complete ? <Check size={14} color={on ? '#BFDCC3' : '#2A5A30'} /> : sum.any ? <span style={{ fontSize: 11, color: on ? '#DEDACC' : '#854F0B' }}>…</span> : null}
+                  {sum.complete ? <Check size={14} color={on ? '#BFDCC3' : '#2A5A30'} /> : sum.any ? <span style={{ fontSize: 12, color: on ? '#DEDACC' : '#854F0B' }}>…</span> : null}
                 </div>
-                <div style={{ fontSize: 11.5, color: on ? '#C9C6BA' : '#8A8D84' }}>{e.current_belt} → {e.target_belt}</div>
+                <div style={{ fontSize: 12.5, color: on ? '#C9C6BA' : '#8A8D84' }}>{e.current_belt} → {e.target_belt}</div>
               </button>
             );
           })}
@@ -144,7 +144,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
         <div style={{ display: 'flex', gap: 10, fontSize: 12 }}>
           {sum.sections.map((x) => (
             <span key={x.key} style={{ textAlign: 'center' }}>
-              <div style={{ color: '#8A8D84', fontSize: 10.5 }}>{x.label.split(' ')[0]}</div>
+              <div style={{ color: '#8A8D84', fontSize: 12.5 }}>{x.label.split(' ')[0]}</div>
               <Rank r={x.rank} />
             </span>
           ))}
@@ -153,7 +153,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
       </div>
 
       <div style={{ padding: narrow ? '10px 10px 14px' : '10px 16px 16px' }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 11.5, color: '#8A8D84', marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12.5, color: '#8A8D84', marginBottom: 8 }}>
           {SCORE_GUIDE.map((g) => <span key={g.n}><b style={{ color: '#20241F' }}>{g.n}</b> {g.title}</span>)}
           <span>· tap again to clear</span>
         </div>
@@ -197,7 +197,7 @@ function Sheet({ row: { e, s }, onPatch, onPrev, onNext, narrow }) {
                   <span style={{ flex: 1, minWidth: 0, fontSize: narrow ? 14 : 13 }}>
                     {c}
                     {narrow && <span style={{ marginLeft: 8 }}><Rank r={mentalRank((scores.mental || [])[i])} /></span>}
-                    {i === 2 && <div style={{ fontSize: 11, color: '#8A8D84' }}>{MENTAL.note}</div>}
+                    {i === 2 && <div style={{ fontSize: 12, color: '#8A8D84' }}>{MENTAL.note}</div>}
                   </span>
                   <Marks k={MENTAL.key} n={MENTAL.criteria.length} i={i} />
                   {!narrow && <span style={{ width: 26, textAlign: 'right' }}><Rank r={mentalRank((scores.mental || [])[i])} /></span>}

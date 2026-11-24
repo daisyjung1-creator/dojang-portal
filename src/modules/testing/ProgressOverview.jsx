@@ -224,7 +224,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
                       {isAdmin ? (
                         <a href={`#students/${s.id}`} style={{ color: '#20241F', textDecorationColor: '#C9C6BA', textUnderlineOffset: 3 }}>{s.name}</a>
                       ) : s.name}
-                      <div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>{s.class_name}</div>
+                      <div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>{s.class_name}</div>
                     </td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, whiteSpace: 'nowrap' }}>
@@ -235,7 +235,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
                     <td><TapeTracker student={s} earned={tp} onChange={(set) => setOne(s.id, set)} /></td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: enough ? '#2A5A30' : '#20241F' }}><b>{n}</b> / {MIN_CLASSES}</td>
                     <td style={{ fontSize: 12.5, color: '#5B5F56', whiteSpace: 'nowrap' }}>{nextBelt(s.belt)}</td>
-                    <td>{ready && <span style={{ fontSize: 11.5, color: '#2A5A30', background: '#E8F1E9', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>Ready</span>}</td>
+                    <td>{ready && <span style={{ fontSize: 12.5, color: '#2A5A30', background: '#E8F1E9', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>Ready</span>}</td>
                   </tr>
                 );
               })}

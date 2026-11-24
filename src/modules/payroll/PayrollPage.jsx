@@ -405,12 +405,12 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                         <button onClick={() => setOpen((o) => ({ ...o, [e.id]: !o[e.id] }))} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, fontSize: 13.5, color: '#20241F' }}>
                           {open[e.id] ? <ChevronDown size={13} /> : <ChevronRight size={13} />} {e.name}
                         </button>
-                        <div style={{ fontSize: 11.5, color: '#8A8D84', marginLeft: 17 }}>
+                        <div style={{ fontSize: 12.5, color: '#8A8D84', marginLeft: 17 }}>
                           {e.hourly_rate ? `${money(e.hourly_rate)}/h · ${e.payment_method}` : <span style={{ color: '#9A2B2B' }}>no hourly rate</span>}
                         </div>
                       </td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(78)} inputMode="decimal" placeholder="0 or h:mm" title="Hours as a number (36.52) or hours:minutes (36:31)" value={r?.hours ?? ''} onChange={(ev) => set(e.id, 'hours', ev.target.value)} />
-                        {String(r?.hours ?? '').includes(':') && <div style={{ fontSize: 11, color: '#8A8D84' }}>= {parseHours(r.hours).toFixed(3)} h</div>}</td>
+                        {String(r?.hours ?? '').includes(':') && <div style={{ fontSize: 12, color: '#8A8D84' }}>= {parseHours(r.hours).toFixed(3)} h</div>}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" value={r?.rate ?? ''} onChange={(ev) => set(e.id, 'rate', ev.target.value)} /></td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.vacation_pay) : ''}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(70)} type="number" step="0.01" value={r?.bonus ?? ''} onChange={(ev) => set(e.id, 'bonus', ev.target.value)} /></td>
@@ -541,7 +541,7 @@ function SlipList({ slips, empById, onView, onDeleted, onEmailed }) {
                   <td style={{ textAlign: 'right' }}>{money(s.tax)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>
                     {money(s.net)}
-                    {s.emailed_at && <div style={{ fontSize: 11, color: '#2A5A30', fontWeight: 400 }}>Emailed</div>}
+                    {s.emailed_at && <div style={{ fontSize: 12, color: '#2A5A30', fontWeight: 400 }}>Emailed</div>}
                   </td>
                   <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                     <button className="dp-btn" style={{ padding: 5, marginRight: 4 }} aria-label="Payslip" title="View / print payslip" onClick={() => onView(s)}><Printer size={13} /></button>

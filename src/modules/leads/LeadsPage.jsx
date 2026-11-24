@@ -238,14 +238,14 @@ export default function LeadsPage({ setActiveTab, tabs }) {
                       {l.student_name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>{leadKids(l).length > 1 ? `${leadKids(l).length} children` : 'Child'} (no name yet)</span>}
                       {leadKids(l).some((k) => k.age !== '' && k.age != null) && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {leadKids(l).map((k) => (k.age !== '' && k.age != null ? k.age + 'y' : '?')).join(', ')}</span>}
                       {l.linked_student_id && (
-                        <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Linked</span>
+                        <span style={{ marginLeft: 6, fontSize: 12.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Linked</span>
                       )}
                     </td>
                     <td>{l.guardian_name || '—'}</td>
                     <td>
                       {l.phone || '—'}
                       {l.contacted_at && (
-                        <div style={{ fontSize: 11, color: '#2A5A30' }}>✓ {l.contacted_by === 'email' ? 'Emailed' : 'Texted'} {new Date(l.contacted_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</div>
+                        <div style={{ fontSize: 12, color: '#2A5A30' }}>✓ {l.contacted_by === 'email' ? 'Emailed' : 'Texted'} {new Date(l.contacted_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</div>
                       )}
                     </td>
                     <td>{l.source}</td>

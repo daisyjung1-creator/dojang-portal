@@ -58,7 +58,7 @@ export default function NotSeenCard({ students, recordsBy, today, onChanged }) {
                 <tr key={s.id} data-student={s.name}>
                   <td style={{ fontWeight: 500 }}>
                     <a href={`#students/${s.id}`} style={{ color: '#20241F' }}>{s.name}</a>
-                    <div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>{s.class_name || ''}</div>
+                    <div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>{s.class_name || ''}</div>
                   </td>
                   <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: days == null || days >= 28 ? '#9A2B2B' : '#854F0B' }}>
                     {last ? `${days} days · last ${md(last)}` : 'No class in 90 days'}

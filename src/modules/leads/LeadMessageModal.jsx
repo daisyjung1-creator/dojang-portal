@@ -250,7 +250,7 @@ export default function LeadMessageModal({ lead, onClose, onDone }) {
           <input type="checkbox" checked={book} onChange={(e) => setBook(e.target.checked)} /> Include the trial booking link
         </label>
       </div>
-      <p style={{ fontSize: 11.5, color: '#8A8D84', margin: '-6px 0 12px' }}>New: under 11 → Beginner · 11 and up → Intermediate B. Color belt: under 12 → Intermediate A, 12 and up → Intermediate B. Black belt → Advance. Pick the experience next to the age.</p>
+      <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '-6px 0 12px' }}>New: under 11 → Beginner · 11 and up → Intermediate B. Color belt: under 12 → Intermediate A, 12 and up → Intermediate B. Black belt → Advance. Pick the experience next to the age.</p>
 
       {kind === 'email' ? (
         <>

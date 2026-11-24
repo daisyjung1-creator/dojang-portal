@@ -280,7 +280,7 @@ export default function CustomersPage() {
                     <td style={{ fontWeight: 500 }}>{c.name}</td>
                     <td style={{ textAlign: 'right', color: bal > 0 ? '#9A2B2B' : '#8A8D84' }}>
                       {money(bal)}
-                      {credits[c.id] > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
+                      {credits[c.id] > 0.004 && <div style={{ fontSize: 12.5, color: '#2A5A30' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
                     </td>
                     <td>{bal > 0 ? balances[c.id]?.oldest_due_date : ''}</td>
                     <td>{balances[c.id]?.last_invoice_number || ''}</td>

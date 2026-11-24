@@ -168,7 +168,7 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
                 title={`${p.label}: ${shortDay(p.from)} – ${shortDay(p.to)}`}
                 style={{ flex: Number(p.weeks) || 1, background: i < cur ? '#BFDCC3' : i === cur ? '#2A5A30' : '#F1EFE7', color: i === cur ? '#fff' : i < cur ? '#2A5A30' : '#8A8D84', fontSize: T ? 'var(--dp-text-caption)' : 10.5, fontWeight: T && i === cur ? 600 : 400, display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 4px' }}
               >
-                {T ? <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span> : p.label}
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.label}</span>
               </div>
             ))}
             <div style={{ position: 'absolute', top: -2, bottom: -2, left: `calc(${pct}% - 1px)`, width: 2, background: '#20241F' }} />
@@ -235,7 +235,7 @@ export default function BeltProgressCard({ students, schedule, settings, today, 
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}><BeltStrip belt={x.s.belt} width={44} /><span style={{ fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)' }}>{x.s.belt || 'White'}</span></div>
                         </td>
                       ) : (
-                        <td style={{ fontSize: 13 }}>{x.s.name}<span style={{ fontSize: 11.5, color: '#8A8D84' }}> · {x.s.belt || 'White'}</span></td>
+                        <td style={{ fontSize: 13 }}>{x.s.name}<span style={{ fontSize: 12.5, color: '#8A8D84' }}> · {x.s.belt || 'White'}</span></td>
                       )}
                       <td style={{ fontSize: T ? 'var(--dp-text-body)' : 12.5, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                         <b>{x.n}</b>/{MIN_CLASSES}

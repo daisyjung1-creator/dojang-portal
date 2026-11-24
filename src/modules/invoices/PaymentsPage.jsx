@@ -210,7 +210,7 @@ export default function PaymentsPage() {
                   <td>{p.method}</td>
                   <td style={{ textAlign: 'right', color: view === 'refunds' ? '#4B3A86' : undefined }}>
                     {view === 'refunds' ? '-' : ''}{money(p.amount)}
-                    {view === 'payments' && Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }}>{money(p.credit_amount)} to credit</div>}
+                    {view === 'payments' && Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 12.5, color: '#2A5A30' }}>{money(p.credit_amount)} to credit</div>}
                   </td>
                   {view === 'refunds' && <td style={{ textAlign: 'right', color: '#5B5F56' }}>{money(p.gst_amount)}</td>}
                   <td>{p.invoices?.invoice_number || ''}</td>

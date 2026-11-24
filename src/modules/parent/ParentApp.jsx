@@ -906,7 +906,7 @@ function AbsenceModal({ d, student, onClose, onDone }) {
               }}
             >
               {told.has(iso) ? '✓' : dt.getDate()}
-              {dt.getDate() === 1 || iso === cells[0] ? <div style={{ fontSize: 9.5, fontWeight: 400, color: C.faint }}>{dt.toLocaleDateString('en-CA', { month: 'short' })}</div> : null}
+              {dt.getDate() === 1 || iso === cells[0] ? <div style={{ fontSize: 12.5, fontWeight: 400, color: C.faint }}>{dt.toLocaleDateString('en-CA', { month: 'short' })}</div> : null}
             </button>
           );
         })}

@@ -920,7 +920,7 @@ export default function StudentsPage() {
 }
 
 function SectionLabel({ children }) {
-  return <div style={{ fontSize: 11, fontWeight: 600, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '6px 0 8px', paddingTop: 10, borderTop: '1px solid #EDEAE0' }}>{children}</div>;
+  return <div style={{ fontSize: 12, fontWeight: 600, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '6px 0 8px', paddingTop: 10, borderTop: '1px solid #EDEAE0' }}>{children}</div>;
 }
 
 // Status chips in the list (DESIGN.md: palette tints, 12px, text always present).

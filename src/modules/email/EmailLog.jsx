@@ -185,7 +185,7 @@ export default function EmailLog({ onReuse }) {
                       >
                         {st === 'sent' ? 'Sent' : st === 'failed' ? 'Failed' : 'Waiting'}
                       </span>
-                      {st === 'failed' && <div style={{ fontSize: 11, color: '#9A2B2B', maxWidth: 220, marginTop: 2 }}>{String(r.error).slice(0, 120)}</div>}
+                      {st === 'failed' && <div style={{ fontSize: 12, color: '#9A2B2B', maxWidth: 220, marginTop: 2 }}>{String(r.error).slice(0, 120)}</div>}
                     </td>
                     <td>
                       {st !== 'waiting' && (

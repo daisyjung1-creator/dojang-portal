@@ -51,7 +51,7 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
           ))}
         </select>
         {f && (
-          <div style={{ fontSize: 11.5, color: '#8A8D84', marginTop: 2 }}>
+          <div style={{ fontSize: 12.5, color: '#8A8D84', marginTop: 2 }}>
             {f.e.current_belt}{f.age != null ? ` · age ${f.age}` : ''}{count[id] > 1 ? ` · ${count[id]} matches` : ''}
           </div>
         )}

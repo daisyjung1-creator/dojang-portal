@@ -15,7 +15,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import PaymentNoticeModal, { shortDate } from '../invoices/PaymentNotice';
 
 const tag = (text, c) => (
-  <span style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{text}</span>
+  <span style={{ marginLeft: 6, fontSize: 12.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{text}</span>
 );
 const GREEN = ['#2A5A30', '#E8F1E9', '#BFDCC3'];
 const BLUE = ['#1E4566', '#E6F0F6', '#B9D3E4'];
@@ -454,7 +454,7 @@ export default function BillingPage() {
                         {r.nextInv && <span style={{ marginLeft: 6 }}><StatusPill status={r.nextInv.status} /></span>}
                       </>
                     )}
-                    {s.reregistration_fee_due && <div style={{ fontSize: 11.5, color: '#854F0B' }}>+ $20 re-registration fee</div>}
+                    {s.reregistration_fee_due && <div style={{ fontSize: 12.5, color: '#854F0B' }}>+ $20 re-registration fee</div>}
                   </td>
                   <td>
                     {isBillable(s) && r.toInvoice && (
@@ -587,10 +587,10 @@ function InvoiceList({ list, onOpen, sel, setSel, custById, noticeAt, onNotice }
             <td><StatusPill status={i.status} /></td>
             {onNotice && (
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 11.5 }} title="Email the family: payment not received / didn't go through (agreement 7.3)" onClick={() => onNotice(i)}>
+                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12.5 }} title="Email the family: payment not received / didn't go through (agreement 7.3)" onClick={() => onNotice(i)}>
                   <Mail size={12} /> {noticeAt?.[i.id] ? 'Again' : 'Notice'}
                 </button>
-                {noticeAt?.[i.id] && <div style={{ fontSize: 10.5, color: '#8A8D84', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
+                {noticeAt?.[i.id] && <div style={{ fontSize: 12.5, color: '#8A8D84', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
               </td>
             )}
           </tr>

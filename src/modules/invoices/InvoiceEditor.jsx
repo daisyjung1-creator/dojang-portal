@@ -245,7 +245,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
                     const orig = isEdit ? Number(editing.lines.find((x) => x.id === l.id && x.fee_item_id === l.fee_item_id && (x.size || '') === (l.size || ''))?.quantity || 0) : 0;
                     const left = stock[`${l.fee_item_id}|${l.size || ''}`] + orig;
                     const short = Number(l.quantity) > left;
-                    return <div style={{ fontSize: 10.5, color: short ? '#9A2B2B' : '#8A8D84', marginTop: 2, whiteSpace: 'nowrap' }}>{short ? `only ${left} in stock` : `${left} in stock`}</div>;
+                    return <div style={{ fontSize: 12.5, color: short ? '#9A2B2B' : '#8A8D84', marginTop: 2, whiteSpace: 'nowrap' }}>{short ? `only ${left} in stock` : `${left} in stock`}</div>;
                   })()}
                 </td>
                 <td style={td}>
@@ -293,7 +293,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
             </span>
           )}
         </div>
-        <div style={{ fontSize: 11.5, color: '#8A8D84', margin: '0 4px 6px' }}>Discount comes off before GST. Credit comes off the total (no GST).</div>
+        <div style={{ fontSize: 12.5, color: '#8A8D84', margin: '0 4px 6px' }}>Discount comes off before GST. Credit comes off the total (no GST).</div>
       </div>
 
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>

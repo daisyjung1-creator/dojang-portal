@@ -235,10 +235,10 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                       <td style={{ fontWeight: 500 }}>
                         {t.student_name}
                         {t.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84' }}> · {t.student_age}y</span>}
-                        {t.status === 'Scheduled' && <div style={{ fontSize: 11, color: '#854F0B', fontWeight: 400 }}>Status not updated — did they come?</div>}
+                        {t.status === 'Scheduled' && <div style={{ fontSize: 12, color: '#854F0B', fontWeight: 400 }}>Status not updated — did they come?</div>}
                       </td>
-                      <td style={{ fontSize: 13 }}>{t.guardian_name || '—'}<div style={{ fontSize: 11.5, color: '#8A8D84' }}>{t.guardian_phone || ''}</div></td>
-                      <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{t.date} · {t.class_name || '—'}<div style={{ fontSize: 11.5, color: '#8A8D84' }}>{daysAgo(t.date)}</div></td>
+                      <td style={{ fontSize: 13 }}>{t.guardian_name || '—'}<div style={{ fontSize: 12.5, color: '#8A8D84' }}>{t.guardian_phone || ''}</div></td>
+                      <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{t.date} · {t.class_name || '—'}<div style={{ fontSize: 12.5, color: '#8A8D84' }}>{daysAgo(t.date)}</div></td>
                       <td>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                           {t.guardian_email && (
@@ -250,7 +250,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                             </a>
                           )}
                           {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12, color: '#8A8D84' }}>No contact</span>}
-                          {t.followup_sent_at && <span style={{ fontSize: 11.5, color: '#2A5A30' }}>Sent ✓ {t.followup_sent_at.slice(5, 10).replace('-', '/')}</span>}
+                          {t.followup_sent_at && <span style={{ fontSize: 12.5, color: '#2A5A30' }}>Sent ✓ {t.followup_sent_at.slice(5, 10).replace('-', '/')}</span>}
                         </div>
                       </td>
                       <td>
@@ -370,8 +370,8 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                     <td style={{ fontWeight: 500 }}>
                       {t.student_name}
                       {t.student_age != null && <span style={{ fontWeight: 400, color: '#8A8D84' }}> · {t.student_age}y</span>}
-                      {t.experience && t.experience !== 'None' && <div style={{ fontSize: 11, color: '#854F0B', fontWeight: 600 }}>{t.experience === 'Black belt' ? 'Black belt (Adv)' : 'Color belt (Inter)'}</div>}
-                      {/^Booked online/.test(t.notes || '') && <div style={{ fontSize: 11, color: '#1E4566', fontWeight: 400 }}>Booked online</div>}
+                      {t.experience && t.experience !== 'None' && <div style={{ fontSize: 12, color: '#854F0B', fontWeight: 600 }}>{t.experience === 'Black belt' ? 'Black belt (Adv)' : 'Color belt (Inter)'}</div>}
+                      {/^Booked online/.test(t.notes || '') && <div style={{ fontSize: 12, color: '#1E4566', fontWeight: 400 }}>Booked online</div>}
                     </td>
                     <td>{t.guardian_name || '—'}</td>
                     <td>{t.guardian_phone || '—'}</td>

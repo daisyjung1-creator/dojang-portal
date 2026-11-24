@@ -90,7 +90,7 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
               <th style={{ ...stickyCell, textAlign: 'left', padding: '8px 10px', fontWeight: 500, color: '#5B5F56', borderBottom: '1px solid #EDEAE0', zIndex: 2 }}>{rows.length} students</th>
               {dayInfo.map(({ d, wd, n, weekend }) => (
                 <th key={d} style={{ width: cellW, minWidth: cellW, padding: '4px 0', fontWeight: d === today ? 700 : 400, color: d === today ? '#fff' : weekend ? '#A7AAA1' : '#5B5F56', background: d === today ? '#20241F' : weekend ? '#FAF9F5' : '#fff', borderBottom: '1px solid #EDEAE0', textAlign: 'center' }}>
-                  <div style={{ fontSize: 10 }}>{'SMTWTFS'[wd]}</div>
+                  <div style={{ fontSize: 12 }}>{'SMTWTFS'[wd]}</div>
                   <div>{n}</div>
                 </th>
               ))}
@@ -103,7 +103,7 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
               <tr key={s.id}>
                 <td style={{ ...stickyCell, padding: '5px 10px', borderBottom: '1px solid #F1EFE7', whiteSpace: 'nowrap' }}>
                   <div style={{ fontWeight: 500, fontSize: 13 }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: '#8A8D84', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.class_name || '—'}{s.classes_per_week ? ` · ${s.classes_per_week}x/wk` : ''}{s.class_days?.length ? ` · ${[...new Set(s.class_days.map((k) => 'SMTWTFS'[Number(k.split(':')[0])]))].join('')}` : ''}</div>
+                  <div style={{ fontSize: 12, color: '#8A8D84', maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.class_name || '—'}{s.classes_per_week ? ` · ${s.classes_per_week}x/wk` : ''}{s.class_days?.length ? ` · ${[...new Set(s.class_days.map((k) => 'SMTWTFS'[Number(k.split(':')[0])]))].join('')}` : ''}</div>
                 </td>
                 {dayInfo.map(({ d, wd, weekend, allCancelled }) => {
                   const recs = (byStudentDay[s.id]?.[d] || []).filter((r) => cls === 'all' || r.class_name === cls || r.status === 'private');
@@ -119,9 +119,9 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
                       style={{ textAlign: 'center', padding: 0, height: 34, borderBottom: '1px solid #F1EFE7', background: d === today ? '#F3F1EA' : weekend ? '#FAF9F5' : '#fff' }}
                     >
                       {mk ? (
-                        <span style={{ display: 'inline-block', minWidth: 20, lineHeight: '20px', borderRadius: 4, fontSize: 11.5, fontWeight: 600, color: mk.c, background: mk.bg }}>{mk.t}</span>
+                        <span style={{ display: 'inline-block', minWidth: 20, lineHeight: '20px', borderRadius: 4, fontSize: 12.5, fontWeight: 600, color: mk.c, background: mk.bg }}>{mk.t}</span>
                       ) : cancelled ? (
-                        <span style={{ color: '#C9C6BA', fontSize: 11 }}>✕</span>
+                        <span style={{ color: '#C9C6BA', fontSize: 12 }}>✕</span>
                       ) : classDay && d < today ? (
                         <span style={{ color: '#C9C6BA' }}>·</span>
                       ) : null}
@@ -138,7 +138,7 @@ export default function AttendanceMonth({ students, attendance, schedule, classe
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12, color: '#5B5F56', marginTop: 8 }}>
         {[['present', 'Came'], ['double', 'Two classes'], ['absent', 'Absent'], ['excused', 'Excused'], ['vacation', 'Vacation'], ['private', 'Private']].map(([k, l]) => (
           <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ display: 'inline-block', minWidth: 18, lineHeight: '18px', textAlign: 'center', borderRadius: 4, fontSize: 11, fontWeight: 600, color: MARK[k].c, background: MARK[k].bg }}>{MARK[k].t}</span>{l}
+            <span style={{ display: 'inline-block', minWidth: 18, lineHeight: '18px', textAlign: 'center', borderRadius: 4, fontSize: 12, fontWeight: 600, color: MARK[k].c, background: MARK[k].bg }}>{MARK[k].t}</span>{l}
           </span>
         ))}
         <span><span style={{ color: '#A7AAA1' }}>·</span> class day, no record</span>

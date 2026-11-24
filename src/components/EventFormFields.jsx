@@ -100,10 +100,10 @@ export function FormQuestions({ form, kids, answers, onChange, st: stIn }) {
   return (
     <div data-testid="event-form">
       {form.map((q, i) => (
-        <div key={q.id} style={{ border: '1px solid #E6E3DA', borderLeft: '4px solid #BE1C21', borderRadius: 10, padding: '12px 14px', margin: '10px 0', background: '#fff' }} data-question={q.label}>
+        <div key={q.id} style={{ border: '1px solid var(--dp-line)', borderRadius: 12, padding: '12px 14px', margin: '10px 0', background: '#fff' }} data-question={q.label}>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#20241F' }}>
             {q.label || `Question ${i + 1}`}
-            {q.required && <span style={{ color: '#BE1C21' }}> *</span>}
+            {q.required && <span style={{ color: 'var(--dp-danger)' }} aria-hidden="true"> *</span>}
           </div>
           {q.help && <div style={{ fontSize: 13, color: '#5B5F56', marginTop: 2, whiteSpace: 'pre-wrap' }}>{q.help}</div>}
           <div style={{ marginTop: 8 }}>

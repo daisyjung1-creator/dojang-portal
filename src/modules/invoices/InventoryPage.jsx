@@ -165,7 +165,7 @@ export default function InventoryPage() {
                     <td style={{ textAlign: 'right' }}>{money(g.default_amount)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 600, color }}>
                       {g.total === null ? '—' : g.total}
-                      {!g.sized && g.worst === 'low' && <span style={{ fontSize: 11, fontWeight: 400 }}> low</span>}
+                      {!g.sized && g.worst === 'low' && <span style={{ fontSize: 12, fontWeight: 400 }}> low</span>}
                     </td>
                     <td style={{ textAlign: 'right' }}>{g.sold30 || ''}</td>
                     <td style={{ color: '#5B5F56' }}>{g.last}</td>
@@ -296,7 +296,7 @@ function MoveModal({ item, onClose, onDone }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {item.rows.map((r) => (
               <button key={r.size} type="button" className={`dp-btn${size === r.size ? ' dp-btn-primary' : ''}`} style={{ padding: '4px 10px' }} onClick={() => setSize(r.size)}>
-                {r.size} <span style={{ fontSize: 11, opacity: 0.7 }}>({r.on_hand})</span>
+                {r.size} <span style={{ fontSize: 12, opacity: 0.7 }}>({r.on_hand})</span>
               </button>
             ))}
           </div>

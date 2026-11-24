@@ -68,7 +68,7 @@ export function CardLinkButton({ customer, onSent, style }) {
   }
   return (
     <>
-      <button type="button" className="dp-btn" style={{ padding: '1px 8px', fontSize: 11.5, ...style }} onClick={show} title={hasCard ? 'Send the family a link to replace their saved card' : 'Send the family a link to save their card for automatic tuition'}>
+      <button type="button" className="dp-btn" style={{ padding: '1px 8px', fontSize: 12.5, ...style }} onClick={show} title={hasCard ? 'Send the family a link to replace their saved card' : 'Send the family a link to save their card for automatic tuition'}>
         <CreditCard size={12} /> {hasCard ? 'Change card' : `Card link${customer.card_link_sent_at ? ' (sent)' : ''}`}
       </button>
       {open && (

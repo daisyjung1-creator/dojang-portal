@@ -48,13 +48,13 @@ export default function TapeSummaryCard({ students, setActiveTab }) {
               const max = Math.max(...view.dist, 1);
               return (
                 <div key={k} style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 10.5, color: '#5B5F56' }}>{v || ''}</div>
+                  <div style={{ fontSize: 12.5, color: '#5B5F56' }}>{v || ''}</div>
                   <div style={{ height: Math.max(2, (v / max) * 30), background: k === TAPE_COUNT ? '#2E7D32' : k === 0 ? '#D8D5CA' : TAPES[k - 1].color, border: k >= 1 && TAPES[k - 1].id === 'white' ? '1px solid #BDB9AC' : 'none', borderRadius: 2 }} />
                 </div>
               );
             })}
           </div>
-          <div style={{ display: 'flex', fontSize: 10.5, color: '#8A8D84', marginBottom: 10 }}>
+          <div style={{ display: 'flex', fontSize: 12.5, color: '#8A8D84', marginBottom: 10 }}>
             {view.dist.map((_, k) => <span key={k} style={{ flex: 1, textAlign: 'center' }}>{k}</span>)}
           </div>
           <table className="dp-table" style={{ marginBottom: 8 }}>

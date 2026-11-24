@@ -591,10 +591,10 @@ export default function HomePage({ setActiveTab }) {
                             <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(due)} <span style={{ color: late > 30 ? '#9A2B2B' : '#854F0B' }}>· {late}d late</span></td>
                             <td style={{ textAlign: 'right', fontWeight: 500, color: '#9A2B2B' }}>{money(i.balance)}</td>
                             <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-                              <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 11.5 }} title="Email the overdue notice (classes may be suspended — agreement 7.3)" onClick={() => setNotice(i)}>
+                              <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12.5 }} title="Email the overdue notice (classes may be suspended — agreement 7.3)" onClick={() => setNotice(i)}>
                                 <Mail size={12} /> {noticeAt[i.id] ? 'Again' : 'Notice'}
                               </button>
-                              {noticeAt[i.id] && <div style={{ fontSize: 10.5, color: '#8A8D84', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
+                              {noticeAt[i.id] && <div style={{ fontSize: 12.5, color: '#8A8D84', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
                             </td>
                           </tr>
                         );
@@ -762,7 +762,7 @@ function DeclinedModal({ cards, today, onClose, onChanged }) {
               const unpaid = inv ? Number(inv.balance) > 0.004 : true;
               return (
                 <tr key={c.id}>
-                  <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>···{c.card_last4} · {c.card_decline_message || 'declined'}</div></td>
+                  <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>···{c.card_last4} · {c.card_decline_message || 'declined'}</div></td>
                   <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{shortDate(c.card_declined_at)}</td>
                   <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{inv ? <>#{inv.invoice_number} · {unpaid ? money(inv.balance) : <span style={{ color: '#2A5A30' }}>paid</span>}</> : '—'}</td>
                   <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
@@ -854,7 +854,7 @@ function ExpiringModal({ cards, onClose, onChanged }) {
             const done = sent[c.id] || c.card_expiry_notice_for === c.card_expiry;
             return (
               <tr key={c.id} data-family={c.name}>
-                <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>···{c.card_last4} · {c.email || 'no email'}</div></td>
+                <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>···{c.card_last4} · {c.email || 'no email'}</div></td>
                 <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: c.expired ? '#9A2B2B' : '#854F0B' }}>{c.expired ? 'Expired' : 'Expires'} {c.card_expiry}</td>
                 <td style={{ fontSize: 12.5 }}>{done ? <span style={{ color: '#2A5A30' }}>Sent{c.card_expiry_notice_at && !sent[c.id] ? ` ${shortDate(c.card_expiry_notice_at)}` : ''}</span> : <span style={{ color: '#854F0B' }}>Not sent</span>}</td>
                 <td style={{ textAlign: 'right' }}>
@@ -883,7 +883,7 @@ function ShortfallModal({ list, onClose, onAttendance }) {
           <tbody>
             {list.map((x) => (
               <tr key={x.student.id + x.start}>
-                <td style={{ fontWeight: 500 }}>{x.student.name}<div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>{x.student.classes_per_week}x/week · {x.student.class_name}</div></td>
+                <td style={{ fontWeight: 500 }}>{x.student.name}<div style={{ fontSize: 12.5, color: '#8A8D84', fontWeight: 400 }}>{x.student.classes_per_week}x/week · {x.student.class_name}</div></td>
                 <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{md(x.start)} – {md(x.end)}</td>
                 <td style={{ textAlign: 'right' }}>{x.need}</td>
                 <td style={{ textAlign: 'right' }}>{x.available}</td>
@@ -993,7 +993,7 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
         <button className="dp-btn" style={{ padding: 4 }} aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight size={15} /></button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-        {WEEKDAYS.map((w) => <div key={w} style={{ fontSize: 11, color: '#8A8D84', textAlign: 'center', padding: '2px 0' }}>{w}</div>)}
+        {WEEKDAYS.map((w) => <div key={w} style={{ fontSize: 12, color: '#8A8D84', textAlign: 'center', padding: '2px 0' }}>{w}</div>)}
         {cells.map((x, i) => {
           if (!x) return <div key={'e' + i} />;
           const it = dayItems(x);
@@ -1025,7 +1025,7 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
               }}
             >
               <span style={{ fontSize: 12.5, fontWeight: isToday || isSel ? 600 : 400 }}>{Number(x.slice(8))}</span>
-              {it.billing.length > 0 && <span style={{ fontSize: 9.5, color: isToday ? '#BFDCC3' : '#2A5A30', lineHeight: 1.2 }}>${it.billing.length}</span>}
+              {it.billing.length > 0 && <span style={{ fontSize: 12.5, color: isToday ? '#BFDCC3' : '#2A5A30', lineHeight: 1.2 }}>${it.billing.length}</span>}
               <span style={{ display: 'flex', gap: 2, marginTop: 'auto' }}>
                 {dots.map((c, k) => <span key={k} style={{ width: 5, height: 5, borderRadius: 3, background: c }} />)}
               </span>
@@ -1033,7 +1033,7 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
           );
         })}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 11, color: '#8A8D84' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 12, color: '#8A8D84' }}>
         <span><span style={{ color: '#2A5A30' }}>$3</span> = 3 billing</span>
         <Legend c="#9A2B2B">Test / cancelled</Legend>
         <Legend c="#1E4566">Trial</Legend>
@@ -1130,13 +1130,13 @@ function TodoRow({ t, today, onToggle, onDelete, setActiveTab }) {
         {t.auto_key && <Package size={12} color="#854F0B" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
         {t.body}
         {t.note_date && (
-          <span style={{ marginLeft: 6, fontSize: 11, padding: '1px 6px', borderRadius: 5, background: late ? '#FBEAEA' : t.note_date === today ? '#FAEEDA' : '#F1EFE7', color: late ? '#9A2B2B' : t.note_date === today ? '#854F0B' : '#5B5F56', whiteSpace: 'nowrap' }}>
+          <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 6px', borderRadius: 5, background: late ? '#FBEAEA' : t.note_date === today ? '#FAEEDA' : '#F1EFE7', color: late ? '#9A2B2B' : t.note_date === today ? '#854F0B' : '#5B5F56', whiteSpace: 'nowrap' }}>
             {t.note_date === today ? 'today' : late ? `due ${md(t.note_date)}` : md(t.note_date)}
           </span>
         )}
       </span>
       {t.link_tab && !t.done && (
-        <button className="dp-btn" style={{ padding: '1px 7px', fontSize: 11.5 }} onClick={() => setActiveTab(t.link_tab)}>Open</button>
+        <button className="dp-btn" style={{ padding: '1px 7px', fontSize: 12.5 }} onClick={() => setActiveTab(t.link_tab)}>Open</button>
       )}
       <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(t)}><Trash2 size={13} color="#8A8D84" /></button>
     </div>

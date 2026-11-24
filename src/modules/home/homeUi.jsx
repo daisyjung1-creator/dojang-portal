@@ -16,7 +16,7 @@ export const linkBtn = { background: 'none', border: 'none', padding: '0 6px 0 0
 
 export function Tag({ c, children, touch }) {
   if (touch) return <span style={{ marginLeft: 8, fontSize: 'var(--dp-text-label)', fontWeight: 500, color: c[0], background: c[1], borderRadius: 'var(--dp-radius-pill)', padding: '2px 10px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}>{children}</span>;
-  return <span style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap', fontWeight: 400 }}>{children}</span>;
+  return <span style={{ marginLeft: 6, fontSize: 12.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap', fontWeight: 400 }}>{children}</span>;
 }
 
 export function Card({ title, icon: Icon, action, tone, children, touch }) {

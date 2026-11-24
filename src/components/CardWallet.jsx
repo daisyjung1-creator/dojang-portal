@@ -35,7 +35,7 @@ export default function CardWallet({ customerId, onChanged, compact }) {
 
   if (!cards) return <span style={{ color: '#8A8D84', fontSize: 12.5 }}>…</span>;
   if (!cards.length) return <span style={{ color: '#8A8D84', fontSize: 12.5 }}>No card saved</span>;
-  const btn = { padding: '1px 8px', fontSize: 11.5 };
+  const btn = { padding: '1px 8px', fontSize: 12.5 };
   return (
     <div data-testid="card-wallet" style={{ display: 'grid', gap: compact ? 3 : 5 }}>
       {cards.map((k) => (
@@ -46,7 +46,7 @@ export default function CardWallet({ customerId, onChanged, compact }) {
             {k.mode === 'test' ? ' · TEST' : ''}
           </span>
           {k.is_default ? (
-            <span style={{ fontSize: 11, color: '#2A5A30', background: '#E8F1E9', borderRadius: 999, padding: '1px 7px' }}>tuition</span>
+            <span style={{ fontSize: 12, color: '#2A5A30', background: '#E8F1E9', borderRadius: 999, padding: '1px 7px' }}>tuition</span>
           ) : (
             <>
               <button type="button" className="dp-btn" style={btn} disabled={!!busy} onClick={() => act('default', k)}>Use for tuition</button>

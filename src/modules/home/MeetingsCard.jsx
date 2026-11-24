@@ -64,7 +64,7 @@ export default function MeetingsCard({ settings, today, onSaved }) {
             );
           })}
         </div>
-        <p style={{ fontSize: 11.5, color: '#8A8D84', margin: 0, padding: '0 14px 10px' }}>
+        <p style={{ fontSize: 12.5, color: '#8A8D84', margin: 0, padding: '0 14px 10px' }}>
           A reminder email with the WhatsApp link also goes to the dojang inbox the day before and the morning of each meeting.
         </p>
       </Card>
