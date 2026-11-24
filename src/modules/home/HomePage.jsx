@@ -21,6 +21,7 @@ import NotSeenCard from './NotSeenCard';
 import MeetingsCard from './MeetingsCard';
 import Modal from '../../components/Modal';
 import { guaranteeShortfalls } from '../../lib/guarantee';
+import ClassChip from '../../components/ClassChip';
 
 // Home: what matters today at a glance — today's classes, who is billed
 // today, overdue invoices, a calendar with notes, and anything coming up
@@ -531,7 +532,7 @@ export default function HomePage({ setActiveTab }) {
                       <tr key={c.id} style={c.cancelled ? { opacity: 0.55 } : undefined}>
                         <td style={{ whiteSpace: 'nowrap', width: 150, fontSize: 13, color: 'var(--dp-ink-soft)' }}>{t12(c.start_time)} – {t12(c.end_time)}</td>
                         <td style={{ fontWeight: 500 }}>
-                          {c.class_name}
+                          <ClassChip name={c.class_name} />
                           {c.cancelled && <Tag c={RED}>Cancelled</Tag>}
                           {mk > 0 && <Tag c={PURPLE}>{mk} makeup</Tag>}
                         </td>

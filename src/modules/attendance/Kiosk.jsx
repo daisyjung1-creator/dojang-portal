@@ -3,6 +3,7 @@ import { X, Check, Ban, Plus, CalendarOff, CircleX, Undo2 } from 'lucide-react';
 import { splitClasses, comesOn } from '../../lib/classes';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import BeltStrip from '../../components/BeltStrip';
+import { ClassDot } from '../../components/ClassChip';
 
 // The dojang's clock, whatever time zone the iPad is set to.
 export function dojangNow() {
@@ -121,6 +122,7 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--dp-canvas)', zIndex: 900, display: 'flex', flexDirection: 'column', fontFamily: 'var(--dp-font)', fontWeight: 400, color: 'var(--dp-ink)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', background: 'var(--dp-ink)', color: 'var(--dp-paper)', flexWrap: 'wrap' }}>
+        {cls && <ClassDot name={cls.class_name} size={14} />}
         <div style={{ fontSize: 'var(--dp-text-headline)', fontWeight: 700, fontFamily: 'var(--dp-font-display)' }}>{cls ? cls.class_name : 'No classes today'}</div>
         {cls && <div style={{ fontSize: 'var(--dp-text-body)', color: 'var(--dp-line)' }}>{timeLabel(cls.start_time)} – {timeLabel(cls.end_time)}</div>}
         {cls && !cancelled && <div style={{ fontSize: 'var(--dp-text-body)', fontWeight: 600, background: 'var(--dp-success)', borderRadius: 'var(--dp-radius-pill)', padding: '4px 12px', fontVariantNumeric: 'tabular-nums' }}>{here} / {expectedCount} here</div>}
@@ -141,7 +143,7 @@ export default function Kiosk({ students, attendance, makeupRecords, schedule, c
                 style={{ ...touchBtn, whiteSpace: 'nowrap', background: sel ? 'var(--dp-ink)' : 'var(--dp-paper)', color: sel ? 'var(--dp-paper)' : 'var(--dp-ink)', borderColor: sel ? 'var(--dp-ink)' : 'var(--dp-line)' }}
                 onClick={() => setPicked(c.id)}
               >
-                {timeLabel(c.start_time)} {c.class_name}
+                <ClassDot name={c.class_name} /> {timeLabel(c.start_time)} {c.class_name}
               </button>
             );
           })}

@@ -15,6 +15,7 @@ import { nextDueDate, todayISO } from '../../lib/billingDates';
 import { money } from '../../lib/invoiceUtils';
 import { holidaysBetween } from '../../lib/holidays';
 import { FormQuestions, SignaturePad, checkAnswers } from '../../components/EventFormFields';
+import ClassChip from '../../components/ClassChip';
 
 // Parent portal (/parent). Parents sign in with the email the dojang has on
 // file (invited by the dojang, password set from the emailed link). Everything
@@ -348,7 +349,7 @@ function Kids({ d, onAbsence, onTest }) {
               {plan.length ? (
                 plan.map((c, i) => (
                   <div key={i} style={{ fontSize: 16 }}>
-                    <b style={{ fontWeight: 600 }}>{WD[c.weekday]}</b> {ftime(c.start_time)}–{ftime(c.end_time)} · {c.class_name}
+                    <b style={{ fontWeight: 600 }}>{WD[c.weekday]}</b> {ftime(c.start_time)}–{ftime(c.end_time)} <ClassChip name={c.class_name} size={14} style={{ marginLeft: 4 }} />
                   </div>
                 ))
               ) : (

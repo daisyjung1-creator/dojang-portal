@@ -5,7 +5,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { MAKEUP_STATUSES } from '../../lib/constants';
 import { todayISO, computeMakeupWindow, addDaysISO } from '../../lib/billingDates';
-import { splitClasses, allClassNames, inClass, DOJANG_CLASSES, comesOn, weeklyPlan } from '../../lib/classes';
+import { splitClasses, allClassNames, inClass, DOJANG_CLASSES, comesOn, weeklyPlan, classColor } from '../../lib/classes';
 import { ATTENDANCE_KINDS, studentSummary, weekCount, lastAttended, minutesLabel, absenceAlerts, trackingStart, NOT_SEEN_DAYS, REGULAR_WINDOW, COMP_WINDOW } from '../../lib/attendanceStats';
 import { fillTemplate, makeupVars, studentVars, combinedMakeupEmail } from '../../lib/emailTemplates';
 import { formatDate } from '../../lib/invoiceUtils';
@@ -623,7 +623,7 @@ export default function AttendancePage() {
                       <React.Fragment key={s.id + '|' + className}>
                         {header && (
                           <tr>
-                            <td colSpan={3} style={{ background: 'var(--dp-canvas)', fontSize: 12.5, fontWeight: 600, color: 'var(--dp-ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{className}</td>
+                            <td colSpan={3} style={{ background: classColor(className).bg, fontSize: 13, fontWeight: 600, color: classColor(className).text }}>{className}</td>
                           </tr>
                         )}
                         <tr className="dp-row">

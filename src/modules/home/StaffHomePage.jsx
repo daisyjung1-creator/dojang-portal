@@ -5,6 +5,7 @@ import { todayISO, addDaysISO } from '../../lib/billingDates';
 import { inClass } from '../../lib/classes';
 import { Card, Tag, Empty, RED, GREY, touchBtn } from './homeUi';
 import BeltProgressCard from './BeltProgressCard';
+import ClassChip from '../../components/ClassChip';
 
 // Start page for staff logins (front-desk iPad): today's classes, who is
 // coming for a trial or makeup, birthdays, days off and the belt-test pacing.
@@ -110,7 +111,7 @@ export default function StaffHomePage({ setActiveTab }) {
                       {t12(c.start_time)}<br />{t12(c.end_time)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 'var(--dp-text-title)', fontWeight: 600, color: c.cancelled ? 'var(--dp-ink-soft)' : 'var(--dp-ink)', textDecoration: c.cancelled ? 'line-through' : 'none' }}>{c.class_name}</span>
+                      <ClassChip name={c.class_name} size={16} style={c.cancelled ? { textDecoration: 'line-through', opacity: 0.6 } : undefined} />
                       {c.cancelled && <Tag touch c={RED}><CalendarOff size={13} aria-hidden="true" /> No class</Tag>}
                       {mk > 0 && <Tag touch c={GREY}><RotateCcw size={13} aria-hidden="true" /> {mk} makeup</Tag>}
                       {tr > 0 && <Tag touch c={GREY}><UserPlus size={13} aria-hidden="true" /> {tr} trial</Tag>}
