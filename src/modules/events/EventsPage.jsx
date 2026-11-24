@@ -7,6 +7,7 @@ import Modal from '../../components/Modal';
 import SearchSelect from '../../components/SearchSelect';
 import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { fetchAll } from '../invoices/api';
+import MonthlyCalendars from './MonthlyCalendars';
 
 // Events: camps, tournaments, movie nights… Signing a student up adds an
 // invoice for the family (price per student + GST), which they can pay with
@@ -135,6 +136,7 @@ export default function EventsPage() {
           })}
         </div>
       )}
+      <MonthlyCalendars />
       {edit && <EventForm event={edit} items={items} onClose={() => setEdit(null)} onDone={done} />}
     </>
   );

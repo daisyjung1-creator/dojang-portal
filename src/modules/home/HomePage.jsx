@@ -17,6 +17,7 @@ import PaymentNoticeModal from '../invoices/PaymentNotice';
 import { GREEN, BLUE, RED, AMBER, PURPLE, GREY, smallBtn, linkBtn, Tag, Card, Empty } from './homeUi';
 import BeltProgressCard from './BeltProgressCard';
 import TapeSummaryCard from './TapeSummaryCard';
+import NotSeenCard from './NotSeenCard';
 import MeetingsCard from './MeetingsCard';
 import Modal from '../../components/Modal';
 import { guaranteeShortfalls } from '../../lib/guarantee';
@@ -73,6 +74,7 @@ export default function HomePage({ setActiveTab }) {
   const [settings, setSettings] = useState(null);
   const [showShort, setShowShort] = useState(false);
   const [showDeclined, setShowDeclined] = useState(false);
+  const [showExpiring, setShowExpiring] = useState(false);
   const [notice, setNotice] = useState(null); // overdue invoice being emailed
   const [noticeAt, setNoticeAt] = useState({}); // invoice id -> overdue_notice_at
 
@@ -107,7 +109,7 @@ export default function HomePage({ setActiveTab }) {
       { data: mkPeriod },
     ] = await Promise.all([
       supabase.from('students').select('*').order('name'),
-      supabase.from('customers').select('id, name, email, payment_type, active, card_profile_code, card_last4, card_expiry, card_declined_at, card_decline_message, card_declined_invoice_id, card_decline_emailed_at, card_decline_reminded_at, card_legacy_rb_pending'),
+      supabase.from('customers').select('id, name, email, payment_type, active, card_profile_code, card_last4, card_expiry, card_declined_at, card_decline_message, card_declined_invoice_id, card_decline_emailed_at, card_decline_reminded_at, card_legacy_rb_pending, card_link_token, card_expiry_notice_for, card_expiry_notice_at'),
       supabase.from('class_schedule').select('*').eq('active', true).order('start_time'),
       supabase.from('attendance').select('student_id, class_name, status').eq('date', today),
       supabase.from('class_cancellations').select('*').gte('date', from).lte('date', far),
@@ -457,17 +459,16 @@ export default function HomePage({ setActiveTab }) {
         label: 'Review',
       });
     }
-    const now = new Date();
-    const ym = (y, m) => y * 12 + m;
-    const soon = cards.filter((c) => {
-      const m = /^(\d{2})\/(\d{2})$/.exec(c.card_expiry || '');
-      if (!m) return false;
-      const exp = ym(2000 + Number(m[2]), Number(m[1]) - 1);
-      const cur = ym(now.getFullYear(), now.getMonth());
-      return exp >= cur && exp <= cur + 1;
-    });
-    if (soon.length)
-      todayItems.push({ tone: 'info', text: `Saved card expires this or next month — send them a pay link to save a new card: ${soon.map((c) => `${c.name} (···${c.card_last4 || ''}, ${c.card_expiry})`).join(', ')}`, tab: 'customers', label: 'Families' });
+    const soon = expiringCards(cards);
+    if (soon.length) {
+      const toEmail = soon.filter((c) => c.card_expiry_notice_for !== c.card_expiry).length;
+      todayItems.push({
+        tone: toEmail ? 'warn' : 'info',
+        text: `Saved card expired or expiring by next month: ${soon.map((c) => `${c.name} (···${c.card_last4 || ''}, ${c.card_expiry})`).join(', ')}${toEmail ? ` — ${toEmail} to email` : ' — all emailed'}`,
+        onClick: () => setShowExpiring(true),
+        label: 'Review',
+      });
+    }
   }
   // Closures leave someone below the guaranteed classes (8/12/16) this or next service period.
   if (shortfalls.length)
@@ -502,6 +503,7 @@ export default function HomePage({ setActiveTab }) {
 
       {/* Today: what to do / what's happening */}
       {showDeclined && <DeclinedModal cards={Object.values(d.custById).filter((c) => c.card_profile_code && c.card_declined_at)} today={today} onClose={() => setShowDeclined(false)} onChanged={load} />}
+      {showExpiring && <ExpiringModal cards={expiringCards(Object.values(d.custById).filter((c) => c.card_profile_code && c.active !== false))} onClose={() => setShowExpiring(false)} onChanged={load} />}
       {showShort && <ShortfallModal list={shortfalls} onClose={() => setShowShort(false)} onAttendance={() => setActiveTab('attendance')} />}
       <TodayPanel items={todayItems} classesLine={todayClasses.length ? `${todayClasses.filter((c) => !c.cancelled).length} classes · ${t12(todayClasses[0].start_time)} – ${t12(todayClasses[todayClasses.length - 1].end_time)}${todayClasses.some((c) => c.cancelled) ? ` · ${todayClasses.filter((c) => c.cancelled).length} cancelled` : ''}` : 'No classes today'} setActiveTab={setActiveTab} />
 
@@ -543,6 +545,8 @@ export default function HomePage({ setActiveTab }) {
               </table>
             )}
           </Card>
+
+          <NotSeenCard students={d.students} recordsBy={d.recordsBy} today={today} />
 
           <TapeSummaryCard students={d.students} setActiveTab={setActiveTab} />
 
@@ -778,6 +782,89 @@ function DeclinedModal({ cards, today, onClose, onChanged }) {
           </tbody>
         </table>
       </div>
+    </Modal>
+  );
+}
+
+// Saved cards that expired, or expire this or next month (auto-pay card).
+function expiringCards(cards) {
+  const now = new Date();
+  const cur = now.getFullYear() * 12 + now.getMonth();
+  return cards
+    .map((c) => {
+      const m = /^(\d{2})\/(\d{2})$/.exec(c.card_expiry || '');
+      if (!m) return null;
+      const exp = (2000 + Number(m[2])) * 12 + Number(m[1]) - 1;
+      return exp <= cur + 1 ? { ...c, expired: exp < cur } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const CARD_PAGE = 'https://dojang-portal.netlify.app/card/';
+function expiryEmail(c) {
+  const sign = 'Thank you,\nMaster Daisy\nChampion Hankook Taekwondo';
+  const card = `the card ending in ${c.card_last4 || '····'}`;
+  return {
+    subject: c.expired ? 'Your saved card has expired — Champion Hankook Taekwondo' : 'Your saved card expires soon — Champion Hankook Taekwondo',
+    message: `Hi ${c.name},\n\n${c.expired ? `The card we have on file for your tuition (${card}) expired at the end of ${c.card_expiry}.` : `The card we have on file for your tuition (${card}) expires at the end of ${c.card_expiry}.`} To keep your tuition payments running smoothly, please add your new card through the secure link below:\n\n${CARD_PAGE}${c.card_link_token}\n\nNothing is charged when you save it, and the new card is used for your tuition from your next billing date.\n\nIf you've already updated your card, thank you — please disregard this email. Questions? Just reply here.\n\n${sign}`,
+  };
+}
+
+// Expiring saved cards: review the email, then send it (nothing goes out automatically).
+function ExpiringModal({ cards, onClose, onChanged }) {
+  const [edit, setEdit] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [sent, setSent] = useState({});
+  async function send() {
+    const { c, subject, message } = edit;
+    if (!c.email) return setMsg('This family has no email address.');
+    setBusy(true);
+    try {
+      await queueEmail('welcome', c.email, { subject, message });
+      await supabase.from('customers').update({ card_expiry_notice_for: c.card_expiry, card_expiry_notice_at: new Date().toISOString() }).eq('id', c.id);
+      setSent((x) => ({ ...x, [c.id]: true }));
+      setEdit(null);
+      setMsg(`Email sent to ${c.name}.`);
+      onChanged && onChanged();
+    } catch (e) {
+      setMsg('Could not send: ' + e.message);
+    }
+    setBusy(false);
+  }
+  if (edit)
+    return (
+      <Modal title={`Email to ${edit.c.name}`} maxWidth={640} onClose={() => setEdit(null)} footer={<><button className="dp-btn" onClick={() => setEdit(null)}>Back</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
+        <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>To: {edit.c.email || '—'}</p>
+        <label style={{ fontSize: 12, color: '#5B5F56' }}>Subject</label>
+        <input className="dp-input" value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} style={{ marginBottom: 8 }} />
+        <label style={{ fontSize: 12, color: '#5B5F56' }}>Message</label>
+        <textarea className="dp-input" rows={13} value={edit.message} onChange={(e) => setEdit({ ...edit, message: e.target.value })} />
+        {msg && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{msg}</p>}
+      </Modal>
+    );
+  return (
+    <Modal title="Saved cards expiring" maxWidth={720} onClose={onClose} footer={<button className="dp-btn" onClick={onClose}>Close</button>}>
+      <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 10px' }}>Check each email before it goes out. The link opens the family's card page, where they add the new card (it becomes the tuition card).</p>
+      {msg && <p style={{ color: '#2A5A30', fontSize: 13, margin: '0 0 8px' }}>{msg}</p>}
+      <table className="dp-table" style={{ width: '100%' }} data-testid="expiring">
+        <tbody>
+          {cards.map((c) => {
+            const done = sent[c.id] || c.card_expiry_notice_for === c.card_expiry;
+            return (
+              <tr key={c.id} data-family={c.name}>
+                <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 400 }}>···{c.card_last4} · {c.email || 'no email'}</div></td>
+                <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: c.expired ? '#9A2B2B' : '#854F0B' }}>{c.expired ? 'Expired' : 'Expires'} {c.card_expiry}</td>
+                <td style={{ fontSize: 12.5 }}>{done ? <span style={{ color: '#2A5A30' }}>Sent{c.card_expiry_notice_at && !sent[c.id] ? ` ${shortDate(c.card_expiry_notice_at)}` : ''}</span> : <span style={{ color: '#854F0B' }}>Not sent</span>}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <button className={`dp-btn${done ? '' : ' dp-btn-primary'}`} style={{ padding: '3px 10px', fontSize: 12 }} disabled={!c.card_link_token} onClick={() => { setMsg(''); setEdit({ c, ...expiryEmail(c) }); }}>{done ? 'Send again' : 'Review & send'}</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </Modal>
   );
 }

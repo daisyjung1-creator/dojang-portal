@@ -13,6 +13,7 @@ import { todayISO, addDaysISO, billingAnchor, nextDueDate, planMonths } from '..
 import { weeklyPlan, splitClasses } from '../../lib/classes';
 import { MIN_CLASSES, classesSince } from '../../lib/beltTesting';
 import { formatDate, money } from '../../lib/invoiceUtils';
+import { PATCHES } from '../../lib/testAwards';
 
 // Everything about one student on one screen: details, family, health,
 // classes, belt progress, attendance, billing and (for black belts) the
@@ -217,6 +218,8 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <Row k="Last class">{last ? `${WD[new Date(last.date + 'T00:00:00').getDay()]} ${formatDate(last.date)}` : '—'}</Row>
         </Box>
 
+        <AwardsBox studentId={s.id} />
+
         <Box title="Health & consent">
           <Row k="Medical">{String(s.medical || '').trim() ? <span style={{ color: '#9A2B2B' }}>{s.medical}</span> : 'None noted'}</Row>
           <Row k="Photos / videos">{s.photo_consent === false ? <span style={{ color: '#9A2B2B' }}>No</span> : s.photo_consent === true ? 'Yes' : '—'}</Row>
@@ -327,6 +330,48 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
         </div>
       )}
     </div>
+  );
+}
+
+// Medals and character patches from belt tests (portal only — not shown to
+// parents). Each patch is given once; the rest are still to earn.
+function AwardsBox({ studentId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    supabase
+      .from('belt_test_entries')
+      .select('medal, patch, current_belt, target_belt, belt_tests(test_date, title)')
+      .eq('student_id', studentId)
+      .then(({ data }) => setRows((data || []).filter((r) => r.medal || r.patch).sort((a, b) => ((a.belt_tests?.test_date || '') < (b.belt_tests?.test_date || '') ? 1 : -1))));
+  }, [studentId]);
+  const medals = (rows || []).filter((r) => r.medal);
+  const got = new Map((rows || []).filter((r) => r.patch).map((r) => [r.patch, r.belt_tests?.test_date]));
+  return (
+    <Box title="Awards">
+      <div data-testid="awards">
+        <Row k="Medals">
+          {rows == null ? '…' : medals.length ? (
+            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {medals.map((r, i) => <Pill key={i} c="#7A5A00" bg="#FBF1D0">🥇 {r.belt_tests?.test_date ? formatDate(r.belt_tests.test_date) : 'test'} · {r.current_belt}</Pill>)}
+            </span>
+          ) : 'None yet'}
+        </Row>
+        <Row k={`Patches (${got.size}/${PATCHES.length})`}>
+          {rows == null ? '…' : (
+            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {PATCHES.map((p) =>
+                got.has(p.name) ? (
+                  <Pill key={p.name} c="#2A5A30" bg="#E8F1E9"><span title={got.get(p.name) ? `Given ${formatDate(got.get(p.name))}` : ''}>✓ {p.name}</span></Pill>
+                ) : (
+                  <Pill key={p.name} c="#8A8D84" bg="#F4F3EE">{p.name}</Pill>
+                ),
+              )}
+            </span>
+          )}
+        </Row>
+        <p style={{ fontSize: 11.5, color: '#8A8D84', margin: '6px 0 0' }}>Given on Belt Testing → Awards. Not shown in the parent portal.</p>
+      </div>
+    </Box>
   );
 }
 

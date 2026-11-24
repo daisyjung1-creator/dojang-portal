@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { LogOut, CalendarX, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LogOut, CalendarX, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download } from 'lucide-react';
 import logo from '../../assets/logo.png';
 import { supabase } from '../../supabaseClient';
 import { useAuth, IDLE_FLAG, touch } from '../../auth/AuthContext';
@@ -8,10 +8,11 @@ import InvoiceDocument from '../invoices/InvoiceDocument';
 import ReceiptDocument from '../invoices/ReceiptDocument';
 import TapeTracker from '../../components/TapeTracker';
 import { hasTapes, TAPE_COUNT } from '../../lib/tapes';
-import { MIN_CLASSES, classesSince, beltMeta } from '../../lib/beltTesting';
+import { MIN_CLASSES, classesSince, beltMeta, nextBelt, feeItemFor } from '../../lib/beltTesting';
 import { weeklyPlan, splitClasses } from '../../lib/classes';
 import { nextDueDate, todayISO } from '../../lib/billingDates';
 import { money } from '../../lib/invoiceUtils';
+import { holidaysBetween } from '../../lib/holidays';
 
 // Parent portal (/parent). Parents sign in with the email the dojang has on
 // file (invited by the dojang, password set from the emailed link). Everything
@@ -21,6 +22,7 @@ import { money } from '../../lib/invoiceUtils';
 const C = { red: '#BE1C21', ink: '#20241F', soft: '#5B5F56', faint: '#8A8D84', line: '#E6E3DA', bg: '#F7F5EF', green: '#2A5A30' };
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const fdate = (d) => (d ? new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
+const addDaysIso = (iso, n) => new Date(new Date(iso + 'T12:00:00').getTime() + n * 864e5).toISOString().slice(0, 10);
 const fday = (d) => (d ? new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }) : '');
 const ftime = (t) => {
   if (!t) return '';
@@ -229,7 +231,7 @@ function ParentPortal({ onSignOut }) {
   async function load() {
     const today = todayISO();
     const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
-    const [{ data: core, error: e1 }, inv, pays, att, tapes, events, signups, guests, makeups, notices, closed] = await Promise.all([
+    const [{ data: core, error: e1 }, inv, pays, att, tapes, events, signups, guests, makeups, notices, closed, cals] = await Promise.all([
       supabase.rpc('parent_portal_data'),
       supabase.from('invoice_summary').select('*').eq('voided', false).order('invoice_date', { ascending: false }),
       supabase.from('invoice_payments').select('*').order('payment_date', { ascending: false }),
@@ -241,9 +243,10 @@ function ParentPortal({ onSignOut }) {
       supabase.from('makeup_records').select('*').gte('created_at', new Date(Date.now() - 120 * 864e5).toISOString()).order('absence_date', { ascending: false }),
       supabase.from('absence_notices').select('*').gte('absence_date', today).order('absence_date'),
       supabase.from('class_cancellations').select('date, class_name, reason').gte('date', today),
+      supabase.from('monthly_calendars').select('month, title, file_name, mime, file_data').gte('month', today.slice(0, 8) + '01').order('month').limit(3),
     ]);
     if (e1) return setError(e1.message);
-    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: closed.data || [] });
+    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
   }
   useEffect(() => {
     load();
@@ -267,6 +270,7 @@ function ParentPortal({ onSignOut }) {
     ['kids', 'My children'],
     ['billing', `Billing${open.length ? ` (${open.length})` : ''}`],
     ['events', 'Events'],
+    ['calendar', 'Calendar'],
     ['contact', 'Contact'],
   ];
 
@@ -289,12 +293,14 @@ function ParentPortal({ onSignOut }) {
       </div>
       {flash && <p style={{ background: '#E8F1E9', color: C.green, padding: '10px 12px', borderRadius: 8, fontSize: 14 }}>{flash}</p>}
 
-      {tab === 'kids' && <Kids d={d} onAbsence={(s) => setModal({ kind: 'absence', student: s })} />}
+      {tab === 'kids' && <Kids d={d} onAbsence={(s) => setModal({ kind: 'absence', student: s })} onTest={(s) => setModal({ kind: 'test', student: s })} />}
       {tab === 'billing' && <Billing d={d} open={open} onDoc={(m) => setModal(m)} />}
       {tab === 'events' && <Events d={d} onSignUp={(e) => setModal({ kind: 'signup', event: e })} />}
+      {tab === 'calendar' && <CalendarTab d={d} />}
       {tab === 'contact' && <Contact d={d} onSent={() => done('Thank you — your message was sent to the dojang. We will reply by email.')} />}
 
       {modal?.kind === 'absence' && <AbsenceModal d={d} student={modal.student} onClose={() => setModal(null)} onDone={done} />}
+      {modal?.kind === 'test' && <TestModal d={d} student={modal.student} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'signup' && <SignUpModal d={d} event={modal.event} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'invoice' && <DocModal title={`Invoice #${modal.invoice.invoice_number}`} onClose={() => setModal(null)} doc={<InvoiceDoc d={d} invoice={modal.invoice} />} />}
       {modal?.kind === 'receipt' && <DocModal title={`Receipt #${modal.payment.receipt_number}`} onClose={() => setModal(null)} doc={<ReceiptDoc d={d} payment={modal.payment} />} />}
@@ -312,14 +318,14 @@ function BeltChip({ belt }) {
   );
 }
 
-function Kids({ d, onAbsence }) {
+function Kids({ d, onAbsence, onTest }) {
   const today = todayISO();
   if (!d.students.length) return <div style={card}>No active students on this account.</div>;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
       {d.students.map((s) => {
         const att = d.attendance.filter((a) => a.student_id === s.id);
-        const n = classesSince(s, att);
+        const n = s.classes_since_test ?? classesSince(s, att);
         const tapes = new Set(d.tapes.filter((t) => t.student_id === s.id && t.belt === s.belt).map((t) => t.tape));
         const plan = weeklyPlan(s, d.schedule);
         const recent = att.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 6);
@@ -360,7 +366,7 @@ function Kids({ d, onAbsence }) {
               <div style={{ height: 6, background: '#F1EFE7', borderRadius: 3, margin: '5px 0 4px', overflow: 'hidden' }}>
                 <div style={{ width: `${Math.min(100, (n / MIN_CLASSES) * 100)}%`, height: '100%', background: n >= MIN_CLASSES ? C.green : C.red }} />
               </div>
-              {d.next_test && <div style={{ fontSize: 13, color: C.soft }}>Next belt test: {fdate(d.next_test.date)}</div>}
+              <TestStatus d={d} s={s} n={n} onHold={onHold} onTest={onTest} />
             </Section>
 
             <Section title="Recent classes">
@@ -390,6 +396,147 @@ function Kids({ d, onAbsence }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Belt test: how close the child is, and registration once eligible.
+const INVITE_ONLY = ['Black Stripe 4', 'Black Belt 1st Dan', 'Black Belt 2nd Dan', 'Black Belt 3rd Dan'];
+function TestStatus({ d, s, n, onHold, onTest }) {
+  const nt = d.next_test;
+  const today = todayISO();
+  const entry = (d.test_entries || []).find((e) => e.student_id === s.id);
+  const need = Math.max(0, MIN_CLASSES - n);
+  const box = (bg, c) => ({ fontSize: 13.5, padding: '8px 10px', borderRadius: 8, background: bg, color: c, marginTop: 6 });
+  if (entry)
+    return (
+      <div style={box('#E8F1E9', C.green)} data-testid="test-registered">
+        <b>Registered for the belt test</b> on {fdate(nt.date)} ✓ — testing for {entry.target_belt}.
+        <div style={{ fontSize: 12, opacity: 0.9 }}>The test fee invoice is under Billing.</div>
+      </div>
+    );
+  if (!nt)
+    return <div style={{ fontSize: 13, color: C.soft }}>{need ? `${need} more class${need === 1 ? '' : 'es'} to be eligible for the next belt test.` : 'Eligible for the next belt test ✓'} The next test date will be posted soon.</div>;
+  if (INVITE_ONLY.includes(s.belt))
+    return <div style={{ fontSize: 13, color: C.soft }}>Next belt test: {fdate(nt.date)}. Black belt testing is by invitation from Master Daisy.</div>;
+  if (need > 0)
+    return (
+      <div style={{ fontSize: 13, color: C.soft }} data-testid="test-need">
+        <b style={{ color: C.ink, fontWeight: 600 }}>{need} more class{need === 1 ? '' : 'es'}</b> to be eligible for the belt test on {fdate(nt.date)}.
+      </div>
+    );
+  const open = nt.date > today && !onHold;
+  return (
+    <div style={box('#FDF6E3', '#6B4B0B')} data-testid="test-ready">
+      <b>Ready for the belt test on {fdate(nt.date)}</b> — {MIN_CLASSES}+ classes ✓
+      {open ? (
+        <button style={{ ...primary, marginTop: 8, width: '100%', justifyContent: 'center' }} onClick={() => onTest(s)}>
+          <Award size={16} /> Register for the belt test
+        </button>
+      ) : (
+        <div style={{ fontSize: 12, marginTop: 4 }}>{onHold ? 'Registration opens again when the membership is active.' : 'Registration for this test has closed.'}</div>
+      )}
+    </div>
+  );
+}
+
+function TestModal({ d, student, onClose, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null);
+  const item = feeItemFor(student.belt);
+  const fee = d.test_fees?.[item];
+  const amt = Number(fee?.amount) || 0;
+  const total = amt + (fee?.taxable !== false ? Math.round(amt * 5) / 100 : 0);
+  const first = student.name.split(' ')[0];
+  const finish = () => onDone(`${first} is registered for the belt test on ${fdate(d.next_test.date)}.${result?.invoice_number ? ` Invoice #${result.invoice_number} is under Billing.` : ''}`);
+  async function go() {
+    setBusy(true);
+    setError('');
+    const { data, error: err } = await supabase.rpc('parent_test_register', { p_student: student.id });
+    setBusy(false);
+    if (err) return setError(err.message);
+    if (data?.pay_token) setResult(data);
+    else onDone(`${first} is registered for the belt test on ${fdate(d.next_test.date)}.`);
+  }
+  if (result)
+    return (
+      <Modal title="Registered!" onClose={finish}>
+        <p style={{ fontSize: 15 }}>{first} is registered for the belt test on <b>{fdate(d.next_test.date)}</b>. Invoice #{result.invoice_number} for <b>{money(result.total)}</b> was added to your account (due on the test day).</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a style={primary} href={`/pay/${result.pay_token}`}>Pay now</a>
+          <button style={btn} onClick={finish}>Pay later</button>
+        </div>
+      </Modal>
+    );
+  return (
+    <Modal title={`Belt test — ${student.name}`} onClose={onClose} footer={<><button style={btn} onClick={onClose}>Cancel</button><button style={primary} disabled={busy} onClick={go}>{busy ? 'Registering…' : `Register${total ? ` · ${money(total)}` : ''}`}</button></>}>
+      <div style={{ fontSize: 15, lineHeight: 1.6 }}>
+        <div><b>Test day:</b> {fday(d.next_test.date)}{d.next_test.title ? ` · ${d.next_test.title}` : ''}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}><b>Belt:</b> <BeltChip belt={student.belt} /> → <BeltChip belt={nextBelt(student.belt)} /></div>
+        {amt > 0 && <div><b>Test fee:</b> {money(amt)}{fee?.taxable !== false ? ' + GST' : ''} = {money(total)}</div>}
+      </div>
+      <p style={{ fontSize: 13, color: C.soft }}>An invoice for the test fee is added to your account, due on the test day. You can pay it right away or later under Billing. There are no regular classes on test day.</p>
+      {error && <p style={{ color: C.red, fontSize: 13 }}>{error}</p>}
+    </Modal>
+  );
+}
+
+// Calendar: the dojang's monthly calendar, closures and key dates.
+function openData(dataUrl) {
+  fetch(dataUrl).then((r) => r.blob()).then((b) => window.open(URL.createObjectURL(b), '_blank'));
+}
+function CalendarTab({ d }) {
+  const today = todayISO();
+  const until = addDaysIso(today, 90);
+  const closed = (d.closed || [])
+    .filter((c) => c.date >= today && c.date <= until)
+    .filter((c, i, all) => all.findIndex((x) => x.date === c.date && (x.class_name || '') === (c.class_name || '')) === i)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const events = (d.events || []).filter((e) => e.published && !e.archived && (e.end_date || e.start_date) >= today).slice(0, 6);
+  const monthName = (m) => new Date(m.slice(0, 10) + 'T12:00:00').toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, alignItems: 'start' }}>
+      <div style={card} data-testid="calendars">
+        <h2 style={h2}><CalendarDays size={17} /> Monthly calendar</h2>
+        {!d.calendars?.length && <p style={{ fontSize: 14, color: C.faint, margin: 0 }}>This month's calendar will be posted here.</p>}
+        {(d.calendars || []).map((m) => (
+          <div key={m.month} style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <b style={{ flex: 1, fontSize: 15 }}>{m.title || monthName(m.month)}</b>
+              <button style={{ ...btn, padding: '4px 10px', fontSize: 13 }} onClick={() => openData(m.file_data)}><Download size={14} /> Open</button>
+            </div>
+            {m.mime.startsWith('image/') ? (
+              <img src={m.file_data} alt={m.title || monthName(m.month)} style={{ width: '100%', borderRadius: 8, border: `1px solid ${C.line}`, cursor: 'zoom-in' }} onClick={() => openData(m.file_data)} />
+            ) : (
+              <div style={{ fontSize: 13.5, color: C.soft }}>PDF — tap Open to view or save.</div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div>
+        <div style={card} data-testid="closures">
+          <h2 style={h2}><CalendarX size={17} /> Dojang closed (next 3 months)</h2>
+          {!closed.length && <p style={{ fontSize: 14, color: C.faint, margin: 0 }}>No closures in the next 3 months.</p>}
+          {closed.map((c, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, fontSize: 14, padding: '5px 0', borderTop: i ? `1px solid ${C.line}` : 'none' }}>
+              <span style={{ width: 118, flexShrink: 0, fontWeight: 600 }}>{fday(c.date)}</span>
+              <span style={{ color: C.soft }}>{c.class_name ? `No ${c.class_name} class` : 'No classes'}{c.reason ? ` — ${c.reason}` : ''}</span>
+            </div>
+          ))}
+          <p style={{ fontSize: 12, color: C.faint, margin: '8px 0 0' }}>Make-ups aren't given for statutory holidays. If a closure leaves your child below the guaranteed number of classes, the dojang will arrange make-ups.</p>
+        </div>
+        <div style={card}>
+          <h2 style={h2}><Award size={17} /> Key dates</h2>
+          {d.next_test && (
+            <div style={{ fontSize: 14, padding: '4px 0' }}><b style={{ fontWeight: 600 }}>{fday(d.next_test.date)}</b> · Belt test (no regular classes)</div>
+          )}
+          {events.map((e) => (
+            <div key={e.id} style={{ fontSize: 14, padding: '4px 0' }}><b style={{ fontWeight: 600 }}>{fday(e.start_date)}</b> · {e.title}</div>
+          ))}
+          {!d.next_test && !events.length && <p style={{ fontSize: 14, color: C.faint, margin: 0 }}>Nothing scheduled yet.</p>}
+        </div>
+      </div>
     </div>
   );
 }
