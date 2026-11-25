@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Send, Users, RefreshCw, Copy, Paperclip, X } from 'lucide-react';
+import { Send, Users, RefreshCw, Copy, Paperclip, X, Mail } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
@@ -55,7 +55,12 @@ export default function EmailPage() {
   const [page, setPage] = useState('compose'); // compose | log
   const [find, setFind] = useState('');
   const [viewing, setViewing] = useState(null);
-  const [files, setFiles] = useState([]); // { name, mime, size, data? , id? (already stored) }
+  const [files, setFiles] = useState([]);
+  const [testing, setTesting] = useState(false);
+  const [ownEmail, setOwnEmail] = useState('');
+  useEffect(() => {
+    supabase.from('invoice_settings').select('email').eq('id', 1).maybeSingle().then(({ data }) => setOwnEmail(data?.email || ''));
+  }, []); // { name, mime, size, data? , id? (already stored) }
   const total = files.reduce((t, f) => t + f.size, 0);
 
   async function addFiles(list) {
@@ -168,19 +173,56 @@ export default function EmailPage() {
     setFlash({ text, error });
   }
 
+  // Save new attachments once; already-saved ones (test send, "Use again") keep their id.
+  async function storeFiles() {
+    const stored = [];
+    const next = [];
+    for (const f of files) {
+      if (f.id) {
+        stored.push({ id: f.id, name: f.name, size: f.size });
+        next.push(f);
+        continue;
+      }
+      const { data: a, error } = await supabase.from('email_attachments').insert({ file_name: f.name, mime: f.mime, size_bytes: f.size, data: f.data }).select('id').single();
+      if (error) throw new Error(`Could not attach ${f.name}: ${error.message}`);
+      stored.push({ id: a.id, name: f.name, size: f.size });
+      next.push({ id: a.id, name: f.name, size: f.size, mime: f.mime });
+    }
+    setFiles(next);
+    return stored;
+  }
+
+  // One copy to the dojang's own email (as the first family would get it).
+  async function sendTest() {
+    if (!subject.trim()) return say('Please enter a subject.', true);
+    if (!message.trim()) return say('Please write a message.', true);
+    if (!ownEmail) return say('Add the dojang email in Invoice Settings first.', true);
+    setTesting(true);
+    try {
+      const stored = await storeFiles();
+      const f = preview || { students: [], guardian: '' };
+      const { error } = await supabase.from('email_queue').insert({
+        type: 'welcome',
+        recipient_email: ownEmail,
+        payload: { subject: '[Test] ' + personalize(subject.trim(), f), message: personalize(message, f), ...(stored.length ? { attachments: stored.map((a) => a.id) } : {}) },
+      });
+      if (error) throw error;
+      say(`Test sent to ${ownEmail}${preview ? ` (written as ${preview.students.map((x) => x.name.split(' ')[0]).join(' & ')}'s family would get it)` : ''}. Check your inbox in a minute.`);
+    } catch (e) {
+      say('Test not sent: ' + e.message, true);
+    }
+    setTesting(false);
+  }
+
   async function send() {
     setSending(true);
-    // store new attachments first; already-stored ones (from "Use again") keep their id
-    const stored = [];
-    for (const f of files) {
-      if (f.id) { stored.push({ id: f.id, name: f.name, size: f.size }); continue; }
-      const { data: a, error: ea } = await supabase.from('email_attachments').insert({ file_name: f.name, mime: f.mime, size_bytes: f.size, data: f.data }).select('id').single();
-      if (ea) {
-        setSending(false);
-        setConfirm(false);
-        return say(`Could not attach ${f.name}: ${ea.message}`, true);
-      }
-      stored.push({ id: a.id, name: f.name, size: f.size });
+    let stored;
+    try {
+      stored = await storeFiles();
+    } catch (e) {
+      setSending(false);
+      setConfirm(false);
+      return say(e.message, true);
     }
     const attachmentIds = stored.map((a) => a.id);
     const { data: b, error: e1 } = await supabase
@@ -316,7 +358,10 @@ export default function EmailPage() {
           <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '-4px 0 14px' }}>
             {'{guardian}'} = parent's name · {'{student}'} = their child's first name (siblings: "Adam & Lily"). Links become clickable. One copy also goes to the dojang's own email so you can find it later.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+            <button className="dp-btn" onClick={sendTest} disabled={testing || sending} title={ownEmail ? `Send one copy to ${ownEmail} first` : 'Set the dojang email in Invoice Settings'}>
+              <Mail size={15} /> {testing ? 'Sending test…' : `Send test to me${ownEmail ? ` (${ownEmail})` : ''}`}
+            </button>
             <button className="dp-btn dp-btn-primary" onClick={check} disabled={sending}>
               <Send size={15} /> Review & Send to {recipients.length} {recipients.length === 1 ? 'family' : 'families'}
             </button>
