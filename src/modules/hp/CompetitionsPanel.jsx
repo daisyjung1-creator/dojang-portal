@@ -10,8 +10,8 @@ import {
 import { CODE_LABELS } from './ytpData';
 import { CODE_STYLE, HP_ORANGE } from './ytpTheme';
 
-const MEDAL = { Gold: '#C9A227', Silver: '#9AA0A6', Bronze: '#B0703C' };
-const label = { display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 };
+const MEDAL = { Gold: 'var(--hp-gold)', Silver: 'var(--hp-silver)', Bronze: 'var(--hp-bronze)' };
+const label = { display: 'block', fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 4 };
 
 function prettyDate(iso) {
   const [y, m, d] = iso.split('-').map(Number);
@@ -44,16 +44,16 @@ export default function CompetitionsPanel({ athlete, plan }) {
       .filter((e) => e.date && !comps.some((c) => c.name === e.name));
   }, [plan, comps]);
 
-  if (error) return <div style={{ ...styles.card, padding: 16, color: '#9A2B2B' }}>Couldn't load competitions: {error}</div>;
-  if (!comps) return <div style={{ color: '#5B5F56' }}>Loading...</div>;
+  if (error) return <div style={{ ...styles.card, padding: 16, color: 'var(--dp-danger)' }}>Couldn't load competitions: {error}</div>;
+  if (!comps) return <div style={{ color: 'var(--dp-ink-soft)' }}>Loading...</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ ...styles.card, padding: '14px 16px', display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div><div style={{ fontSize: 12, color: '#8A8D84' }}>Matches</div>
+        <div><div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>Matches</div>
           <div style={{ fontSize: 20, fontWeight: 600 }}>{rec.wins}W – {rec.losses}L</div></div>
-        <div><div style={{ fontSize: 12, color: '#8A8D84' }}>Medals</div>
-          <div style={{ display: 'flex', gap: 10, fontSize: 15, fontWeight: 600 }}>
+        <div><div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>Medals</div>
+          <div style={{ display: 'flex', gap: 10, fontSize: 16, fontWeight: 600 }}>
             {['Gold', 'Silver', 'Bronze'].map((p) => (
               <span key={p} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ width: 12, height: 12, borderRadius: 6, background: MEDAL[p] }} />{rec.medals[p]}
@@ -65,7 +65,7 @@ export default function CompetitionsPanel({ athlete, plan }) {
         </button>
       </div>
 
-      {!comps.length && <div style={{ ...styles.card, padding: 16, color: '#5B5F56' }}>No competitions recorded yet.</div>}
+      {!comps.length && <div style={{ ...styles.card, padding: 16, color: 'var(--dp-ink-soft)' }}>No competitions recorded yet.</div>}
       {comps.map((c) => (
         <CompetitionCard key={c.id} comp={c} plan={plan}
           onEdit={() => setModal({ type: 'comp', comp: c })}
@@ -94,31 +94,31 @@ function CompetitionCard({ comp, plan, onEdit, onAddMatch, onEditMatch }) {
     <div style={{ ...styles.card, padding: '14px 16px', borderTop: `3px solid ${MEDAL[comp.placement] || HP_ORANGE}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 16, fontWeight: 600 }}>{comp.name}</span>
-        <span style={{ fontSize: 13, color: '#5B5F56' }}>{prettyDate(comp.date)}{comp.division ? ` · ${comp.division}` : ''}</span>
+        <span style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>{prettyDate(comp.date)}{comp.division ? ` · ${comp.division}` : ''}</span>
         {comp.placement && (
-          <span style={{ fontSize: 12.5, fontWeight: 600, borderRadius: 999, padding: '2px 9px',
-            background: MEDAL[comp.placement] || '#EFEDE6', color: MEDAL[comp.placement] ? '#fff' : '#45483F' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, borderRadius: 999, padding: '2px 9px',
+            background: MEDAL[comp.placement] || 'var(--dp-canvas)', color: MEDAL[comp.placement] ? 'var(--dp-paper)' : 'var(--dp-ink-soft)' }}>
             {comp.placement}
           </span>
         )}
-        <span style={{ fontSize: 13, color: '#45483F' }}>{wins}W – {losses}L</span>
+        <span style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>{wins}W – {losses}L</span>
         <button className="dp-btn" style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 13 }} onClick={onEdit}>Edit</button>
       </div>
-      {comp.notes && <p style={{ fontSize: 13, color: '#45483F', margin: '8px 0 0' }}>{comp.notes}</p>}
+      {comp.notes && <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '8px 0 0' }}>{comp.notes}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 10 }}>
         <div>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#8A8D84', marginBottom: 4 }}>Matches</div>
+          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--dp-ink-faint)', marginBottom: 4 }}>Matches</div>
           {comp.matches.map((m) => (
             <button key={m.id} type="button" onClick={() => onEditMatch(m)} style={{
               all: 'unset', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'baseline', width: '100%',
-              padding: '6px 0', borderBottom: '1px solid #F1EEE6', fontSize: 13.5,
+              padding: '6px 0', borderBottom: '1px solid var(--dp-line)', fontSize: 14,
             }}>
-              <b style={{ width: 18, color: m.result === 'W' ? '#2A5A30' : m.result === 'L' ? '#9A2B2B' : '#8A8D84' }}>{m.result || '–'}</b>
-              <span style={{ width: 100, color: '#5B5F56' }}>{m.round || ''}</span>
+              <b style={{ width: 18, color: m.result === 'W' ? 'var(--dp-success)' : m.result === 'L' ? 'var(--dp-danger)' : 'var(--dp-ink-faint)' }}>{m.result || '–'}</b>
+              <span style={{ width: 100, color: 'var(--dp-ink-soft)' }}>{m.round || ''}</span>
               <span style={{ flex: 1 }}>
-                {m.opponent || 'Opponent'}{m.opponent_club && <span style={{ color: '#8A8D84' }}> · {m.opponent_club}</span>}
-                {m.notes && <span style={{ display: 'block', fontSize: 12.5, color: '#8A8D84' }}>{m.notes}</span>}
+                {m.opponent || 'Opponent'}{m.opponent_club && <span style={{ color: 'var(--dp-ink-faint)' }}> · {m.opponent_club}</span>}
+                {m.notes && <span style={{ display: 'block', fontSize: 13, color: 'var(--dp-ink-faint)' }}>{m.notes}</span>}
               </span>
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>{m.score}</span>
             </button>
@@ -126,18 +126,18 @@ function CompetitionCard({ comp, plan, onEdit, onAddMatch, onEditMatch }) {
           <button className="dp-btn" style={{ marginTop: 8, padding: '4px 10px', fontSize: 13 }} onClick={onAddMatch}>+ Add match</button>
         </div>
         <div>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#8A8D84', marginBottom: 4 }}>
+          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--dp-ink-faint)', marginBottom: 4 }}>
             Plan that week{week ? ` · Week ${week.week_no}${week.phase ? ` · ${week.phase}` : ''}` : ''}
           </div>
-          {!week && <div style={{ fontSize: 13, color: '#8A8D84' }}>Outside this season's plan.</div>}
-          {week && !focus.length && <div style={{ fontSize: 13, color: '#8A8D84' }}>No technical or tactical skills planned.</div>}
+          {!week && <div style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>Outside this season's plan.</div>}
+          {week && !focus.length && <div style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No technical or tactical skills planned.</div>}
           {focus.map((r) => {
             const code = r.cells[week.week_no];
             const s = CODE_STYLE[code];
             return (
-              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, padding: '3px 0' }}>
-                <span style={{ display: 'inline-flex', justifyContent: 'center', width: 24, borderRadius: 4, fontWeight: 700, fontSize: 11, background: s.bg, color: s.fg }}>{code}</span>
-                {r.name} <span style={{ fontSize: 12, color: '#8A8D84' }}>{r.area} · {CODE_LABELS[code]}</span>
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, padding: '3px 0' }}>
+                <span style={{ display: 'inline-flex', justifyContent: 'center', width: 24, borderRadius: 4, fontWeight: 700, fontSize: 12, background: s.bg, color: s.fg }}>{code}</span>
+                {r.name} <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>{r.area} · {CODE_LABELS[code]}</span>
               </div>
             );
           })}
@@ -193,7 +193,7 @@ function CompetitionForm({ athlete, comp, planned, onClose, onSaved }) {
         <label style={{ gridColumn: '1 / -1' }}><span style={label}>Coach notes</span>
           <textarea className="dp-input" rows={3} style={{ width: '100%' }} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
       </div>
-      {error && <div style={{ color: '#9A2B2B', fontSize: 13, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 8 }}>{error}</div>}
       {confirm && <ConfirmDialog message={`Delete "${comp.name}" and its matches?`} onCancel={() => setConfirm(false)}
         onConfirm={() => { setConfirm(false); run(() => deleteCompetition(comp.id)); }} />}
     </Modal>
@@ -229,7 +229,7 @@ function MatchForm({ comp, match, onClose, onSaved }) {
           </select></label>
         <div><span style={label}>Result</span>
           <div style={{ display: 'flex', gap: 6 }}>
-            {[['W', 'Win', '#2A5A30', '#E8F1E9'], ['L', 'Loss', '#9A2B2B', '#FBEAEA']].map(([v, l, fg, bg]) => (
+            {[['W', 'Win', 'var(--dp-success)', 'var(--dp-success-tint)'], ['L', 'Loss', 'var(--dp-danger)', 'var(--dp-danger-tint)']].map(([v, l, fg, bg]) => (
               <button key={v} type="button" className="dp-btn" onClick={() => setF({ ...f, result: f.result === v ? '' : v })}
                 style={f.result === v ? { background: bg, color: fg, borderColor: fg, fontWeight: 600 } : undefined}>{l}</button>
             ))}
@@ -243,7 +243,7 @@ function MatchForm({ comp, match, onClose, onSaved }) {
         <label style={{ gridColumn: '1 / -1' }}><span style={label}>Notes (what worked, what didn't)</span>
           <textarea className="dp-input" rows={3} style={{ width: '100%' }} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
       </div>
-      {error && <div style={{ color: '#9A2B2B', fontSize: 13, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 8 }}>{error}</div>}
     </Modal>
   );
 }

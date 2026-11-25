@@ -5,18 +5,22 @@ import { styles } from '../../lib/uiStyles';
 import { todayISO, currentCycleStart, nextDueDate, billingAnchor, addDaysISO } from '../../lib/billingDates';
 import { money, formatDate, calcTotals } from '../../lib/invoiceUtils';
 import { proposeInvoices, invoiceHeader, familyName, isBillable, tuitionLines, isManual } from '../../lib/tuitionBilling';
-import { loadSettings, loadCustomers, saveInvoice, queueEmail, fetchAll, payInvoicesInFull, usePaymentMethods, applyCredit } from '../invoices/api';
+import { loadSettings, loadCustomers, saveInvoice, queueEmail, fetchAll, payInvoicesInFull, usePaymentMethods, applyCredit, chargeSavedCards } from '../invoices/api';
 import { StatusPill } from '../invoices/InvoicesPage';
 import InvoicePreview from '../invoices/InvoicePreview';
+import InvoiceDocument from '../invoices/InvoiceDocument';
+import Modal from '../../components/Modal';
+import { CardLinkButton } from '../invoices/CardLink';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import PaymentNoticeModal, { shortDate } from '../invoices/PaymentNotice';
 
 const tag = (text, c) => (
-  <span style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{text}</span>
+  <span style={{ marginLeft: 6, fontSize: 12.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{text}</span>
 );
-const GREEN = ['#2A5A30', '#E8F1E9', '#BFDCC3'];
-const BLUE = ['#1E4566', '#E6F0F6', '#B9D3E4'];
-const GREY = ['#5B5F56', '#F1EFE7', '#DEDACC'];
-const PURPLE = ['#4B3A86', '#EEEAF6', '#D2C9EA'];
+const GREEN = ['var(--dp-success)', 'var(--dp-success-tint)', 'var(--dp-success-tint)'];
+const BLUE = ['var(--dp-info)', 'var(--dp-canvas)', 'var(--dp-line)'];
+const GREY = ['var(--dp-ink-soft)', 'var(--dp-canvas)', 'var(--dp-line)'];
+const PURPLE = ['var(--dp-ink-soft)', 'var(--dp-canvas)', 'var(--dp-line)'];
 
 export default function BillingPage() {
   const today = todayISO();
@@ -36,6 +40,9 @@ export default function BillingPage() {
   const [busy, setBusy] = useState('');
   const [flash, setFlash] = useState('');
   const [previewId, setPreviewId] = useState(null);
+  const [notice, setNotice] = useState(null); // unpaid invoice being emailed
+  const [noticeAt, setNoticeAt] = useState({}); // invoice id -> overdue_notice_at
+  const [draft, setDraft] = useState(null);
   const [confirm, setConfirm] = useState(null);
 
   useEffect(() => {
@@ -49,7 +56,7 @@ export default function BillingPage() {
       loadSettings(),
       loadCustomers(),
       supabase.from('students').select('*').order('name'),
-      fetchAll(() => supabase.from('invoice_lines').select('invoice_id, student_id, cycle_start, line_kind').not('cycle_start', 'is', null).gte('cycle_start', since)),
+      fetchAll(() => supabase.from('invoice_lines').select('invoice_id, student_id, cycle_start, line_kind, amount').not('cycle_start', 'is', null).gte('cycle_start', since)),
     ]);
     const ids = Array.from(new Set((lines || []).map((l) => l.invoice_id)));
     let invs = [];
@@ -63,9 +70,18 @@ export default function BillingPage() {
       const inv = byId[l.invoice_id];
       if (inv && !inv.voided && l.line_kind === 'tuition') map[`${l.student_id}|${l.cycle_start}`] = inv;
     });
+    // Subsidy grants (KidSport…): how much has been used on live invoices.
+    const used = {};
+    (lines || []).forEach((l) => {
+      const inv = byId[l.invoice_id];
+      if (!inv || inv.voided || l.line_kind !== 'subsidy') return;
+      const stu = (st || []).find((x) => x.id === l.student_id);
+      if (!stu || (stu.subsidy_start_date && l.cycle_start < stu.subsidy_start_date)) return;
+      used[l.student_id] = (used[l.student_id] || 0) - Number(l.amount || 0);
+    });
     setSettings(s);
     setCustomers(c);
-    setStudents(st || []);
+    setStudents((st || []).map((x) => (used[x.id] ? { ...x, _subsidyUsed: used[x.id] } : x)));
     setCycleInvoices(map);
     setTuitionInvoices(invs.filter((i) => !i.voided));
     setLoading(false);
@@ -91,6 +107,8 @@ export default function BillingPage() {
   const dueUnpaid = tuitionInvoices.filter((i) => Number(i.balance) > 0 && (i.due_date || i.invoice_date) <= today).sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
   useEffect(() => {
     setPaySel(Object.fromEntries(dueUnpaid.map((i) => [i.id, true])));
+    const ids = dueUnpaid.map((i) => i.id);
+    if (ids.length) supabase.from('invoices').select('id, overdue_notice_at').in('id', ids).then(({ data }) => setNoticeAt(Object.fromEntries((data || []).map((x) => [x.id, x.overdue_notice_at]))));
   }, [tuitionInvoices]);
   useEffect(() => {
     if (!payMethod && methods.length) setPayMethod(methods[0]);
@@ -132,12 +150,18 @@ export default function BillingPage() {
 
   // mode 'manual': create (+ email if ticked). mode 'preauth': create and
   // record the pre-authorized card charge on the billing date (no invoice email).
-  async function createInvoices(list, mode) {
+  // mode 'failed': pre-authorized charge didn't go through — create the invoice
+  // unpaid (nothing charged or recorded); email the family from Unpaid below.
+  async function createInvoices(list, runMode) {
     setBusy('create');
     let made = 0;
     let mailed = 0;
     let paid = 0;
     let creditUsed = 0;
+    const toCharge = []; // invoices for families with a saved card: charged through TD below
+    const payMode = settings?.online_pay_mode || 'test';
+    // Not while the family's old TD Recurring Billing may still be charging them.
+    const canCharge = (cust) => settings?.online_pay && cust?.card_profile_code && cust.card_profile_mode === payMode && !cust.card_legacy_rb_pending;
     try {
       for (const p of list) {
         const header = invoiceHeader(p, settings, today);
@@ -155,19 +179,37 @@ export default function BillingPage() {
         }
         if (used) creditUsed += used;
         const left = Math.round((Number(inv.total) - used) * 100) / 100;
-        if (mode === 'preauth') {
-          if (left > 0.004) {
-            const card = methods.find((m) => /pre-?auth/i.test(m)) || methods[0];
-            await payInvoicesInFull([{ ...inv, balance: left }], card, p.due_date < today ? p.due_date : today, emailReceipts);
+        if (runMode === 'failed') {
+          /* stays unpaid */
+        } else if (runMode === 'preauth') {
+          if (left > 0.004 && canCharge(p.customer)) toCharge.push(inv.id);
+          else {
+            if (left > 0.004) {
+              const card = methods.find((m) => /pre-?auth/i.test(m)) || methods[0];
+              await payInvoicesInFull([{ ...inv, balance: left }], card, p.due_date < today ? p.due_date : today, emailReceipts);
+            }
+            paid++;
           }
-          paid++;
         } else if (emailNow && p.manual !== false && header.customer_email && isManual(p.customer)) {
           await queueEmail('invoice', header.customer_email, { invoice_id: inv.id });
           mailed++;
         }
       }
-      const creditNote = creditUsed > 0.004 ? ` ${money(creditUsed)} of family credit used.` : '';
-      setFlash((mode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`) + creditNote);
+      // Saved cards: charge them now through TD Online Mart (records payment + emails receipt).
+      let cardNote = '';
+      if (toCharge.length) {
+        try {
+          const r = await chargeSavedCards(toCharge);
+          const ok = r.results.filter((x) => x.approved);
+          const bad = r.results.filter((x) => !x.approved);
+          paid += ok.length;
+          cardNote = ` Saved cards: ${ok.length} charged${r.mode === 'test' ? ' (TEST account — not recorded)' : ''}${bad.length ? `, ${bad.length} not charged (${bad.map((x) => `${x.customer}: ${x.declined || x.error}`).join('; ')}) — they stay unpaid below` : ''}.`;
+        } catch (e) {
+          cardNote = ` Saved cards were NOT charged: ${e.message}. The invoices stay unpaid below.`;
+        }
+      }
+      const creditNote = (creditUsed > 0.004 ? ` ${money(creditUsed)} of family credit used.` : '') + cardNote;
+      setFlash((runMode === 'failed' ? `Created ${made} unpaid invoice${made === 1 ? '' : 's'} — use Notice under "Unpaid" to email the famil${made === 1 ? 'y' : 'ies'}.` : runMode === 'preauth' ? `Created ${made} invoice${made === 1 ? '' : 's'} and recorded ${paid} card payment${paid === 1 ? '' : 's'}.` : `Created ${made} invoice${made === 1 ? '' : 's'}${mailed ? `, ${mailed} emailed` : ''}.`) + creditNote);
     } catch (e) {
       setFlash(`Stopped after ${made} invoices: ${e.message}`);
     }
@@ -206,8 +248,7 @@ export default function BillingPage() {
 
   // Invoice one student's current (or next) cycle now. Siblings with the same
   // billing date who aren't invoiced yet go on the same invoice.
-  function createOne(r) {
-    const due = r.toInvoice;
+  function draftGroup(r, due) {
     const together = r.family && !r.family.separate_invoices;
     const kids = students.filter(
       (x) =>
@@ -217,10 +258,25 @@ export default function BillingPage() {
         (currentCycleStart(x, due) === due)
     );
     const lines = kids.sort((a, b) => a.name.localeCompare(b.name)).flatMap((x) => tuitionLines(x, due, settings));
-    setConfirm({ mode: 'manual', list: [{ key: 'one', customer: r.family || null, students: kids, due_date: due, lines, totals: calcTotals(lines, settings.gst_rate ?? 5) }] });
+    return { key: 'one', customer: r.family || null, students: kids.length ? kids : [r.s], due_date: due, lines, totals: calcTotals(lines, settings.gst_rate ?? 5) };
   }
 
-  if (loading || !settings) return <p style={{ color: '#5B5F56' }}>Loading…</p>;
+  function createOne(r) {
+    setConfirm({ mode: 'manual', list: [draftGroup(r, r.toInvoice)] });
+  }
+
+  // Click a student: the invoice still to be made (as a draft), or else the
+  // latest real one.
+  function openStudent(r) {
+    if (r.s.billing_exempt) return setFlash(`${r.s.name} is staff — no invoices.`);
+    if (isBillable(r.s) && r.toInvoice) return setDraft({ g: draftGroup(r, r.toInvoice), mode: 'manual' });
+    const inv = r.nextInv || r.cycleInv;
+    if (inv) return setPreviewId(inv.id);
+    if (isBillable(r.s) && r.next) return setDraft({ g: draftGroup(r, r.next), mode: r.toInvoice === r.next ? 'manual' : null });
+    setFlash(`${r.s.name} has no billing date or tuition set yet.`);
+  }
+
+  if (loading || !settings) return <p style={{ color: 'var(--dp-ink-soft)' }}>Loading…</p>;
   const lead = Number(settings.invoice_lead_days ?? 7);
   const manualProps = proposals.filter((p) => p.manual);
   const preauthProps = proposals.filter((p) => !p.manual);
@@ -237,7 +293,7 @@ export default function BillingPage() {
         <button className="dp-btn" onClick={loadAll}><RefreshCw size={14} /> Refresh</button>
       </div>
 
-      {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
+      {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
 
       <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, marginBottom: 18 }}>
         <Metric label="Students billed" value={stats.billable} />
@@ -252,7 +308,7 @@ export default function BillingPage() {
           <Empty>No manual-pay invoices to send right now.</Empty>
         ) : (
           <>
-            <ProposalTable list={manualProps} selected={selected} setSelected={setSelected} settings={settings} />
+            <ProposalTable list={manualProps} selected={selected} setSelected={setSelected} settings={settings} onOpen={(p) => setDraft({ g: p, mode: 'manual' })} />
             <ActionBar>
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
                 <input type="checkbox" checked={emailNow} onChange={(e) => setEmailNow(e.target.checked)} /> Email them to families
@@ -273,7 +329,7 @@ export default function BillingPage() {
           <>
             <InvoiceList list={reminders} onOpen={setPreviewId} />
             <ActionBar>
-              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>Re-sends the invoice with the reminder wording (Invoice Settings → Email templates).</span>
+              <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>Re-sends the invoice with the reminder wording (Invoice Settings → Email templates).</span>
               <button className="dp-btn dp-btn-primary" disabled={!!busy} onClick={sendReminders}><Mail size={14} /> {busy === 'remind' ? 'Sending…' : `Approve ${reminders.length} reminder${reminders.length === 1 ? '' : 's'}`}</button>
             </ActionBar>
           </>
@@ -286,12 +342,15 @@ export default function BillingPage() {
           <Empty>No card charges due today.</Empty>
         ) : (
           <>
-            <ProposalTable list={preauthProps} selected={selected} setSelected={setSelected} settings={settings} />
+            <ProposalTable list={preauthProps} selected={selected} setSelected={setSelected} settings={settings} onOpen={(p) => setDraft({ g: p, mode: 'preauth' })} />
             <ActionBar>
-              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>After charging the cards: creates each invoice and records it as paid. No invoice email is sent.</span>
+              <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{settings?.online_pay ? 'Families marked "saved card" are charged through TD right away (payment recorded, receipt emailed). For the others, charge their cards in TD first — this creates each invoice and records it as paid.' : 'After charging the cards: creates each invoice and records it as paid. No invoice email is sent.'}</span>
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
                 <input type="checkbox" checked={emailReceipts} onChange={(e) => setEmailReceipts(e.target.checked)} /> Email receipts
               </label>
+              <button className="dp-btn" disabled={!preauthSel.length || !!busy} onClick={() => setConfirm({ mode: 'failed', list: preauthSel })} title="The card charge was declined: create the invoice unpaid, then email the family from Unpaid">
+                Payment didn't go through
+              </button>
               <button className="dp-btn dp-btn-primary" disabled={!preauthSel.length || !!busy} onClick={() => setConfirm({ mode: 'preauth', list: preauthSel })}>
                 <Wallet size={14} /> {busy === 'create' ? 'Saving…' : `Record ${preauthSel.length} card payment${preauthSel.length === 1 ? '' : 's'}`}
               </button>
@@ -306,7 +365,7 @@ export default function BillingPage() {
           <Empty>No unpaid tuition invoices that are due.</Empty>
         ) : (
           <>
-            <InvoiceList list={dueUnpaid} onOpen={setPreviewId} sel={paySel} setSel={setPaySel} />
+            <InvoiceList list={dueUnpaid} onOpen={setPreviewId} sel={paySel} setSel={setPaySel} custById={custById} noticeAt={noticeAt} onNotice={setNotice} />
             <ActionBar>
               <select className="dp-select" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
                 {methods.map((m) => <option key={m}>{m}</option>)}
@@ -324,7 +383,7 @@ export default function BillingPage() {
 
       {/* Roster */}
       <div style={{ ...styles.filterBar, alignItems: 'center', marginTop: 8 }}>
-        <span style={{ fontSize: 13, color: '#5B5F56' }}>Sort by</span>
+        <span style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>Sort by</span>
         <select className="dp-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
           <option value="date">Billing date</option>
           <option value="family">Family</option>
@@ -348,8 +407,12 @@ export default function BillingPage() {
               const s = r.s;
               return (
                 <tr key={s.id} className="dp-row" style={{ opacity: s.billing_exempt ? 0.6 : 1 }}>
-                  <td style={{ fontWeight: 500 }}>{s.name}</td>
-                  <td style={{ fontSize: 12.5, color: '#5B5F56' }}>
+                  <td style={{ fontWeight: 500 }}>
+                    <button className="dp-link" style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 500, color: 'var(--dp-ink)', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => openStudent(r)}>
+                      {s.name}
+                    </button>
+                  </td>
+                  <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>
                     {r.family?.name || '—'}
                     {isManual(r.family) && tag('pays manually', BLUE)}
                     {r.family?.separate_invoices && tag('separate', GREY)}
@@ -359,7 +422,7 @@ export default function BillingPage() {
                       tag('Staff — no invoice', BLUE)
                     ) : (
                       <>
-                        {s.plan || '1 Month'} · {s.tuition ? money(s.tuition) : <span style={{ color: '#9A2B2B' }}>not set</span>}
+                        {s.plan || '1 Month'} · {s.tuition ? money(s.tuition) : <span style={{ color: 'var(--dp-danger)' }}>not set</span>}
                         {s.classes_per_week ? tag(`${s.classes_per_week}x/wk`, GREY) : null}
                         {s.family_discount && tag(`-${settings.family_discount_pct ?? 20}%`, PURPLE)}
                         {s.subsidy && tag('subsidy', GREEN)}
@@ -370,13 +433,13 @@ export default function BillingPage() {
                     {r.cycle && !s.billing_exempt ? (
                       r.cycleInv ? (
                         <button className="dp-btn" style={{ padding: '1px 6px', border: 'none', background: 'none' }} onClick={() => setPreviewId(r.cycleInv.id)}>
-                          <span style={{ fontSize: 12, color: '#5B5F56', marginRight: 6 }}>#{r.cycleInv.invoice_number}</span>
+                          <span style={{ fontSize: 12, color: 'var(--dp-ink-soft)', marginRight: 6 }}>#{r.cycleInv.invoice_number}</span>
                           <StatusPill status={r.cycleInv.status} />
                         </button>
                       ) : r.recent ? (
-                        <span style={{ fontSize: 12.5, color: '#9A2B2B' }}>Not invoiced ({formatDate(r.cycle)})</span>
+                        <span style={{ fontSize: 12.5, color: 'var(--dp-danger)' }}>Not invoiced ({formatDate(r.cycle)})</span>
                       ) : (
-                        <span style={{ fontSize: 12.5, color: '#8A8D84' }} title="Started before billing moved to the portal">Since {formatDate(r.cycle)}</span>
+                        <span style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }} title="Started before billing moved to the portal">Since {formatDate(r.cycle)}</span>
                       )
                     ) : (
                       '—'
@@ -384,14 +447,14 @@ export default function BillingPage() {
                   </td>
                   <td>
                     {s.billing_end_date && r.next > s.billing_end_date ? (
-                      <span style={{ fontSize: 12.5, color: '#9A2B2B' }} title="Membership cancelled — no more tuition">Ends {formatDate(s.billing_end_date)}</span>
+                      <span style={{ fontSize: 12.5, color: 'var(--dp-danger)' }} title="Membership cancelled — no more tuition">Ends {formatDate(s.billing_end_date)}</span>
                     ) : (
                       <>
                         {r.next && !s.billing_exempt ? formatDate(r.next) : '—'}
                         {r.nextInv && <span style={{ marginLeft: 6 }}><StatusPill status={r.nextInv.status} /></span>}
                       </>
                     )}
-                    {s.reregistration_fee_due && <div style={{ fontSize: 11.5, color: '#854F0B' }}>+ $20 re-registration fee</div>}
+                    {s.reregistration_fee_due && <div style={{ fontSize: 12.5, color: 'var(--dp-warning)' }}>+ $20 re-registration fee</div>}
                   </td>
                   <td>
                     {isBillable(s) && r.toInvoice && (
@@ -410,7 +473,9 @@ export default function BillingPage() {
       {confirm && (
         <ConfirmDialog
           message={
-            confirm.mode === 'preauth'
+            confirm.mode === 'failed'
+              ? `Payment didn't go through for ${confirm.list.map((p) => p.customer?.name || '').filter(Boolean).join(', ') || `${confirm.list.length} famil${confirm.list.length === 1 ? 'y' : 'ies'}`}? Creates ${confirm.list.length === 1 ? 'the invoice' : `${confirm.list.length} invoices`} unpaid (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))}) — nothing is charged or recorded. Then email the family with Notice under "Unpaid".`
+              : confirm.mode === 'preauth'
               ? `Record ${confirm.list.length} pre-authorized card payment${confirm.list.length === 1 ? '' : 's'} (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))})? Each gets a paid invoice.`
               : `Create ${confirm.list.length} invoice${confirm.list.length === 1 ? '' : 's'} (${money(confirm.list.reduce((n, p) => n + p.totals.total, 0))} total)${emailNow && confirm.list.some((p) => isManual(p.customer)) ? ' and email them' : ''}?`
           }
@@ -424,8 +489,46 @@ export default function BillingPage() {
         />
       )}
 
+      {draft && (() => {
+        const g = draft.g;
+        const h = invoiceHeader(g, settings, today);
+        const invoice = { ...h, invoice_number: 'DRAFT', subtotal: g.totals.subtotal, gst_amount: g.totals.gst, total: g.totals.total, amount_paid: 0 };
+        return (
+          <Modal
+            title={`Invoice preview — ${familyName(g)} · ${formatDate(g.due_date)}`}
+            maxWidth={860}
+            onClose={() => setDraft(null)}
+            footer={
+              <>
+                <span style={{ marginRight: 'auto', fontSize: 12.5, color: 'var(--dp-warning)' }}>Draft — not created yet{g.students.length > 1 ? ` · ${g.students.length} siblings on one invoice` : ''}</span>
+                <button className="dp-btn" onClick={() => setDraft(null)}>Close</button>
+                {draft.mode && (
+                  <button className="dp-btn dp-btn-primary" onClick={() => { setDraft(null); setConfirm({ mode: draft.mode, list: [g] }); }}>
+                    <FileText size={14} /> {draft.mode === 'preauth' ? 'Record this card payment' : 'Create this invoice'}
+                  </button>
+                )}
+              </>
+            }
+          >
+            <div style={{ border: '1px solid #E4E6DF', borderRadius: 8, overflow: 'hidden' }}>
+              <InvoiceDocument invoice={invoice} lines={g.lines} settings={settings} />
+            </div>
+          </Modal>
+        );
+      })()}
+
+      {notice && (
+        <PaymentNoticeModal
+          inv={notice}
+          cust={custById[notice.customer_id]}
+          sentAt={noticeAt[notice.id]}
+          today={today}
+          onClose={() => setNotice(null)}
+          onSent={(at) => { setNoticeAt((m) => ({ ...m, [notice.id]: at })); setNotice(null); setFlash(`Notice emailed to ${notice.customer_name}.`); }}
+        />
+      )}
       {previewId && (
-        <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onEdit={() => setFlash('To edit, open the invoice from the Invoices page.')} onPay={() => setFlash('Use "Mark paid" above, or Apply Payment on the Invoices page.')} onChanged={loadAll} />
+        <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onPay={() => setFlash('Use "Mark paid" above, or Apply Payment on the Invoices page.')} onChanged={loadAll} />
       )}
     </>
   );
@@ -452,14 +555,14 @@ function Panel({ icon, title, children }) {
 }
 
 function Empty({ children }) {
-  return <p style={{ padding: '12px 14px', color: '#8A8D84', fontSize: 13, margin: 0 }}>{children}</p>;
+  return <p style={{ padding: '12px 14px', color: 'var(--dp-ink-faint)', fontSize: 13, margin: 0 }}>{children}</p>;
 }
 
 function ActionBar({ children }) {
   return <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end', padding: '10px 14px', borderTop: '1px solid #EDEAE0', flexWrap: 'wrap' }}>{children}</div>;
 }
 
-function InvoiceList({ list, onOpen, sel, setSel }) {
+function InvoiceList({ list, onOpen, sel, setSel, custById, noticeAt, onNotice }) {
   return (
     <table className="dp-table">
       <thead>
@@ -470,6 +573,7 @@ function InvoiceList({ list, onOpen, sel, setSel }) {
           <th>Family</th>
           <th style={{ textAlign: 'right' }}>Balance</th>
           <th>Status</th>
+          {onNotice && <th></th>}
         </tr>
       </thead>
       <tbody>
@@ -478,9 +582,17 @@ function InvoiceList({ list, onOpen, sel, setSel }) {
             {sel && <td><input type="checkbox" checked={!!sel[i.id]} onChange={(e) => setSel({ ...sel, [i.id]: e.target.checked })} /></td>}
             <td>{formatDate(i.due_date || i.invoice_date)}</td>
             <td><button className="dp-btn" style={{ padding: '1px 6px', fontSize: 12.5 }} onClick={() => onOpen(i.id)}>#{i.invoice_number}</button></td>
-            <td>{i.customer_name}{!i.customer_email && tag('no email', GREY)}</td>
+            <td>{i.customer_name}{custById && custById[i.customer_id] && !isManual(custById[i.customer_id]) && tag('card', BLUE)}{!i.customer_email && tag('no email', GREY)}</td>
             <td style={{ textAlign: 'right' }}>{money(i.balance)}</td>
             <td><StatusPill status={i.status} /></td>
+            {onNotice && (
+              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12.5 }} title="Email the family: payment not received / didn't go through (agreement 7.3)" onClick={() => onNotice(i)}>
+                  <Mail size={12} /> {noticeAt?.[i.id] ? 'Again' : 'Notice'}
+                </button>
+                {noticeAt?.[i.id] && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -488,7 +600,7 @@ function InvoiceList({ list, onOpen, sel, setSel }) {
   );
 }
 
-function ProposalTable({ list, selected, setSelected, settings }) {
+function ProposalTable({ list, selected, setSelected, settings, onOpen }) {
   return (
     <table className="dp-table">
       <thead>
@@ -508,8 +620,13 @@ function ProposalTable({ list, selected, setSelected, settings }) {
               {formatDate(p.due_date)}
               {p.past && tag('already passed', GREY)}
             </td>
-            <td>{familyName(p)}{p.manual && !p.customer?.email && tag('no email', GREY)}</td>
-            <td style={{ fontSize: 12.5, color: '#5B5F56' }}>
+            <td>
+              <button style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'var(--dp-ink)', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }} title="Preview invoice" onClick={() => onOpen(p)}>{familyName(p)}</button>
+              {p.manual && !p.customer?.email && tag('no email', GREY)}
+              {p.customer?.card_profile_code && settings.online_pay && p.customer.card_profile_mode === (settings.online_pay_mode || 'test') && (p.customer.card_legacy_rb_pending ? tag('card saved — close old TD Recurring Billing first', GREY) : tag(`saved card ···${p.customer.card_last4 || ''}`, GREEN))}
+              {!p.manual && p.customer && !p.customer.card_profile_code && settings.online_pay && settings.online_pay_mode === 'live' && <CardLinkButton customer={p.customer} style={{ marginLeft: 6 }} onSent={(at) => { p.customer.card_link_sent_at = at; }} />}
+            </td>
+            <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', cursor: 'pointer' }} title="Preview invoice" onClick={() => onOpen(p)}>
               {p.lines.map((l) => (l.line_kind === 'tuition' ? l.description.split(' — ')[0] : null)).filter(Boolean).join(', ')}
               {p.lines.some((l) => l.line_kind === 'discount') && tag(`-${settings.family_discount_pct ?? 20}%`, PURPLE)}
               {p.lines.some((l) => l.line_kind === 'subsidy') && tag('subsidy', GREEN)}

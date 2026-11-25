@@ -1,4 +1,4 @@
--- HP competition records. Admin (coach) only. Safe to run more than once. Run after 044_ytp.sql.
+-- HP competition records. Admin (coach) only. Safe to run more than once. Run after 077_ytp.sql.
 --
 --   hp_competitions  one row per athlete per competition (placement, notes)
 --   hp_matches       the matches at that competition

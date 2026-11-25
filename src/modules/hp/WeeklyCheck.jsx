@@ -13,14 +13,14 @@ import { CODE_STYLE, HP_ORANGE, PHASE_STYLE } from './ytpTheme';
 
 const PHYSICAL = Object.keys(DOC_MIN);
 const CHECKS = [
-  ['ready', 'Ready', '#2A5A30', '#E8F1E9'],
-  ['on_track', 'On track', '#45483F', '#EFEDE6'],
-  ['needs_time', 'Needs more time', '#9A2B2B', '#FBEAEA'],
+  ['ready', 'Ready', 'var(--dp-success)', 'var(--dp-success-tint)'],
+  ['on_track', 'On track', 'var(--dp-ink-soft)', 'var(--dp-canvas)'],
+  ['needs_time', 'Needs more time', 'var(--dp-danger)', 'var(--dp-danger-tint)'],
 ];
 const STATUS_STYLE = {
-  ok: { color: '#2A5A30', bg: '#E8F1E9', text: 'Met' },
-  low: { color: '#7A5A00', bg: '#FFF1C9', text: 'Below minimum' },
-  none: { color: '#9A2B2B', bg: '#FBEAEA', text: 'Not trained' },
+  ok: { color: 'var(--dp-success)', bg: 'var(--dp-success-tint)', text: 'Met' },
+  low: { color: 'var(--dp-warning)', bg: 'var(--dp-warning-tint)', text: 'Below minimum' },
+  none: { color: 'var(--dp-danger)', bg: 'var(--dp-danger-tint)', text: 'Not trained' },
 };
 // Borg 6–20 scale (NCCP DAA section 4.7)
 const BORG = [
@@ -28,15 +28,15 @@ const BORG = [
   [13, 'Somewhat hard'], [14, ''], [15, 'Hard'], [16, ''], [17, 'Very hard'], [18, ''], [19, 'Extremely hard'],
   [20, 'Maximal exertion'],
 ];
-const small = { fontSize: 12, color: '#8A8D84' };
-const label = { display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 };
+const small = { fontSize: 12, color: 'var(--dp-ink-faint)' };
+const label = { display: 'block', fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 4 };
 
 function Code({ code }) {
   if (!code) return <span style={{ display: 'inline-block', width: 26 }} />;
   const s = CODE_STYLE[code];
   return (
     <span style={{ display: 'inline-flex', justifyContent: 'center', width: 26, height: 20, alignItems: 'center',
-      borderRadius: 4, background: s.bg, color: s.fg, fontWeight: 700, fontSize: 11 }}>
+      borderRadius: 4, background: s.bg, color: s.fg, fontWeight: 700, fontSize: 12 }}>
       {code === 'X' ? '●' : code}
     </span>
   );
@@ -71,8 +71,8 @@ export default function WeeklyCheck({ overview, nowWeek }) {
 
   const classMap = useMemo(() => Object.fromEntries((base?.classMap || []).map((c) => [c.class_name, c.abilities])), [base]);
 
-  if (error) return <div style={{ ...styles.card, padding: 16, color: '#9A2B2B' }}>Couldn't load: {error}</div>;
-  if (!plans || !base) return <div style={{ color: '#5B5F56' }}>Loading...</div>;
+  if (error) return <div style={{ ...styles.card, padding: 16, color: 'var(--dp-danger)' }}>Couldn't load: {error}</div>;
+  if (!plans || !base) return <div style={{ color: 'var(--dp-ink-soft)' }}>Loading...</div>;
 
   return (
     <>
@@ -83,14 +83,14 @@ export default function WeeklyCheck({ overview, nowWeek }) {
         </div>
         <button className="dp-btn" aria-label="Next week" disabled={weekNo >= season.weeks} onClick={() => setWeekNo(weekNo + 1)}><ChevronRight size={16} /></button>
         {nowWeek && weekNo !== nowWeek && <button className="dp-btn" onClick={() => setWeekNo(nowWeek)}>This week</button>}
-        {weekNo === nowWeek && <span style={{ fontSize: 12.5, fontWeight: 600, color: HP_ORANGE }}>This week</span>}
+        {weekNo === nowWeek && <span style={{ fontSize: 13, fontWeight: 600, color: HP_ORANGE }}>This week</span>}
         {nowWeek && weekNo > nowWeek && <span style={small}>Upcoming week — nothing to count yet</span>}
         <button className="dp-btn" style={{ marginLeft: 'auto' }} onClick={() => setModal({ type: 'classes' })}>
           <Settings size={15} /> Class settings
         </button>
       </div>
 
-      {!tracking && <div style={{ color: '#5B5F56' }}>Loading week...</div>}
+      {!tracking && <div style={{ color: 'var(--dp-ink-soft)' }}>Loading week...</div>}
       {tracking && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {athletes.map((a) => (
@@ -145,21 +145,21 @@ function AthleteWeek({ athlete, plan, weekNo, weekStart, tracking, schedule, cla
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 16, fontWeight: 600 }}>{athlete.display_name}</span>
         {phase && <span style={{ background: phase.bg, color: phase.fg, borderRadius: 999, padding: '2px 9px', fontSize: 12, fontWeight: 600 }}>{week.phase}</span>}
-        <span style={{ marginLeft: 'auto', fontSize: 13.5 }}>
-          Hours <b>{actual.hours}</b>{planned != null && <span style={{ color: '#8A8D84' }}> / {planned} planned</span>}
+        <span style={{ marginLeft: 'auto', fontSize: 14 }}>
+          Hours <b>{actual.hours}</b>{planned != null && <span style={{ color: 'var(--dp-ink-faint)' }}> / {planned} planned</span>}
         </span>
       </div>
       {planned != null && planned > 0 && (
-        <div style={{ height: 6, background: '#EFEDE6', borderRadius: 3, overflow: 'hidden', marginTop: -6 }}>
+        <div style={{ height: 6, background: 'var(--dp-canvas)', borderRadius: 3, overflow: 'hidden', marginTop: -6 }}>
           <div style={{ width: `${Math.min(100, (actual.hours / planned) * 100)}%`, height: '100%', background: HP_ORANGE }} />
         </div>
       )}
-      <div style={{ fontSize: 13, color: '#45483F' }}>
+      <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>
         {!athlete.student_id
-          ? <span style={{ color: '#9A2B2B' }}>Not linked to a student record — attendance isn't counted.</span>
+          ? <span style={{ color: 'var(--dp-danger)' }}>Not linked to a student record — attendance isn't counted.</span>
           : Object.keys(actual.byClass).length
             ? Object.entries(actual.byClass).map(([c, n]) => `${c} ×${n}`).join(' · ')
-            : <span style={{ color: '#8A8D84' }}>No attendance recorded this week.</span>}
+            : <span style={{ color: 'var(--dp-ink-faint)' }}>No attendance recorded this week.</span>}
       </div>
 
       {/* Physical */}
@@ -228,13 +228,13 @@ function AthleteWeek({ athlete, plan, weekNo, weekStart, tracking, schedule, cla
   );
 }
 
-const rowStyle = { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 14, padding: '5px 0', borderBottom: '1px solid #F1EEE6' };
-const actionBtn = { padding: '4px 10px', fontSize: 12.5, borderColor: HP_ORANGE, color: '#8A3A0E' };
+const rowStyle = { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 14, padding: '5px 0', borderBottom: '1px solid var(--dp-line)' };
+const actionBtn = { padding: '4px 10px', fontSize: 13, borderColor: HP_ORANGE, color: 'var(--hp-orange-deep)' };
 
 function Section({ title, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#8A8D84', marginBottom: 2 }}>{title}</div>
+      <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--dp-ink-faint)', marginBottom: 2 }}>{title}</div>
       {children}
     </div>
   );
@@ -260,7 +260,7 @@ function SkillCheck({ row, weekNo, check, onChanged, onExtend, onAdvance }) {
           {CHECKS.map(([v, l, fg, bg]) => (
             <button key={v} type="button" className="dp-btn" disabled={busy}
               onClick={() => save(status === v ? null : v)}
-              style={{ padding: '5px 10px', fontSize: 12.5, ...(status === v ? { background: bg, color: fg, borderColor: fg, fontWeight: 600 } : {}) }}>
+              style={{ padding: '5px 10px', fontSize: 13, ...(status === v ? { background: bg, color: fg, borderColor: fg, fontWeight: 600 } : {}) }}>
               {l}
             </button>
           ))}
@@ -329,12 +329,12 @@ function ChangePreview({ athlete, plan, row, weekNo, kind, result, onClose, onSa
           : 'The rest of this block moves earlier; the freed weeks at the end keep the last stage.'}
       </p>
       {(result.overflow || risky.length > 0) && (
-        <div style={{ background: '#FFF6DB', color: '#7A5A00', fontSize: 13, borderRadius: 6, padding: '8px 10px', marginTop: 8 }}>
+        <div style={{ background: 'var(--dp-warning-tint)', color: 'var(--dp-warning)', fontSize: 13, borderRadius: 6, padding: '8px 10px', marginTop: 8 }}>
           {result.overflow && <div>The block now runs into the next planned weeks (or past the season end) — check the row after applying.</div>}
           {risky.length > 0 && <div>Changed weeks fall in {risky.join(', ')}.</div>}
         </div>
       )}
-      {error && <div style={{ color: '#9A2B2B', fontSize: 13, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 8 }}>{error}</div>}
     </Modal>
   );
 }
@@ -398,8 +398,8 @@ function SessionForm({ athlete, weekStart, abilities, onClose, onSaved }) {
         <span style={label}>Notes</span>
         <input className="dp-input" style={{ width: '100%' }} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
       </label>
-      {badMinutes && <div style={{ color: '#9A2B2B', fontSize: 13, marginTop: 8 }}>Minutes must be a number.</div>}
-      {error && <div style={{ color: '#9A2B2B', fontSize: 13, marginTop: 8 }}>{error}</div>}
+      {badMinutes && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 8 }}>Minutes must be a number.</div>}
+      {error && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 8 }}>{error}</div>}
     </Modal>
   );
 }
@@ -453,7 +453,7 @@ function ClassSettings({ schedule, classMap, onClose, onSaved }) {
           </div>
         </div>
       ))}
-      {error && <div style={{ color: '#9A2B2B', fontSize: 13, marginTop: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 8 }}>{error}</div>}
     </Modal>
   );
 }

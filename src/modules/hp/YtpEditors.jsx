@@ -19,8 +19,8 @@ const NUMBER_FIELDS = [
   ['hours_planned', 'Planned hours'],
 ];
 
-const label = { display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 };
-const errBox = { color: '#9A2B2B', fontSize: 13, marginTop: 10 };
+const label = { display: 'block', fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 4 };
+const errBox = { color: 'var(--dp-danger)', fontSize: 13, marginTop: 10 };
 
 function useSaver(onSaved) {
   const [busy, setBusy] = useState(false);
@@ -57,7 +57,7 @@ function RangePicker({ weeks, from, to, setFrom, setTo }) {
         <div style={{ flex: 1 }}><span style={label}>From</span><WeekSelect weeks={weeks} value={from} onChange={setFrom} /></div>
         <div style={{ flex: 1 }}><span style={label}>To</span><WeekSelect weeks={weeks} value={to} onChange={setTo} /></div>
       </div>
-      <div style={{ fontSize: 12, color: '#8A8D84', marginTop: 4 }}>{n} week{n > 1 ? 's' : ''}</div>
+      <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginTop: 4 }}>{n} week{n > 1 ? 's' : ''}</div>
     </div>
   );
 }
@@ -72,7 +72,7 @@ function CodeButton({ code, onClick, disabled }) {
       <span style={{ background: s.bg, color: s.fg, borderRadius: 4, padding: '1px 8px', fontWeight: 700 }}>
         {code === 'X' ? '●' : code}
       </span>
-      <span style={{ fontSize: 12.5 }}>{CODE_LABELS[code]}</span>
+      <span style={{ fontSize: 13 }}>{CODE_LABELS[code]}</span>
     </button>
   );
 }
@@ -159,7 +159,7 @@ export function NumbersEditor({ planId, week, weeks, onClose, onSaved }) {
         ))}
       </div>
       {anyFactor && factorSum !== 100 && (
-        <div style={{ background: '#FFF6DB', color: '#7A5A00', fontSize: 13, borderRadius: 6, padding: '8px 10px', marginTop: 12 }}>
+        <div style={{ background: 'var(--dp-warning-tint)', color: 'var(--dp-warning)', fontSize: 13, borderRadius: 6, padding: '8px 10px', marginTop: 12 }}>
           Physical + Technique + Tactical + Mental add up to {factorSum}%, not 100%.
         </div>
       )}
@@ -185,7 +185,7 @@ function EventForm({ planId, weeks, event, defaultWeek, onDone, onCancel }) {
   const save = () => run(() => (event ? updateEvent(event, fields, applyAll) : addEvent(planId, fields, applyAll)));
 
   return (
-    <div style={{ border: '1px solid #DEDACC', borderRadius: 8, padding: 14 }}>
+    <div style={{ border: '1px solid var(--dp-line)', borderRadius: 8, padding: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <label style={{ gridColumn: '1 / -1' }}>
           <span style={label}>Name</span>
@@ -220,7 +220,7 @@ function EventForm({ planId, weeks, event, defaultWeek, onDone, onCancel }) {
         Apply to all HP athletes
       </label>
       {applyAll && event && (
-        <div style={{ fontSize: 12, color: '#8A8D84', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginTop: 4 }}>
           Changes every athlete's "{event.name}" in week {event.week_no}.
         </div>
       )}
@@ -269,7 +269,7 @@ export function EventsEditor({ planId, weekNo, weeks, events, onClose, onSaved }
           >
             <span>
               <b style={{ fontWeight: 600 }}>{e.name}</b>
-              <span style={{ color: '#8A8D84' }}>
+              <span style={{ color: 'var(--dp-ink-faint)' }}>
                 {' '}· {e.kind}{e.priority ? ` · ${e.priority}` : ''}{e.tentative ? ' · tentative' : ''}
               </span>
             </span>

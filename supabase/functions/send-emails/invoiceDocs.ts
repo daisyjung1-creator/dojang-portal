@@ -15,6 +15,12 @@ const pdfSafe = (s: any) =>
   String(s ?? '').replace(/\u2013/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u2026/g, '...').replace(/[^\x20-\x7E\u00A0-\u00FF\u2014]/g, '');
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
+// Public portal address, for the invoice "Pay now" link (/pay/<pay_token>).
+const PORTAL_URL = 'https://dojang-portal.netlify.app';
+
+// Shown first under "How to pay" for families on pre-authorized card payments.
+export const PREAUTH_PAY_LINE = 'Pre-authorized card on file: reply to the invoice email to approve this charge, or pay online.';
+
 export function fillTemplate(tpl: string, inv: Invoice, s: Settings, balance: number) {
   return (tpl || '')
     .replaceAll('{customer}', inv.customer_name || '')
@@ -167,13 +173,16 @@ export async function buildInvoicePdf(inv: Invoice, lines: Line[], payments: Pay
   y = boxTop - boxH - 34;
 
   // ── Payment, notes ─────────────────────────────────────────────────
-  const blocks: [string, string][] = [];
-  if (s.payment_instructions) blocks.push(['How to pay', s.payment_instructions]);
+  // [label, text, bold first part]
+  const blocks: [string, string, string?][] = [];
+  const preauth = (inv as any).customers?.payment_type === 'preauth' && balance > 0.004 && !(inv as any).voided;
+  if (s.payment_instructions || preauth) blocks.push(['How to pay', s.payment_instructions || '', preauth ? PREAUTH_PAY_LINE : '']);
   if (inv.notes) blocks.push(['Notes', inv.notes]);
   if (s.invoice_footer) blocks.push(['', s.invoice_footer]);
-  for (const [k, v] of blocks) {
+  for (const [k, v, first] of blocks) {
     if (k) { label(k, M, y); y -= 13; }
-    for (const l of wrap(v, 330, 9)) { text(l, M, y, { size: 9, color: k ? ink : mute }); y -= 12; }
+    if (first) { for (const l of wrap(first, 330, 9, bold)) { text(l, M, y, { size: 9, f: bold }); y -= 12; } y -= 3; }
+    for (const l of wrap(v, 330, 9)) { if (!l && !v) continue; text(l, M, y, { size: 9, color: k ? ink : mute }); y -= 12; }
     y -= 10;
   }
 
@@ -337,70 +346,175 @@ export async function buildReceiptPdf(p: Payment, inv: Invoice | null, lines: Li
   return await pdf.save();
 }
 
-export function invoiceEmailHtml(inv: Invoice, lines: Line[], s: Settings, message: string, balance: number) {
-  const rows = lines
-    .map((l) => `<tr><td style="padding:6px 4px;border-bottom:1px solid #eee">${l.item_name ? '<b>' + esc(l.item_name) + '</b> ' : ''}${esc(l.description)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${Number(l.quantity)}</td><td style="padding:6px 4px;border-bottom:1px solid #eee;text-align:right">${money(l.amount)}</td></tr>`)
-    .join('');
-  return `<div style="font-family:Helvetica,Arial,sans-serif;color:#20241F;max-width:560px">
-  <p style="white-space:pre-line">${esc(message)}</p>
-  <div style="border:1px solid #e5e2d8;border-radius:8px;padding:16px;margin-top:16px">
-    <div style="font-weight:bold;font-size:15px">${esc(s.business_name)} — Invoice #${inv.invoice_number}</div>
-    <div style="color:#5B5F56;font-size:13px;margin:4px 0 12px">${fdate(inv.invoice_date)}</div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">${rows}</table>
-    <table style="width:100%;font-size:13px;margin-top:8px">
-      <tr><td style="color:#5B5F56">Subtotal</td><td style="text-align:right">${money(inv.subtotal)}</td></tr>
-      <tr><td style="color:#5B5F56">GST (${Number(inv.gst_rate)}%)</td><td style="text-align:right">${money(inv.gst_amount)}</td></tr>
-      <tr><td><b>Total</b></td><td style="text-align:right"><b>${money(inv.total)}</b></td></tr>
-      <tr><td style="color:#9A2B2B"><b>Balance due</b></td><td style="text-align:right;color:#9A2B2B"><b>${money(balance)}</b></td></tr>
-    </table>
-    ${s.payment_instructions ? `<p style="font-size:13px;white-space:pre-line;margin-top:12px"><b>How to pay:</b> ${esc(s.payment_instructions)}</p>` : ''}
-  </div>
-  <p style="font-size:12px;color:#8A8D84;margin-top:16px">${esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
+// "Item — description" without repeating words the item name already has.
+function lineLabel(l: Line) {
+  const item = String(l.item_name || '').trim();
+  const desc = String(l.description || '').trim();
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!item) return esc(desc);
+  if (!desc || norm(item).includes(norm(desc)) || norm(desc) === norm(item)) return '<b>' + esc(item) + '</b>';
+  return '<b>' + esc(item) + '</b> ' + esc(desc);
+}
+
+// Splits a closing like "Kind regards,\nMaster Daisy" off the end of the message.
+function splitSignoff(message: string) {
+  const parts = message.trim().split(/\n\s*\n/);
+  const last = parts[parts.length - 1] || '';
+  if (parts.length > 1 && last.length < 120 && /regards|thank|sincerely|master|best/i.test(last)) return { body: parts.slice(0, -1).join('\n\n'), signoff: last };
+  return { body: message, signoff: '' };
+}
+
+// ── Shared email design: a white card on a soft background, small red accent,
+// the business name, roomy paragraphs and centred buttons. ──────────────────
+const FONT = 'font-family:Helvetica,Arial,sans-serif';
+const P = `margin:0 0 20px;${FONT};font-size:16px;line-height:1.6;color:#20241F`;
+const SMALL = `margin:0 0 22px;${FONT};font-size:13px;line-height:1.5;color:#8A8D84`;
+
+export function button(href: string, label: string) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:6px auto 18px"><tr><td style="background:#1b1b1b;border-radius:8px"><a href="${esc(href)}" style="display:inline-block;padding:13px 28px;${FONT};font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px">${esc(label)}</a></td></tr></table>`;
+}
+
+// Soft inset box for figures (invoice lines, receipt details).
+function inset(html: string) {
+  return `<div style="background:#f7f6f2;border:1px solid #ebe8df;border-radius:10px;padding:16px 18px;margin:4px 0 24px">${html}</div>`;
+}
+
+// key/value rows inside an inset box
+function rows(pairs: [string, string, boolean?][]) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="${FONT};font-size:14px;color:#20241F">${pairs
+    .map(([k, v, b]) => `<tr><td style="padding:4px 0;color:#6B6F66">${k}</td><td style="padding:4px 0;text-align:right">${b ? `<b>${v}</b>` : v}</td></tr>`)
+    .join('')}</table>`;
+}
+
+export function emailShell(inner: string, name: string, footerBits: (string | undefined)[]) {
+  const footer = esc(footerBits.filter(Boolean).join(' · '));
+  return `<div style="background:#f3f2ee;padding:28px 12px;${FONT}">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:14px;border:1px solid #e6e3da">
+    <tr><td style="padding:30px 30px 10px">
+      <div style="width:28px;height:3px;background:#BE1C21;margin:0 0 12px"></div>
+      <div style="${FONT};font-size:13px;font-weight:bold;letter-spacing:0.04em;color:#20241F;text-transform:uppercase;margin:0 0 24px">${esc(name || '')}</div>
+      ${inner}
+    </td></tr>
+  </table>
+  <p style="max-width:580px;margin:14px auto 0;text-align:center;${FONT};font-size:12px;color:#8A8D84">${footer}</p>
 </div>`;
+}
+const shell = (inner: string, s: Settings) => emailShell(inner, s.business_name, [s.business_name, s.phone, s.email]);
+
+// A link on a line of its own becomes a button with a friendly label.
+const LINK_BUTTONS: [RegExp, string][] = [
+  [/\/trial(\b|$)/, 'Book a trial class'],
+  [/\/join(\b|$)/, 'Register online'],
+  [/\/card\//, 'Save your card'],
+  [/\/pay\//, 'Pay now'],
+  [/kidsport/i, 'Create a KidSport account'],
+];
+function linkButton(url: string) {
+  const label = LINK_BUTTONS.find(([re]) => re.test(url))?.[1];
+  return label ? button(url, label).replace('margin:6px auto 18px', 'margin:6px auto 26px') : '';
+}
+const linkify = (t: string) => esc(t).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#1b1b1b;text-decoration:underline">$1</a>');
+
+// Plain text → paragraphs (blank line = new paragraph), links on their own line → buttons.
+export function textBlocks(message: string) {
+  return String(message || '')
+    .replace(/\r/g, '')
+    .trim()
+    .split(/\n\s*\n/)
+    .map((block) => {
+      const out: string[] = [];
+      let text: string[] = [];
+      for (const line of block.split('\n')) {
+        const m = line.trim().match(/^(https?:\/\/\S+)$/);
+        const btn = m ? linkButton(m[1]) : '';
+        if (btn) {
+          if (text.length) out.push(`<p style="${P.replace('0 0 20px', '0 0 14px')}">${text.map(linkify).join('<br>')}</p>`);
+          text = [];
+          out.push(btn);
+        } else text.push(line);
+      }
+      if (text.length) out.push(`<p style="${P}">${text.map(linkify).join('<br>')}</p>`);
+      return out.join('');
+    })
+    .join('');
+}
+
+// Plain-text message (as typed in the portal) → the card-style email.
+export function plainTextEmailHtml(message: string, s: Settings) {
+  return shell(textBlocks(message), s);
+}
+
+// kind: 'new' (first invoice, no card saved yet), 'preauth' (card on file) or 'manual'.
+export function invoiceEmailHtml(inv: Invoice, lines: Line[], s: Settings, message: string, balance: number, kind = 'manual') {
+  const lineRows = lines
+    .map((l) => `<tr><td style="padding:7px 0;border-bottom:1px solid #e6e3da">${lineLabel(l)}</td><td style="padding:7px 0 7px 10px;border-bottom:1px solid #e6e3da;text-align:right;color:#6B6F66;white-space:nowrap">${Number(l.quantity) !== 1 ? '×' + Number(l.quantity) : ''}</td><td style="padding:7px 0 7px 10px;border-bottom:1px solid #e6e3da;text-align:right;white-space:nowrap">${money(l.amount)}</td></tr>`)
+    .join('');
+  const live = s.online_pay && s.online_pay_mode === 'live' && balance > 0.004 && inv.pay_token && !inv.voided;
+  const box = inset(`
+    <div style="${FONT};font-size:15px;font-weight:bold;color:#20241F">Invoice #${inv.invoice_number}</div>
+    <div style="${FONT};font-size:13px;color:#6B6F66;margin:2px 0 10px">${fdate(inv.invoice_date)}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="${FONT};font-size:14px;color:#20241F">${lineRows}</table>
+    <div style="height:8px"></div>
+    ${rows([
+      ['Subtotal', money(inv.subtotal)],
+      [`GST (${Number(inv.gst_rate)}%)`, money(inv.gst_amount)],
+      ['Total', money(inv.total), true],
+      ['<span style="color:#9A2B2B"><b>Balance due</b></span>', `<span style="color:#9A2B2B"><b>${money(balance)}</b></span>`],
+    ])}
+    ${!live && (inv as any).customers?.payment_type === 'preauth' && balance > 0.004 ? `<p style="${FONT};font-size:13px;margin:12px 0 0"><b>${esc(PREAUTH_PAY_LINE)}</b></p>` : ''}
+    ${!live && s.payment_instructions ? `<p style="${FONT};font-size:13px;margin:10px 0 0;white-space:pre-line"><b>How to pay:</b> ${esc(s.payment_instructions)}</p>` : ''}`);
+  const { body, signoff } = splitSignoff(message);
+  let inner = textBlocks(body);
+  if (live) {
+    // One clear action; other ways to pay in a single quiet line.
+    const other =
+      kind === 'new'
+        ? 'Secure credit card payment through TD Online Mart. At checkout you can save your card for automatic tuition payments.'
+        : kind === 'preauth'
+        ? `Secure payment through TD Online Mart. Prefer to use your card on file? Just reply to this email${s.email ? ` — or pay by e-Transfer to ${s.email}` : ''}.`
+        : `Secure payment through TD Online Mart. You can also pay by e-Transfer${s.email ? ` to ${s.email}` : ''} or at the front desk.`;
+    inner += button(`${PORTAL_URL}/pay/${inv.pay_token}`, `Pay ${money(balance)} now`) + `<p style="${SMALL};text-align:center">${esc(other)}</p>`;
+  }
+  inner += box + (signoff ? textBlocks(signoff) : '');
+  return shell(inner, s);
 }
 
 export function receiptEmail(p: Payment, inv: Invoice | null, customerName: string, s: Settings) {
-  return {
-    subject: `Payment receipt #${p.receipt_number} — ${s.business_name}`,
-    html: `<div style="font-family:Helvetica,Arial,sans-serif;color:#20241F;max-width:520px">
-  <p>Hi ${esc(customerName)},</p>
-  <p>Thank you — we've received your payment. Your receipt is attached as a PDF.</p>
-  <table style="font-size:14px;border-collapse:collapse;margin:12px 0">
-    <tr><td style="color:#5B5F56;padding:3px 16px 3px 0">Receipt #</td><td><b>${p.receipt_number}</b></td></tr>
-    <tr><td style="color:#5B5F56;padding:3px 16px 3px 0">Date</td><td>${fdate(p.payment_date)}</td></tr>
-    <tr><td style="color:#5B5F56;padding:3px 16px 3px 0">Amount</td><td><b>${money(p.amount)}</b></td></tr>
-    <tr><td style="color:#5B5F56;padding:3px 16px 3px 0">Method</td><td>${esc(p.method)}</td></tr>
-    ${inv ? `<tr><td style="color:#5B5F56;padding:3px 16px 3px 0">For invoice</td><td>#${inv.invoice_number}</td></tr>` : ''}
-  </table>
-  <p style="font-size:12px;color:#8A8D84">${esc([s.business_name, s.gst_number ? 'GST No. ' + s.gst_number : '', s.phone, s.email].filter(Boolean).join(' · '))}</p>
-</div>`,
-  };
+  const inner =
+    textBlocks(`Hi ${customerName},\n\nThank you — we've received your payment. Your receipt is attached as a PDF.`) +
+    inset(
+      rows([
+        ['Receipt #', String(p.receipt_number ?? ''), true],
+        ['Date', fdate(p.payment_date)],
+        ['Amount', money(p.amount), true],
+        ['Method', esc(p.method)],
+        ...(inv ? ([['For invoice', `#${inv.invoice_number}`]] as [string, string][]) : []),
+      ])
+    ) +
+    textBlocks('Kind regards,\nMaster Daisy') +
+    (s.gst_number ? `<p style="${SMALL}">GST No. ${esc(s.gst_number)}</p>` : '');
+  return { subject: `Payment receipt #${p.receipt_number} — ${s.business_name}`, html: shell(inner, s) };
 }
 
 export function refundEmail(r: Payment, inv: Invoice | null, customerName: string, s: Settings) {
-  return {
-    subject: `Refund #${r.refund_number} — ${s.business_name}`,
-    html: `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:520px">
-  <p>Hi ${esc(customerName)},</p>
-  <p>This confirms we've sent you a refund.</p>
-  <table style="font-size:14px;border-collapse:collapse;margin:12px 0">
-    <tr><td style="color:#737373;padding:3px 16px 3px 0">Refund #</td><td><b>${r.refund_number}</b></td></tr>
-    <tr><td style="color:#737373;padding:3px 16px 3px 0">Date</td><td>${fdate(r.refund_date)}</td></tr>
-    <tr><td style="color:#737373;padding:3px 16px 3px 0">Amount</td><td><b>${money(r.amount)}</b>${Number(r.gst_amount) ? ` <span style="color:#737373">(incl. GST ${money(r.gst_amount)})</span>` : ''}</td></tr>
-    <tr><td style="color:#737373;padding:3px 16px 3px 0">Refunded by</td><td>${esc(r.method)}</td></tr>
-    ${inv ? `<tr><td style="color:#737373;padding:3px 16px 3px 0">For invoice</td><td>#${inv.invoice_number}</td></tr>` : ''}
-    ${r.reason ? `<tr><td style="color:#737373;padding:3px 16px 3px 0">Reason</td><td>${esc(r.reason)}</td></tr>` : ''}
-  </table>
-  <p style="font-size:12px;color:#999">${esc([s.business_name, s.gst_number ? 'GST No. ' + s.gst_number : '', s.phone, s.email].filter(Boolean).join(' · '))}</p>
-</div>`,
-  };
+  const inner =
+    textBlocks(`Hi ${customerName},\n\nThis confirms we've sent you a refund.`) +
+    inset(
+      rows([
+        ['Refund #', String(r.refund_number ?? ''), true],
+        ['Date', fdate(r.refund_date)],
+        ['Amount', `${money(r.amount)}${Number(r.gst_amount) ? ` <span style="color:#6B6F66">(incl. GST ${money(r.gst_amount)})</span>` : ''}`, true],
+        ['Refunded by', esc(r.method)],
+        ...(inv ? ([['For invoice', `#${inv.invoice_number}`]] as [string, string][]) : []),
+        ...(r.reason ? ([['Reason', esc(r.reason)]] as [string, string][]) : []),
+      ])
+    ) +
+    textBlocks('Kind regards,\nMaster Daisy') +
+    (s.gst_number ? `<p style="${SMALL}">GST No. ${esc(s.gst_number)}</p>` : '');
+  return { subject: `Refund #${r.refund_number} — ${s.business_name}`, html: shell(inner, s) };
 }
 
-// Plain-text message (as typed in the portal) → simple HTML email, with links clickable.
-export function plainTextEmailHtml(message: string, s: Settings) {
-  const body = esc(message).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#111">$1</a>');
-  return `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:560px;font-size:14px;line-height:1.55">
-  <div style="white-space:pre-line">${body}</div>
-  <p style="font-size:12px;color:#999;margin-top:24px">${esc([s.business_name, s.phone, s.email].filter(Boolean).join(' · '))}</p>
-</div>`;
+// Payslip email body in the same design (company settings come from payroll).
+export function payslipEmailHtml(intro: string, pairs: [string, string, boolean?][], note: string, company: string, footerBits: (string | undefined)[]) {
+  return emailShell(textBlocks(intro) + inset(rows(pairs)) + (note ? textBlocks(note) : ''), company, footerBits);
 }

@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Check } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import logoImg from '../../assets/logo.png';
 import markImg from '../../assets/logo-mark.png';
+import RegCardStep, { cardConsentNote } from './RegCardStep';
+import CardForm from './CardForm';
+import { SAVE_CONSENT, call } from './PayPage';
 import {
   AGREEMENT_VERSION, SCHOOL, HEARD_FROM, FREQUENCIES, PLAN_CHOICES, EMERGENCY_AUTH, TERMS,
   PHOTO_NOTE, PHOTO_YES, PHOTO_NO, ACKNOWLEDGMENTS, INTRO, boldParts, TUITION,
@@ -45,8 +49,9 @@ const fitsAge = (c, age) => age == null || ((c.min == null || age >= c.min) && (
 const t12short = (t) => t12(t).replace(/ (am|pm)$/, '');
 const slotKey = (c) => `${c.weekday}:${c.class_name}`;
 
+// Colours from DESIGN.md (src/styles/tokens.css). red = Hankook Red, small accents only.
 export const C = {
-  ink: '#20241F', soft: '#5B5F56', faint: '#8A8D84', line: '#E4E0D4', paper: '#FAF8F2', red: '#BF1C21', redSoft: '#FBEDEC', green: '#2A5A30',
+  ink: 'var(--dp-ink)', soft: 'var(--dp-ink-soft)', faint: 'var(--dp-ink-faint)', line: 'var(--dp-line)', paper: 'var(--dp-canvas)', red: 'var(--dp-hankook-red)', redSoft: 'var(--dp-danger-tint)', green: 'var(--dp-success)', danger: 'var(--dp-danger)',
 };
 
 const emptyKid = () => ({ first: '', last: '', dob: '', medical: '', medical_detail: '', instructions: '', slots: [] });
@@ -73,6 +78,9 @@ export default function JoinPage() {
   const [sendError, setSendError] = useState('');
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(null);
+  const cardRef = useRef(null);
+  const [card, setCard] = useState({ started: false, ready: false }); // card section (credit card plans)
+  const cardPlan = plan.includes('Credit Card');
 
   useEffect(() => {
     document.title = `Registration · ${SCHOOL.name}`;
@@ -108,6 +116,7 @@ export default function JoinPage() {
     if (!agree) e.push('Tick the box to agree to the terms');
     if (signature.trim().length < 2) e.push(adult ? 'Your full name (above the signature)' : 'Parent/guardian full name (above the signature)');
     if (!sigImage) e.push('Sign in the signature box');
+    if (cardPlan && card.started && !card.ready) e.push('Credit card: finish the card details, name on card and the authorization box (or clear the card number to add it later)');
     return e;
   }
 
@@ -121,6 +130,16 @@ export default function JoinPage() {
     }
     if (trap) return setDone({ names: [] });
     setSaving(true);
+    // Card entered in the form: get TD's one-time token first, so card problems show here.
+    let tok = null;
+    if (cardPlan && card.started && cardRef.current) {
+      tok = await cardRef.current.tokenize();
+      if (tok.error) {
+        setSaving(false);
+        setTimeout(() => document.getElementById('join-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+        return;
+      }
+    }
     const kidRows = kids.map((k) => {
       const picked = schedule.filter((c) => k.slots.includes(slotKey(c)));
       return {
@@ -134,7 +153,12 @@ export default function JoinPage() {
         class_days: picked.map(slotKey),
       };
     });
+    // Lets the card step (credit card plans) save a card for this registration only.
+    const cardToken = window.crypto?.randomUUID
+      ? window.crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => ((c === 'x' ? 0 : 8) + Math.floor(Math.random() * (c === 'x' ? 16 : 4))).toString(16));
     const row = {
+      card_token: cardToken,
       family: { ...Object.fromEntries(Object.entries(fam).map(([k, v]) => [k, String(v).trim()])), relationship: adult ? 'Self' : fam.relationship.trim() },
       kids: kidRows,
       frequency,
@@ -150,12 +174,18 @@ export default function JoinPage() {
       agreement_version: AGREEMENT_VERSION,
     };
     const { error } = await supabase.from('registrations').insert(row);
-    setSaving(false);
     if (error) {
+      setSaving(false);
       setSendError(`Sorry — we couldn't send your registration (${error.message}). Please try again, or email ${SCHOOL.email}.`);
       return;
     }
-    setDone({ names: kidRows.map((k) => k.first), row });
+    let cardError = null;
+    if (tok?.token) {
+      const r = await call({ action: 'reg_card_save', reg_token: cardToken, token: tok.token, name: tok.name, consent: `${SAVE_CONSENT} ${cardConsentNote(estimateFor(row))}` });
+      if (!r?.ok) cardError = r?.error || 'please try again';
+    }
+    setSaving(false);
+    setDone({ names: kidRows.map((k) => k.first), row, cardError });
     window.scrollTo(0, 0);
   }
 
@@ -168,11 +198,13 @@ export default function JoinPage() {
           <p style={{ color: C.soft, margin: '0 auto 6px', maxWidth: 440, lineHeight: 1.55 }}>
             We've received your registration and emailed you a copy of the signed agreement. Master Daisy will confirm the class schedule, tuition and payment details with you by email or phone.
           </p>
-          {done.row?.plan?.includes('Credit Card') && (
-            <p style={{ color: C.soft, margin: '10px auto 0', maxWidth: 440, lineHeight: 1.55 }}>A separate Credit Card Authorization is completed at the Dojang before automatic payments begin.</p>
-          )}
-          <p style={{ color: C.faint, fontSize: 13.5, marginTop: 18 }}>Questions? {SCHOOL.email}</p>
+          {!done.row?.plan?.includes('Credit Card') && <p style={{ color: C.faint, fontSize: 14, marginTop: 18 }}>Questions? {SCHOOL.email}</p>}
         </div>
+        {done.row?.plan?.includes('Credit Card') && (
+          <div style={{ marginTop: 16 }}>
+            <RegCardStep token={done.row.card_token} estimate={estimateFor(done.row)} saveError={done.cardError} />
+          </div>
+        )}
       </Page>
     );
   }
@@ -181,8 +213,8 @@ export default function JoinPage() {
   const errors = sendError ? [sendError] : tried ? validate() : [];
   return (
     <Page>
-      <p style={{ color: C.soft, lineHeight: 1.55, margin: '0 0 18px', fontSize: 15 }}>
-        Welcome! Please fill in this form to register. It takes about 5 minutes. Fields marked <b style={{ color: C.red }}>*</b> are required.
+      <p style={{ color: C.soft, lineHeight: 1.55, margin: '0 0 18px', fontSize: 16 }}>
+        Welcome! Please fill in this form to register. It takes about 5 minutes. Fields marked <b style={{ color: C.danger }}>*</b> are required.
       </p>
 
       {/* PART 1 + 3 per student */}
@@ -195,10 +227,10 @@ export default function JoinPage() {
         {kids.map((k, i) => {
           const age = ageOn(k.dob, startDate);
           return (
-            <div key={i} style={{ ...box, marginBottom: 14, ...(kids.length > 1 ? { borderLeft: `4px solid ${C.red}` } : {}) }}>
+            <div key={i} style={{ ...box, marginBottom: 14 }}>
               {kids.length > 1 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <b style={{ fontSize: 15 }}>Student {i + 1}</b>
+                  <b style={{ fontSize: 16 }}>Student {i + 1}</b>
                   <button type="button" style={linkBtn} onClick={() => setKids((l) => l.filter((_, j) => j !== i))}>Remove</button>
                 </div>
               )}
@@ -220,7 +252,7 @@ export default function JoinPage() {
 
               <Label>Which classes would {name(k)} like to come to? <span style={{ color: C.faint, fontWeight: 400 }}>Tap each class. The Dojang will confirm.</span></Label>
               {!schedule.length ? (
-                <div style={{ fontSize: 13.5, color: C.faint }}>Loading the class schedule…</div>
+                <div style={{ fontSize: 14, color: C.faint }}>Loading the class schedule…</div>
               ) : (
                 <>
                   {age != null && (
@@ -295,7 +327,7 @@ export default function JoinPage() {
           const three = !plan.startsWith('Monthly');
           const amt = three ? t.three : t.month;
           return (
-            <div style={{ ...box, background: '#FFF7F6', borderColor: '#F0C9C6', marginBottom: 12, fontSize: 15 }}>
+            <div style={{ ...box, background: C.redSoft, borderColor: 'transparent', marginBottom: 12, fontSize: 16 }}>
               {amt ? (
                 <>Tuition: <b>${amt}{three ? ' for three months' : ' per month'}</b> <span style={{ color: C.soft }}>+ 5% GST</span>{kids.length > 1 ? <span style={{ color: C.soft }}> · per student</span> : null}{three && <div style={{ color: C.green, fontSize: 14, marginTop: 4 }}>You save $15 · free uniform for new students</div>}</>
               ) : (
@@ -306,7 +338,7 @@ export default function JoinPage() {
         })()}
         <In label="Preferred start date" type="date" value={startDate} min={today()} onChange={(e) => setStartDate(e.target.value)} style={{ maxWidth: 220 }} />
         <p style={{ ...small, color: C.soft, margin: '4px 0 0' }}>
-          The Dojang will confirm your start date and payment dates by email.{plan.includes('Credit Card') ? ' Your credit card details are collected separately at the Dojang (a separate Credit Card Authorization) — please don’t enter them here.' : ''}
+          The Dojang will confirm your start date and payment dates by email.{plan.includes('Credit Card') ? ' You can enter your credit card at the end of this form (TD’s secure form — the Credit Card Authorization). Nothing is charged until the Dojang confirms your tuition by email.' : ''}
         </p>
       </Section>
 
@@ -315,8 +347,8 @@ export default function JoinPage() {
         <p style={{ ...small, color: C.soft, marginTop: 0 }}>Please read each part. Where it asks, type your <b>initials</b> to show you've read it.</p>
         <div style={{ ...small, color: C.soft, fontStyle: 'italic', marginBottom: 10 }}>{INTRO.map((p) => <p key={p} style={{ margin: '0 0 6px' }}>{p}</p>)}</div>
         {TERMS.map((t) => (
-          <div key={t.key} style={{ ...box, ...small, marginBottom: 10, ...(t.initial ? { borderLeft: `4px solid ${initials[t.key]?.trim() ? C.green : C.red}` } : {}) }}>
-            <div style={{ fontWeight: 700, fontSize: 14.5, color: C.ink, marginBottom: 6 }}>{t.title}</div>
+          <div key={t.key} style={{ ...box, ...small, marginBottom: 10, ...(t.initial ? { border: `2px solid ${initials[t.key]?.trim() ? C.green : C.line}` } : {}) }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: C.ink, marginBottom: 6 }}>{t.title}</div>
             {t.body.map((b, j) =>
               typeof b === 'string' ? (
                 <p key={j} style={{ margin: '0 0 6px' }}><Rich text={b} /></p>
@@ -326,7 +358,7 @@ export default function JoinPage() {
             )}
             {t.initial && (
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
-                <span style={{ fontWeight: 600 }}>I have read {t.title.split(' — ')[0]}. Initials <b style={{ color: C.red }}>*</b></span>
+                <span style={{ fontWeight: 600 }}>I have read {t.title.split(' — ')[0]}. Initials <b style={{ color: C.danger }}>*</b></span>
                 <input
                   value={initials[t.key] || ''}
                   maxLength={4}
@@ -355,12 +387,12 @@ export default function JoinPage() {
       <Section n="14" title="Acknowledgment & signature">
         <div style={{ ...small, marginBottom: 10 }}>By signing below, I confirm that:</div>
         <ul style={{ ...small, margin: '0 0 12px', paddingLeft: 20, color: C.soft }}>{ACKNOWLEDGMENTS.map((a) => <li key={a} style={{ marginBottom: 3 }}>{a}</li>)}</ul>
-        <label style={{ ...check, ...box, background: agree ? '#EEF5EF' : '#fff', marginBottom: 12 }}>
+        <label style={{ ...check, ...box, background: agree ? 'var(--dp-success-tint)' : '#fff', borderColor: agree ? C.green : C.line, marginBottom: 12 }}>
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} style={{ width: 20, height: 20 }} />
           <span style={{ fontWeight: 600 }}>I have read and agree to the Student Registration & Membership Agreement.</span>
         </label>
         <div style={{ ...box, marginBottom: 10 }}>
-          <div style={{ fontSize: 13.5, color: C.soft, marginBottom: 10 }}>
+          <div style={{ fontSize: 14, color: C.soft, marginBottom: 10 }}>
             <b style={{ color: C.ink }}>Student name{kids.length > 1 ? 's' : ''}:</b> {kids.map((k) => `${k.first} ${k.last}`.trim()).filter(Boolean).join(', ') || '—'}
           </div>
           <In label={adult ? 'Adult student — full name' : 'Parent/guardian name'} req value={signature} onChange={(e) => setSignature(e.target.value)} autoComplete="name" />
@@ -370,50 +402,80 @@ export default function JoinPage() {
         <input tabIndex={-1} autoComplete="off" value={trap} onChange={(e) => setTrap(e.target.value)} aria-hidden="true" style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }} name="website" />
       </Section>
 
+      {cardPlan && (
+        <div id="join-card">
+          <Section n="15" title="Credit Card Authorization">
+            <p style={{ ...small, color: C.soft, marginTop: 0 }}>
+              You chose pre-authorized credit card payments. Save the card for tuition now — <b style={{ color: C.ink }}>nothing is charged today</b>. Master Daisy confirms your tuition and first payment date by email before the first charge. You can also leave this blank and add the card after you submit.
+            </p>
+            {(() => {
+              const est = estimateFor({ frequency, plan, kids });
+              return est ? (
+                <div style={{ ...box, display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 14, marginBottom: 12 }}>
+                  <span>Estimated tuition <span style={{ color: C.soft }}>{est.per}{est.count > 1 ? ` · ${est.count} students` : ''}</span><div style={{ fontSize: 14, color: C.faint, marginTop: 2 }}>Including 5% GST. Any discount or grant is applied when the Dojang confirms.</div></span>
+                  <b style={{ whiteSpace: 'nowrap' }}>${(est.each * est.count).toFixed(2)}</b>
+                </div>
+              ) : null;
+            })()}
+            <CardForm ref={cardRef} inline title="Credit card" consentNote={cardConsentNote(estimateFor({ frequency, plan, kids }))} onStatus={setCard} />
+          </Section>
+        </div>
+      )}
+
       {errors.length > 0 && (
-        <div id="join-errors" style={{ background: C.redSoft, color: '#8C1D18', border: '1px solid #F0C9C6', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 14.5 }}>
+        <div id="join-errors" role="alert" style={{ background: C.redSoft, color: C.danger, border: 'none', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 16 }}>
           <b>Please check:</b>
           <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>{errors.map((x) => <li key={x}>{x}</li>)}</ul>
         </div>
       )}
-      <button type="button" disabled={saving} onClick={submit} style={{ ...btn, background: C.red, borderColor: C.red, color: '#fff', width: '100%', padding: '15px', fontSize: 17, fontWeight: 700 }}>
-        {saving ? 'Sending…' : 'Submit registration'}
+      <button type="button" disabled={saving} onClick={submit} style={{ ...btn, background: C.ink, borderColor: C.ink, color: '#fff', width: '100%', padding: '15px', fontSize: 18, fontWeight: 700 }}>
+        {saving ? 'Sending…' : cardPlan && card.started ? 'Submit registration & save card' : 'Submit registration'}
       </button>
-      <p style={{ textAlign: 'center', fontSize: 12.5, color: C.faint, marginTop: 14 }}>Agreement version {AGREEMENT_VERSION} · All terms are subject to applicable laws of Alberta and Canada.</p>
+      <p style={{ textAlign: 'center', fontSize: 14, color: C.faint, marginTop: 14 }}>Agreement version {AGREEMENT_VERSION} · All terms are subject to applicable laws of Alberta and Canada.</p>
     </Page>
   );
 }
 
+// Tuition per student incl. 5% GST for the plan picked on the form (before any discount or grant).
+function estimateFor(row) {
+  const t = TUITION[row.frequency];
+  if (!t || !row.plan) return null;
+  const three = !String(row.plan).startsWith('Monthly');
+  const amt = three ? t.three : t.month;
+  if (!amt) return null;
+  return { each: Math.round(amt * 105) / 100, count: Math.max(1, (row.kids || []).length), per: three ? 'every 3 months' : 'per month' };
+}
+
 // ---------- layout pieces ----------
 export const box = { background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 };
-const small = { fontSize: 13.5, lineHeight: 1.55, color: C.ink };
-const check = { display: 'flex', gap: 10, alignItems: 'center', fontSize: 15, cursor: 'pointer' };
-export const btn = { border: `1px solid ${C.line}`, borderRadius: 10, padding: '11px 16px', fontSize: 15, cursor: 'pointer', color: C.ink, fontFamily: 'inherit' };
-export const linkBtn = { background: 'none', border: 'none', padding: 0, color: C.red, fontSize: 13.5, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' };
+const small = { fontSize: 14, lineHeight: 1.55, color: C.ink };
+const check = { display: 'flex', gap: 10, alignItems: 'center', fontSize: 16, cursor: 'pointer' };
+export const btn = { border: `1px solid ${C.line}`, borderRadius: 10, padding: '11px 16px', fontSize: 16, cursor: 'pointer', color: C.ink, fontFamily: 'inherit' };
+export const linkBtn = { background: 'none', border: 'none', padding: 0, color: C.ink, textUnderlineOffset: 3, fontSize: 14, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' };
 const field = { width: '100%', boxSizing: 'border-box', border: `1px solid #D6D2C4`, borderRadius: 9, padding: '11px 12px', fontSize: 16, fontFamily: 'inherit', color: C.ink, background: '#fff' };
 
 export function Page({ children, subtitle = 'Student Registration & Membership Agreement' }) {
   return (
-    <div style={{ minHeight: '100vh', background: C.paper, fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', color: C.ink }}>
+    <div style={{ minHeight: '100vh', background: C.paper, fontFamily: 'var(--dp-font)', color: C.ink }}>
       <div style={{ background: C.ink, color: '#fff', padding: '18px 16px' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 14 }}>
           <img src={markImg} alt="Hankook Taekwondo" style={{ width: 50, height: 50, objectFit: 'contain', background: '#fff', borderRadius: 10, padding: 3, flex: 'none' }} />
           <div>
-            <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '0.01em' }}>{SCHOOL.name}</div>
-            <div style={{ fontSize: 13.5, opacity: 0.75 }}>{subtitle}</div>
+            <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '0.01em', fontFamily: 'var(--dp-font-display)' }}>{SCHOOL.name}</div>
+            <div style={{ fontSize: 14, opacity: 0.75 }}>{subtitle}</div>
           </div>
         </div>
       </div>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px 120px' }}>{children}</div>
-      <div style={{ textAlign: 'center', fontSize: 12.5, color: C.faint, padding: '0 16px 40px' }}>{SCHOOL.address} · {SCHOOL.email}</div>
+      <div style={{ textAlign: 'center', fontSize: 14, color: C.faint, padding: '0 16px 40px' }}>{SCHOOL.address} · {SCHOOL.email}</div>
     </div>
   );
 }
 export function Section({ n, title, children }) {
   return (
     <section style={{ marginBottom: 26 }}>
-      <h2 style={{ fontSize: 17, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ background: C.red, color: '#fff', borderRadius: 999, minWidth: 26, height: 26, padding: '0 8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, boxSizing: 'border-box' }}>{n}</span>
+      <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ background: C.red, color: '#fff', borderRadius: 999, minWidth: 26, height: 26, padding: '0 8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, boxSizing: 'border-box' }}>{n}</span>
         {title}
       </h2>
       {children}
@@ -421,7 +483,7 @@ export function Section({ n, title, children }) {
   );
 }
 export function Label({ req, children }) {
-  return <div style={{ fontSize: 14, fontWeight: 600, margin: '4px 0 6px', lineHeight: 1.4 }}>{children}{req && <b style={{ color: C.red }}> *</b>}</div>;
+  return <div style={{ fontSize: 14, fontWeight: 600, margin: '4px 0 6px', lineHeight: 1.4 }}>{children}{req && <b style={{ color: C.danger }} aria-hidden="true"> *</b>}</div>;
 }
 export function Row({ children }) {
   return <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0 12px' }}>{React.Children.map(children, (c) => c && <div style={{ flex: '1 1 220px', minWidth: 0 }}>{c}</div>)}</div>;
@@ -444,17 +506,17 @@ export function Area({ label, req, ...p }) {
 }
 export function Chip({ on, onClick, children }) {
   return (
-    <button type="button" onClick={onClick} style={{ ...btn, padding: '9px 13px', fontSize: 14.5, background: on ? C.ink : '#fff', color: on ? '#fff' : C.ink, borderColor: on ? C.ink : '#D6D2C4' }}>
-      {on ? '✓ ' : ''}{children}
+    <button type="button" aria-pressed={on} onClick={onClick} style={{ ...btn, padding: '9px 13px', fontSize: 16, background: on ? C.ink : '#fff', color: on ? '#fff' : C.ink, borderColor: on ? C.ink : '#D6D2C4' }}>
+      {on && <Check size={15} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 4 }} />}{children}
     </button>
   );
 }
 function Option({ on, onClick, title, note }) {
   return (
-    <button type="button" onClick={onClick} style={{ ...btn, textAlign: 'left', display: 'flex', gap: 12, alignItems: 'flex-start', background: on ? '#FFF7F6' : '#fff', borderColor: on ? C.red : '#D6D2C4', borderWidth: on ? 2 : 1, padding: on ? '10px 15px' : '11px 16px' }}>
-      <span style={{ width: 18, height: 18, borderRadius: 999, border: `2px solid ${on ? C.red : '#B9B5A8'}`, flex: 'none', marginTop: 1, boxShadow: on ? `inset 0 0 0 3px #fff` : 'none', background: on ? C.red : '#fff' }} />
+    <button type="button" aria-pressed={on} onClick={onClick} style={{ ...btn, textAlign: 'left', display: 'flex', gap: 12, alignItems: 'flex-start', background: on ? C.paper : '#fff', borderColor: on ? C.ink : '#D6D2C4', borderWidth: on ? 2 : 1, padding: on ? '10px 15px' : '11px 16px' }}>
+      <span style={{ width: 18, height: 18, borderRadius: 999, border: `2px solid ${on ? C.ink : '#B9B5A8'}`, flex: 'none', marginTop: 1, boxShadow: on ? `inset 0 0 0 3px #fff` : 'none', background: on ? C.ink : '#fff' }} />
       <span>
-        <span style={{ fontSize: 15, lineHeight: 1.45 }}>{title}</span>
+        <span style={{ fontSize: 16, lineHeight: 1.45 }}>{title}</span>
         {note && <span style={{ display: 'block', fontSize: 13, color: C.faint, marginTop: 2 }}>{note}</span>}
       </span>
     </button>
@@ -502,7 +564,7 @@ function WeekGrid({ schedule, age, picked, onToggle }) {
 
 function ClassGuide() {
   return (
-    <div style={{ background: '#E6EAF3', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>
+    <div style={{ background: '#fff', border: `1px solid ${C.line}`, borderRadius: 12, padding: '12px 14px', marginBottom: 14, fontSize: 14 }}>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
           <tr style={{ textAlign: 'left', color: C.ink }}>
@@ -517,7 +579,7 @@ function ClassGuide() {
           ))}
         </tbody>
       </table>
-      <div style={{ color: C.faint, fontSize: 12, marginTop: 6 }}>Age groups are a guide; each student is placed by age, size and experience. Students receive a recommendation notice when they reach the age and belt level to move into a more suitable class.</div>
+      <div style={{ color: C.faint, fontSize: 13, marginTop: 6 }}>Age groups are a guide; each student is placed by age, size and experience. Students receive a recommendation notice when they reach the age and belt level to move into a more suitable class.</div>
     </div>
   );
 }

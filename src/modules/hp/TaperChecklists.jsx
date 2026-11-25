@@ -77,9 +77,9 @@ export default function TaperChecklists({ overview, nowWeek }) {
     must(supabase.from('hp_taper_items').update({ active: false }).eq('id', item.id)).then(loadItems).catch(fail);
   };
 
-  if (error) return <div style={{ ...styles.card, padding: 16, color: '#9A2B2B' }}>Couldn't load checklists: {error}</div>;
-  if (!items) return <div style={{ color: '#5B5F56' }}>Loading...</div>;
-  if (!comps.length) return <div style={{ ...styles.card, padding: 16, color: '#5B5F56' }}>No competitions in the plans yet.</div>;
+  if (error) return <div style={{ ...styles.card, padding: 16, color: 'var(--dp-danger)' }}>Couldn't load checklists: {error}</div>;
+  if (!items) return <div style={{ color: 'var(--dp-ink-soft)' }}>Loading...</div>;
+  if (!comps.length) return <div style={{ ...styles.card, padding: 16, color: 'var(--dp-ink-soft)' }}>No competitions in the plans yet.</div>;
 
   const list = showPast ? comps : upcoming;
   return (
@@ -93,20 +93,20 @@ export default function TaperChecklists({ overview, nowWeek }) {
           return (
             <button key={c.key} type="button" onClick={() => setSelected(c.key)} style={{
               all: 'unset', cursor: 'pointer', display: 'block', width: '100%', boxSizing: 'border-box', padding: '9px 10px',
-              borderRadius: 8, background: on ? '#FDF0E6' : 'transparent', borderLeft: `3px solid ${on ? HP_ORANGE : 'transparent'}`,
+              borderRadius: 8, background: on ? 'var(--hp-orange-tint)' : 'transparent', borderLeft: `3px solid ${on ? HP_ORANGE : 'transparent'}`,
             }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>
-                {c.name}{c.priority && <span style={{ fontSize: 11.5, color: '#8A8D84', fontWeight: 500 }}> · {c.priority}</span>}
+                {c.name}{c.priority && <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)', fontWeight: 500 }}> · {c.priority}</span>}
               </div>
-              <div style={{ fontSize: 12, color: '#5B5F56' }}>{c.date ? prettyDate(c.date) : `Week ${c.week_no}`}{c.tentative ? ' · tentative' : ''}</div>
-              <div style={{ height: 4, background: '#EFEDE6', borderRadius: 2, marginTop: 6 }}>
-                <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? '#2A5A30' : HP_ORANGE, borderRadius: 2 }} />
+              <div style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>{c.date ? prettyDate(c.date) : `Week ${c.week_no}`}{c.tentative ? ' · tentative' : ''}</div>
+              <div style={{ height: 4, background: 'var(--dp-canvas)', borderRadius: 2, marginTop: 6 }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? 'var(--dp-success)' : HP_ORANGE, borderRadius: 2 }} />
               </div>
-              <div style={{ fontSize: 11.5, color: '#8A8D84', marginTop: 2 }}>{n}/{items.length}</div>
+              <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginTop: 2 }}>{n}/{items.length}</div>
             </button>
           );
         })}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#5B5F56', padding: '8px 10px 4px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--dp-ink-soft)', padding: '8px 10px 4px' }}>
           <input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} /> Show past competitions
         </label>
       </div>
@@ -114,26 +114,26 @@ export default function TaperChecklists({ overview, nowWeek }) {
       {comp && (
         <div style={{ ...styles.card, padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
-            <span style={{ fontSize: 17, fontWeight: 600 }}>{comp.name}</span>
-            <span style={{ fontSize: 13, color: '#5B5F56' }}>{done.size} of {items.length} done</span>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>{comp.name}</span>
+            <span style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>{done.size} of {items.length} done</span>
             <button className="dp-btn" style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 13 }} onClick={() => setEditing(!editing)}>
               {editing ? 'Done editing' : 'Edit list'}
             </button>
           </div>
-          <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 10 }}>Athletes: {comp.athletes.join(', ')}</div>
+          <div style={{ fontSize: 13, color: 'var(--dp-ink-faint)', marginBottom: 10 }}>Athletes: {comp.athletes.join(', ')}</div>
           <div style={{ columnWidth: 300, columnGap: 24 }}>
             {categories.map((cat) => {
               const its = items.filter((i) => i.category === cat);
               const n = its.filter((i) => done.has(i.id)).length;
               return (
                 <div key={cat} style={{ breakInside: 'avoid', marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: n === its.length ? '#2A5A30' : '#8A8D84', marginBottom: 2 }}>
+                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: n === its.length ? 'var(--dp-success)' : 'var(--dp-ink-faint)', marginBottom: 2 }}>
                     {cat} · {n}/{its.length}
                   </div>
                   {its.map((i) => (
                     <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 14 }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, cursor: 'pointer',
-                        color: done.has(i.id) ? '#8A8D84' : '#20241F', textDecoration: done.has(i.id) ? 'line-through' : 'none' }}>
+                        color: done.has(i.id) ? 'var(--dp-ink-faint)' : 'var(--dp-ink)', textDecoration: done.has(i.id) ? 'line-through' : 'none' }}>
                         <input type="checkbox" checked={done.has(i.id)} onChange={() => toggle(i)} style={{ width: 18, height: 18, accentColor: HP_ORANGE }} />
                         {i.label}
                       </label>
@@ -149,7 +149,7 @@ export default function TaperChecklists({ overview, nowWeek }) {
             })}
           </div>
           {editing && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid #EFECE3', paddingTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--dp-line)', paddingTop: 12 }}>
               <select className="dp-select" value={newItem.category} onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}>
                 <option value="">Section…</option>
                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}

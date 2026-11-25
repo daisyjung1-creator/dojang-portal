@@ -29,7 +29,7 @@ export default function ClassPicker({ value, onChange, options }) {
               key={c}
               className="dp-btn"
               onClick={() => toggle(c)}
-              style={{ padding: '4px 10px', fontSize: 12.5, background: on ? '#20241F' : '#fff', color: on ? '#fff' : '#20241F', borderColor: on ? '#20241F' : '#DEDACC' }}
+              style={{ padding: '4px 10px', fontSize: 12.5, background: on ? 'var(--dp-ink)' : '#fff', color: on ? '#fff' : 'var(--dp-ink)', borderColor: on ? 'var(--dp-ink)' : 'var(--dp-line)' }}
             >
               {on ? '✓ ' : ''}
               {c}

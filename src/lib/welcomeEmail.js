@@ -4,23 +4,58 @@ import { billingAnchor, getBillingDay, nextDueDate, todayISO } from './billingDa
 
 const longDate = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' }) : '');
 const money = (n) => '$' + (Number(n) || 0).toFixed(2);
+const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const clock = (t) => {
+  const [h, m] = String(t || '').split(':').map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')}`;
+};
+const ampm = (t) => (Number(String(t).split(':')[0]) >= 12 ? 'pm' : 'am');
+const timeRange = (a, b) => `${clock(a)}–${clock(b)} ${ampm(b)}`;
+const joinDays = (d) => (d.length > 1 ? d.slice(0, -1).join(', ') + ' & ' + d[d.length - 1] : d[0] || '');
+
+// "Beginner — Tue & Thu, 4:30–5:20 pm" for each class, using the student's own
+// class days (class_days like "2:Beginner"; none set = every day of the class).
+export function classTimes(student, schedule) {
+  const names = splitClasses(student.class_name);
+  if (!schedule || !schedule.length) return names;
+  const days = Array.isArray(student.class_days) && student.class_days.length ? student.class_days : null;
+  return names.map((name) => {
+    const rows = schedule.filter((r) => r.class_name === name && (!days || days.includes(`${r.weekday}:${name}`)));
+    if (!rows.length) return name;
+    // Group days that share the same time.
+    const byTime = {};
+    rows.forEach((r) => {
+      const k = timeRange(r.start_time, r.end_time);
+      (byTime[k] = byTime[k] || []).push(DAY[r.weekday]);
+    });
+    return `${name} — ${Object.entries(byTime).map(([t, d]) => `${joinDays(d)}, ${t}`).join('; ')}`;
+  });
+}
+
 const ordinal = (n) => n + (n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th');
 
 export function fillWelcomeTemplate(tpl, student, settings = {}) {
   const s = student;
   const rate = Number(settings.gst_rate ?? 5);
   const per = s.plan === '3 Months' ? 'every 3 months' : 'per month';
-  const tuition = Number(s.tuition)
-    ? `${money(s.tuition)} + GST (${rate}%) = ${money(Number(s.tuition) * (1 + rate / 100))} ${per}`
-    : '(to be confirmed)';
+  // Big family discount comes off before GST, the same way Billing invoices do it.
+  const base = Number(s.tuition) || 0;
+  const pct = s.family_discount ? Number(settings.family_discount_pct ?? 20) : 0;
+  const disc = Math.round(base * pct) / 100;
+  const net = base - disc;
+  const tuition = !base
+    ? '(to be confirmed)'
+    : pct
+    ? `${money(base)} − ${pct}% big family discount (${money(disc)}) = ${money(net)} + GST (${rate}%) = ${money(net * (1 + rate / 100))} ${per}`
+    : `${money(base)} + GST (${rate}%) = ${money(base * (1 + rate / 100))} ${per}`;
   const day = billingAnchor(s) ? ordinal(getBillingDay(s)) : '';
   const schedule = !day ? '' : s.plan === '3 Months' ? `every 3 months on the ${day}` : `on the ${day} of every month`;
   const next = billingAnchor(s) ? longDate(nextDueDate(s, todayISO() < billingAnchor(s) ? addDay(billingAnchor(s), -1) : todayISO())) : '(to be confirmed)';
   const subsidyNote =
     s.subsidy && (s.subsidy_amount || s.subsidy_end_date)
-      ? `${s.subsidy_name || 'Sports grant'}: ${s.subsidy_amount ? money(s.subsidy_amount) + ' per month' : 'applied'}${s.subsidy_end_date ? ' until ' + longDate(s.subsidy_end_date) : ''}.`
+      ? `${s.subsidy_name || 'Sports grant'}: ${s.subsidy_amount ? money(s.subsidy_amount) + ' off each tuition payment' : 'applied'}${s.subsidy_end_date ? ' until ' + longDate(s.subsidy_end_date) : ''}.`
       : '';
-  const classes = splitClasses(s.class_name);
+  const classes = classTimes(s, settings.schedule);
   const methods = (settings.payment_methods || []).filter((m) => !/^subsidy|^other$/i.test(m)).join(', ');
 
   let text = String(tpl || '');
@@ -30,7 +65,7 @@ export function fillWelcomeTemplate(tpl, student, settings = {}) {
     .replaceAll('{student_full}', s.name || '')
     .replaceAll('{student}', (s.name || '').split(' ')[0])
     .replaceAll('{guardian}', s.guardian_name || 'Parent/Guardian')
-    .replaceAll('{classes}', classes.length ? classes.join(', ') : '(to be confirmed)')
+    .replaceAll('{classes}', !classes.length ? '(to be confirmed)' : classes.length === 1 ? classes[0] : '\n' + classes.map((c) => `- ${c}`).join('\n'))
     .replaceAll('{start_date}', longDate(s.billing_start_date || s.enroll_date) || '(to be confirmed)')
     .replaceAll('{plan}', s.plan || '1 Month')
     .replaceAll('{tuition}', tuition)

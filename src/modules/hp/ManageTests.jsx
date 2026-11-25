@@ -7,7 +7,7 @@ import { styles } from '../../lib/uiStyles';
 import { addItem, loadAllItems, makeKey, swapItems, updateItem } from './fitTests';
 import { HP_ORANGE } from './ytpTheme';
 
-const label = { display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 };
+const label = { display: 'block', fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 4 };
 const BETTER = [['higher', 'Higher is better'], ['lower', 'Lower is better'], ['', 'No direction (e.g. growth)']];
 
 export default function ManageTests({ onBack }) {
@@ -20,8 +20,8 @@ export default function ManageTests({ onBack }) {
   useEffect(() => { reload(); }, []);
   const run = (fn) => { setBusy(true); fn().then(reload).catch(fail); };
 
-  if (error) return <div style={{ ...styles.card, padding: 16, color: '#9A2B2B' }}>Couldn't load tests: {error}</div>;
-  if (!items) return <div style={{ color: '#5B5F56' }}>Loading...</div>;
+  if (error) return <div style={{ ...styles.card, padding: 16, color: 'var(--dp-danger)' }}>Couldn't load tests: {error}</div>;
+  if (!items) return <div style={{ color: 'var(--dp-ink-soft)' }}>Loading...</div>;
 
   const categories = [...new Set(items.map((i) => i.category))];
   return (
@@ -31,7 +31,7 @@ export default function ManageTests({ onBack }) {
         <span style={{ fontSize: 16, fontWeight: 600 }}>Manage tests</span>
         <button className="dp-btn dp-btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setModal({ item: null })}>+ Add test</button>
       </div>
-      <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '0 0 12px' }}>
+      <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)', margin: '0 0 12px' }}>
         Hidden tests disappear from entry and athlete views, but their results are kept — show them again any time.
         If the way a test is measured changes, hide the old one and add a new test so results stay comparable
         (NCCP <em>Developing Athletic Abilities</em> 4.8: tests must be standardized to compare results).
@@ -41,21 +41,21 @@ export default function ManageTests({ onBack }) {
           const its = items.filter((i) => i.category === cat);
           return (
             <div key={cat} style={{ ...styles.card, padding: '10px 14px' }}>
-              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#8A8D84', marginBottom: 4 }}>{cat}</div>
+              <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--dp-ink-faint)', marginBottom: 4 }}>{cat}</div>
               {its.map((it, idx) => (
-                <div key={it.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #F1EEE6',
+                <div key={it.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--dp-line)',
                   opacity: it.active ? 1 : 0.5, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <button className="dp-btn" aria-label={`Move ${it.name} up`} disabled={busy || idx === 0}
-                      style={{ padding: '0 6px', border: 'none', fontSize: 11 }} onClick={() => run(() => swapItems(it, its[idx - 1]))}>▲</button>
+                      style={{ padding: '0 6px', border: 'none', fontSize: 12 }} onClick={() => run(() => swapItems(it, its[idx - 1]))}>▲</button>
                     <button className="dp-btn" aria-label={`Move ${it.name} down`} disabled={busy || idx === its.length - 1}
-                      style={{ padding: '0 6px', border: 'none', fontSize: 11 }} onClick={() => run(() => swapItems(it, its[idx + 1]))}>▼</button>
+                      style={{ padding: '0 6px', border: 'none', fontSize: 12 }} onClick={() => run(() => swapItems(it, its[idx + 1]))}>▼</button>
                   </div>
                   <div style={{ flex: '1 1 220px' }}>
                     <div style={{ fontSize: 14, fontWeight: 500 }}>
-                      {it.name}{!it.active && <span style={{ fontSize: 12, color: '#8A8D84', fontWeight: 400 }}> · hidden</span>}
+                      {it.name}{!it.active && <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)', fontWeight: 400 }}> · hidden</span>}
                     </div>
-                    <div style={{ fontSize: 12, color: '#8A8D84' }}>
+                    <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>
                       {[it.unit, it.sides ? 'Left / Right' : null,
                         it.better === 'higher' ? 'higher is better' : it.better === 'lower' ? 'lower is better' : 'no direction',
                         `${it.resultCount} result${it.resultCount === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}
@@ -149,16 +149,16 @@ function ItemForm({ item, items, categories, onClose, onSaved }) {
         <label style={{ gridColumn: '1 / -1' }}><span style={label}>How to test (shown as a tip on the entry table)</span>
           <input className="dp-input" style={{ width: '100%' }} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
       </div>
-      {dup && <div style={{ color: '#9A2B2B', fontSize: 13, marginTop: 8 }}>A test with this name already exists.</div>}
+      {dup && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 8 }}>A test with this name already exists.</div>}
       {measureChanged && (
-        <div style={{ background: '#FFF6DB', color: '#7A5A00', fontSize: 13, borderRadius: 6, padding: '8px 10px', marginTop: 10 }}>
+        <div style={{ background: 'var(--dp-warning-tint)', color: 'var(--dp-warning)', fontSize: 13, borderRadius: 6, padding: '8px 10px', marginTop: 10 }}>
           This test already has {item.resultCount} results. Changing the unit, left/right or direction changes how those results
           are read and compared. If the way you measure has changed, cancel, hide this test, and add a new one instead.
           {f.sides !== item.sides && ' Left/right results and single results won\'t line up with each other.'}
         </div>
       )}
-      {error && <div style={{ color: '#9A2B2B', fontSize: 13, marginTop: 8 }}>{error}</div>}
-      <p style={{ fontSize: 12, color: '#8A8D84', margin: '10px 0 0' }}>
+      {error && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 8 }}>{error}</div>}
+      <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '10px 0 0' }}>
         <span style={{ color: HP_ORANGE }}>●</span> Renaming keeps all past results.
       </p>
     </Modal>

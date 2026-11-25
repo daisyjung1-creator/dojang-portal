@@ -43,7 +43,7 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
   const Person = ({ id, side, i }) => {
     const f = byId[id];
     return (
-      <div style={{ flex: 1, borderLeft: `5px solid ${side === 'red' ? '#BF1C21' : '#1E4566'}`, paddingLeft: 10 }}>
+      <div style={{ flex: 1, borderLeft: `5px solid ${side === 'red' ? 'var(--dp-hankook-red)' : 'var(--dp-info)'}`, paddingLeft: 10 }}>
         <select className="dp-select" style={{ width: '100%', fontSize: 13.5 }} value={id || ''} onChange={(ev) => setSide(i, side, ev.target.value)}>
           <option value="">— pick —</option>
           {fighters.map((x) => (
@@ -51,7 +51,7 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
           ))}
         </select>
         {f && (
-          <div style={{ fontSize: 11.5, color: '#8A8D84', marginTop: 2 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginTop: 2 }}>
             {f.e.current_belt}{f.age != null ? ` · age ${f.age}` : ''}{count[id] > 1 ? ` · ${count[id]} matches` : ''}
           </div>
         )}
@@ -70,18 +70,18 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
         {sure && <button className="dp-btn" onClick={() => setSure(false)}>Cancel</button>}
         <button className="dp-btn" onClick={() => save([...pairs, { red: null, blue: null }])}><Plus size={15} /> Add match</button>
         <button className="dp-btn" disabled={!pairs.length} onClick={() => onPrint(pairs)}><Printer size={15} /> Print pairings</button>
-        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#5B5F56' }}>{fighters.length} sparring (Yellow belt and up) · {pairs.length} matches</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{fighters.length} sparring (Yellow belt and up) · {pairs.length} matches</span>
       </div>
 
       {missing.length > 0 && pairs.length > 0 && (
-        <p style={{ background: '#FAEEDA', color: '#854F0B', padding: '7px 12px', borderRadius: 6, fontSize: 12.5, margin: '0 0 10px' }}>
+        <p style={{ background: 'var(--dp-warning-tint)', color: 'var(--dp-warning)', padding: '7px 12px', borderRadius: 6, fontSize: 12.5, margin: '0 0 10px' }}>
           Not in a match yet: {missing.map((f) => f.s.name).join(', ')}
         </p>
       )}
 
       <div style={styles.card}>
         {pairs.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14, margin: 0 }}>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14, margin: 0 }}>
             {fighters.length < 2 ? 'Fewer than two students from Yellow belt up on this test.' : '“Make pairings” matches everyone from Yellow belt up by belt, then age. You can change any match afterwards.'}
           </p>
         ) : (
@@ -101,7 +101,7 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
               onDragEnd={() => setDrag(null)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                borderBottom: i < pairs.length - 1 ? '1px solid #F1EFE7' : 'none',
+                borderBottom: i < pairs.length - 1 ? '1px solid var(--dp-canvas)' : 'none',
                 opacity: drag?.from === i ? 0.4 : 1,
                 boxShadow: drag?.from != null && drag.over === i && drag.from !== i && drag.from !== i - 1 ? 'inset 0 3px 0 #20241F' : drag?.from != null && drag.over === i + 1 && i === pairs.length - 1 && drag.from !== i ? 'inset 0 -3px 0 #20241F' : 'none',
                 background: '#fff',
@@ -113,11 +113,11 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
                 onMouseDown={() => setDrag({ armed: i })}
                 onMouseUp={() => drag?.from == null && setDrag(null)}
                 onTouchStart={() => setDrag({ armed: i })}
-                style={{ cursor: 'grab', color: '#8A8D84', display: 'flex', padding: '4px 0' }}
+                style={{ cursor: 'grab', color: 'var(--dp-ink-faint)', display: 'flex', padding: '4px 0' }}
               >
                 <GripVertical size={16} />
               </span>
-              <span style={{ width: 22, fontWeight: 700, fontSize: 15, color: '#5B5F56' }}>{i + 1}</span>
+              <span style={{ width: 22, fontWeight: 700, fontSize: 15, color: 'var(--dp-ink-soft)' }}>{i + 1}</span>
               <Person id={p.red} side="red" i={i} />
               <button className="dp-btn" style={{ padding: 5 }} aria-label="Swap sides" title="Swap red / blue" onClick={() => save(pairs.map((x, k) => (k === i ? { ...x, red: x.blue, blue: x.red } : x)))}><ArrowLeftRight size={14} /></button>
               <Person id={p.blue} side="blue" i={i} />
@@ -126,7 +126,7 @@ export default function SparringView({ rows, test, onSave, onPrint }) {
           ))
         )}
       </div>
-      <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>Red = Hong, Blue = Chung. Drag ⋮⋮ to change the order. Saved automatically with this test.</p>
+      <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginTop: 8 }}>Red = Hong, Blue = Chung. Drag ⋮⋮ to change the order. Saved automatically with this test.</p>
     </>
   );
 }

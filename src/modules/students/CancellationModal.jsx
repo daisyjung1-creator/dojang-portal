@@ -68,7 +68,7 @@ export default function CancellationModal({ student, onClose, onSaved }) {
       }
     >
       {student.billing_end_date && (
-        <p style={{ background: '#FBEAEA', color: '#9A2B2B', borderRadius: 6, padding: '7px 12px', fontSize: 13, margin: '0 0 12px' }}>
+        <p style={{ background: 'var(--dp-danger-tint)', color: 'var(--dp-danger)', borderRadius: 6, padding: '7px 12px', fontSize: 13, margin: '0 0 12px' }}>
           Already cancelled: membership ends {formatDate(student.billing_end_date)}.
         </p>
       )}
@@ -81,14 +81,14 @@ export default function CancellationModal({ student, onClose, onSaved }) {
         </Field>
       </div>
       {!c ? (
-        <p style={{ fontSize: 13.5, color: '#9A2B2B' }}>{first} has no billing date (enrollment / billing start), so the 14-day rule can't be worked out.</p>
+        <p style={{ fontSize: 13.5, color: 'var(--dp-danger)' }}>{first} has no billing date (enrollment / billing start), so the 14-day rule can't be worked out.</p>
       ) : (
-        <div style={{ border: `1px solid ${c.renewalCancelled ? '#BFDCC3' : '#F0D9A8'}`, background: c.renewalCancelled ? '#E8F1E9' : '#FAEEDA', borderRadius: 8, padding: '10px 14px', fontSize: 13.5, lineHeight: 1.55, margin: '4px 0 12px' }}>
+        <div style={{ border: `1px solid ${c.renewalCancelled ? 'var(--dp-success-tint)' : 'var(--dp-warning-tint)'}`, background: c.renewalCancelled ? 'var(--dp-success-tint)' : 'var(--dp-warning-tint)', borderRadius: 8, padding: '10px 14px', fontSize: 13.5, lineHeight: 1.55, margin: '4px 0 12px' }}>
           <div>Next payment date: <b>{formatDate(c.next)}</b> — the email came <b>{c.days} day{c.days === 1 ? '' : 's'}</b> before it.</div>
           {c.renewalCancelled ? (
-            <div style={{ color: '#2A5A30' }}>{NOTICE_DAYS}+ days' notice → the {formatDate(c.next)} renewal is <b>cancelled</b>.</div>
+            <div style={{ color: 'var(--dp-success)' }}>{NOTICE_DAYS}+ days' notice → the {formatDate(c.next)} renewal is <b>cancelled</b>.</div>
           ) : (
-            <div style={{ color: '#854F0B' }}>Less than {NOTICE_DAYS} days' notice → the {formatDate(c.next)} renewal <b>still goes ahead</b> (Part 6).</div>
+            <div style={{ color: 'var(--dp-warning)' }}>Less than {NOTICE_DAYS} days' notice → the {formatDate(c.next)} renewal <b>still goes ahead</b> (Part 6).</div>
           )}
           <div style={{ marginTop: 4 }}>
             Last paid day: <b>{formatDate(c.end)}</b>. No tuition is invoiced after that, and {first} is withdrawn automatically the next day.
@@ -98,10 +98,10 @@ export default function CancellationModal({ student, onClose, onSaved }) {
       <Field label="Notes (optional)">
         <input className="dp-input" style={{ width: '100%' }} placeholder="e.g. moving to Calgary" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </Field>
-      <p style={{ fontSize: 12, color: '#8A8D84', margin: '4px 0 0' }}>Remember to confirm receipt to the family by email (Part 6). The credit card authorization is cancelled separately.</p>
-      {err && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{err}</p>}
+      <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '4px 0 0' }}>Remember to confirm receipt to the family by email (Part 6). The credit card authorization is cancelled separately.</p>
+      {err && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{err}</p>}
       {history.length > 0 && (
-        <div style={{ marginTop: 14, fontSize: 12.5, color: '#5B5F56' }}>
+        <div style={{ marginTop: 14, fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>
           <b>Earlier requests</b>
           {history.map((h) => (
             <div key={h.id}>

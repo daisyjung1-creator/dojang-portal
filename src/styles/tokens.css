@@ -1,0 +1,101 @@
+/* Helvetica from the visitor's own device (Mac / iPad have Light, Regular, Bold
+   and Oblique built in). Nothing is downloaded: Helvetica's licence doesn't allow
+   putting the font files on a website. Devices without Helvetica fall through to
+   Helvetica Neue / Arial in --dp-font-display. */
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 300;
+  font-style: normal;
+  src: local('Helvetica Light'), local('Helvetica-Light'), local('Helvetica Neue Light'), local('HelveticaNeue-Light');
+}
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 400;
+  font-style: normal;
+  src: local('Helvetica'), local('Helvetica Neue'), local('HelveticaNeue');
+}
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 500;
+  font-style: normal;
+  src: local('Helvetica Neue Medium'), local('HelveticaNeue-Medium'), local('Helvetica'), local('Helvetica Neue');
+}
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 600 700;
+  font-style: normal;
+  src: local('Helvetica Bold'), local('Helvetica-Bold'), local('Helvetica Neue Bold'), local('HelveticaNeue-Bold');
+}
+@font-face {
+  font-family: 'Dojang Helvetica';
+  font-weight: 300 500;
+  font-style: italic;
+  src: local('Helvetica Oblique'), local('Helvetica-Oblique'), local('Helvetica Neue Italic'), local('HelveticaNeue-Italic');
+}
+
+/* Design tokens from DESIGN.md ("The Dojang Floor").
+   Defined here only; screens move onto them one at a time in later steps,
+   so loading this file changes nothing on screen yet. */
+:root {
+  /* Neutrals */
+  --dp-ink: #20241F;
+  --dp-ink-soft: #5B5F56;
+  --dp-ink-faint: #8A8D84;
+  --dp-paper: #FFFFFF;
+  --dp-canvas: #F6F5F2;
+  --dp-line: #E2DFD6;
+
+  /* Brand */
+  --dp-hankook-red: #BE1C21;
+  --dp-hankook-red-deep: #9A2B2B;
+  --dp-hp-orange: #E8701A;
+
+  /* HP palette — YTP / HP Plans pages only (DESIGN.md → Colors → HP palette) */
+  --hp-orange-tint: #FDF0E6;
+  --hp-orange-deep: #8A3A0E;
+  --hp-stage-i: #FCEBDD;  --hp-stage-i-text: #8A4A1C;
+  --hp-stage-d: #F6C39A;  --hp-stage-d-text: #6B3410;
+  --hp-stage-c: #EC9254;  --hp-stage-c-text: #3E1C06;
+  --hp-stage-r: #B8501B;
+  --hp-stage-m: #DAD6CB;
+  --hp-phase-gp: #DDE7DD; --hp-phase-gp-text: #2E4A33;
+  --hp-phase-sp: #B7CFBB; --hp-phase-sp-text: #22392A;
+  --hp-phase-pc: #F7DCC0; --hp-phase-pc-text: #6B3A12;
+  --hp-phase-c: #F0A56E;  --hp-phase-c-text: #4A2208;
+  --hp-phase-tr: #E7E3D8;
+  --hp-camp: #4F7A57;     --hp-camp-tint: #EEF3EE;
+  --hp-testing: #6A5FA8;  --hp-testing-tint: #F2F0FA;
+  --hp-gold: #C9A227;     --hp-silver: #9AA0A6;     --hp-bronze: #B0703C;
+
+  /* Status */
+  --dp-success: #2A5A30;
+  --dp-success-tint: #E8F1E9;
+  --dp-warning: #854F0B;
+  --dp-warning-tint: #FAEEDA;
+  --dp-danger: #9A2B2B;
+  --dp-danger-tint: #FBEAEA;
+  --dp-info: #1E4566;
+
+  /* Type */
+  /* Body text: the portal's original font. Helvetica (the logo font) only for titles. */
+  --dp-font: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --dp-font-display: 'Dojang Helvetica', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --dp-text-display: 28px;
+  --dp-text-headline: 20px;
+  --dp-text-title: 16px;
+  --dp-text-body: 14px;
+  --dp-text-label: 13px;
+  --dp-text-caption: 12px;
+
+  /* Shape and space */
+  --dp-radius-sm: 6px;
+  --dp-radius-md: 10px;
+  --dp-radius-lg: 12px;
+  --dp-radius-pill: 999px;
+  --dp-space-xs: 4px;
+  --dp-space-sm: 8px;
+  --dp-space-md: 12px;
+  --dp-space-lg: 20px;
+  --dp-space-xl: 32px;
+  --dp-touch: 44px;
+}

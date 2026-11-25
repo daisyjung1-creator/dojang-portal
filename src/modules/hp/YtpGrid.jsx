@@ -118,7 +118,7 @@ export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek, edi
             <th className="ytp-label">Phase</th>
             {editMode
               ? weeks.map((w) => {
-                  const s = PHASE_STYLE[w.phase] || { bg: '#FFFFFF', fg: '#8A8D84', short: '+' };
+                  const s = PHASE_STYLE[w.phase] || { bg: 'var(--dp-paper)', fg: 'var(--dp-ink-faint)', short: '+' };
                   return (
                     <td key={w.week_no} className="ytp-tap" style={{ background: s.bg, color: s.fg }} title={w.phase || 'No phase'}
                       onClick={() => edit('phase', w.week_no)}>
@@ -127,7 +127,7 @@ export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek, edi
                   );
                 })
               : phaseRuns.map((r) => {
-                  const s = PHASE_STYLE[r.key] || { bg: '#FFFFFF', fg: '#20241F', short: '' };
+                  const s = PHASE_STYLE[r.key] || { bg: 'var(--dp-paper)', fg: 'var(--dp-ink)', short: '' };
                   return (
                     <td key={r.start} colSpan={r.span} style={{ background: s.bg, color: s.fg }} title={r.key}>
                       {r.span >= 3 ? r.key : s.short}
@@ -188,7 +188,7 @@ export default function YtpGrid({ plan, nowWeek, selectedWeek, onSelectWeek, edi
               <th className="ytp-label">{nr.label}</th>
               {weeks.map((w) => {
                 const v = w[nr.key];
-                const heat = nr.heat && v != null ? `rgba(232,112,42,${(Number(v) / 100) * 0.55})` : undefined;
+                const heat = nr.heat && v != null ? `color-mix(in srgb, var(--dp-hp-orange) ${Math.round(Number(v) * 0.55)}%, transparent)` : undefined;
                 return (
                   <td
                     key={w.week_no}
@@ -226,10 +226,10 @@ export function YtpLegend() {
       </div>
       <div>
         <strong>Events</strong>
-        <span><i style={{ background: PRIORITY_STYLE.H.bg, color: '#fff' }}>H</i>High</span>
-        <span><i style={{ background: PRIORITY_STYLE.M.bg, color: '#fff' }}>M</i>Medium</span>
+        <span><i style={{ background: PRIORITY_STYLE.H.bg, color: 'var(--dp-paper)' }}>H</i>High</span>
+        <span><i style={{ background: PRIORITY_STYLE.M.bg, color: 'var(--dp-paper)' }}>M</i>Medium</span>
         <span><i style={{ background: PRIORITY_STYLE.L.bg }}>L</i>Low</span>
-        <span><i style={{ border: '1px dashed #8A8D84', width: 18 }} />Tentative</span>
+        <span><i style={{ border: '1px dashed var(--dp-ink-faint)', width: 18 }} />Tentative</span>
       </div>
       <p>Terms follow NCCP <em>Developing Athletic Abilities</em> (Appendix B; section 5.3 for development vs. maintenance).</p>
     </div>
@@ -237,37 +237,37 @@ export function YtpLegend() {
 }
 
 const CSS = `
-.ytp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; border: 1px solid #DEDACC; border-radius: 10px; }
+.ytp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; background: var(--dp-paper); border: 1px solid var(--dp-line); border-radius: 10px; }
 .ytp-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 12px; }
-.ytp-table td, .ytp-table th { border-right: 1px solid #EFECE3; border-bottom: 1px solid #EFECE3; padding: 0; text-align: center; height: 28px; }
-.ytp-label { position: sticky; left: 0; z-index: 2; background: #FAF8F3; text-align: left !important; padding: 0 10px !important;
-  font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #DEDACC !important; }
-.ytp-month td { font-weight: 600; text-align: left; padding-left: 6px; color: #20241F; border-right: 1px solid #DEDACC; }
-.ytp-weekno button { all: unset; cursor: pointer; display: block; width: 100%; height: 28px; line-height: 28px; color: #5B5F56; }
-.ytp-day td { color: #8A8D84; font-size: 11px; }
+.ytp-table td, .ytp-table th { border-right: 1px solid var(--dp-line); border-bottom: 1px solid var(--dp-line); padding: 0; text-align: center; height: 28px; }
+.ytp-label { position: sticky; left: 0; z-index: 2; background: var(--dp-canvas); text-align: left !important; padding: 0 10px !important;
+  font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid var(--dp-line) !important; }
+.ytp-month td { font-weight: 600; text-align: left; padding-left: 6px; color: var(--dp-ink); border-right: 1px solid var(--dp-line); }
+.ytp-weekno button { all: unset; cursor: pointer; display: block; width: 100%; height: 28px; line-height: 28px; color: var(--dp-ink-soft); }
+.ytp-day td { color: var(--dp-ink-faint); font-size: 12px; }
 .ytp-events td { height: 196px; vertical-align: bottom; cursor: pointer; }
 .ytp-evstack { display: flex; justify-content: center; gap: 2px; padding: 4px 0; }
 .ytp-ev { writing-mode: vertical-rl; transform: rotate(180deg); border: 1.5px solid; border-radius: 6px; padding: 5px 2px;
-  font-size: 11px; font-weight: 500; white-space: nowrap; max-height: 188px; overflow: hidden; text-overflow: ellipsis; color: #20241F; }
-.ytp-ev b { display: inline-block; border-radius: 3px; padding: 2px 0; margin-bottom: 4px; font-size: 10px; }
-.ytp-phase td { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; border-right: 2px solid #fff; }
-.ytp-section th, .ytp-section td { background: #F3F0E8; height: 24px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #5B5F56; }
-.ytp-code { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 20px; border-radius: 4px; font-weight: 700; font-size: 11px; }
-.ytp-num td { color: #20241F; font-variant-numeric: tabular-nums; font-size: 11.5px; }
+  font-size: 12px; font-weight: 500; white-space: nowrap; max-height: 188px; overflow: hidden; text-overflow: ellipsis; color: var(--dp-ink); }
+.ytp-ev b { display: inline-block; border-radius: 3px; padding: 2px 0; margin-bottom: 4px; font-size: 12px; }
+.ytp-phase td { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; border-right: 2px solid var(--dp-paper); }
+.ytp-section th, .ytp-section td { background: var(--dp-canvas); height: 24px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dp-ink-soft); }
+.ytp-code { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 20px; border-radius: 4px; font-weight: 700; font-size: 12px; }
+.ytp-num td { color: var(--dp-ink); font-variant-numeric: tabular-nums; font-size: 12px; }
 .ytp-table td.ytp-now { box-shadow: inset 2px 0 0 ${HP_ORANGE}, inset -2px 0 0 ${HP_ORANGE}; }
-.ytp-weekno td.ytp-now button { background: ${HP_ORANGE}; color: #fff; font-weight: 700; }
-.ytp-table td.ytp-sel:not(.ytp-now) { background-color: rgba(32,36,31,0.05); }
-.ytp-weekno td.ytp-sel:not(.ytp-now) button { background: #20241F; color: #fff; }
+.ytp-weekno td.ytp-now button { background: ${HP_ORANGE}; color: var(--dp-paper); font-weight: 700; }
+.ytp-table td.ytp-sel:not(.ytp-now) { background-color: color-mix(in srgb, var(--dp-ink) 5%, transparent); }
+.ytp-weekno td.ytp-sel:not(.ytp-now) button { background: var(--dp-ink); color: var(--dp-paper); }
 .ytp-editing .ytp-tap { cursor: pointer; }
 .ytp-editing td.ytp-tap:hover, .ytp-editing th.ytp-tap:hover { outline: 2px solid ${HP_ORANGE}; outline-offset: -2px; }
-.ytp-editing .ytp-skill td.ytp-tap:empty::after { content: '+'; color: #D8D3C4; }
-.ytp-pen { color: ${HP_ORANGE}; margin-left: 6px; font-size: 11px; }
+.ytp-editing .ytp-skill td.ytp-tap:empty::after { content: '+'; color: var(--dp-line); }
+.ytp-pen { color: ${HP_ORANGE}; margin-left: 6px; font-size: 12px; }
 .ytp-add { all: unset; cursor: pointer; margin-left: 8px; color: ${HP_ORANGE}; font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 12px; }
-td.ytp-warn { background: #FFF1C9 !important; }
-.ytp-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; font-size: 12.5px; color: #45483F; }
+td.ytp-warn { background: var(--dp-warning-tint) !important; }
+.ytp-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; font-size: 13px; color: var(--dp-ink-soft); }
 .ytp-legend > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
-.ytp-legend strong { color: #20241F; min-width: 84px; }
+.ytp-legend strong { color: var(--dp-ink); min-width: 84px; }
 .ytp-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.ytp-legend i { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 18px; border-radius: 4px; font-style: normal; font-weight: 700; font-size: 11px; }
-.ytp-legend p { margin: 4px 0 0; color: #8A8D84; font-size: 12px; }
+.ytp-legend i { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 18px; border-radius: 4px; font-style: normal; font-weight: 700; font-size: 12px; }
+.ytp-legend p { margin: 4px 0 0; color: var(--dp-ink-faint); font-size: 12px; }
 `;

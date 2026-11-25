@@ -1,14 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, AlertTriangle, CalendarDays, Wallet, Clock, Award, Cake, UserPlus, Banknote, StickyNote, CircleCheck, Mail } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, AlertTriangle, CalendarDays, Wallet, Clock, Award, Cake, UserPlus, Banknote, ListTodo, CircleCheck, Mail, Users, Package } from 'lucide-react';
+import { syncStockTodos, lowRows, itemWithSize } from '../../lib/stock';
+import { refreshBadges } from '../../lib/badges';
+import { DEFAULT_MEETINGS, isMeetingDay, time12, meetingMessage, whatsappLink } from '../../lib/meetings';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { todayISO, addDaysISO, currentCycleStart, nextDueDate, billingAnchor, daysUntil } from '../../lib/billingDates';
 import { isBillable, isManual } from '../../lib/tuitionBilling';
 import { inClass } from '../../lib/classes';
 import { money, formatDate } from '../../lib/invoiceUtils';
-import { fetchAll, loadSettings } from '../invoices/api';
+import { fetchAll, loadSettings, queueEmail } from '../invoices/api';
+import { joinEmails } from '../../components/ConfirmSend';
 import { absenceAlerts, trackingStart, NOT_SEEN_DAYS } from '../../lib/attendanceStats';
 import InvoicePreview from '../invoices/InvoicePreview';
+import PaymentNoticeModal from '../invoices/PaymentNotice';
+import { GREEN, BLUE, RED, AMBER, PURPLE, GREY, smallBtn, linkBtn, Tag, Card, Empty } from './homeUi';
+import BeltProgressCard from './BeltProgressCard';
+import TapeSummaryCard from './TapeSummaryCard';
+import NotSeenCard from './NotSeenCard';
+import MeetingsCard from './MeetingsCard';
+import Modal from '../../components/Modal';
+import { guaranteeShortfalls } from '../../lib/guarantee';
 
 // Home: what matters today at a glance — today's classes, who is billed
 // today, overdue invoices, a calendar with notes, and anything coming up
@@ -60,6 +72,11 @@ export default function HomePage({ setActiveTab }) {
   const [general, setGeneral] = useState('');
   const [previewId, setPreviewId] = useState(null);
   const [settings, setSettings] = useState(null);
+  const [showShort, setShowShort] = useState(false);
+  const [showDeclined, setShowDeclined] = useState(false);
+  const [showExpiring, setShowExpiring] = useState(false);
+  const [notice, setNotice] = useState(null); // overdue invoice being emailed
+  const [noticeAt, setNoticeAt] = useState({}); // invoice id -> overdue_notice_at
 
   useEffect(() => {
     load();
@@ -89,9 +106,10 @@ export default function HomePage({ setActiveTab }) {
       { data: n },
       s,
       { data: recent },
+      { data: mkPeriod },
     ] = await Promise.all([
       supabase.from('students').select('*').order('name'),
-      supabase.from('customers').select('id, name, payment_type'),
+      supabase.from('customers').select('id, name, email, payment_type, active, card_profile_code, card_last4, card_expiry, card_declined_at, card_decline_message, card_declined_invoice_id, card_decline_emailed_at, card_decline_reminded_at, card_legacy_rb_pending, card_link_token, card_expiry_notice_for, card_expiry_notice_at'),
       supabase.from('class_schedule').select('*').eq('active', true).order('start_time'),
       supabase.from('attendance').select('student_id, class_name, status').eq('date', today),
       supabase.from('class_cancellations').select('*').gte('date', from).lte('date', far),
@@ -109,6 +127,7 @@ export default function HomePage({ setActiveTab }) {
       supabase.from('dashboard_notes').select('*').order('created_at'),
       loadSettings(),
       fetchAll(() => supabase.from('attendance').select('student_id, date, class_name, status').gte('date', addDaysISO(today, -90))),
+      supabase.from('makeup_records').select('student_id, absence_date, status').in('status', ['reserved', 'completed']).gte('absence_date', from),
     ]);
     // Status of the tuition invoices for nearby billing dates.
     const tl = (lines || []).filter((l) => l.line_kind === 'tuition');
@@ -119,6 +138,8 @@ export default function HomePage({ setActiveTab }) {
       invs = invs.concat(data || []);
     }
     const invById = Object.fromEntries(invs.map((x) => [x.id, x]));
+    // Today's automatic tuition run (saved cards), if it has run.
+    const { data: autoRun } = await supabase.from('auto_billing_runs').select('*').eq('run_date', today).maybeSingle();
     const cycleInv = {};
     tl.forEach((l) => {
       const inv = invById[l.invoice_id];
@@ -129,9 +150,19 @@ export default function HomePage({ setActiveTab }) {
       const { data } = await supabase.from('belt_test_entries').select('*').eq('test_id', tests[0].id);
       entries = data || [];
     }
+    // Low stock: alert here and an "Order …" item on the To-do (added once, cleared when restocked).
+    const { data: stockLv } = await supabase.from('inventory_levels').select('*');
+    let todos = n || [];
+    const synced = await syncStockTodos(stockLv || []);
+    // Read the list again after the sync (another run may have just added to it).
+    const { data: fresh } = await supabase.from('dashboard_notes').select('*').order('created_at');
+    if (fresh) todos = fresh;
+    if (synced.changed) refreshBadges();
     setSettings(s);
-    setNotes(n || []);
+    setNotes(todos);
     setD({
+      lowStock: lowRows(stockLv || []),
+      autoRun: autoRun || null,
       students: (students || []).filter((x) => (x.status || 'active') !== 'withdrawn'),
       custById: Object.fromEntries((customers || []).map((c) => [c.id, c])),
       schedule: schedule || [],
@@ -150,6 +181,7 @@ export default function HomePage({ setActiveTab }) {
       toText: toText || [],
       empById: Object.fromEntries((emps || []).map((e) => [e.id, e])),
       trackStart: trackingStart(recent || []),
+      mkPeriod: mkPeriod || [],
       recordsBy: (recent || []).reduce((m, r) => ((m[r.student_id] = m[r.student_id] || []).push(r), m), {}),
     });
   }
@@ -167,6 +199,8 @@ export default function HomePage({ setActiveTab }) {
     return byDay;
   }, [d, month]);
 
+  const shortfalls = useMemo(() => (d ? guaranteeShortfalls({ students: d.students, schedule: d.schedule, cancels: d.cancels, makeups: d.mkPeriod, today }) : []), [d]);
+
   const studentById = useMemo(() => Object.fromEntries((d?.students || []).map((s) => [s.id, s])), [d]);
 
   const overdue = useMemo(
@@ -174,6 +208,12 @@ export default function HomePage({ setActiveTab }) {
     [d]
   );
   const overdueTotal = overdue.reduce((t, i) => t + Number(i.balance || 0), 0);
+
+  useEffect(() => {
+    const ids = overdue.map((i) => i.id);
+    if (!ids.length) return;
+    supabase.from('invoices').select('id, overdue_notice_at').in('id', ids).then(({ data }) => setNoticeAt(Object.fromEntries((data || []).map((x) => [x.id, x.overdue_notice_at]))));
+  }, [overdue]);
 
   const classesOn = (date) => {
     if (!d) return [];
@@ -330,7 +370,7 @@ export default function HomePage({ setActiveTab }) {
     if (unsent.length)
       out.push({ icon: Mail, tab: 'payroll', tone: 'info', title: `${unsent.length} payslip${unsent.length === 1 ? '' : 's'} not emailed yet`, detail: `${unsent.map((s) => d.empById[s.employee_id]?.name || '?').join(', ')} — pay date ${shortDay(latest)}` });
     return out;
-  }, [d, notes]);
+  }, [d, notes, settings]);
 
   // ── Notes ────────────────────────────────────────────────────────────────
   async function addNote(date, text, reset) {
@@ -339,17 +379,20 @@ export default function HomePage({ setActiveTab }) {
     const { data, error } = await supabase.from('dashboard_notes').insert({ note_date: date, body }).select().single();
     if (!error && data) setNotes((p) => [...p, data]);
     reset('');
+    refreshBadges();
   }
   async function toggleNote(n) {
     await supabase.from('dashboard_notes').update({ done: !n.done }).eq('id', n.id);
     setNotes((p) => p.map((x) => (x.id === n.id ? { ...x, done: !n.done } : x)));
+    refreshBadges();
   }
   async function deleteNote(n) {
     await supabase.from('dashboard_notes').delete().eq('id', n.id);
     setNotes((p) => p.filter((x) => x.id !== n.id));
+    refreshBadges();
   }
 
-  if (!d) return <p style={{ color: '#5B5F56', fontSize: 14 }}>Loading…</p>;
+  if (!d) return <p style={{ color: 'var(--dp-ink-soft)', fontSize: 14 }}>Loading…</p>;
 
   const todayClasses = classesOn(today);
   const billToday = billing[today] || [];
@@ -357,7 +400,95 @@ export default function HomePage({ setActiveTab }) {
     .filter(([date]) => date > today && date <= addDaysISO(today, 7))
     .sort(([a], [b]) => (a < b ? -1 : 1));
   const sel = dayItems(day);
-  const generalNotes = notes.filter((n) => !n.note_date);
+
+  // Things to do or know about today, most urgent first.
+  const todayItems = [];
+  const tomorrow = addDaysISO(today, 1);
+  (settings?.meetings?.length ? settings.meetings : DEFAULT_MEETINGS).forEach((m) => {
+    if (isMeetingDay(m, today)) todayItems.push({ tone: 'warn', text: `${m.name} today at ${time12(m.time)} — post the reminder to the WhatsApp group`, href: whatsappLink(meetingMessage(m, today, today)), label: 'Post to WhatsApp' });
+    if (isMeetingDay(m, tomorrow)) todayItems.push({ tone: 'info', text: `${m.name} tomorrow at ${time12(m.time)} — post the reminder to the WhatsApp group`, href: whatsappLink(meetingMessage(m, tomorrow, today)), label: 'Post to WhatsApp' });
+  });
+  if (d.test && d.test.test_date === today) todayItems.push({ tone: 'warn', text: `${d.test.title || 'Belt testing'} today`, tab: 'testing', label: 'Testing' });
+  if (d.test && d.test.test_date === tomorrow) todayItems.push({ tone: 'info', text: `${d.test.title || 'Belt testing'} tomorrow`, tab: 'testing', label: 'Testing' });
+  const trialsToday = d.tryouts.filter((t) => t.date === today && (t.status || 'Scheduled') === 'Scheduled');
+  if (trialsToday.length) todayItems.push({ tone: 'info', text: `Trial class${trialsToday.length === 1 ? '' : 'es'}: ${trialsToday.map((t) => `${t.student_name}${t.time ? ' ' + t12(t.time) : ''}${t.class_name ? ` (${t.class_name})` : ''}`).join(', ')}`, tab: 'tryouts', label: 'Trials' });
+  if (d.toText.length) todayItems.push({ tone: 'warn', text: `Text ${d.toText.length} trial confirmation${d.toText.length === 1 ? '' : 's'} (phone only)`, tab: 'tryouts', label: 'Trials' });
+  if (billToday.length) todayItems.push({ tone: 'info', text: `Billing today: ${billToday.map((x) => x.name).join(', ')}`, tab: 'billing', label: 'Billing' });
+  if (d.regs.length) todayItems.push({ tone: 'warn', text: `${d.regs.length} online registration${d.regs.length === 1 ? '' : 's'} to review`, tab: 'register', label: 'Enrollment' });
+  const mkToday = d.makeups.filter((m) => m.reservation_date === today);
+  if (mkToday.length) todayItems.push({ tone: 'info', text: `Makeup today: ${mkToday.map((m) => `${studentById[m.student_id]?.name || '?'} (${m.reservation_class_name})`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
+  const expToday = d.expiring.filter((m) => m.expiration_date === today);
+  if (expToday.length) todayItems.push({ tone: 'warn', text: `Makeup expires today: ${expToday.map((m) => studentById[m.student_id]?.name || '?').join(', ')}`, tab: 'attendance', label: 'Attendance' });
+  // Subsidy applications still waiting for approval 30+ days after applying.
+  const waitingSubs = d.students.filter((x) => x.subsidy && x.subsidy_status === 'pending' && x.subsidy_applied_on && x.subsidy_applied_on <= addDaysISO(today, -30));
+  if (waitingSubs.length)
+    todayItems.push({
+      tone: 'warn',
+      text: `Subsidy waiting 30+ days for approval: ${waitingSubs.map((x) => `${x.name} (${(x.subsidy_name || 'Subsidy').trim()}, applied ${new Date(x.subsidy_applied_on + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })})`).join(', ')} — check with the family`,
+      tab: 'students',
+      label: 'Students',
+    });
+  // Saved cards (online payments): today's automatic tuition, declined charges and cards expiring soon.
+  if (d.autoRun?.results) {
+    const ok = d.autoRun.results.charged || [];
+    const bad = [...(d.autoRun.results.problems || []), ...(d.autoRun.results.error ? [{ customer: 'Run', error: d.autoRun.results.error }] : [])];
+    if (ok.length || bad.length) {
+      const sum = ok.reduce((n, x) => n + Number(x.amount || 0), 0);
+      todayItems.push({
+        tone: bad.length ? 'warn' : 'good',
+        text: `Automatic tuition today: ${ok.length} charged${ok.length ? ` ($${sum.toFixed(2)})` : ''}${bad.length ? ` · ${bad.length} not charged — ${bad.map((x) => `${x.customer}${x.number ? ` #${x.number}` : ''}: ${x.declined || x.error}`).join(', ')}` : ''}`,
+        tab: 'invoices',
+        label: 'Invoices',
+      });
+    }
+  }
+  {
+    const cards = Object.values(d.custById).filter((c) => c.card_profile_code && c.active !== false);
+    const declined = cards.filter((c) => c.card_declined_at);
+    const pendingRb = cards.filter((c) => c.card_legacy_rb_pending);
+    if (pendingRb.length)
+      todayItems.push({ tone: 'warn', text: `Card saved online — close the old TD Recurring Billing, then tick it on the family: ${pendingRb.map((c) => c.name).join(', ')}`, tab: 'customers', label: 'Families' });
+    if (declined.length) {
+      const toEmail = declined.filter((c) => !c.card_decline_emailed_at).length;
+      const toRemind = declined.filter((c) => reminderDue(c, today)).length;
+      const todo = [toEmail ? `${toEmail} to email` : '', toRemind ? `${toRemind} reminder${toRemind === 1 ? '' : 's'} due` : ''].filter(Boolean).join(', ');
+      todayItems.push({
+        tone: 'warn',
+        text: `Saved card declined: ${declined.map((c) => `${c.name} (···${c.card_last4 || ''})`).join(', ')}${todo ? ` — ${todo}` : ''}`,
+        onClick: () => setShowDeclined(true),
+        label: 'Review',
+      });
+    }
+    const soon = expiringCards(cards);
+    if (soon.length) {
+      const toEmail = soon.filter((c) => c.card_expiry_notice_for !== c.card_expiry).length;
+      todayItems.push({
+        tone: toEmail ? 'warn' : 'info',
+        text: `Saved card expired or expiring by next month: ${soon.map((c) => `${c.name} (···${c.card_last4 || ''}, ${c.card_expiry})`).join(', ')}${toEmail ? ` — ${toEmail} to email` : ' — all emailed'}`,
+        onClick: () => setShowExpiring(true),
+        label: 'Review',
+      });
+    }
+  }
+  // Closures leave someone below the guaranteed classes (8/12/16) this or next service period.
+  if (shortfalls.length)
+    todayItems.push({
+      tone: 'warn',
+      text: `${shortfalls.length} student${shortfalls.length === 1 ? ' is' : 's are'} short of guaranteed classes because of closures — book make-ups: ${shortfalls.slice(0, 6).map((x) => `${x.student.name} (${x.short} short)`).join(', ')}${shortfalls.length > 6 ? '…' : ''}`,
+      onClick: () => setShowShort(true),
+      label: 'Details',
+    });
+  const bdayToday = d.students.filter((x) => x.dob && String(x.dob).slice(5) === today.slice(5));
+  if (bdayToday.length) todayItems.push({ tone: 'good', text: `Birthday today 🎉 ${bdayToday.map((x) => x.name).join(', ')}`, tab: 'students', label: 'Students' });
+  if (d.lowStock.length)
+    todayItems.push({
+      tone: 'warn',
+      text: `Low stock — order more: ${d.lowStock.slice(0, 6).map((r) => `${itemWithSize(r.name, r.size)} (${Number(r.on_hand) <= 0 ? 'out' : `${Number(r.on_hand)} left`})`).join(', ')}${d.lowStock.length > 6 ? '…' : ''}`,
+      tab: 'inventory',
+      label: 'Inventory',
+    });
+  notes.filter((n) => n.note_date && n.note_date <= today && !n.done && !n.auto_key).forEach((n) => todayItems.push({ tone: n.note_date < today ? 'warn' : 'info', text: `To-do${n.note_date < today ? ` (was due ${shortDay(n.note_date)})` : ''}: ${n.body}` }));
+  todayItems.sort((a, b) => (a.tone === 'warn' ? 0 : 1) - (b.tone === 'warn' ? 0 : 1));
   const presentIn = (c) => new Set(d.att.filter((a) => a.class_name === c && a.status === 'present').map((a) => a.student_id)).size;
 
   return (
@@ -370,9 +501,14 @@ export default function HomePage({ setActiveTab }) {
         <button className="dp-btn" onClick={load}>Refresh</button>
       </div>
 
+      {/* Today: what to do / what's happening */}
+      {showDeclined && <DeclinedModal cards={Object.values(d.custById).filter((c) => c.card_profile_code && c.card_declined_at)} today={today} onClose={() => setShowDeclined(false)} onChanged={load} />}
+      {showExpiring && <ExpiringModal cards={expiringCards(Object.values(d.custById).filter((c) => c.card_profile_code && c.active !== false))} onClose={() => setShowExpiring(false)} onChanged={load} />}
+      {showShort && <ShortfallModal list={shortfalls} onClose={() => setShowShort(false)} onAttendance={() => setActiveTab('attendance')} />}
+      <TodayPanel items={todayItems} classesLine={todayClasses.length ? `${todayClasses.filter((c) => !c.cancelled).length} classes · ${t12(todayClasses[0].start_time)} – ${t12(todayClasses[todayClasses.length - 1].end_time)}${todayClasses.some((c) => c.cancelled) ? ` · ${todayClasses.filter((c) => c.cancelled).length} cancelled` : ''}` : 'No classes today'} setActiveTab={setActiveTab} />
+
       {/* At a glance */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 18 }}>
-        <Metric label="Classes today" value={todayClasses.filter((c) => !c.cancelled).length} sub={todayClasses.some((c) => c.cancelled) ? `${todayClasses.filter((c) => c.cancelled).length} cancelled` : todayClasses.length ? `${t12(todayClasses[0].start_time)} – ${t12(todayClasses[todayClasses.length - 1].end_time)}` : 'No classes'} onClick={() => setActiveTab('attendance')} />
         <Metric label="Billing today" value={billToday.length} sub={billToday.length ? money(billToday.reduce((t, s) => t + Number(s.tuition || 0), 0)) + ' tuition' : 'Nobody today'} onClick={() => setActiveTab('billing')} />
         <Metric label="Overdue" value={money(overdueTotal)} sub={`${overdue.length} invoice${overdue.length === 1 ? '' : 's'}`} tone={overdue.length ? 'bad' : 'good'} onClick={() => document.getElementById('home-overdue')?.scrollIntoView({ behavior: 'smooth' })} />
         <Metric label="Active students" value={d.students.length} sub={`${d.students.filter(isBillable).length} billed monthly`} onClick={() => setActiveTab('students')} />
@@ -393,14 +529,14 @@ export default function HomePage({ setActiveTab }) {
                     const mk = d.makeups.filter((m) => m.reservation_date === today && m.reservation_class_name === c.class_name).length;
                     return (
                       <tr key={c.id} style={c.cancelled ? { opacity: 0.55 } : undefined}>
-                        <td style={{ whiteSpace: 'nowrap', width: 150, fontSize: 13, color: '#5B5F56' }}>{t12(c.start_time)} – {t12(c.end_time)}</td>
+                        <td style={{ whiteSpace: 'nowrap', width: 150, fontSize: 13, color: 'var(--dp-ink-soft)' }}>{t12(c.start_time)} – {t12(c.end_time)}</td>
                         <td style={{ fontWeight: 500 }}>
                           {c.class_name}
                           {c.cancelled && <Tag c={RED}>Cancelled</Tag>}
                           {mk > 0 && <Tag c={PURPLE}>{mk} makeup</Tag>}
                         </td>
                         <td style={{ textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>
-                          {here > 0 ? <span style={{ color: '#2A5A30' }}>{here} / {roster} here</span> : <span style={{ color: '#8A8D84' }}>{roster} student{roster === 1 ? '' : 's'}</span>}
+                          {here > 0 ? <span style={{ color: 'var(--dp-success)' }}>{here} / {roster} here</span> : <span style={{ color: 'var(--dp-ink-faint)' }}>{roster} student{roster === 1 ? '' : 's'}</span>}
                         </td>
                       </tr>
                     );
@@ -410,6 +546,12 @@ export default function HomePage({ setActiveTab }) {
             )}
           </Card>
 
+          <NotSeenCard students={d.students} recordsBy={d.recordsBy} today={today} />
+
+          <TapeSummaryCard students={d.students} setActiveTab={setActiveTab} />
+
+          <BeltProgressCard students={d.students} schedule={d.schedule} settings={settings} today={today} setActiveTab={setActiveTab} onSaved={setSettings} />
+
           <Card title="Billing today" icon={Wallet} action={<button className="dp-btn" style={smallBtn} onClick={() => setActiveTab('billing')}>Billing</button>}>
             {billToday.length === 0 ? (
               <Empty>Nobody's billing date is today.</Empty>
@@ -417,7 +559,7 @@ export default function HomePage({ setActiveTab }) {
               <BillTable list={billToday} date={today} d={d} onOpen={setPreviewId} />
             )}
             {billSoon.length > 0 && (
-              <div style={{ padding: '8px 14px 12px', fontSize: 12.5, color: '#5B5F56', borderTop: '1px solid #F1EFE7' }}>
+              <div style={{ padding: '8px 14px 12px', fontSize: 12.5, color: 'var(--dp-ink-soft)', borderTop: '1px solid var(--dp-canvas)' }}>
                 <b style={{ fontWeight: 500 }}>Next 7 days:</b>{' '}
                 {billSoon.map(([date, list]) => (
                   <button key={date} className="dp-link" style={linkBtn} onClick={() => { setMonth(ym(date)); setDay(date); }}>
@@ -436,7 +578,7 @@ export default function HomePage({ setActiveTab }) {
                 <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                   <table className="dp-table">
                     <thead>
-                      <tr><th>Family</th><th>Invoice</th><th>Due</th><th style={{ textAlign: 'right' }}>Balance</th></tr>
+                      <tr><th>Family</th><th>Invoice</th><th>Due</th><th style={{ textAlign: 'right' }}>Balance</th><th></th></tr>
                     </thead>
                     <tbody>
                       {overdue.map((i) => {
@@ -446,8 +588,14 @@ export default function HomePage({ setActiveTab }) {
                           <tr key={i.id} className="dp-row" style={{ cursor: 'pointer' }} onClick={() => setPreviewId(i.id)}>
                             <td style={{ fontWeight: 500 }}>{i.customer_name}{d.custById[i.customer_id] && !isManual(d.custById[i.customer_id]) && <Tag c={BLUE}>Card</Tag>}</td>
                             <td style={{ fontSize: 13 }}>#{i.invoice_number}</td>
-                            <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(due)} <span style={{ color: late > 30 ? '#9A2B2B' : '#854F0B' }}>· {late}d late</span></td>
-                            <td style={{ textAlign: 'right', fontWeight: 500, color: '#9A2B2B' }}>{money(i.balance)}</td>
+                            <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{formatDate(due)} <span style={{ color: late > 30 ? 'var(--dp-danger)' : 'var(--dp-warning)' }}>· {late}d late</span></td>
+                            <td style={{ textAlign: 'right', fontWeight: 500, color: 'var(--dp-danger)' }}>{money(i.balance)}</td>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                              <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12.5 }} title="Email the overdue notice (classes may be suspended — agreement 7.3)" onClick={() => setNotice(i)}>
+                                <Mail size={12} /> {noticeAt[i.id] ? 'Again' : 'Notice'}
+                              </button>
+                              {noticeAt[i.id] && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginTop: 2 }}>Sent {shortDate(noticeAt[i.id])}</div>}
+                            </td>
                           </tr>
                         );
                       })}
@@ -461,18 +609,19 @@ export default function HomePage({ setActiveTab }) {
 
         {/* ── Right column ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <MeetingsCard settings={settings} today={today} onSaved={setSettings} />
           {headsUp.length > 0 && (
             <Card title="Coming up" icon={CircleCheck}>
               <div style={{ padding: '4px 0' }}>
                 {headsUp.map((h, i) => {
                   const Icon = h.icon;
-                  const col = h.tone === 'warn' ? '#854F0B' : h.tone === 'good' ? '#2A5A30' : '#20241F';
+                  const col = h.tone === 'warn' ? 'var(--dp-warning)' : h.tone === 'good' ? 'var(--dp-success)' : 'var(--dp-ink)';
                   return (
-                    <button key={i} onClick={() => setActiveTab(h.tab)} style={{ display: 'flex', gap: 10, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: i < headsUp.length - 1 ? '1px solid #F1EFE7' : 'none', padding: '9px 14px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <button key={i} onClick={() => setActiveTab(h.tab)} style={{ display: 'flex', gap: 10, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: i < headsUp.length - 1 ? '1px solid var(--dp-canvas)' : 'none', padding: '9px 14px', cursor: 'pointer', fontFamily: 'inherit' }}>
                       <Icon size={16} color={col} style={{ flexShrink: 0, marginTop: 2 }} />
                       <span>
                         <div style={{ fontSize: 13.5, fontWeight: 500, color: col }}>{h.title}</div>
-                        {h.detail && <div style={{ fontSize: 12.5, color: '#5B5F56', marginTop: 1 }}>{h.detail}</div>}
+                        {h.detail && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginTop: 1 }}>{h.detail}</div>}
                       </span>
                     </button>
                   );
@@ -485,73 +634,309 @@ export default function HomePage({ setActiveTab }) {
             <Calendar month={month} setMonth={setMonth} day={day} setDay={setDay} today={today} dayItems={dayItems} classesOn={classesOn} />
             <div style={{ borderTop: '1px solid #EDEAE0', padding: '12px 14px' }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>{day === today ? 'Today' : longDay(day)}</div>
-              {sel.test && <Line icon={Award} c="#9A2B2B">{sel.test.title || 'Belt testing'}</Line>}
-              {sel.cancels.map((c) => <Line key={c.id} icon={AlertTriangle} c="#9A2B2B">{c.class_name || 'All classes'} cancelled{c.reason ? ` — ${c.reason}` : ''}</Line>)}
-              {sel.trials.map((t) => <Line key={t.id} icon={CalendarDays} c="#1E4566">Trial: {t.student_name}{t.time ? ` · ${t.time.slice(0, 5)}` : ''}{t.class_name ? ` · ${t.class_name}` : ''}</Line>)}
-              {sel.makeups.map((m) => <Line key={m.id} icon={CalendarDays} c="#4B3A86">Makeup: {studentById[m.student_id]?.name || '?'} · {m.reservation_class_name}</Line>)}
-              {sel.billing.length > 0 && <Line icon={Wallet} c="#2A5A30">Billing: {sel.billing.map((s) => s.name).join(', ')}</Line>}
+              {sel.test && <Line icon={Award} c="var(--dp-danger)">{sel.test.title || 'Belt testing'}</Line>}
+              {sel.cancels.map((c) => <Line key={c.id} icon={AlertTriangle} c="var(--dp-danger)">{c.class_name || 'All classes'} cancelled{c.reason ? ` — ${c.reason}` : ''}</Line>)}
+              {sel.trials.map((t) => <Line key={t.id} icon={CalendarDays} c="var(--dp-info)">Trial: {t.student_name}{t.time ? ` · ${t.time.slice(0, 5)}` : ''}{t.class_name ? ` · ${t.class_name}` : ''}</Line>)}
+              {sel.makeups.map((m) => <Line key={m.id} icon={CalendarDays} c="var(--dp-ink-soft)">Makeup: {studentById[m.student_id]?.name || '?'} · {m.reservation_class_name}</Line>)}
+              {sel.billing.length > 0 && <Line icon={Wallet} c="var(--dp-success)">Billing: {sel.billing.map((s) => s.name).join(', ')}</Line>}
               {!sel.test && !sel.cancels.length && !sel.trials.length && !sel.makeups.length && !sel.billing.length && !sel.notes.length && (
-                <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 6 }}>{classesOn(day).length ? `${classesOn(day).length} classes · nothing else` : 'No classes'}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginBottom: 6 }}>{classesOn(day).length ? `${classesOn(day).length} classes · nothing else` : 'No classes'}</div>
               )}
               <NoteList notes={sel.notes} onToggle={toggleNote} onDelete={deleteNote} />
-              <NoteInput value={draft} onChange={setDraft} onAdd={() => addNote(day, draft, setDraft)} placeholder={`Add a note for ${day === today ? 'today' : shortDay(day)}…`} />
+              <NoteInput value={draft} onChange={setDraft} onAdd={() => addNote(day, draft, setDraft)} placeholder={`Add a to-do for ${day === today ? 'today' : shortDay(day)}…`} />
             </div>
           </Card>
 
-          <Card title="Notes" icon={StickyNote}>
-            <div style={{ padding: '10px 14px 12px' }}>
-              {generalNotes.length === 0 && <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 6 }}>Things to remember that aren't tied to a day.</div>}
-              <NoteList notes={generalNotes} onToggle={toggleNote} onDelete={deleteNote} />
-              <NoteInput value={general} onChange={setGeneral} onAdd={() => addNote(null, general, setGeneral)} placeholder="Add a note…" />
-            </div>
-          </Card>
+          <TodoCard todos={notes} today={today} onAdd={addNote} onToggle={toggleNote} onDelete={deleteNote} setActiveTab={setActiveTab} />
         </div>
       </div>
 
-      {previewId && <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onEdit={() => setActiveTab('invoices')} onPay={() => setActiveTab('payments')} onChanged={load} />}
+      {notice && (
+        <PaymentNoticeModal
+          inv={notice}
+          cust={d.custById[notice.customer_id]}
+          sentAt={noticeAt[notice.id]}
+          today={today}
+          onClose={() => setNotice(null)}
+          onSent={(at) => { setNoticeAt((m) => ({ ...m, [notice.id]: at })); setNotice(null); }}
+        />
+      )}
+      {previewId && <InvoicePreview invoiceId={previewId} settings={settings} onClose={() => setPreviewId(null)} onPay={() => setActiveTab('payments')} onChanged={load} />}
     </>
   );
 }
 
 // ── Pieces ─────────────────────────────────────────────────────────────────
-const GREEN = ['#2A5A30', '#E8F1E9', '#BFDCC3'];
-const BLUE = ['#1E4566', '#E6F0F6', '#B9D3E4'];
-const RED = ['#9A2B2B', '#FBEAEA', '#EBC3C3'];
-const AMBER = ['#854F0B', '#FAEEDA', '#F0D9A8'];
-const PURPLE = ['#4B3A86', '#EEEAF6', '#D2C9EA'];
-const GREY = ['#5B5F56', '#F1EFE7', '#DEDACC'];
-const smallBtn = { padding: '2px 10px', fontSize: 12 };
-const linkBtn = { background: 'none', border: 'none', padding: '0 6px 0 0', color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' };
+const md = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 
-function Tag({ c, children }) {
-  return <span style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap', fontWeight: 400 }}>{children}</span>;
+// Declined saved card: a reminder is due 3 days after the first email if still unpaid.
+const REMIND_AFTER_DAYS = 3;
+function reminderDue(c, today) {
+  if (!c.card_decline_emailed_at || c.card_decline_reminded_at) return false;
+  const sent = new Date(c.card_decline_emailed_at).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+  return addDaysISO(sent, REMIND_AFTER_DAYS) <= today;
+}
+const shortDate = (ts) => (ts ? new Date(ts).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', timeZone: 'America/Edmonton' }) : '');
+
+function declineEmail(c, inv, reminder) {
+  const amount = money(inv?.balance ?? 0);
+  const num = inv?.invoice_number ? ` (invoice #${inv.invoice_number})` : '';
+  const card = `the card ending in ${c.card_last4 || '····'}`;
+  const sign = 'Thank you,\nMaster Daisy\nChampion Hankook Taekwondo';
+  if (reminder)
+    return {
+      subject: 'Reminder: tuition payment still outstanding — Champion Hankook Taekwondo',
+      message: `Hi ${c.name},\n\nJust a friendly reminder that your tuition payment of ${amount}${num} is still outstanding — ${card} was declined on ${shortDate(c.card_declined_at)}.\n\nYou can pay securely online with another card using the button below, and choose to use it for future tuition at the same time.\n\nIf you've already taken care of this, thank you — please disregard this email. Questions? Just reply here.\n\n${sign}`,
+    };
+  return {
+    subject: "Tuition payment didn't go through — Champion Hankook Taekwondo",
+    message: `Hi ${c.name},\n\nWe tried to process your tuition payment of ${amount}${num} on ${shortDate(c.card_declined_at)} using ${card}, but it was declined by the bank${c.card_decline_message ? ` ("${c.card_decline_message}")` : ''}.\n\nThis often happens when a card has expired, been replaced, or reached its limit.\n\nYou can pay securely online with another card using the button below. When you pay, you can also choose to use the new card for future tuition, so you won't need to do anything next month.\n\nIf you've already sorted this out, or would prefer to pay at the front desk, please just reply to this email. Payment is due within 7 days.\n\n${sign}`,
+  };
 }
 
-function Metric({ label, value, sub, tone, onClick }) {
-  const color = tone === 'bad' ? '#9A2B2B' : tone === 'good' ? '#2A5A30' : '#20241F';
+// Declined saved cards: review and email the parent (first email, then one reminder).
+function DeclinedModal({ cards, today, onClose, onChanged }) {
+  const [invs, setInvs] = useState({});
+  const [edit, setEdit] = useState(null); // { c, reminder, subject, message }
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    const ids = cards.map((c) => c.card_declined_invoice_id).filter(Boolean);
+    if (!ids.length) return;
+    supabase.from('invoice_summary').select('id, invoice_number, balance, customer_email').in('id', ids).then(({ data }) => setInvs(Object.fromEntries((data || []).map((x) => [x.id, x]))));
+  }, []);
+  function open(c, reminder) {
+    setEdit({ c, reminder, extra: '', ...declineEmail(c, invs[c.card_declined_invoice_id], reminder) });
+  }
+  async function send() {
+    const { c, reminder, subject, message } = edit;
+    const inv = invs[c.card_declined_invoice_id];
+    const list = joinEmails(c.email || inv?.customer_email || '', edit.extra || '');
+    const bad = list.filter((e) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+    if (!list.length) return setMsg(`No email address for ${c.name}.`);
+    if (bad.length) return setMsg(`Check the email address: ${bad.join(', ')}`);
+    const to = list.join(', ');
+    setBusy(true);
+    try {
+      // Sent as the invoice email: the PDF is attached and the "Pay now" button is under the message.
+      await queueEmail('invoice', to, { invoice_id: c.card_declined_invoice_id, subject, message });
+      await supabase.from('customers').update(reminder ? { card_decline_reminded_at: new Date().toISOString() } : { card_decline_emailed_at: new Date().toISOString() }).eq('id', c.id);
+      setMsg(`${reminder ? 'Reminder' : 'Email'} sent to ${c.name}.`);
+      setEdit(null);
+      onChanged();
+    } catch (e) {
+      setMsg('Could not send: ' + e.message);
+    }
+    setBusy(false);
+  }
+  async function dismiss(c) {
+    await supabase.from('customers').update({ card_declined_at: null, card_decline_message: null, card_declined_invoice_id: null, card_decline_emailed_at: null, card_decline_reminded_at: null }).eq('id', c.id);
+    onChanged();
+  }
+  if (edit)
+    return (
+      <Modal title={`${edit.reminder ? 'Reminder' : 'Email'} to ${edit.c.name}`} maxWidth={640} onClose={() => setEdit(null)} footer={<><button className="dp-btn" onClick={() => setEdit(null)}>Back</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
+        <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 8px' }}>To: {edit.c.email || invs[edit.c.card_declined_invoice_id]?.customer_email || '—'}</p>
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Also send to <span style={{ color: 'var(--dp-ink-faint)' }}>— this email only, not saved to the family</span></label>
+        <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} placeholder="e.g. dad@example.com (separate several with commas)" value={edit.extra} onChange={(e) => setEdit({ ...edit, extra: e.target.value })} />
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Subject</label>
+        <input className="dp-input" style={{ width: '100%', marginBottom: 10 }} value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} />
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Message</label>
+        <textarea className="dp-input" style={{ width: '100%', minHeight: 300, fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.5 }} value={edit.message} onChange={(e) => setEdit({ ...edit, message: e.target.value })} />
+        <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>The invoice PDF is attached and a "Pay now by credit card" button is added under the message.</p>
+        {msg && <p style={{ fontSize: 12.5, color: 'var(--dp-danger)' }}>{msg}</p>}
+      </Modal>
+    );
   return (
-    <button onClick={onClick} style={{ ...styles.metricCard, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
-      <p style={styles.metricLabel}>{label}</p>
-      <p style={{ ...styles.metricValue, color }}>{value}</p>
-      {sub && <p style={{ fontSize: 12, color: '#8A8D84', margin: '4px 0 0' }}>{sub}</p>}
-    </button>
+    <Modal title="Saved card declined" maxWidth={760} onClose={onClose} footer={<button className="dp-btn" onClick={onClose}>Close</button>}>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>Review and email the parent. The email has a Pay now link where they can pay with another card and make it their card for future tuition. A reminder is suggested {REMIND_AFTER_DAYS} days after the first email if it's still unpaid. Dismiss once it's sorted out another way.</p>
+      {msg && <p style={{ fontSize: 12.5, color: 'var(--dp-success)' }}>{msg}</p>}
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dp-table">
+          <thead>
+            <tr><th>Family</th><th>Declined</th><th>Invoice</th><th>Email</th><th></th></tr>
+          </thead>
+          <tbody>
+            {cards.map((c) => {
+              const inv = invs[c.card_declined_invoice_id];
+              const unpaid = inv ? Number(inv.balance) > 0.004 : true;
+              return (
+                <tr key={c.id}>
+                  <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>···{c.card_last4} · {c.card_decline_message || 'declined'}</div></td>
+                  <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{shortDate(c.card_declined_at)}</td>
+                  <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{inv ? <>#{inv.invoice_number} · {unpaid ? money(inv.balance) : <span style={{ color: 'var(--dp-success)' }}>paid</span>}</> : '—'}</td>
+                  <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {c.card_decline_emailed_at ? `Sent ${shortDate(c.card_decline_emailed_at)}` : <span style={{ color: 'var(--dp-warning)' }}>Not sent</span>}
+                    {c.card_decline_reminded_at && <div>Reminder {shortDate(c.card_decline_reminded_at)}</div>}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    {c.card_declined_invoice_id && unpaid && !c.card_decline_emailed_at && <button className="dp-btn dp-btn-primary" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => open(c, false)}>Email parent</button>}
+                    {c.card_declined_invoice_id && unpaid && c.card_decline_emailed_at && !c.card_decline_reminded_at && (
+                      <button className={`dp-btn${reminderDue(c, today) ? ' dp-btn-primary' : ''}`} style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => open(c, true)}>Send reminder</button>
+                    )}{' '}
+                    <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => dismiss(c)}>Dismiss</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Modal>
   );
 }
 
-function Card({ title, icon: Icon, action, tone, children }) {
+// Saved cards that expired, or expire this or next month (auto-pay card).
+function expiringCards(cards) {
+  const now = new Date();
+  const cur = now.getFullYear() * 12 + now.getMonth();
+  return cards
+    .map((c) => {
+      const m = /^(\d{2})\/(\d{2})$/.exec(c.card_expiry || '');
+      if (!m) return null;
+      const exp = (2000 + Number(m[2])) * 12 + Number(m[1]) - 1;
+      return exp <= cur + 1 ? { ...c, expired: exp < cur } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const CARD_PAGE = 'https://dojang-portal.netlify.app/card/';
+function expiryEmail(c) {
+  const sign = 'Thank you,\nMaster Daisy\nChampion Hankook Taekwondo';
+  const card = `the card ending in ${c.card_last4 || '····'}`;
+  return {
+    subject: c.expired ? 'Your saved card has expired — Champion Hankook Taekwondo' : 'Your saved card expires soon — Champion Hankook Taekwondo',
+    message: `Hi ${c.name},\n\n${c.expired ? `The card we have on file for your tuition (${card}) expired at the end of ${c.card_expiry}.` : `The card we have on file for your tuition (${card}) expires at the end of ${c.card_expiry}.`} To keep your tuition payments running smoothly, please add your new card through the secure link below:\n\n${CARD_PAGE}${c.card_link_token}\n\nNothing is charged when you save it, and the new card is used for your tuition from your next billing date.\n\nIf you've already updated your card, thank you — please disregard this email. Questions? Just reply here.\n\n${sign}`,
+  };
+}
+
+// Expiring saved cards: review the email, then send it (nothing goes out automatically).
+function ExpiringModal({ cards, onClose, onChanged }) {
+  const [edit, setEdit] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [sent, setSent] = useState({});
+  async function send() {
+    const { c, subject, message } = edit;
+    if (!c.email) return setMsg('This family has no email address.');
+    setBusy(true);
+    try {
+      await queueEmail('welcome', c.email, { subject, message });
+      await supabase.from('customers').update({ card_expiry_notice_for: c.card_expiry, card_expiry_notice_at: new Date().toISOString() }).eq('id', c.id);
+      setSent((x) => ({ ...x, [c.id]: true }));
+      setEdit(null);
+      setMsg(`Email sent to ${c.name}.`);
+      onChanged && onChanged();
+    } catch (e) {
+      setMsg('Could not send: ' + e.message);
+    }
+    setBusy(false);
+  }
+  if (edit)
+    return (
+      <Modal title={`Email to ${edit.c.name}`} maxWidth={640} onClose={() => setEdit(null)} footer={<><button className="dp-btn" onClick={() => setEdit(null)}>Back</button><button className="dp-btn dp-btn-primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Send email'}</button></>}>
+        <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 8px' }}>To: {edit.c.email || '—'}</p>
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Subject</label>
+        <input className="dp-input" value={edit.subject} onChange={(e) => setEdit({ ...edit, subject: e.target.value })} style={{ marginBottom: 8 }} />
+        <label style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>Message</label>
+        <textarea className="dp-input" rows={13} value={edit.message} onChange={(e) => setEdit({ ...edit, message: e.target.value })} />
+        {msg && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{msg}</p>}
+      </Modal>
+    );
   return (
-    <div style={{ ...styles.card, ...(tone === 'bad' ? { borderColor: '#EBC3C3' } : {}) }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderBottom: '1px solid #EDEAE0' }}>
-        {Icon && <Icon size={15} color={tone === 'bad' ? '#9A2B2B' : '#5B5F56'} />}
-        <span style={{ fontSize: 14, fontWeight: 600, flex: 1, color: tone === 'bad' ? '#9A2B2B' : '#20241F' }}>{title}</span>
-        {action}
+    <Modal title="Saved cards expiring" maxWidth={720} onClose={onClose} footer={<button className="dp-btn" onClick={onClose}>Close</button>}>
+      <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>Check each email before it goes out. The link opens the family's card page, where they add the new card (it becomes the tuition card).</p>
+      {msg && <p style={{ color: 'var(--dp-success)', fontSize: 13, margin: '0 0 8px' }}>{msg}</p>}
+      <table className="dp-table" style={{ width: '100%' }} data-testid="expiring">
+        <tbody>
+          {cards.map((c) => {
+            const done = sent[c.id] || c.card_expiry_notice_for === c.card_expiry;
+            return (
+              <tr key={c.id} data-family={c.name}>
+                <td style={{ fontWeight: 500 }}>{c.name}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>···{c.card_last4} · {c.email || 'no email'}</div></td>
+                <td style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: c.expired ? 'var(--dp-danger)' : 'var(--dp-warning)' }}>{c.expired ? 'Expired' : 'Expires'} {c.card_expiry}</td>
+                <td style={{ fontSize: 12.5 }}>{done ? <span style={{ color: 'var(--dp-success)' }}>Sent{c.card_expiry_notice_at && !sent[c.id] ? ` ${shortDate(c.card_expiry_notice_at)}` : ''}</span> : <span style={{ color: 'var(--dp-warning)' }}>Not sent</span>}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <button className={`dp-btn${done ? '' : ' dp-btn-primary'}`} style={{ padding: '3px 10px', fontSize: 12 }} disabled={!c.card_link_token} onClick={() => { setMsg(''); setEdit({ c, ...expiryEmail(c) }); }}>{done ? 'Send again' : 'Review & send'}</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Modal>
+  );
+}
+
+function ShortfallModal({ list, onClose, onAttendance }) {
+  return (
+    <Modal title="Short of guaranteed classes" maxWidth={720} onClose={onClose} footer={<><button className="dp-btn" onClick={onClose}>Close</button><button className="dp-btn dp-btn-primary" onClick={() => { onClose(); onAttendance(); }}>Go to Attendance</button></>}>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>
+        The agreement guarantees 8 / 12 / 16 classes per monthly service period (2 / 3 / 4 a week). Closures (Day off) leave these students with fewer of their regular classes, so the Dojang owes make-ups. Only closures count — classes a student missed on their own don't. Make-ups already booked for a closed day count.
+      </p>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dp-table">
+          <thead>
+            <tr><th>Student</th><th>Service period</th><th style={{ textAlign: 'right' }}>Guaranteed</th><th style={{ textAlign: 'right' }}>Classes left</th><th>Closed</th><th style={{ textAlign: 'right' }}>Booked</th><th style={{ textAlign: 'right' }}>Short</th></tr>
+          </thead>
+          <tbody>
+            {list.map((x) => (
+              <tr key={x.student.id + x.start}>
+                <td style={{ fontWeight: 500 }}>{x.student.name}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{x.student.classes_per_week}x/week · {x.student.class_name}</div></td>
+                <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{md(x.start)} – {md(x.end)}</td>
+                <td style={{ textAlign: 'right' }}>{x.need}</td>
+                <td style={{ textAlign: 'right' }}>{x.available}</td>
+                <td style={{ fontSize: 12 }}>{x.lostDates.map(md).join(', ')}</td>
+                <td style={{ textAlign: 'right' }}>{x.booked || '—'}</td>
+                <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--dp-danger)' }}>{x.short}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      {children}
+    </Modal>
+  );
+}
+
+function TodayPanel({ items, classesLine, setActiveTab }) {
+  return (
+    <div style={{ ...styles.card, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '11px 14px', borderBottom: items.length ? '1px solid #EDEAE0' : 'none', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 600 }}>Today</span>
+        <span style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{classesLine}</span>
+        {!items.length && <span style={{ fontSize: 13, color: 'var(--dp-success)', marginLeft: 'auto' }}>Nothing extra today 👍</span>}
+      </div>
+      {items.map((it, i) => {
+        const col = it.tone === 'warn' ? 'var(--dp-warning)' : it.tone === 'good' ? 'var(--dp-success)' : 'var(--dp-ink)';
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: i < items.length - 1 ? '1px solid var(--dp-canvas)' : 'none', flexWrap: 'wrap' }}>
+            <span style={{ width: 7, height: 7, borderRadius: 99, background: it.tone === 'warn' ? '#D9962B' : it.tone === 'good' ? '#4F9A58' : '#B9B6AA', flexShrink: 0 }} />
+            <span style={{ flex: '1 1 220px', fontSize: 13.5, color: col, fontWeight: it.tone === 'warn' ? 500 : 400 }}>{it.text}</span>
+            {it.href ? (
+              <a className="dp-btn" style={{ padding: '3px 10px', fontSize: 12, textDecoration: 'none', background: 'var(--dp-success-tint)', borderColor: 'var(--dp-success-tint)', color: '#1F6B3A' }} href={it.href} target="_blank" rel="noreferrer">{it.label}</a>
+            ) : it.onClick ? (
+              <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={it.onClick}>{it.label}</button>
+            ) : it.tab ? (
+              <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setActiveTab(it.tab)}>{it.label}</button>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-const Empty = ({ children }) => <p style={{ padding: '12px 14px', margin: 0, fontSize: 13, color: '#8A8D84' }}>{children}</p>;
+function Metric({ label, value, sub, tone, onClick }) {
+  const color = tone === 'bad' ? 'var(--dp-danger)' : tone === 'good' ? 'var(--dp-success)' : 'var(--dp-ink)';
+  return (
+    <button onClick={onClick} style={{ ...styles.metricCard, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
+      <p style={styles.metricLabel}>{label}</p>
+      <p style={{ ...styles.metricValue, color }}>{value}</p>
+      {sub && <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '4px 0 0' }}>{sub}</p>}
+    </button>
+  );
+}
 
 function Line({ icon: Icon, c, children }) {
   return (
@@ -578,7 +963,7 @@ function BillTable({ list, date, d, onOpen }) {
             <tr key={s.id} className={inv ? 'dp-row' : undefined} style={inv ? { cursor: 'pointer' } : undefined} onClick={() => inv && onOpen(inv.id)}>
               <td style={{ fontWeight: 500 }}>
                 {s.name}
-                {fam && fam.name !== s.name && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {fam.name}</span>}
+                {fam && fam.name !== s.name && <span style={{ fontWeight: 400, color: 'var(--dp-ink-faint)', fontSize: 12.5 }}> · {fam.name}</span>}
               </td>
               <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{card ? <Tag c={BLUE}>Card (pre-auth)</Tag> : <Tag c={GREY}>Pays manually</Tag>}</td>
               <td style={{ fontSize: 13, textAlign: 'right', whiteSpace: 'nowrap' }}>{money(s.tuition)}{s.plan === '3 Months' ? ' / 3 mo' : ''}</td>
@@ -608,29 +993,29 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
         <button className="dp-btn" style={{ padding: 4 }} aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight size={15} /></button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-        {WEEKDAYS.map((w) => <div key={w} style={{ fontSize: 11, color: '#8A8D84', textAlign: 'center', padding: '2px 0' }}>{w}</div>)}
+        {WEEKDAYS.map((w) => <div key={w} style={{ fontSize: 12, color: 'var(--dp-ink-faint)', textAlign: 'center', padding: '2px 0' }}>{w}</div>)}
         {cells.map((x, i) => {
           if (!x) return <div key={'e' + i} />;
           const it = dayItems(x);
           const isSel = x === day, isToday = x === today;
           const noClass = classesOn(x).length === 0;
           const dots = [
-            it.test && '#9A2B2B',
-            it.cancels.length && '#9A2B2B',
-            it.trials.length && '#1E4566',
+            it.test && 'var(--dp-danger)',
+            it.cancels.length && 'var(--dp-danger)',
+            it.trials.length && 'var(--dp-info)',
             it.notes.length && '#C58A12',
           ].filter(Boolean);
           return (
             <button
               key={x}
               onClick={() => setDay(x)}
-              title={[it.test && 'Belt test', it.billing.length && `${it.billing.length} billing`, it.trials.length && `${it.trials.length} trial`, it.notes.length && `${it.notes.length} note`, it.cancels.length && 'cancelled'].filter(Boolean).join(' · ')}
+              title={[it.test && 'Belt test', it.billing.length && `${it.billing.length} billing`, it.trials.length && `${it.trials.length} trial`, it.notes.length && `${it.notes.length} to-do`, it.cancels.length && 'cancelled'].filter(Boolean).join(' · ')}
               style={{
                 minHeight: 46,
-                border: isSel ? '1.5px solid #20241F' : '1px solid #EDEAE0',
+                border: isSel ? '1.5px solid var(--dp-ink)' : '1px solid #EDEAE0',
                 borderRadius: 6,
-                background: isToday ? '#20241F' : it.test ? '#FBEAEA' : noClass ? '#FAF9F5' : '#fff',
-                color: isToday ? '#fff' : noClass ? '#A7AAA1' : '#20241F',
+                background: isToday ? 'var(--dp-ink)' : it.test ? 'var(--dp-danger-tint)' : noClass ? 'var(--dp-canvas)' : '#fff',
+                color: isToday ? '#fff' : noClass ? 'var(--dp-ink-faint)' : 'var(--dp-ink)',
                 cursor: 'pointer',
                 padding: '3px 4px',
                 display: 'flex',
@@ -640,7 +1025,7 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
               }}
             >
               <span style={{ fontSize: 12.5, fontWeight: isToday || isSel ? 600 : 400 }}>{Number(x.slice(8))}</span>
-              {it.billing.length > 0 && <span style={{ fontSize: 9.5, color: isToday ? '#BFDCC3' : '#2A5A30', lineHeight: 1.2 }}>${it.billing.length}</span>}
+              {it.billing.length > 0 && <span style={{ fontSize: 12.5, color: isToday ? 'var(--dp-success-tint)' : 'var(--dp-success)', lineHeight: 1.2 }}>${it.billing.length}</span>}
               <span style={{ display: 'flex', gap: 2, marginTop: 'auto' }}>
                 {dots.map((c, k) => <span key={k} style={{ width: 5, height: 5, borderRadius: 3, background: c }} />)}
               </span>
@@ -648,11 +1033,11 @@ function Calendar({ month, setMonth, day, setDay, today, dayItems, classesOn }) 
           );
         })}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 11, color: '#8A8D84' }}>
-        <span><span style={{ color: '#2A5A30' }}>$3</span> = 3 billing</span>
-        <Legend c="#9A2B2B">Test / cancelled</Legend>
-        <Legend c="#1E4566">Trial</Legend>
-        <Legend c="#C58A12">Note</Legend>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 12, color: 'var(--dp-ink-faint)' }}>
+        <span><span style={{ color: 'var(--dp-success)' }}>$3</span> = 3 billing</span>
+        <Legend c="var(--dp-danger)">Test / cancelled</Legend>
+        <Legend c="var(--dp-info)">Trial</Legend>
+        <Legend c="#C58A12">To-do</Legend>
       </div>
     </div>
   );
@@ -668,8 +1053,8 @@ function NoteList({ notes, onToggle, onDelete }) {
       {notes.map((n) => (
         <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0', borderBottom: '1px solid #F6F4EE' }}>
           <input type="checkbox" checked={n.done} onChange={() => onToggle(n)} style={{ marginTop: 3 }} />
-          <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: n.done ? 'line-through' : 'none', color: n.done ? '#A7AAA1' : '#20241F' }}>{n.body}</span>
-          <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete note" onClick={() => onDelete(n)}><Trash2 size={13} color="#8A8D84" /></button>
+          <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: n.done ? 'line-through' : 'none', color: n.done ? 'var(--dp-ink-faint)' : 'var(--dp-ink)' }}>{n.body}</span>
+          <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(n)}><Trash2 size={13} color="var(--dp-ink-faint)" /></button>
         </div>
       ))}
     </div>
@@ -687,7 +1072,73 @@ function NoteInput({ value, onChange, onAdd, placeholder }) {
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onAdd()}
       />
-      <button className="dp-btn" style={{ padding: '4px 8px' }} aria-label="Add note" disabled={!value.trim()} onClick={onAdd}><Plus size={14} /></button>
+      <button className="dp-btn" style={{ padding: '4px 8px' }} aria-label="Add to-do" disabled={!value.trim()} onClick={onAdd}><Plus size={14} /></button>
+    </div>
+  );
+}
+
+// ── To-do (was Notes) ─────────────────────────────────────────────────────
+// Your own to-dos (with or without a due date) plus ones the portal adds by
+// itself, like "Order Chest Gear (size 2)" when stock runs low.
+function TodoCard({ todos, today, onAdd, onToggle, onDelete, setActiveTab }) {
+  const [text, setText] = useState('');
+  const [due, setDue] = useState('');
+  const [showDone, setShowDone] = useState(false);
+  const open = todos
+    .filter((t) => !t.done)
+    .sort((a, b) => {
+      // overdue / today first, then no date, then later dates
+      const k = (t) => (!t.note_date ? `1` : t.note_date <= today ? `0${t.note_date}` : `2${t.note_date}`);
+      return k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : String(a.created_at).localeCompare(String(b.created_at));
+    });
+  const done = todos.filter((t) => t.done);
+  const add = () => {
+    if (!text.trim()) return;
+    onAdd(due || null, text, () => { setText(''); setDue(''); });
+  };
+  return (
+    <Card title={`To-do${open.length ? ` (${open.length})` : ''}`} icon={ListTodo}>
+      <div style={{ padding: '10px 14px 12px' }} data-testid="todo-card">
+        {open.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginBottom: 6 }}>Nothing to do. Add one below — a due date is optional.</div>}
+        {open.map((t) => (
+          <TodoRow key={t.id} t={t} today={today} onToggle={onToggle} onDelete={onDelete} setActiveTab={setActiveTab} />
+        ))}
+        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <input className="dp-input" aria-label="New to-do" style={{ flex: 1, padding: '6px 8px', fontSize: 13 }} value={text} placeholder="Add a to-do…" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+          <input type="date" className="dp-input" aria-label="Due date (optional)" title="Due date (optional)" style={{ width: 132, padding: '5px 6px', fontSize: 12.5 }} value={due} onChange={(e) => setDue(e.target.value)} />
+          <button className="dp-btn" style={{ padding: '4px 8px' }} aria-label="Add to-do" disabled={!text.trim()} onClick={add}><Plus size={14} /></button>
+        </div>
+        {done.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <button className="dp-link" style={{ background: 'none', border: 'none', padding: 0, fontSize: 12.5, color: 'var(--dp-ink-soft)', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => setShowDone((v) => !v)}>
+              {showDone ? 'Hide' : 'Show'} done ({done.length})
+            </button>
+            {showDone && <div style={{ marginTop: 4 }}>{done.slice().reverse().map((t) => <TodoRow key={t.id} t={t} today={today} onToggle={onToggle} onDelete={onDelete} setActiveTab={setActiveTab} />)}</div>}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function TodoRow({ t, today, onToggle, onDelete, setActiveTab }) {
+  const late = t.note_date && t.note_date < today && !t.done;
+  return (
+    <div data-todo={t.body} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0', borderBottom: '1px solid #F6F4EE' }}>
+      <input type="checkbox" checked={!!t.done} onChange={() => onToggle(t)} style={{ marginTop: 3 }} aria-label={`Done: ${t.body}`} />
+      <span style={{ flex: 1, fontSize: 13, whiteSpace: 'pre-wrap', textDecoration: t.done ? 'line-through' : 'none', color: t.done ? 'var(--dp-ink-faint)' : 'var(--dp-ink)' }}>
+        {t.auto_key && <Package size={12} color="var(--dp-warning)" style={{ marginRight: 4, verticalAlign: '-1px' }} />}
+        {t.body}
+        {t.note_date && (
+          <span style={{ marginLeft: 6, fontSize: 12, padding: '1px 6px', borderRadius: 5, background: late ? 'var(--dp-danger-tint)' : t.note_date === today ? 'var(--dp-warning-tint)' : 'var(--dp-canvas)', color: late ? 'var(--dp-danger)' : t.note_date === today ? 'var(--dp-warning)' : 'var(--dp-ink-soft)', whiteSpace: 'nowrap' }}>
+            {t.note_date === today ? 'today' : late ? `due ${md(t.note_date)}` : md(t.note_date)}
+          </span>
+        )}
+      </span>
+      {t.link_tab && !t.done && (
+        <button className="dp-btn" style={{ padding: '1px 7px', fontSize: 12.5 }} onClick={() => setActiveTab(t.link_tab)}>Open</button>
+      )}
+      <button className="dp-btn" style={{ padding: 3, border: 'none' }} aria-label="Delete to-do" onClick={() => onDelete(t)}><Trash2 size={13} color="var(--dp-ink-faint)" /></button>
     </div>
   );
 }

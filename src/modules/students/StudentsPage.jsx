@@ -1,7 +1,13 @@
 import StudentFlags from '../../components/StudentFlags';
+import BeltStrip from '../../components/BeltStrip';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX } from 'lucide-react';
+import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX, FileText } from 'lucide-react';
+import ProofOfEnrollmentModal from '../../components/ProofOfEnrollmentModal';
+import StudentProfileModal from './StudentProfileModal';
+import HoldModal from './HoldModal';
+import StatementModal from '../invoices/StatementModal';
+import { onHold } from '../../lib/tuitionBilling';
 import CancellationModal from './CancellationModal';
 import { REREGISTRATION_FEE } from '../../lib/tuitionBilling';
 import { fillSubsidyTemplate, DEFAULT_SUBSIDY_SUBJECT } from '../../lib/subsidyReminder';
@@ -18,6 +24,7 @@ import { allClassNames } from '../../lib/classes';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useAuth } from '../../auth/AuthContext';
+import { matchesSearch as matchesText } from '../../lib/searchMatch';
 
 const FIELD_DEFS = [
   { key: 'name', label: 'Name', required: true, aliases: ['name', 'student name'] },
@@ -68,6 +75,27 @@ export default function StudentsPage() {
   const [beltFilter, setBeltFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('active');
   const [cancelFor, setCancelFor] = useState(null);
+  const [poeFor, setPoeFor] = useState(null);
+  const [profileId, setProfileIdRaw] = useState(() => {
+    const m = /^#students\/([0-9a-f-]{8,})/i.exec(window.location.hash);
+    return m ? m[1] : null;
+  });
+  const setProfileId = (id) => {
+    setProfileIdRaw(id);
+    const want = id ? `#students/${id}` : '#students';
+    if (window.location.hash !== want) window.history.pushState(null, '', `${window.location.pathname}${window.location.search}${want}`);
+    window.scrollTo(0, 0);
+  };
+  useEffect(() => {
+    const onPop = () => {
+      const m = /^#students\/([0-9a-f-]{8,})/i.exec(window.location.hash);
+      setProfileIdRaw(m ? m[1] : null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const [holdFor, setHoldFor] = useState(null);
+  const [statementFor, setStatementFor] = useState(null);
   const [reactivateFor, setReactivateFor] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -97,7 +125,7 @@ export default function StudentsPage() {
     setLoading(true);
     const [{ data, error: fetchError }, { data: fams }, { data: credits }] = await Promise.all([
       supabase.from('students').select('*').order('name'),
-      supabase.from('customers').select('id, name, payment_type'),
+      supabase.from('customers').select('id, name, payment_type, email, phone'),
       supabase.from('customer_credit').select('customer_id, credit').neq('credit', 0),
     ]);
     if (fetchError) setError('Could not load the student list.');
@@ -114,7 +142,10 @@ export default function StudentsPage() {
     setModalOpen(true);
   }
 
-  function openEdit(student) {
+  function openEdit(picked) {
+    // Always edit the stored record (lists like the subsidy alert add helper
+    // fields such as "days" that aren't columns).
+    const student = students.find((x) => x.id === picked.id) || picked;
     setEditingId(student.id);
     const f = { ...emptyForm(), ...student, payment_type: families[student.customer_id]?.payment_type || 'preauth' };
     Object.keys(f).forEach((k) => f[k] === null && (f[k] = ''));
@@ -134,7 +165,7 @@ export default function StudentsPage() {
       setFormError('These emails don’t look right: ' + bad.join(', '));
       return;
     }
-    if (form.subsidy && !form.subsidy_end_date) {
+    if (form.subsidy && !form.subsidy_end_date && form.subsidy_status !== 'pending') {
       setFormError('Please enter when the subsidy ends.');
       return;
     }
@@ -146,6 +177,7 @@ export default function StudentsPage() {
     delete cleaned.created_at;
     delete cleaned.customer_id; // the family link is managed by the database
     delete cleaned.payment_type; // stored on the family (customer)
+    delete cleaned.days; // helper value from the subsidy alert, not a column
     const payload = {
       ...cleaned,
       name: form.name.trim(),
@@ -163,6 +195,10 @@ export default function StudentsPage() {
       subsidy_name: form.subsidy ? blank(form.subsidy_name) : null,
       subsidy_amount: form.subsidy && form.subsidy_amount !== '' ? Number(form.subsidy_amount) : null,
       subsidy_end_date: form.subsidy ? blank(form.subsidy_end_date) : null,
+      subsidy_total: form.subsidy && form.subsidy_total !== '' && form.subsidy_total != null ? Number(form.subsidy_total) : null,
+      subsidy_start_date: form.subsidy && form.subsidy_total ? blank(form.subsidy_start_date) : null,
+      subsidy_applied_on: form.subsidy ? blank(form.subsidy_applied_on) : null,
+      subsidy_status: form.subsidy ? blank(form.subsidy_status) : null,
     };
     let submitError;
     if (editingId) {
@@ -252,16 +288,14 @@ export default function StudentsPage() {
   }, [students]);
   const filtered = useMemo(() => {
     return students.filter((s) => {
-      const matchesSearch =
-        !search.trim() ||
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        (s.guardian_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (s.class_name || '').toLowerCase().includes(search.toLowerCase());
+      const fam = families[s.customer_id];
+      // Name, guardian, class, email or phone — also when typed with the Korean keyboard on.
+      const matchesSearch = matchesText(search, [s.name, s.guardian_name, s.class_name, s.guardian_email, fam?.name, fam?.email], [s.guardian_phone, s.emergency_phone, fam?.phone]);
       const matchesBelt = beltFilter === 'all' || s.belt === beltFilter;
       const matchesStatus = statusFilter === 'all' || (s.status || 'active') === statusFilter;
       return matchesSearch && matchesBelt && matchesStatus;
     });
-  }, [students, search, beltFilter, statusFilter]);
+  }, [students, families, search, beltFilter, statusFilter]);
 
   function beltMeta(belt) {
     return BELTS.find((b) => b.value === belt) || BELTS[0];
@@ -329,12 +363,37 @@ export default function StudentsPage() {
     }
   }
 
+  // Student page (full page, not a pop-up). Kept in the address (#students/<id>)
+  // so a refresh or the browser's Back button works.
+  const profileStudent = profileId ? students.find((x) => x.id === profileId) : null;
+  const closeProfile = () => setProfileId(null);
+  const profilePage = profileStudent && (
+    <StudentProfileModal
+      key={profileStudent.id}
+      student={profileStudent}
+      isAdmin={isAdmin}
+      family={families[profileStudent.customer_id]}
+      siblings={profileStudent.customer_id ? (siblingsBy[profileStudent.customer_id] || []).filter((x) => x.id !== profileStudent.id) : []}
+      onClose={closeProfile}
+      onEdit={() => openEdit(profileStudent)}
+      onPoe={() => setPoeFor(profileStudent)}
+      onHold={() => setHoldFor(profileStudent)}
+      onStatement={() => setStatementFor(profileStudent)}
+      onCancel={() => setCancelFor(profileStudent)}
+      onWelcome={() => setWelcomeFor(profileStudent)}
+      onWithdraw={() => setStudentStatus(profileStudent.id, 'withdrawn')}
+      onReactivate={() => setReactivateFor(profileStudent)}
+      onDelete={() => { closeProfile(); setConfirmDeleteId(profileStudent.id); }}
+    />
+  );
+
   return (
     <>
+      {profileStudent ? profilePage : (<>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>Students</h1>
-          <p style={styles.subtitle}>{students.length} registered</p>
+          <h1 style={{ ...styles.title, fontSize: 'var(--dp-text-headline)', fontWeight: 700 }}>Students</h1>
+          <p style={{ ...styles.subtitle, fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)' }}>{students.length} registered</p>
         </div>
         {isAdmin && (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -342,8 +401,8 @@ export default function StudentsPage() {
               <Upload size={15} /> Upload Excel
             </button>
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleFileSelect} />
-            <button className="dp-btn dp-btn-primary" onClick={openAdd}>
-              <Plus size={15} /> Add Student
+            <button className="dp-btn" style={{ background: 'var(--dp-ink)', color: 'var(--dp-paper)', borderColor: 'var(--dp-ink)', fontWeight: 600 }} onClick={openAdd}>
+              <Plus size={15} /> Add student
             </button>
           </div>
         )}
@@ -351,56 +410,57 @@ export default function StudentsPage() {
 
       <div style={styles.filterBar}>
         <div style={styles.searchBox}>
-          <Search size={15} color="#5B5F56" />
+          <Search size={15} color="var(--dp-ink-soft)" />
           <input
             className="dp-input"
+            aria-label="Search students"
             style={{ border: 'none', flex: 1, padding: '4px 6px' }}
-            placeholder="Search by name, guardian, or class"
+            placeholder="Search by name, guardian, class, phone or email"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="dp-select" value={beltFilter} onChange={(e) => setBeltFilter(e.target.value)}>
-          <option value="all">All Belts</option>
+        <select className="dp-select" aria-label="Belt" value={beltFilter} onChange={(e) => setBeltFilter(e.target.value)}>
+          <option value="all">All belts</option>
           {BELTS.map((b) => (
             <option key={b.value} value={b.value}>
               {b.value}
             </option>
           ))}
         </select>
-        <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <select className="dp-select" aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="active">Active</option>
           <option value="withdrawn">Withdrawn</option>
           <option value="all">All</option>
         </select>
       </div>
 
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{error}</p>}
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{error}</p>}
 
       {isAdmin && subsidyAlerts.length > 0 && (
-        <div style={{ background: '#FAEEDA', border: '1px solid #F0D9A8', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#5C3A07' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 4 }}>
-            <AlertTriangle size={14} /> Subsidies ending soon ({subsidyAlerts.length})
+        <div role="region" aria-label="Subsidies ending soon" style={{ background: 'var(--dp-warning-tint)', borderRadius: 'var(--dp-radius-lg)', padding: '12px 16px', marginBottom: 14, fontSize: 'var(--dp-text-label)', color: 'var(--dp-warning)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 'var(--dp-text-body)', marginBottom: 6 }}>
+            <AlertTriangle size={16} aria-hidden="true" /> Subsidies ending soon ({subsidyAlerts.length})
           </div>
           {subsidyAlerts.map((s) => (
-            <div key={s.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '2px 0' }}>
-              <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12 }} onClick={() => openEdit(s)}>{s.name}</button>
+            <div key={s.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', flexWrap: 'wrap', color: 'var(--dp-ink)' }}>
+              <button className="dp-btn" style={{ padding: '4px 10px', fontSize: 'var(--dp-text-label)' }} onClick={() => openEdit(s)}>{s.name}</button>
               <span>
                 {s.subsidy_name || 'Subsidy'}
-                {s.subsidy_amount ? ` ($${Number(s.subsidy_amount).toFixed(2)}/mo)` : ''}{' '}
+                {s.subsidy_amount ? ` ($${Number(s.subsidy_amount).toFixed(2)} per billing)` : ''}{' '}
                 {s.days < 0 ? <b>ended {-s.days} days ago ({s.subsidy_end_date})</b> : s.days === 0 ? <b>ends today</b> : <>ends in <b>{s.days} days</b> ({s.subsidy_end_date})</>}
               </span>
-              <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12, marginLeft: 'auto' }} disabled={!s.guardian_email} title={s.guardian_email ? '' : 'No guardian email'} onClick={() => openReminder(s)}>
+              <button className="dp-btn" style={{ padding: '4px 10px', fontSize: 'var(--dp-text-label)', marginLeft: 'auto' }} disabled={!s.guardian_email} title={s.guardian_email ? '' : 'No guardian email'} onClick={() => openReminder(s)}>
                 <Mail size={12} /> Email reminder
               </button>
-              {s.subsidy_reminded_at && <span style={{ fontSize: 12, color: '#2A5A30', whiteSpace: 'nowrap' }}>✓ sent {new Date(s.subsidy_reminded_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</span>}
+              {s.subsidy_reminded_at && <span style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-success)', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={12} aria-hidden="true" /> Sent {new Date(s.subsidy_reminded_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</span>}
               {endingId === s.id ? (
                 <span style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap' }}>
-                  <button className="dp-btn dp-btn-primary" style={{ padding: '1px 8px', fontSize: 12 }} onClick={() => endSubsidy(s)}>Confirm — stop subsidy</button>
-                  <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12 }} onClick={() => setEndingId(null)}>Cancel</button>
+                  <button className="dp-btn dp-btn-primary" style={{ padding: '4px 10px', fontSize: 'var(--dp-text-label)' }} onClick={() => endSubsidy(s)}>Confirm — stop subsidy</button>
+                  <button className="dp-btn" style={{ padding: '4px 10px', fontSize: 'var(--dp-text-label)' }} onClick={() => setEndingId(null)}>Cancel</button>
                 </span>
               ) : (
-                <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12, whiteSpace: 'nowrap' }} title="The subsidy is over: untick Subsidy for this student and remove this alert" onClick={() => setEndingId(s.id)}>
+                <button className="dp-btn" style={{ padding: '4px 10px', fontSize: 'var(--dp-text-label)', whiteSpace: 'nowrap' }} title="The subsidy is over: untick Subsidy for this student and remove this alert" onClick={() => setEndingId(s.id)}>
                   <Check size={12} /> Subsidy ended
                 </button>
               )}
@@ -411,10 +471,10 @@ export default function StudentsPage() {
 
       <div style={styles.card}>
         {loading ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Loading...</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>Loading...</p>
         ) : filtered.length === 0 ? (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <p style={{ color: '#20241F', fontSize: 15, margin: '0 0 4px' }}>
+            <p style={{ color: 'var(--dp-ink)', fontSize: 15, margin: '0 0 4px' }}>
               {students.length === 0 ? 'No students yet.' : 'No matching results.'}
             </p>
           </div>
@@ -429,79 +489,60 @@ export default function StudentsPage() {
                 <th>Phone</th>
                 <th>Plan</th>
                 <th>Next billing</th>
-                {isAdmin && <th style={{ width: 160 }}></th>}
+                {isAdmin && <th style={{ width: 50 }}></th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map((s) => {
-                const belt = beltMeta(s.belt);
                 const sibs = s.customer_id ? (siblingsBy[s.customer_id] || []).filter((x) => x.id !== s.id) : [];
                 return (
                   <tr key={s.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
-                      {s.name}
+                      <button
+                        onClick={() => setProfileId(s.id)}
+                        title="Open student profile"
+                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, color: 'var(--dp-ink)', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }}
+                      >
+                        {s.name}
+                      </button>
                       <StudentFlags s={s} style={{ marginLeft: 6 }} />
                       {s.status === 'withdrawn' && (
-                        <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Withdrawn</span>
+                        <Badge c={GREY}>Withdrawn</Badge>
                       )}
                       {sibs.length > 0 && (
-                        <div style={{ fontSize: 11.5, fontWeight: 400, color: '#8A8D84' }} title={`Same family: ${families[s.customer_id]?.name || ''}`}>
+                        <div style={{ fontSize: 'var(--dp-text-caption)', fontWeight: 400, color: 'var(--dp-ink-soft)', marginTop: 2 }} title={`Same family: ${families[s.customer_id]?.name || ''}`}>
                           Sibling{sibs.length > 1 ? 's' : ''}: {sibs.map((x) => x.name.split(' ')[0]).join(', ')}
                         </div>
                       )}
                     </td>
                     <td>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: '3px 9px',
-                          borderRadius: 999,
-                          fontSize: 12.5,
-                          background: belt.bg,
-                          color: belt.text,
-                          border: `1px solid ${belt.border}`,
-                        }}
-                      >
-                        {s.belt}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 'var(--dp-text-label)' }}>
+                        <BeltStrip belt={s.belt} width={44} />
+                        {s.belt || 'White'}
                       </span>
                     </td>
                     <td>{s.class_name || '—'}</td>
                     <td>{s.guardian_name || '—'}</td>
-                    <td>{s.guardian_phone || '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{s.guardian_phone || '—'}</td>
                     <td>
-                      {s.billing_exempt ? <Badge c={['#1E4566', '#E6F0F6', '#B9D3E4']}>Staff · no invoice</Badge> : s.plan || '1 Month'}
-                      {families[s.customer_id]?.payment_type === 'manual' && !s.billing_exempt && <Badge c={['#1E4566', '#E6F0F6', '#B9D3E4']} title="Pays manually (debit / cash)">Manual pay</Badge>}
-                      {s.classes_per_week ? <Badge c={['#5B5F56', '#F1EFE7', '#DEDACC']}>{s.classes_per_week}x/wk</Badge> : null}
-                      {s.family_discount && <Badge c={['#4B3A86', '#EEEAF6', '#D2C9EA']} title="Big family discount">Family -20%</Badge>}
-                      {families[s.customer_id]?.credit > 0.004 && <Badge c={['#2A5A30', '#E8F1E9', '#BFDCC3']} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
-                      {s.subsidy && <span title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`} style={{ marginLeft: 6, fontSize: 10.5, color: '#2A5A30', border: '1px solid #BFDCC3', background: '#E8F1E9', borderRadius: 999, padding: '1px 6px' }}>Subsidy</span>}
+                      {s.billing_exempt ? <Badge c={GREY}>Staff · no invoice</Badge> : s.plan || '1 Month'}
+                      {families[s.customer_id]?.payment_type === 'manual' && !s.billing_exempt && <Badge c={GREY} title="Pays manually (debit / cash)">Manual pay</Badge>}
+                      {s.classes_per_week ? <Badge c={GREY}>{s.classes_per_week}x/wk</Badge> : null}
+                      {s.family_discount && <Badge c={GREY} title="Big family discount">Family -20%</Badge>}
+                      {families[s.customer_id]?.credit > 0.004 && <Badge c={GREEN} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
+                      {onHold(s, todayISO()) && <Badge c={AMBER} title={s.hold_reason || ''}>On hold until {s.hold_until}</Badge>}
+                      {s.subsidy && s.subsidy_status === 'pending' && <Badge c={AMBER} title={`Applied ${s.subsidy_applied_on || '?'}`}>{(s.subsidy_name || 'Subsidy').trim()} — waiting</Badge>}
+                      {s.subsidy && s.subsidy_status !== 'pending' && <Badge c={GREEN} title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`}>Subsidy</Badge>}
                     </td>
-                    <td>
-                      {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: '#9A2B2B', fontSize: 12.5 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
-                      {s.reregistration_fee_due && <div style={{ fontSize: 11, color: '#854F0B' }}>+ re-registration fee</div>}
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: 'var(--dp-danger)', fontSize: 'var(--dp-text-label)', fontWeight: 600 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
+                      {s.reregistration_fee_due && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-warning)' }}>+ re-registration fee</div>}
                     </td>
                     {isAdmin && (
                       <td>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button
-                            className="dp-btn"
-                            style={{ padding: '4px 8px', fontSize: 12 }}
-                            onClick={() => (s.status === 'withdrawn' ? setReactivateFor(s) : setStudentStatus(s.id, 'withdrawn'))}
-                          >
-                            {s.status === 'withdrawn' ? 'Reactivate' : 'Withdraw'}
-                          </button>
-                          {s.status !== 'withdrawn' && (
-                            <button aria-label="Membership cancellation" title="Membership cancellation (email request, 14-day rule)" className="dp-btn" style={{ padding: 6, ...(s.billing_end_date ? { color: '#9A2B2B', borderColor: '#E4B8B8' } : {}) }} onClick={() => setCancelFor(s)}>
-                              <CalendarX size={14} />
-                            </button>
-                          )}
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                           <button aria-label="Edit" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(s)}>
                             <Pencil size={14} />
-                          </button>
-                          <button aria-label="Delete" className="dp-btn dp-btn-danger" style={{ padding: 6 }} onClick={() => setConfirmDeleteId(s.id)}>
-                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
@@ -513,6 +554,7 @@ export default function StudentsPage() {
           </table>
         )}
       </div>
+      </>)}
 
       {modalOpen && (
         <Modal
@@ -548,15 +590,15 @@ export default function StudentsPage() {
             <input className="dp-input" style={{ width: '100%' }} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
           {editingId && form.customer_id && (siblingsBy[form.customer_id] || []).some((x) => x.id !== editingId) && (
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '-6px 0 12px' }}>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '-6px 0 12px' }}>
               Family <b>{families[form.customer_id]?.name}</b> · siblings:{' '}
               {(siblingsBy[form.customer_id] || []).filter((x) => x.id !== editingId).map((x, i) => (
                 <React.Fragment key={x.id}>
                   {i > 0 && ', '}
-                  <button type="button" style={{ border: 'none', background: 'none', padding: 0, color: '#1E4566', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5 }} onClick={() => openEdit(x)}>{x.name}</button>
+                  <button type="button" style={{ border: 'none', background: 'none', padding: 0, color: 'var(--dp-info)', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5 }} onClick={() => openEdit(x)}>{x.name}</button>
                 </React.Fragment>
               ))}
-              <span style={{ color: '#8A8D84' }}> (change in Customers)</span>
+              <span style={{ color: 'var(--dp-ink-faint)' }}> (change in Customers)</span>
             </p>
           )}
           <Field label="Date of Birth">
@@ -574,7 +616,7 @@ export default function StudentsPage() {
             </Field>
           </div>
           <div style={{ marginBottom: 12 }}>
-            <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
+            <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>Classes (pick all that apply)</span>
             <ClassPicker value={form.class_name || ''} onChange={(v) => setForm({ ...form, class_name: v })} options={classes} />
           </div>
           <ClassDaysPicker classNames={form.class_name} perWeek={form.classes_per_week} value={form.class_days} onChange={(v) => setForm({ ...form, class_days: v })} />
@@ -644,7 +686,7 @@ export default function StudentsPage() {
             <div style={{ flex: 1 }} />
           </div>
           {(form.billing_start_date || form.enroll_date) && (
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '-4px 0 12px' }}>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '-4px 0 12px' }}>
               Bills every {form.plan === '3 Months' ? '3 months' : 'month'} · current cycle started {currentCycleStart(form, todayISO())} · next billing {nextDueDate(form, todayISO())}
             </p>
           )}
@@ -658,7 +700,7 @@ export default function StudentsPage() {
             </Field>
           )}
           {form.customer_id && families[form.customer_id]?.credit > 0.004 && (
-            <p style={{ background: '#E8F1E9', color: '#2A5A30', border: '1px solid #BFDCC3', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px' }}>
+            <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', border: '1px solid var(--dp-success-tint)', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px' }}>
               Family credit: <b>${Number(families[form.customer_id].credit).toFixed(2)}</b> — taken off the family’s next invoice automatically (from overpayments).
             </p>
           )}
@@ -675,7 +717,7 @@ export default function StudentsPage() {
             Receives a subsidy (KidSport etc.)
           </label>
           {form.subsidy && (
-            <div style={{ background: '#FAF8F2', border: '1px solid #EDEAE0', borderRadius: 8, padding: '12px 12px 0', marginBottom: 12 }}>
+            <div style={{ background: 'var(--dp-canvas)', border: '1px solid #EDEAE0', borderRadius: 8, padding: '12px 12px 0', marginBottom: 12 }}>
               <div style={styles.formRow}>
                 <Field label="Subsidy">
                   <input className="dp-input" style={{ width: '100%' }} list="subsidy-options" placeholder="KidSport" value={form.subsidy_name || ''} onChange={(e) => setForm({ ...form, subsidy_name: e.target.value })} />
@@ -683,13 +725,42 @@ export default function StudentsPage() {
                     {Array.from(new Set(['KidSport', ...students.map((s) => s.subsidy_name).filter(Boolean)])).map((n) => <option key={n} value={n} />)}
                   </datalist>
                 </Field>
-                <Field label="Amount / month ($)">
-                  <input type="number" className="dp-input" style={{ width: '100%' }} value={form.subsidy_amount ?? ''} onChange={(e) => setForm({ ...form, subsidy_amount: e.target.value })} />
+                <Field label="Taken off each billing ($)">
+                  <input type="number" className="dp-input" style={{ width: '100%' }} placeholder="25" value={form.subsidy_amount ?? ''} onChange={(e) => setForm({ ...form, subsidy_amount: e.target.value })} />
                 </Field>
               </div>
-              <Field label="Subsidy ends" required>
+              <div style={styles.formRow}>
+                <Field label="Applied on">
+                  <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_applied_on || ''} onChange={(e) => setForm({ ...form, subsidy_applied_on: e.target.value })} />
+                </Field>
+                <Field label="Approval">
+                  <select className="dp-select" style={{ width: '100%' }} value={form.subsidy_status || ''} onChange={(e) => setForm({ ...form, subsidy_status: e.target.value })}>
+                    <option value="">Not tracked</option>
+                    <option value="pending">Waiting for approval</option>
+                    <option value="approved">Approved</option>
+                    <option value="denied">Not approved</option>
+                  </select>
+                </Field>
+              </div>
+              {form.subsidy_status && form.subsidy_status !== 'approved' && (
+                <p style={{ fontSize: 12, color: 'var(--dp-warning)', margin: '-4px 0 10px' }}>Nothing comes off tuition invoices until it's marked Approved.</p>
+              )}
+              <div style={styles.formRow}>
+                <Field label="Grant total ($) — e.g. KidSport 300">
+                  <input type="number" className="dp-input" style={{ width: '100%' }} placeholder="300" value={form.subsidy_total ?? ''} onChange={(e) => setForm({ ...form, subsidy_total: e.target.value, subsidy_start_date: form.subsidy_start_date || todayISO() })} />
+                </Field>
+                <Field label="Grant starts">
+                  <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_start_date || ''} onChange={(e) => setForm({ ...form, subsidy_start_date: e.target.value })} />
+                </Field>
+              </div>
+              <Field label="Subsidy ends" required={form.subsidy_status !== 'pending'}>
                 <input type="date" className="dp-input" style={{ width: '100%' }} value={form.subsidy_end_date || ''} onChange={(e) => setForm({ ...form, subsidy_end_date: e.target.value })} />
               </Field>
+              <p style={{ fontSize: 12, color: 'var(--dp-ink-soft)', margin: '-4px 0 12px' }}>
+                {Number(form.subsidy_total) > 0
+                  ? `Each tuition invoice takes off ${form.subsidy_amount ? '$' + form.subsidy_amount : 'the amount above'} until the $${form.subsidy_total} is used up or the end date passes. The invoice shows how much is left and until when.`
+                  : 'Add a grant total to track the balance (it shows on each invoice).'}
+              </p>
             </div>
           )}
           <Field label="Medical conditions, allergies or limitations (shown to coaches in attendance)">
@@ -705,9 +776,25 @@ export default function StudentsPage() {
           <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
-          {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
+          {formError && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
+
+
+      {statementFor && <StatementModal customer={families[statementFor.customer_id] || null} student={statementFor} onClose={() => setStatementFor(null)} />}
+
+      {holdFor && (
+        <HoldModal
+          student={holdFor}
+          onClose={() => setHoldFor(null)}
+          onSaved={(data) => {
+            setStudents((prev) => prev.map((x) => (x.id === data.id ? { ...x, ...data } : x)));
+            setHoldFor(null);
+          }}
+        />
+      )}
+
+      {poeFor && <ProofOfEnrollmentModal student={poeFor} onClose={() => setPoeFor(null)} />}
 
       {cancelFor && (
         <CancellationModal
@@ -736,7 +823,7 @@ export default function StudentsPage() {
           <p style={{ fontSize: 14, lineHeight: 1.55, margin: 0 }}>
             {reactivateFor.name.split(' ')[0]}'s membership ended{reactivateFor.withdrawn_date ? ` on ${reactivateFor.withdrawn_date}` : ''}. Coming back after a membership has ended has a <b>${REREGISTRATION_FEE} re-registration fee</b> (Part 7.4). It goes on the next tuition invoice.
           </p>
-          <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '8px 0 0' }}>No fee if it was only a temporary payment issue, or a mistake.</p>
+          <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>No fee if it was only a temporary payment issue, or a mistake.</p>
         </Modal>
       )}
 
@@ -764,14 +851,14 @@ export default function StudentsPage() {
           }
         >
           {reminder.student.subsidy_reminded_at && (
-            <p style={{ fontSize: 12.5, color: '#854F0B', margin: '0 0 10px' }}>Already sent on {new Date(reminder.student.subsidy_reminded_at).toLocaleDateString('en-CA')}.</p>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '0 0 10px' }}>Already sent on {new Date(reminder.student.subsidy_reminded_at).toLocaleDateString('en-CA')}.</p>
           )}
           <Field label="To (comma-separated)"><input className="dp-input" style={{ width: '100%' }} value={reminder.to} onChange={(e) => setReminder({ ...reminder, to: e.target.value })} /></Field>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={reminder.subject} onChange={(e) => setReminder({ ...reminder, subject: e.target.value })} /></Field>
           <Field label="Message (you can edit it for this family)">
             <textarea className="dp-input" rows={12} style={{ width: '100%', resize: 'vertical', fontSize: 13, lineHeight: 1.5 }} value={reminder.message} onChange={(e) => setReminder({ ...reminder, message: e.target.value })} />
           </Field>
-          {reminder.error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: 0 }}>{reminder.error}</p>}
+          {reminder.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: 0 }}>{reminder.error}</p>}
         </Modal>
       )}
 
@@ -797,17 +884,17 @@ export default function StudentsPage() {
             </>
           }
         >
-          {importState.error && <p style={{ color: '#9A2B2B', fontSize: 13, marginTop: 0 }}>{importState.error}</p>}
+          {importState.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, marginTop: 0 }}>{importState.error}</p>}
           {importState.headers && (
             <>
-              <p style={{ fontSize: 13, color: '#5B5F56', marginTop: 0 }}>
+              <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 0 }}>
                 Match each spreadsheet column to a field. ({importState.dataRows.length} rows found)
               </p>
               {FIELD_DEFS.map((f) => (
                 <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <span style={{ fontSize: 13.5, width: 150, color: '#20241F' }}>
+                  <span style={{ fontSize: 13.5, width: 150, color: 'var(--dp-ink)' }}>
                     {f.label}
-                    {f.required && <span style={{ color: '#9A2B2B' }}> *</span>}
+                    {f.required && <span style={{ color: 'var(--dp-danger)' }}> *</span>}
                   </span>
                   <select
                     className="dp-select"
@@ -833,11 +920,15 @@ export default function StudentsPage() {
 }
 
 function SectionLabel({ children }) {
-  return <div style={{ fontSize: 11, fontWeight: 600, color: '#8A8D84', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '6px 0 8px', paddingTop: 10, borderTop: '1px solid #EDEAE0' }}>{children}</div>;
+  return <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--dp-ink-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '6px 0 8px', paddingTop: 10, borderTop: '1px solid #EDEAE0' }}>{children}</div>;
 }
 
+// Status chips in the list (DESIGN.md: palette tints, 12px, text always present).
+const GREY = ['var(--dp-ink-soft)', 'var(--dp-canvas)'];
+const GREEN = ['var(--dp-success)', 'var(--dp-success-tint)'];
+const AMBER = ['var(--dp-warning)', 'var(--dp-warning-tint)'];
 function Badge({ c, title, children }) {
-  return <span title={title} style={{ marginLeft: 6, fontSize: 10.5, color: c[0], border: `1px solid ${c[2]}`, background: c[1], borderRadius: 999, padding: '1px 6px', whiteSpace: 'nowrap' }}>{children}</span>;
+  return <span title={title} style={{ display: 'inline-block', margin: '2px 0 2px 6px', fontSize: 'var(--dp-text-caption)', fontWeight: 500, color: c[0], background: c[1], border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-pill)', padding: '1px 8px', whiteSpace: 'nowrap', lineHeight: 1.5 }}>{children}</span>;
 }
 
 // Standard tuition (before GST) for a number of classes a week.

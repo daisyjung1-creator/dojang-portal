@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Check } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { SCHOOL, HEARD_FROM } from '../../lib/agreement';
 import logoImg from '../../assets/logo.png';
 import { Page, Section, Label, Row, In, Area, Chip, C, box, btn, linkBtn } from './JoinPage';
 
 // Public trial-class booking (no login): /trial
-// 10 and under → Beginner (Tue/Thu 4:30), 11 and up → Intermediate B (Mon/Wed
+// 10 and under → Beginner (Tue/Thu 4:30), 11 → Beginner or Intermediate B, 12+ → Intermediate B (Mon/Wed
 // 4:30). Families pick a date; the booking becomes a lead + a trial in the
 // portal and a confirmation email goes out (the dojang gets a copy).
 
@@ -17,6 +18,7 @@ const trialClasses = (k) => {
   if (!k.experience) return [];
   if (Number(k.age) >= 12) return ['Intermediate B']; // 12 and up: Intermediate B
   if (k.experience === 'Color belt') return ['Intermediate A'];
+  if (Number(k.age) === 11) return ['Beginner', 'Intermediate B']; // 11, no experience: family picks
   return [classForAge(k.age)].filter(Boolean);
 };
 const shortClass = (c) => c.replace('Advance ', '');
@@ -116,7 +118,7 @@ export default function TrialPage() {
           <p style={{ color: C.soft, margin: '14px auto 0', maxWidth: 440, lineHeight: 1.55 }}>
             {done.emailed ? 'A confirmation email is on its way.' : 'We’ll text you a confirmation shortly.'} Please arrive about 10 minutes early in comfortable clothes (t-shirt and track pants) and bring a water bottle.
           </p>
-          <p style={{ color: C.faint, fontSize: 13.5, marginTop: 16 }}>Need to change the date? Just reply to our {done.emailed ? 'email' : 'text'} or write to {SCHOOL.email}.</p>
+          <p style={{ color: C.faint, fontSize: 14, marginTop: 16 }}>Need to change the date? Just reply to our {done.emailed ? 'email' : 'text'} or write to {SCHOOL.email}.</p>
         </div>
       </Page>
     );
@@ -124,20 +126,20 @@ export default function TrialPage() {
 
   return (
     <Page subtitle="Book a Free Trial Class">
-      <p style={{ color: C.soft, lineHeight: 1.55, margin: '0 0 18px', fontSize: 15 }}>
-        Come try a class with us — it's free! Pick a date below and we'll see you at the Dojang. Fields marked <b style={{ color: C.red }}>*</b> are required.
+      <p style={{ color: C.soft, lineHeight: 1.55, margin: '0 0 18px', fontSize: 16 }}>
+        Come try a class with us — it's free! Pick a date below and we'll see you at the Dojang. Fields marked <b style={{ color: C.danger }}>*</b> are required.
       </p>
 
       <Section n="1" title="Who's coming?">
-        <div style={{ fontSize: 13.5, color: C.soft, marginBottom: 12, lineHeight: 1.5 }}>
-          New students: <b>10 and under</b> — Beginner, Tue &amp; Thu 4:30–5:20 pm · <b>11 and up</b> — Intermediate B, Mon &amp; Wed 4:30–5:20 pm · <b>12 and up</b>: Intermediate B · Color belts under 12: Intermediate A · Black belts: Advance classes
+        <div style={{ fontSize: 14, color: C.soft, marginBottom: 12, lineHeight: 1.5 }}>
+          New students: <b>10 and under</b> — Beginner, Tue &amp; Thu 4:30–5:20 pm · <b>11</b> — Beginner or Intermediate B · <b>12 and up</b> — Intermediate B, Mon &amp; Wed 4:30–5:20 pm · Color belts under 12: Intermediate A · Black belts: Advance classes
         </div>
         {kids.map((k, i) => {
           const classes = k.age === '' ? [] : trialClasses(k);
           const cls = classes.length ? classes.join(' / ') : null;
           const list = classes.flatMap((c) => byClass[c] || []).sort((a, b) => (a.date === b.date ? (a.start_time < b.start_time ? -1 : 1) : a.date < b.date ? -1 : 1));
           return (
-            <div key={i} style={{ ...box, marginBottom: 14, ...(kids.length > 1 ? { borderLeft: `4px solid ${C.red}` } : {}) }}>
+            <div key={i} style={{ ...box, marginBottom: 14 }}>
               {kids.length > 1 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <b>Child {i + 1}</b>
@@ -152,14 +154,17 @@ export default function TrialPage() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {EXPERIENCE.map((x) => <Chip key={x.value} on={k.experience === x.value} onClick={() => setKid(i, { experience: x.value, date: '', cls: '' })}>{x.label}</Chip>)}
               </div>
+              {k.experience === 'None' && Number(k.age) === 11 && (
+                <div style={{ fontSize: 14, color: C.green, margin: '-4px 0 12px' }}>At 11, {k.name.trim().split(' ')[0] || 'your child'} can try Beginner (Tue &amp; Thu 4:30) or Intermediate B (Mon &amp; Wed 4:30) — pick any date below.</div>
+              )}
               {(k.experience === 'Black belt' || (k.experience === 'Color belt' && Number(k.age) < 12)) && (
-                <div style={{ fontSize: 13.5, color: C.green, margin: '-4px 0 12px' }}>{k.experience === 'Black belt' ? 'Great! Pick an Advance class below (Poomsae or Sparring).' : 'Great! Pick an Intermediate A class below.'} We'll confirm the best class for {k.name.trim().split(' ')[0] || 'your child'}'s level.</div>
+                <div style={{ fontSize: 14, color: C.green, margin: '-4px 0 12px' }}>{k.experience === 'Black belt' ? 'Great! Pick an Advance class below (Poomsae or Sparring).' : 'Great! Pick an Intermediate A class below.'} We'll confirm the best class for {k.name.trim().split(' ')[0] || 'your child'}'s level.</div>
               )}
               {cls && (
                 <>
                   <Label req>Pick a trial date — {cls}{classes.length === 1 && list[0] ? `, ${t12(list[0].start_time)}–${t12(list[0].end_time)}` : ''}</Label>
                   {slots == null ? (
-                    <div style={{ fontSize: 13.5, color: C.faint }}>Loading dates…</div>
+                    <div style={{ fontSize: 14, color: C.faint }}>Loading dates…</div>
                   ) : list.length === 0 ? (
                     <div style={{ fontSize: 14, color: C.soft }}>No dates open right now — please email {SCHOOL.email} and we'll find a time.</div>
                   ) : (
@@ -173,9 +178,9 @@ export default function TrialPage() {
                             type="button"
                             disabled={full && !on}
                             onClick={() => setKid(i, on ? { date: '', cls: '' } : { date: s.date, cls: s.class_name })}
-                            style={{ ...btn, padding: '9px 12px', fontSize: 14.5, background: on ? C.red : full ? '#F1EFE7' : '#fff', color: on ? '#fff' : full ? C.faint : C.ink, borderColor: on ? C.red : '#D6D2C4', cursor: full && !on ? 'not-allowed' : 'pointer' }}
+                            style={{ ...btn, padding: '9px 12px', fontSize: 16, background: on ? C.ink : full ? C.paper : '#fff', color: on ? '#fff' : full ? C.faint : C.ink, borderColor: on ? C.ink : '#D6D2C4', cursor: full && !on ? 'not-allowed' : 'pointer' }}
                           >
-                            {on ? '✓ ' : ''}{dayLabel(s.date)}{classes.length > 1 ? ` · ${shortClass(s.class_name)} ${t12(s.start_time)}` : ''}{full && !on ? ' · full' : ''}
+                            {on && <Check size={15} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 4 }} />}{dayLabel(s.date)}{classes.length > 1 ? ` · ${shortClass(s.class_name)} ${t12(s.start_time)}` : ''}{full && !on ? ' · full' : ''}
                           </button>
                         );
                       })}
@@ -195,7 +200,7 @@ export default function TrialPage() {
 
       <Section n="2" title="Your contact information">
         <In label="Parent/guardian name" req value={fam.guardian_name} onChange={setF('guardian_name')} autoComplete="name" />
-        <div style={{ fontSize: 13.5, color: C.soft, margin: '-4px 0 8px' }}>Email or phone — at least one <b style={{ color: C.red }}>*</b>. With a phone number only, we’ll text your confirmation.</div>
+        <div style={{ fontSize: 14, color: C.soft, margin: '-4px 0 8px' }}>Email or phone — at least one <b style={{ color: C.danger }}>*</b>. With a phone number only, we’ll text your confirmation.</div>
         <Row>
           <In label="Email" type="email" value={fam.email} onChange={setF('email')} autoComplete="email" />
           <In label="Phone" type="tel" value={fam.phone} onChange={setF('phone')} autoComplete="tel" />
@@ -209,12 +214,12 @@ export default function TrialPage() {
       </Section>
 
       {errors.length > 0 && (
-        <div id="trial-errors" style={{ background: C.redSoft, color: '#8C1D18', border: '1px solid #F0C9C6', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 14.5 }}>
+        <div id="trial-errors" role="alert" style={{ background: C.redSoft, color: C.danger, border: 'none', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 16 }}>
           <b>Please check:</b>
           <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>{errors.map((x) => <li key={x}>{x}</li>)}</ul>
         </div>
       )}
-      <button type="button" disabled={saving} onClick={submit} style={{ ...btn, background: C.red, borderColor: C.red, color: '#fff', width: '100%', padding: 15, fontSize: 17, fontWeight: 700 }}>
+      <button type="button" disabled={saving} onClick={submit} style={{ ...btn, background: C.ink, borderColor: C.ink, color: '#fff', width: '100%', padding: 15, fontSize: 18, fontWeight: 700 }}>
         {saving ? 'Booking…' : 'Book my free trial'}
       </button>
     </Page>

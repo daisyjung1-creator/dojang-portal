@@ -1,4 +1,4 @@
--- YTP weekly tracking. Admin (coach) only. Safe to run more than once. Run after 044_ytp.sql.
+-- YTP weekly tracking. Admin (coach) only. Safe to run more than once. Run after 077_ytp.sql.
 --
 --   ytp_class_map   which physical abilities one attendance of a class counts toward.
 --                   '*' = every physical ability planned that week (season-specific classes).

@@ -180,13 +180,13 @@ export default function PayrollPage() {
           ['slips', `Payslips (${slips.length})`],
           ['staff', 'Staff & settings'],
         ].map(([k, l]) => (
-          <button key={k} className={'dp-btn' + (tab === k ? ' dp-btn-dark' : '')} style={tab === k ? { background: '#20241F', color: '#fff', borderColor: '#20241F' } : undefined} onClick={() => setTab(k)}>
+          <button key={k} className={'dp-btn' + (tab === k ? ' dp-btn-dark' : '')} style={tab === k ? { background: 'var(--dp-ink)', color: '#fff', borderColor: 'var(--dp-ink)' } : undefined} onClick={() => setTab(k)}>
             {l}
           </button>
         ))}
       </div>
 
-      {flash.text && <p style={{ background: flash.error ? '#FBEAEA' : '#E8F1E9', color: flash.error ? '#9A2B2B' : '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
+      {flash.text && <p style={{ background: flash.error ? 'var(--dp-danger-tint)' : 'var(--dp-success-tint)', color: flash.error ? 'var(--dp-danger)' : 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
 
       {tab === 'run' && <RunPayroll employees={employees} slips={slips} onSaved={async (ids, note = '') => { await loadAll(); say(`${ids.length} payslip${ids.length === 1 ? '' : 's'} saved.${note}`); setTab('slips'); }} onError={(m) => say(m, true)} />}
       {tab === 'slips' && <SlipList slips={slips} empById={empById} onView={setView} onDeleted={() => { loadAll(); say('Payslip deleted.'); }} onEmailed={(m) => { loadAll(); say(m); }} />}
@@ -352,29 +352,29 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
     <>
       <div style={{ ...styles.card, padding: 14, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Month worked</div>
+          <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>Month worked</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button className="dp-btn" style={{ padding: '6px 9px' }} aria-label="Previous month" onClick={() => shiftMonth(-1)}><ChevronLeft size={15} /></button>
-            <div style={{ minWidth: 150, textAlign: 'center', fontSize: 16, fontWeight: 600 }}>{monthLabel}</div>
+            <div style={{ minWidth: 150, textAlign: 'center', fontSize: 16, fontWeight: 500 }}>{monthLabel}</div>
             <button className="dp-btn" style={{ padding: '6px 9px' }} aria-label="Next month" onClick={() => shiftMonth(1)}><ChevronRight size={15} /></button>
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Pay date</div>
+          <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>Pay date</div>
           <input type="date" className="dp-input" value={payDate} onChange={(e) => e.target.value && setPayDate(e.target.value)} />
         </div>
-        <span style={{ fontSize: 12, color: '#8A8D84', marginBottom: 14, marginLeft: 'auto' }}>
+        <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginBottom: 14, marginLeft: 'auto' }}>
           {String(payDate).slice(0, 4)}: CPP {rates.cppRate}% over ${rates.cppExemption.toLocaleString()}/yr · EI {rates.eiRate}% · vacation pay 4% · income tax federal + Alberta (basic TD1)
         </span>
       </div>
 
       {!PAYROLL_RATES[Number(String(payDate).slice(0, 4))] && (
-        <p style={{ background: '#FAEEDA', color: '#854F0B', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <p style={{ background: 'var(--dp-warning-tint)', color: 'var(--dp-warning)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
           <AlertTriangle size={15} /> {String(payDate).slice(0, 4)} CPP / EI / tax rates haven’t been added yet — this uses {Math.max(...Object.keys(PAYROLL_RATES).map(Number))} rates. Check the amounts against CRA’s calculator.
         </p>
       )}
       {active.length === 0 ? (
-        <div style={{ ...styles.card, padding: 20, fontSize: 14, color: '#5B5F56' }}>Add staff in “Staff & settings” first.</div>
+        <div style={{ ...styles.card, padding: 20, fontSize: 14, color: 'var(--dp-ink-soft)' }}>Add staff in “Staff & settings” first.</div>
       ) : (
         <div style={styles.card}>
           <table className="dp-table">
@@ -402,15 +402,15 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                     <tr className="dp-row" style={{ opacity: r?.include ? 1 : 0.55 }}>
                       <td><input type="checkbox" aria-label={`Include ${e.name}`} checked={!!r?.include} onChange={(ev) => set(e.id, 'include', ev.target.checked)} /></td>
                       <td>
-                        <button onClick={() => setOpen((o) => ({ ...o, [e.id]: !o[e.id] }))} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, fontSize: 13.5, color: '#20241F' }}>
+                        <button onClick={() => setOpen((o) => ({ ...o, [e.id]: !o[e.id] }))} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, fontSize: 13.5, color: 'var(--dp-ink)' }}>
                           {open[e.id] ? <ChevronDown size={13} /> : <ChevronRight size={13} />} {e.name}
                         </button>
-                        <div style={{ fontSize: 11.5, color: '#8A8D84', marginLeft: 17 }}>
-                          {e.hourly_rate ? `${money(e.hourly_rate)}/h · ${e.payment_method}` : <span style={{ color: '#9A2B2B' }}>no hourly rate</span>}
+                        <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', marginLeft: 17 }}>
+                          {e.hourly_rate ? `${money(e.hourly_rate)}/h · ${e.payment_method}` : <span style={{ color: 'var(--dp-danger)' }}>no hourly rate</span>}
                         </div>
                       </td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(78)} inputMode="decimal" placeholder="0 or h:mm" title="Hours as a number (36.52) or hours:minutes (36:31)" value={r?.hours ?? ''} onChange={(ev) => set(e.id, 'hours', ev.target.value)} />
-                        {String(r?.hours ?? '').includes(':') && <div style={{ fontSize: 11, color: '#8A8D84' }}>= {parseHours(r.hours).toFixed(3)} h</div>}</td>
+                        {String(r?.hours ?? '').includes(':') && <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>= {parseHours(r.hours).toFixed(3)} h</div>}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" value={r?.rate ?? ''} onChange={(ev) => set(e.id, 'rate', ev.target.value)} /></td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.vacation_pay) : ''}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(70)} type="number" step="0.01" value={r?.bonus ?? ''} onChange={(ev) => set(e.id, 'bonus', ev.target.value)} /></td>
@@ -418,12 +418,12 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                       <td style={{ textAlign: 'right' }}>{c ? money(c.cpp) : ''}</td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.ei) : ''}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" title="Worked out automatically (federal + Alberta). Type an amount to use your own." placeholder={c ? c.tax.toFixed(2) : 'auto'} value={r?.tax ?? ''} onChange={(ev) => set(e.id, 'tax', ev.target.value)} /></td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{c ? money(c.net) : ''}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 500 }}>{c ? money(c.net) : ''}</td>
                     </tr>
                     {open[e.id] && r && (
                       <tr>
                         <td></td>
-                        <td colSpan={10} style={{ background: '#FAF8F2' }}>
+                        <td colSpan={10} style={{ background: 'var(--dp-canvas)' }}>
                           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12.5, alignItems: 'center', marginBottom: 8 }}>
                             <label>Overtime hrs <input className="dp-input" style={inp(60)} inputMode="decimal" value={r.overtime_hours} onChange={(ev) => set(e.id, 'overtime_hours', ev.target.value)} /></label>
                             <label>OT rate <input className="dp-input" style={inp(60)} type="number" step="0.01" value={r.overtime_rate} onChange={(ev) => set(e.id, 'overtime_rate', ev.target.value)} /></label>
@@ -441,21 +441,21 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
             </tbody>
           </table>
           {chosen.length > 0 && (
-            <div style={{ padding: '10px 14px', borderTop: '1px solid #EDEAE0', background: '#FAF8F2', fontSize: 12.5, color: '#5B5F56', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-              <span>Total gross <b style={{ color: '#20241F' }}>{money(remit.gross)}</b></span>
-              <span>Total net pay <b style={{ color: '#20241F' }}>{money(remit.net)}</b></span>
+            <div style={{ padding: '10px 14px', borderTop: '1px solid #EDEAE0', background: 'var(--dp-canvas)', fontSize: 12.5, color: 'var(--dp-ink-soft)', display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+              <span>Total gross <b style={{ fontWeight: 500, color: 'var(--dp-ink)' }}>{money(remit.gross)}</b></span>
+              <span>Total net pay <b style={{ fontWeight: 500, color: 'var(--dp-ink)' }}>{money(remit.net)}</b></span>
               <span title={`CPP ${money(remit.cpp)} × 2 + EI ${money(remit.ei)} + employer EI ${money(remit.ei * 1.4)} + tax ${money(remit.tax)}`}>
-                CRA remittance <b style={{ color: '#20241F' }}>{money(remitTotal)}</b> due {remitDue.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
-                <span style={{ color: '#8A8D84' }}> (CPP {money(remit.cpp * 2)} · EI {money(remit.ei + r2(remit.ei * 1.4))} · tax {money(remit.tax)})</span>
+                CRA remittance <b style={{ fontWeight: 500, color: 'var(--dp-ink)' }}>{money(remitTotal)}</b> due {remitDue.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                <span style={{ color: 'var(--dp-ink-faint)' }}> (CPP {money(remit.cpp * 2)} · EI {money(remit.ei + r2(remit.ei * 1.4))} · tax {money(remit.tax)})</span>
               </span>
             </div>
           )}
           <div style={{ padding: '12px 14px', borderTop: '1px solid #EDEAE0', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             {missingHours.length > 0 && (
-              <span style={{ fontSize: 12.5, color: '#5B5F56' }}>Enter hours for {missingHours.map((e) => e.name.split(' ')[0]).join(', ')}.</span>
+              <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>Enter hours for {missingHours.map((e) => e.name.split(' ')[0]).join(', ')}.</span>
             )}
             {existing.length > 0 && (
-              <span style={{ fontSize: 12.5, color: '#854F0B', display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 12.5, color: 'var(--dp-warning)', display: 'flex', gap: 6, alignItems: 'center' }}>
                 <AlertTriangle size={14} /> {existing.map((e) => e.name.split(' ')[0]).join(', ')} already {existing.length === 1 ? 'has a payslip' : 'have payslips'} for {formatDate(payDate)} — saving replaces {existing.length === 1 ? 'it' : 'them'}.
               </span>
             )}
@@ -511,7 +511,7 @@ function SlipList({ slips, empById, onView, onDeleted, onEmailed }) {
       </div>
       <div style={styles.card}>
         {list.length === 0 ? (
-          <p style={{ padding: 20, fontSize: 14, color: '#5B5F56' }}>No payslips yet.</p>
+          <p style={{ padding: 20, fontSize: 14, color: 'var(--dp-ink-soft)' }}>No payslips yet.</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -533,15 +533,15 @@ function SlipList({ slips, empById, onView, onDeleted, onEmailed }) {
                 <tr key={s.id} className="dp-row" style={{ cursor: 'pointer' }} onClick={() => onView(s)}>
                   <td>{formatDate(s.pay_date)}</td>
                   <td style={{ fontWeight: 500 }}>{empById[s.employee_id]?.name}</td>
-                  <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{s.period_start ? `${formatDate(s.period_start)} – ${formatDate(s.period_end)}` : s.pay_type}</td>
+                  <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{s.period_start ? `${formatDate(s.period_start)} – ${formatDate(s.period_end)}` : s.pay_type}</td>
                   <td style={{ textAlign: 'right' }}>{Number(s.hours).toFixed(2)}</td>
                   <td style={{ textAlign: 'right' }}>{money(s.gross)}</td>
                   <td style={{ textAlign: 'right' }}>{money(s.cpp)}</td>
                   <td style={{ textAlign: 'right' }}>{money(s.ei)}</td>
                   <td style={{ textAlign: 'right' }}>{money(s.tax)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                  <td style={{ textAlign: 'right', fontWeight: 500 }}>
                     {money(s.net)}
-                    {s.emailed_at && <div style={{ fontSize: 11, color: '#2A5A30', fontWeight: 400 }}>Emailed</div>}
+                    {s.emailed_at && <div style={{ fontSize: 12, color: 'var(--dp-success)', fontWeight: 400 }}>Emailed</div>}
                   </td>
                   <td onClick={(e) => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                     <button className="dp-btn" style={{ padding: 5, marginRight: 4 }} aria-label="Payslip" title="View / print payslip" onClick={() => onView(s)}><Printer size={13} /></button>
@@ -551,13 +551,13 @@ function SlipList({ slips, empById, onView, onDeleted, onEmailed }) {
                 </tr>
               ))}
               <tr>
-                <td colSpan={3} style={{ fontWeight: 600 }}>Total ({list.length})</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{tot('hours').toFixed(2)}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('gross'))}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('cpp'))}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('ei'))}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('tax'))}</td>
-                <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(tot('net'))}</td>
+                <td colSpan={3} style={{ fontWeight: 500 }}>Total ({list.length})</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{tot('hours').toFixed(2)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('gross'))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('cpp'))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('ei'))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('tax'))}</td>
+                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(tot('net'))}</td>
                 <td></td>
               </tr>
             </tbody>
@@ -612,7 +612,7 @@ function PayslipView({ slip, employee, ytd, settings, onClose, onEmailed }) {
           </>
         }
       >
-        {msg && <p style={{ background: '#E6F0F6', color: '#1E4566', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
+        {msg && <p style={{ background: 'var(--dp-canvas)', color: 'var(--dp-info)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
         <div style={{ border: '1px solid #EDEAE0', borderRadius: 8 }}>{doc}</div>
       </Modal>
       <PrintPortal>{doc}</PrintPortal>
@@ -649,7 +649,7 @@ function StaffTab({ employees, settings, onEdit, onSettingsSaved }) {
             {employees.map((e) => (
               <tr key={e.id} className="dp-row" style={{ opacity: e.active === false ? 0.5 : 1 }}>
                 <td style={{ fontWeight: 500 }}>{e.name}{e.active === false ? ' (inactive)' : ''}</td>
-                <td style={{ textAlign: 'right' }}>{e.hourly_rate ? money(e.hourly_rate) : <span style={{ color: '#9A2B2B' }}>—</span>}</td>
+                <td style={{ textAlign: 'right' }}>{e.hourly_rate ? money(e.hourly_rate) : <span style={{ color: 'var(--dp-danger)' }}>—</span>}</td>
                 <td>{e.pay_type}</td>
                 <td>{e.payment_method}</td>
                 <td><button className="dp-btn" style={{ padding: 5 }} aria-label="Edit" onClick={() => onEdit(e)}><Pencil size={13} /></button></td>
@@ -708,7 +708,7 @@ function EmployeeModal({ employee, onClose, onSaved }) {
         </>
       }
     >
-      {err && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{err}</p>}
+      {err && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{err}</p>}
       <Field label="Name (as on the payslip)" required><input className="dp-input" style={{ width: '100%' }} value={f.name || ''} onChange={(e) => set('name', e.target.value)} /></Field>
       <div style={styles.formRow}>
         <Field label="Hourly rate ($)"><input className="dp-input" style={{ width: '100%' }} type="number" step="0.01" value={f.hourly_rate ?? ''} onChange={(e) => set('hourly_rate', e.target.value)} /></Field>

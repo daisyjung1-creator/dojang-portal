@@ -120,14 +120,14 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
         </select>
       </Field>
       {credit > 0.004 && (
-        <div style={{ background: '#E8F1E9', color: '#2A5A30', border: '1px solid #BFDCC3', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px', display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>Family credit available: <b>{money(credit)}</b></span>
+        <div style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', border: '1px solid var(--dp-success-tint)', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '0 0 12px', display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Family credit available: <b style={{ fontWeight: 500 }}>{money(credit)}</b></span>
           {selected && owing > 0.004 && !isEdit && (
             <button type="button" className="dp-btn" style={{ padding: '3px 10px', fontSize: 12.5 }} onClick={useCredit}>Use on this invoice</button>
           )}
         </div>
       )}
-      {creditMsg && <p style={{ fontSize: 13, color: '#2A5A30', margin: '-6px 0 10px' }}>{creditMsg}</p>}
+      {creditMsg && <p style={{ fontSize: 13, color: 'var(--dp-success)', margin: '-6px 0 10px' }}>{creditMsg}</p>}
       <div style={styles.formRow}>
         <Field label="Date" required>
           <input type="date" className="dp-input" style={{ width: '100%' }} value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
@@ -137,7 +137,7 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
         </Field>
       </div>
       {extra > 0.004 && form.customer_id && (
-        <p style={{ background: '#E6F0F6', color: '#1E4566', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '-4px 0 12px' }}>
+        <p style={{ background: 'var(--dp-canvas)', color: 'var(--dp-info)', borderRadius: 6, padding: '7px 10px', fontSize: 13, margin: '-4px 0 12px' }}>
           {form.invoice_id ? `${money(extra)} is more than this invoice owes — it will be saved as family credit` : `No invoice picked — the whole ${money(extra)} will be saved as family credit`} and taken off the next invoice.
         </p>
       )}
@@ -155,11 +155,11 @@ export default function PaymentModal({ customers, initial, onClose, onSaved }) {
       <Field label="Notes">
         <input className="dp-input" style={{ width: '100%' }} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
       </Field>
-      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, color: customer?.email ? '#20241F' : '#8A8D84' }}>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5, color: customer?.email ? 'var(--dp-ink)' : 'var(--dp-ink-faint)' }}>
         <input type="checkbox" checked={emailReceipt} disabled={!customer?.email} onChange={(e) => setEmailReceipt(e.target.checked)} />
         Email a receipt to {customer?.email || 'customer (no email on file)'}
       </label>
-      {error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '8px 0 0' }}>{error}</p>}
     </Modal>
   );
 }

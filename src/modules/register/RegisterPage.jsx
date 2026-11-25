@@ -44,7 +44,7 @@ function emptyChild(copyFrom) {
   };
 }
 
-const sectionLabel = { fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8A8D84', margin: '4px 0 10px' };
+const sectionLabel = { fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--dp-ink-faint)', margin: '4px 0 10px' };
 
 // The family's inquiry (same email or phone) is marked Enrolled once they're in.
 const digits = (v) => String(v || '').replace(/\D/g, '').slice(-10);
@@ -123,7 +123,15 @@ export default function RegisterPage() {
         };
       })
     );
-    setFromOnline({ id: r.id, names: (r.kids || []).map(kidName).join(', '), family: match ? match.name : null });
+    setFromOnline({
+      id: r.id,
+      names: (r.kids || []).map(kidName).join(', '),
+      family: match ? match.name : null,
+      // Card the family saved on the form's card step (moves to the family on Register).
+      card: r.card_profile_code
+        ? { code: r.card_profile_code, mode: r.card_profile_mode, last4: r.card_last4, expiry: r.card_expiry, type: r.card_type, saved_at: r.card_saved_at, consent: r.card_consent }
+        : null,
+    });
     setFormError('');
     setSuccess('');
     setTimeout(() => document.getElementById('enroll-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -235,6 +243,33 @@ export default function RegisterPage() {
     if (customerId && family.payment_type) {
       await supabase.from('customers').update({ payment_type: family.payment_type }).eq('id', customerId);
     }
+    let cardNote = '';
+    if (customerId && fromOnline?.card) {
+      // The card saved with the online registration becomes the family's card
+      // (unless the family already has one — then it stays on the registration).
+      const { data: cust } = await supabase.from('customers').select('card_profile_code, card_last4').eq('id', customerId).maybeSingle();
+      const k = fromOnline.card;
+      if (cust?.card_profile_code) {
+        cardNote = ` The family already has a saved card (ending ${cust.card_last4 || '····'}), so the card from the registration (ending ${k.last4 || '····'}) was not used.`;
+      } else {
+        const { error: cardErr } = await supabase
+          .from('customers')
+          .update({
+            card_profile_code: k.code,
+            card_profile_mode: k.mode,
+            card_series_id: null,
+            card_last4: k.last4,
+            card_expiry: k.expiry,
+            card_type: k.type,
+            card_saved_at: k.saved_at,
+            card_consent: k.consent,
+            card_legacy_rb_pending: false,
+            payment_type: 'preauth',
+          })
+          .eq('id', customerId);
+        cardNote = cardErr ? ` The saved card could not be moved to the family (${cardErr.message}).` : ` Saved card (${k.type || 'card'} ending ${k.last4 || '····'}) is now on the family for automatic tuition.`;
+      }
+    }
     await closeMatchingLeads(fam, created[0]);
     if (fromOnline) {
       await supabase.from('registrations').update({ status: 'approved', student_ids: created.map((c) => c.id), handled_at: new Date().toISOString() }).eq('id', fromOnline.id);
@@ -243,7 +278,7 @@ export default function RegisterPage() {
     }
     setSaving(false);
     setRecent((prev) => [...created.slice().reverse(), ...prev]);
-    setSuccess(created.length === 1 ? `${created[0].name} registered.` : `${created.map((c) => c.name.split(' ')[0]).join(', ')} registered as one family.`);
+    setSuccess((created.length === 1 ? `${created[0].name} registered.` : `${created.map((c) => c.name.split(' ')[0]).join(', ')} registered as one family.`) + cardNote);
     // One welcome email for the whole family, to review before it goes out.
     if (fam.guardian_email) setWelcomeFor(created);
     setFamily(emptyFamily());
@@ -265,16 +300,17 @@ export default function RegisterPage() {
 
       <div id="enroll-form" style={{ ...styles.card, padding: 20, marginBottom: 20, maxWidth: 680 }}>
         {fromOnline && (
-          <div style={{ background: '#EAF1F7', border: '1px solid #C5D6E6', color: '#1E4566', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ background: '#EAF1F7', border: '1px solid #C5D6E6', color: 'var(--dp-info)', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ flex: 1 }}>
               Online registration loaded: <b>{fromOnline.names}</b>. Check the classes, set the tuition, then Register.
               {fromOnline.family && <> Matched existing family <b>{fromOnline.family}</b> by email.</>}
+              {fromOnline.card && <> Card saved online: <b>{fromOnline.card.type || 'Card'} ending {fromOnline.card.last4}</b> — it moves to the family when you Register.</>}
             </span>
             <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => { setFromOnline(null); setFamily(emptyFamily()); setKids([emptyChild()]); }}>Clear</button>
           </div>
         )}
         {success && (
-          <div style={{ background: '#E8F1E9', border: '1px solid #BFDCC3', color: '#2A5A30', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--dp-success-tint)', border: '1px solid var(--dp-success-tint)', color: 'var(--dp-success)', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{success}</span>
             <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => setSuccess('')}>Close</button>
           </div>
@@ -330,9 +366,9 @@ export default function RegisterPage() {
               </Field>
             </div>
             {formerMatch(k) && (
-              <div style={{ background: '#FAEEDA', border: '1px solid #F0D9A8', color: '#854F0B', borderRadius: 6, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+              <div style={{ background: 'var(--dp-warning-tint)', border: '1px solid var(--dp-warning-tint)', color: 'var(--dp-warning)', borderRadius: 6, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
                 {formerMatch(k).name} was a student before (withdrawn{formerMatch(k).withdrawn_date ? ` ${formerMatch(k).withdrawn_date}` : ''}). You can also reactivate the old record in Students instead.
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, color: '#20241F' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, color: 'var(--dp-ink)' }}>
                   <input type="checkbox" checked={k.refee ?? true} onChange={(e) => setKid(i, { refee: e.target.checked })} /> Add the ${REREGISTRATION_FEE} re-registration fee to the first tuition invoice
                 </label>
               </div>
@@ -359,7 +395,7 @@ export default function RegisterPage() {
               </Field>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Classes (pick all that apply)</span>
+              <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>Classes (pick all that apply)</span>
               <ClassPicker value={k.class_name || ''} onChange={(v) => setKid(i, { class_name: v })} options={classes} />
             </div>
             <ClassDaysPicker classNames={k.class_name} perWeek={k.classes_per_week} value={k.class_days} onChange={(v) => setKid(i, { class_days: v })} />
@@ -397,7 +433,7 @@ export default function RegisterPage() {
                 <Field label="Subsidy">
                   <input className="dp-input" style={inp} placeholder="KidSport" value={k.subsidy_name} onChange={(e) => setKid(i, { subsidy_name: e.target.value })} />
                 </Field>
-                <Field label="Amount / month ($)">
+                <Field label="Taken off each billing ($)">
                   <input type="number" className="dp-input" style={inp} value={k.subsidy_amount} onChange={(e) => setKid(i, { subsidy_amount: e.target.value })} />
                 </Field>
                 <Field label="Subsidy ends" required>
@@ -426,9 +462,9 @@ export default function RegisterPage() {
         <button className="dp-btn" style={{ marginTop: 12 }} onClick={addKid}>
           <Plus size={14} /> Add a sibling
         </button>
-        <span style={{ fontSize: 12, color: '#8A8D84', marginLeft: 10 }}>Same parent, phone, email and address — just the child’s own details.</span>
+        <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginLeft: 10 }}>Same parent, phone, email and address — just the child’s own details.</span>
 
-        {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '12px 0 0' }}>{formError}</p>}
+        {formError && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '12px 0 0' }}>{formError}</p>}
         <div style={{ marginTop: 16 }}>
           <button className="dp-btn dp-btn-primary" disabled={saving} onClick={submitRegistration}>
             {kids.length > 1 ? <Users size={15} /> : <Check size={15} />} {saving ? 'Saving…' : kids.length > 1 ? `Register ${kids.length} children` : 'Complete registration'}
@@ -439,7 +475,7 @@ export default function RegisterPage() {
       <h2 style={{ fontSize: 15, fontWeight: 500, margin: '0 0 8px' }}>Recently registered</h2>
       <div style={styles.card}>
         {recent.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No students yet.</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No students yet.</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -455,10 +491,10 @@ export default function RegisterPage() {
               {recent.map((w) => (
                 <tr key={w.id} className="dp-row">
                   <td style={{ fontWeight: 500 }}>{w.name}</td>
-                  <td>{w.guardian_email || <span style={{ color: '#8A8D84' }}>none</span>}</td>
+                  <td>{w.guardian_email || <span style={{ color: 'var(--dp-ink-faint)' }}>none</span>}</td>
                   <td>{w.enroll_date}</td>
                   <td>
-                    <span style={{ fontSize: 12.5, color: w.welcome_sent_at ? '#2A5A30' : '#5B5F56' }}>
+                    <span style={{ fontSize: 12.5, color: w.welcome_sent_at ? 'var(--dp-success)' : 'var(--dp-ink-soft)' }}>
                       {w.welcome_sent_at ? 'Sent ' + new Date(w.welcome_sent_at).toLocaleDateString('en-CA') : 'Not sent'}
                     </span>
                   </td>

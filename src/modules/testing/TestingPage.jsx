@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Printer, Mail, FileText, Award, Search, Check, AlertTriangle, Pencil } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Printer, Mail, FileText, Award, Search, Check, AlertTriangle, Pencil } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
@@ -12,6 +12,8 @@ import { fetchAll, loadSettings, saveInvoice, queueEmail } from '../invoices/api
 import ScoresView from './ScoresView';
 import SparringView from './SparringView';
 import PapersView from './PapersView';
+import AwardsView from './AwardsView';
+import ProgressOverview from './ProgressOverview';
 import { openReports, openBracket } from './testReports';
 import { MIN_CLASSES, TEST_FEE_ITEMS, feeItemFor, nextBelt, beltMeta, beltIndex, countStart, classesSince, matchFees, NOTICE_SUBJECT, NOTICE_MESSAGE } from '../../lib/beltTesting';
 
@@ -51,6 +53,8 @@ export default function TestingPage() {
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState('list'); // list | scores | sparring
+  // First screen = everyone's progress (tapes, classes); "Open test" shows the test list.
+  const [screen, setScreen] = useState('overview');
 
   const test = tests.find((t) => t.id === testId);
   const say = (text, error = false) => setFlash({ text, error });
@@ -131,8 +135,10 @@ export default function TestingPage() {
   // A belt fixed on the student's record carries over to the test list (until
   // they're promoted): current belt, and the "testing for" belt and fee if
   // those were still the automatic picks. Fees already invoiced stay as they are.
+  // Only before the test day: once the test has happened, the student's belt
+  // may already be their new belt and the list must keep what they tested from.
   useEffect(() => {
-    if (!entries.length || !students.length) return;
+    if (!entries.length || !students.length || !test || test.test_date < localISO()) return;
     const fixes = [];
     entries.forEach((e) => {
       const s = sById[e.student_id];
@@ -151,7 +157,7 @@ export default function TestingPage() {
       return f ? { ...x, ...f[1] } : x;
     }));
     fixes.forEach(([e, patch]) => supabase.from('belt_test_entries').update(patch).eq('id', e.id).then(() => {}));
-  }, [entries, students, fees, itemByName]);
+  }, [entries, students, fees, itemByName, test]);
 
   const rows = useMemo(
     () =>
@@ -171,6 +177,7 @@ export default function TestingPage() {
       noInvoice: rows.filter((r) => feeState(r.e) === 'none'),
       passed: rows.filter((r) => r.e.result === 'pass'),
       toPromote: rows.filter((r) => r.e.result === 'pass' && !r.e.promoted_at),
+      pending: rows.filter((r) => r.e.result === 'pending' && !r.e.promoted_at),
     };
   }, [rows, fees]);
 
@@ -197,6 +204,19 @@ export default function TestingPage() {
     setModal(null);
     say(`${ids.length} student${ids.length === 1 ? '' : 's'} added to the test list.`);
     loadEntries();
+  }
+
+  // Bulk: everyone still Pending → Pass.
+  async function passAllPending() {
+    const ids = stats.pending.map((r) => r.e.id);
+    if (!ids.length) return;
+    setEntries((list) => list.map((x) => (ids.includes(x.id) ? { ...x, result: 'pass' } : x)));
+    const { error } = await supabase.from('belt_test_entries').update({ result: 'pass' }).in('id', ids);
+    if (error) {
+      say('Could not save: ' + error.message, true);
+      return loadEntries();
+    }
+    say(`${ids.length} student${ids.length === 1 ? '' : 's'} marked as Pass.`);
   }
 
   async function patchTest(patch) {
@@ -332,15 +352,24 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
     w.document.close();
   }
 
+  if (screen === 'overview')
+    return (
+      <ProgressOverview
+        onOpenTest={(id) => { setTestId(id); setScreen('test'); }}
+        onNewTest={() => { setScreen('test'); setModal('new'); }}
+      />
+    );
+
   return (
     <>
+      <button className="dp-btn" style={{ marginBottom: 12, padding: '5px 10px', fontSize: 12.5 }} onClick={() => setScreen('overview')}><ArrowLeft size={14} /> All students & tapes</button>
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Belt Testing</h1>
           <p style={styles.subtitle}>Test list, forms, fees and results · {MIN_CLASSES} classes since the last test to be eligible</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select className="dp-select" value={testId} onChange={(e) => setTestId(e.target.value)}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0, maxWidth: '100%' }}>
+          <select className="dp-select" style={{ minWidth: 0, flex: '1 1 200px', maxWidth: '100%', textOverflow: 'ellipsis' }} value={testId} onChange={(e) => setTestId(e.target.value)}>
             {tests.map((t) => (
               <option key={t.id} value={t.id}>
                 {formatDate(t.test_date)}{t.title ? ' — ' + t.title : ''}
@@ -365,7 +394,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
           )}
 
           <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #E4E0D4', marginBottom: 14 }}>
-            {[['list', 'Test list'], ['papers', 'Test-day sheets'], ['sparring', 'Sparring pairings'], ['scores', 'Scores & reports']].map(([k, l]) => (
+            {[['list', 'Test list'], ['papers', 'Test-day sheets'], ['sparring', 'Sparring pairings'], ['scores', 'Scores & reports'], ['awards', 'Awards & new belts']].map(([k, l]) => (
               <button key={k} onClick={() => setView(k)} style={{ background: 'none', border: 'none', borderBottom: view === k ? '2px solid #20241F' : '2px solid transparent', padding: '8px 14px', fontSize: 14, fontWeight: view === k ? 600 : 400, color: view === k ? '#20241F' : '#5B5F56', cursor: 'pointer', fontFamily: 'inherit', marginBottom: -1 }}>{l}</button>
             ))}
           </div>
@@ -380,6 +409,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
               onPrint={(list) => openReports(list, test, settings?.logo_data) || say('Allow pop-ups to print the reports.', true)}
             />
           )}
+          {view === 'awards' && <AwardsView key={test.id} rows={rows} test={test} tests={tests} onPatch={patchEntry} say={say} />}
           {view === 'papers' && <PapersView key={test.id} rows={rows} test={test} tests={tests} onPatchEntry={patchEntry} onPatchTest={patchTest} say={say} />}
           {view === 'sparring' && (
             <SparringView
@@ -397,6 +427,20 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
             <button className="dp-btn" disabled={!stats.noInvoice.length} onClick={() => setModal('invoice')}><FileText size={15} /> Create fee invoices ({stats.noInvoice.length})</button>
             <button className="dp-btn" disabled={!rows.length} onClick={() => setModal('notice')}><Mail size={15} /> Email test notice</button>
             <button className="dp-btn" disabled={!rows.length} onClick={printList}><Printer size={15} /> Print list</button>
+            <button
+              className="dp-btn"
+              disabled={!stats.pending.length}
+              title="Set every student still marked Pending to Pass (change any retest or absent afterwards)"
+              onClick={() =>
+                setConfirm({
+                  msg: `Mark all ${stats.pending.length} pending student${stats.pending.length === 1 ? '' : 's'} as Pass? You can still change anyone to Retest or Absent afterwards.`,
+                  label: 'Mark as Pass',
+                  run: () => passAllPending(),
+                })
+              }
+            >
+              <Check size={15} /> Pass all pending ({stats.pending.length})
+            </button>
             <button className="dp-btn" disabled={!stats.toPromote.length} onClick={() => setModal('promote')}><Award size={15} /> Promote passed ({stats.toPromote.length})</button>
             <span style={{ marginLeft: 'auto', fontSize: 13, color: '#5B5F56', display: 'flex', gap: 14 }}>
               <span>{stats.n} on list</span>
@@ -562,7 +606,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
       {confirm && (
         <ConfirmDialog
           message={confirm.msg}
-          confirmLabel="Remove"
+          confirmLabel={confirm.label || 'Remove'}
           onCancel={() => setConfirm(null)}
           onConfirm={async () => {
             const r = confirm.run;

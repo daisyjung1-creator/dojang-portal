@@ -23,29 +23,21 @@ const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPAB
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || '';
 const FROM_ADDRESS = Deno.env.get('RESEND_FROM_ADDRESS') || 'onboarding@resend.dev';
 
-function tryoutConfirmationEmail(payload: any) {
+function tryoutConfirmationEmail(payload: any, s: Record<string, any>) {
   const { student_name, date, time, class_name } = payload || {};
   return {
     subject: `[Trial Booking Confirmed] ${student_name}`,
-    html: `
-      <p>Hi, this confirms ${student_name}'s trial class booking.</p>
-      <ul>
-        <li>Date: ${date || 'To be announced'}</li>
-        <li>Time: ${time || 'To be announced'}</li>
-        <li>Class: ${class_name || 'To be announced'}</li>
-      </ul>
-      <p>We look forward to seeing you. Feel free to reach out with any questions.</p>
-    `,
+    html: plainTextEmailHtml(
+      `Hello,\n\nThis confirms ${student_name}'s trial class booking.\n\nDate: ${date || 'To be announced'}\nTime: ${time || 'To be announced'}\nClass: ${class_name || 'To be announced'}\n\nWe look forward to seeing you. If you have any questions, simply reply to this email.\n\nKind regards,\nMaster Daisy`,
+      s
+    ),
   };
 }
 
-function welcomeEmail(studentName: string) {
+function welcomeEmail(studentName: string, s: Record<string, any>) {
   return {
     subject: `Welcome, ${studentName}!`,
-    html: `
-      <p>${studentName}'s registration is complete. Welcome to our dojang family!</p>
-      <p>We'll follow up separately with schedule and attendance details.</p>
-    `,
+    html: plainTextEmailHtml(`Hello,\n\n${studentName}'s registration is complete. Welcome to our dojang family!\n\nWe'll follow up separately with schedule and attendance details.\n\nKind regards,\nMaster Daisy`, s),
   };
 }
 
@@ -98,7 +90,7 @@ async function loadSettings() {
 async function sendInvoice(record: any) {
   const invoiceId = record.payload?.invoice_id;
   const [{ data: inv }, { data: lines }, { data: rawPayments }, { data: refunds }, { data: credits }, s] = await Promise.all([
-    supabase.from('invoices').select('*, customers(cc_email)').eq('id', invoiceId).single(),
+    supabase.from('invoices').select('*, customers(cc_email, payment_type, card_profile_code, rb_account_id)').eq('id', invoiceId).single(),
     supabase.from('invoice_lines').select('*').eq('invoice_id', invoiceId).order('position'),
     supabase.from('invoice_payments').select('*').eq('invoice_id', invoiceId),
     supabase.from('invoice_refunds').select('*').eq('invoice_id', invoiceId),
@@ -119,12 +111,22 @@ async function sendInvoice(record: any) {
   const isReminder = !!record.payload?.reminder;
   // A one-off subject/message written in the portal wins over the templates.
   const subject = fillTemplate(record.payload?.subject || (isReminder ? s.reminder_subject : s.email_subject) || 'Invoice #{number} from {business}', inv, s, balance);
-  const message = fillTemplate(record.payload?.message || (isReminder ? s.reminder_message : s.email_message) || 'Please find your invoice attached.', inv, s, balance);
+  // Which "other ways to pay" line goes under the Pay now button.
+  const cust = inv.customers || {};
+  let kind = (cust.payment_type || 'preauth') === 'manual' ? 'manual' : 'preauth';
+  if (kind === 'preauth' && inv.customer_id && !cust.card_profile_code && !cust.rb_account_id) {
+    const { count } = await supabase.from('invoice_payments').select('id', { count: 'exact', head: true }).eq('customer_id', inv.customer_id);
+    if (!count) kind = 'new';
+  }
+  const live = s.online_pay && s.online_pay_mode === 'live' && balance > 0.004;
+  // With Pay now, the long pre-auth paragraph the portal used to add is replaced by one short line.
+  const custom = record.payload?.preauth_note && live ? '' : record.payload?.message;
+  const message = fillTemplate(custom || (isReminder ? s.reminder_message : s.email_message) || 'Please find your invoice attached.', inv, s, balance);
   const pdf = await buildInvoicePdf(inv, lines || [], payments || [], s, refunds || []);
   const extra: Record<string, unknown> = { attachments: [{ filename: `Invoice-${inv.invoice_number}.pdf`, content: toBase64(pdf) }] };
   if (inv.customers?.cc_email) extra.cc = inv.customers.cc_email;
   if (s.email) extra.reply_to = s.email;
-  await sendEmail(record.recipient_email, subject, invoiceEmailHtml(inv, lines || [], s, message, balance), extra);
+  await sendEmail(record.recipient_email, subject, invoiceEmailHtml(inv, lines || [], s, message, balance, kind), extra);
   await supabase.from('invoices').update(isReminder ? { reminded_at: new Date().toISOString() } : { emailed_at: new Date().toISOString() }).eq('id', invoiceId);
 }
 
@@ -198,7 +200,7 @@ async function release(table: string, id: string) {
 
 async function processEmailQueue(record: any) {
   if (record.type === 'tryout_confirmation' && !record.payload?.message) {
-    const { subject, html } = tryoutConfirmationEmail(record.payload);
+    const { subject, html } = tryoutConfirmationEmail(record.payload, await loadSettings());
     await sendEmail(record.recipient_email, subject, html);
     if (record.payload?.tryout_id) {
       await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', record.payload.tryout_id);
@@ -249,7 +251,7 @@ async function sendBroadcastCopy(broadcastId: string, s: Record<string, any>) {
 }
 
 async function processWelcome(record: any) {
-  const { subject, html } = welcomeEmail(record.student_name);
+  const { subject, html } = welcomeEmail(record.student_name, await loadSettings());
   await sendEmail(record.guardian_email, subject, html);
 }
 

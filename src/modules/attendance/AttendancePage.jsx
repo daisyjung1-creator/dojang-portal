@@ -1,13 +1,13 @@
 import StudentFlags from '../../components/StudentFlags';
 import React, { useEffect, useMemo, useState } from 'react';
-import { CircleCheck, CircleX, CalendarClock, BarChart3, Mail, Plus, Trash2, Check, Plane, Copy, User, AlertTriangle } from 'lucide-react';
+import { CircleCheck, CircleX, CalendarClock, CalendarX, BarChart3, Mail, Plus, Trash2, Check, Plane, Copy, User, AlertTriangle, Phone } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { MAKEUP_STATUSES } from '../../lib/constants';
 import { todayISO, computeMakeupWindow, addDaysISO } from '../../lib/billingDates';
-import { splitClasses, allClassNames, inClass, DOJANG_CLASSES, comesOn } from '../../lib/classes';
+import { splitClasses, allClassNames, inClass, DOJANG_CLASSES, comesOn, weeklyPlan } from '../../lib/classes';
 import { ATTENDANCE_KINDS, studentSummary, weekCount, lastAttended, minutesLabel, absenceAlerts, trackingStart, NOT_SEEN_DAYS, REGULAR_WINDOW, COMP_WINDOW } from '../../lib/attendanceStats';
-import { fillTemplate, makeupVars, studentVars } from '../../lib/emailTemplates';
+import { fillTemplate, makeupVars, studentVars, combinedMakeupEmail } from '../../lib/emailTemplates';
 import { formatDate } from '../../lib/invoiceUtils';
 import { useAuth } from '../../auth/AuthContext';
 import Modal from '../../components/Modal';
@@ -28,6 +28,7 @@ export default function AttendancePage() {
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [makeupRecords, setMakeupRecords] = useState([]);
+  const [makeupAsk, setMakeupAsk] = useState(null);
   const [payments, setPayments] = useState([]);
   const [packages, setPackages] = useState([]);
   const [settings, setSettings] = useState({});
@@ -37,6 +38,7 @@ export default function AttendancePage() {
   const [sortBy, setSortBy] = useState('class');
   const [historyStudentId, setHistoryStudentId] = useState('');
   const [statsFor, setStatsFor] = useState(null);
+  const [contactFor, setContactFor] = useState(null);
   const [email, setEmail] = useState(null);
   const [pkgModal, setPkgModal] = useState(null);
   const [sessionModal, setSessionModal] = useState(null);
@@ -48,6 +50,7 @@ export default function AttendancePage() {
   const [schedMsg, setSchedMsg] = useState('');
   const [walkInModal, setWalkInModal] = useState(null);
   const [absenceModal, setAbsenceModal] = useState(null);
+  const [dayOff, setDayOff] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -109,7 +112,7 @@ export default function AttendancePage() {
     const unlimited = inClass(studentMap[studentId] || {}, 'Comp Team');
     // Only an excused absence gets a makeup class.
     if (status === 'excused' && !unlimited) {
-      await createOrUpdateMakeupRecord(studentId, date, className);
+      return await createOrUpdateMakeupRecord(studentId, date, className);
     } else {
       // Present / double / private / vacation: no makeup owed for this class.
       await supabase.from('makeup_records').delete().eq('student_id', studentId).eq('absence_date', date).eq('class_name', className);
@@ -128,7 +131,7 @@ export default function AttendancePage() {
 
   async function createOrUpdateMakeupRecord(studentId, absenceDate, className) {
     const already = makeupRecords.find((m) => m.student_id === studentId && m.absence_date === absenceDate && m.class_name === className);
-    if (already) return;
+    if (already) return already.status === 'pending' ? already : null;
     const student = studentMap[studentId];
     if (!student) return;
     const { nextBillingDate, paidPeriodEnd, tentativeExpiration } = computeMakeupWindow(student, absenceDate);
@@ -148,7 +151,31 @@ export default function AttendancePage() {
       status: 'pending',
     };
     const { data, error } = await supabase.from('makeup_records').insert(record).select();
-    if (!error) setMakeupRecords((prev) => [...prev, data[0]]);
+    if (error) return null;
+    setMakeupRecords((prev) => [...prev, data[0]]);
+    return data[0];
+  }
+
+  // Right after an Excused (told-us-ahead) absence: offer to book the makeup.
+  function askMakeup(records) {
+    const list = records.filter(Boolean);
+    if (!list.length) return;
+    setMakeupAsk(list.map((m) => ({ m, date: '', cls: m.class_name })));
+  }
+
+  // Upcoming class times (from today up to the makeup's expiry) for a class.
+  function upcomingTimes(className, until, limit = 6) {
+    const out = [];
+    for (let d = todayISO(); d <= (until || addDaysISO(todayISO(), 30)) && out.length < limit; d = addDaysISO(d, 1)) {
+      const dow = new Date(d + 'T00:00:00').getDay();
+      schedule.filter((c) => c.active !== false && c.weekday === dow && c.class_name === className).forEach((c) => out.push({ date: d, start: c.start_time }));
+    }
+    return out;
+  }
+
+  async function saveMakeupAsk() {
+    for (const it of makeupAsk) if (it.date) await setMakeupReservation(it.m.id, it.date, it.cls || it.m.class_name);
+    setMakeupAsk(null);
   }
 
   async function setMakeupReservation(makeupId, reservationDate, reservationClassName) {
@@ -227,11 +254,13 @@ export default function AttendancePage() {
     const st = studentMap[f.student_id];
     const picks = scheduledClasses(st, f.from, f.to).filter((x) => f.skip[`${x.date}|${x.class_name}`] !== true);
     if (!st || !picks.length) return setAbsenceModal({ ...f, msg: 'Choose a student and at least one class.' });
+    const made = [];
     for (const x of picks) {
-      await setAttendanceStatus(st.id, x.date, x.class_name, f.kind);
+      made.push(await setAttendanceStatus(st.id, x.date, x.class_name, f.kind));
       if (f.note) await supabase.from('attendance').update({ note: f.note }).eq('student_id', st.id).eq('date', x.date).eq('class_name', x.class_name);
     }
     setAbsenceModal(null);
+    if (f.kind === 'excused') askMakeup(made);
   }
 
   // Undo a makeup / drop-in check-in: the makeup goes back to "not scheduled".
@@ -244,9 +273,40 @@ export default function AttendancePage() {
   }
 
   // ── Emails ─────────────────────────────────────────────────────────────
+  // Open makeups (not done, not expired) of the same family as m.
+  function familyMakeups(m) {
+    const s = studentMap[m.student_id];
+    const key = (x) => x?.customer_id || (x?.guardian_email || '').toLowerCase() || x?.id;
+    return makeupRecords.filter((x) => {
+      if (x.status === 'completed' || (x.status === 'pending' && x.expiration_date && x.expiration_date < todayISO())) return false;
+      const xs = studentMap[x.student_id];
+      return xs && key(xs) === key(s);
+    });
+  }
+
   function openMakeupEmail(m) {
     const s = studentMap[m.student_id];
     if (!s) return;
+    const all = familyMakeups(m);
+    if (all.length > 1) {
+      const c = combinedMakeupEmail(all, studentMap, settings);
+      setEmail({
+        title: `Makeup classes email — ${[...new Set(all.map((x) => studentMap[x.student_id]?.name))].join(', ')}`,
+        type: 'makeup',
+        to: s.guardian_email || '',
+        subject: c.subject,
+        message: c.message,
+        studentId: s.id,
+        payload: { makeup_record_ids: all.map((x) => x.id) },
+        note: `${all.length} makeups in one email (all open makeups for this family).`,
+        onSent: async (at) => {
+          const ids = all.map((x) => x.id);
+          await supabase.from('makeup_records').update({ emailed_at: at }).in('id', ids);
+          setMakeupRecords((prev) => prev.map((x) => (ids.includes(x.id) ? { ...x, emailed_at: at } : x)));
+        },
+      });
+      return;
+    }
     const reserved = m.status === 'reserved' && m.reservation_date;
     const vars = makeupVars(m, s, settings);
     setEmail({
@@ -308,7 +368,8 @@ export default function AttendancePage() {
 
   // ── Lists ─────────────────────────────────────────────────────────────
   const checkinList = useMemo(() => {
-    const list = students.flatMap((s) => {
+    // Students on hold (휴관) that day aren't expected.
+    const list = students.filter((s) => !(s.hold_until && checkinDate <= s.hold_until && checkinDate >= (s.hold_from || checkinDate))).flatMap((s) => {
       const cls = splitClasses(s.class_name);
       return (cls.length ? cls : ['Unassigned']).filter((c) => checkinClass === 'all' || c === checkinClass).map((c) => ({ ...s, _class: c }));
     });
@@ -316,7 +377,7 @@ export default function AttendancePage() {
       if (sortBy === 'class' && a._class !== b._class) return classOrder(a._class) - classOrder(b._class) || a._class.localeCompare(b._class);
       return a.name.localeCompare(b.name) || classOrder(a._class) - classOrder(b._class);
     });
-  }, [students, checkinClass, sortBy]);
+  }, [students, checkinClass, sortBy, checkinDate]);
 
   const makeupGuests = makeupRecords.filter(
     (m) =>
@@ -364,7 +425,7 @@ export default function AttendancePage() {
     return (
       <button
         className="dp-btn"
-        style={{ padding: '4px 8px', fontSize: 12.5, background: active ? k.bg : '#FFFFFF', borderColor: active ? k.border : '#DEDACC', color: active ? k.color : '#20241F' }}
+        style={{ padding: '4px 8px', fontSize: 12.5, background: active ? k.bg : '#FFFFFF', borderColor: active ? k.border : 'var(--dp-line)', color: active ? k.color : 'var(--dp-ink)' }}
         onClick={onClick}
       >
         {icon} {k.label}
@@ -381,6 +442,33 @@ export default function AttendancePage() {
     { id: 'absence', label: `Absence Check${alertCount ? ` (${alertCount})` : ''}` },
     ...(isAdmin ? [{ id: 'schedule', label: 'Class Schedule' }] : []),
   ];
+
+  // No classes that day (holiday, belt testing…): nobody is expected, nothing
+  // is marked absent. For a day that already passed, the automatic absences
+  // (and, if ticked, absences/excused entered by hand with their makeups) go.
+  async function saveDayOff() {
+    const f = dayOff;
+    if (!f.date) return setDayOff({ ...f, msg: 'Pick a date.' });
+    const cls = f.all ? null : f.class_name;
+    if (!cls && !f.all) return setDayOff({ ...f, msg: 'Pick a class.' });
+    const reason = (f.reason === 'Other' ? f.other : f.reason).trim() || null;
+    const { data, error } = await supabase.from('class_cancellations').insert({ date: f.date, class_name: cls, reason }).select().single();
+    if (error) return setDayOff({ ...f, msg: error.message });
+    setCancellations((prev) => [...prev, data]);
+    const hit = (r) => r.date === f.date && (!cls || r.class_name === cls);
+    const recs = attendance.filter((r) => hit(r) && (r.auto ? r.status === 'absent' : f.removeManual && ['absent', 'excused'].includes(r.status)));
+    if (recs.length) await supabase.from('attendance').delete().in('id', recs.map((r) => r.id));
+    const mks = makeupRecords.filter((m) => m.absence_date === f.date && (!cls || m.class_name === cls) && m.status === 'pending' && recs.some((r) => r.student_id === m.student_id && r.class_name === m.class_name));
+    if (mks.length) await supabase.from('makeup_records').delete().in('id', mks.map((m) => m.id));
+    setAttendance((prev) => prev.filter((r) => !recs.some((x) => x.id === r.id)));
+    setMakeupRecords((prev) => prev.filter((m) => !mks.some((x) => x.id === m.id)));
+    setDayOff(null);
+  }
+
+  async function undoDayOff(c) {
+    await supabase.from('class_cancellations').delete().eq('id', c.id);
+    setCancellations((prev) => prev.filter((x) => x.id !== c.id));
+  }
 
   async function cancelClass(date, className) {
     const { data } = await supabase.from('class_cancellations').insert({ date, class_name: className }).select().single();
@@ -444,7 +532,7 @@ export default function AttendancePage() {
           <button
             key={v.id}
             className="dp-btn"
-            style={{ background: view === v.id ? '#20241F' : '#FFFFFF', color: view === v.id ? '#FFFFFF' : '#20241F', borderColor: view === v.id ? '#20241F' : '#DEDACC' }}
+            style={{ background: view === v.id ? 'var(--dp-ink)' : '#FFFFFF', color: view === v.id ? '#FFFFFF' : 'var(--dp-ink)', borderColor: view === v.id ? 'var(--dp-ink)' : 'var(--dp-line)' }}
             onClick={() => setView(v.id)}
           >
             {v.label}
@@ -453,7 +541,7 @@ export default function AttendancePage() {
       </div>
 
       {view !== 'absence' && alertCount > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FAEEDA', border: '1px solid #F0D9A8', borderRadius: 8, padding: '9px 14px', marginBottom: 14, fontSize: 13, color: '#5C3A07', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--dp-warning-tint)', border: '1px solid var(--dp-warning-tint)', borderRadius: 8, padding: '9px 14px', marginBottom: 14, fontSize: 13, color: 'var(--dp-warning)', flexWrap: 'wrap' }}>
           <AlertTriangle size={15} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1, minWidth: 240 }}>
             {frequent.length > 0 && <><b>{frequent.length} below their classes</b> ({frequent.slice(0, 4).map((x) => x.s.name).join(', ')}{frequent.length > 4 ? '…' : ''})</>}
@@ -472,12 +560,15 @@ export default function AttendancePage() {
               <option value="all">All Classes</option>
               {classes.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-            <span style={{ fontSize: 13, color: '#5B5F56', marginLeft: 8 }}>Sort by</span>
+            <span style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginLeft: 8 }}>Sort by</span>
             <select className="dp-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
               <option value="class">Class</option>
               <option value="name">Name</option>
             </select>
             <div style={{ flex: 1 }} />
+            {isAdmin && <button className="dp-btn" onClick={() => setDayOff({ date: checkinDate, all: true, class_name: classes[0] || '', reason: 'Holiday', other: '', removeManual: true, msg: '' })}>
+              <CalendarX size={14} /> Day off / no classes
+            </button>}
             <button className="dp-btn" onClick={() => setAbsenceModal({ student_id: '', from: checkinDate, to: checkinDate, kind: 'excused', note: '', skip: {}, msg: '' })}>
               <CalendarClock size={14} /> Report absence ahead
             </button>
@@ -485,9 +576,32 @@ export default function AttendancePage() {
               <Plus size={14} /> Makeup / drop-in
             </button>
           </div>
+          {(() => {
+            const off = cancellations.filter((c) => c.date === checkinDate);
+            const upcoming = cancellations.filter((c) => c.date >= todayISO() && c.date !== checkinDate).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 6);
+            return (
+              <>
+                {off.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--dp-canvas)', border: '1px solid #D5DAE2', color: 'var(--dp-ink-soft)', borderRadius: 8, padding: '9px 14px', marginBottom: 10, fontSize: 13.5 }}>
+                    <CalendarX size={15} />
+                    <span style={{ flex: 1 }}><b>No {c.class_name ? c.class_name : 'classes'} on {formatDate(c.date)}</b>{c.reason ? ` — ${c.reason}` : ''}. Nobody is marked absent.</span>
+                    {isAdmin && <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setConfirm({ msg: `Undo the day off on ${formatDate(c.date)}? Classes will be expected again.`, run: () => undoDayOff(c) })}>Undo</button>}
+                  </div>
+                ))}
+                {upcoming.length > 0 && (
+                  <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>
+                    Coming days off:{' '}
+                    {upcoming.map((c, i) => (
+                      <span key={c.id}>{i ? ' · ' : ''}<button style={{ background: 'none', border: 'none', padding: 0, color: 'var(--dp-info)', textDecoration: 'underline', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' }} onClick={() => setCheckinDate(c.date)}>{new Date(c.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}</button>{c.class_name ? ` (${c.class_name})` : ''}{c.reason ? ` ${c.reason}` : ''}</span>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <div style={styles.card}>
             {checkinList.length === 0 && makeupGuests.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No matching students.</p>
+              <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No matching students.</p>
             ) : (
               <table className="dp-table">
                 <thead>
@@ -509,7 +623,7 @@ export default function AttendancePage() {
                       <React.Fragment key={s.id + '|' + className}>
                         {header && (
                           <tr>
-                            <td colSpan={3} style={{ background: '#FAF8F2', fontSize: 11.5, fontWeight: 600, color: '#5B5F56', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{className}</td>
+                            <td colSpan={3} style={{ background: 'var(--dp-canvas)', fontSize: 12.5, fontWeight: 600, color: 'var(--dp-ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{className}</td>
                           </tr>
                         )}
                         <tr className="dp-row">
@@ -518,12 +632,15 @@ export default function AttendancePage() {
                               {s.name}
                               <StudentFlags s={s} />
                               {s.classes_per_week ? (
-                                <span title="Classes this week / classes per week" style={{ fontSize: 11, color: wk >= s.classes_per_week ? '#2A5A30' : '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '0 6px', fontWeight: 400 }}>
+                                <span title="Classes this week / classes per week" style={{ fontSize: 12, color: wk >= s.classes_per_week ? 'var(--dp-success)' : 'var(--dp-ink-soft)', border: '1px solid var(--dp-line)', borderRadius: 999, padding: '0 6px', fontWeight: 400 }}>
                                   {wk}/{s.classes_per_week} this wk
                                 </span>
                               ) : null}
                               <button className="dp-btn" title="Attendance summary" aria-label="Attendance summary" style={{ padding: 3, border: 'none', background: 'none' }} onClick={() => setStatsFor(s)}>
-                                <BarChart3 size={14} color="#5B5F56" />
+                                <BarChart3 size={14} color="var(--dp-ink-soft)" />
+                              </button>
+                              <button className="dp-btn" title="Parent / emergency contact" aria-label="Contact" style={{ padding: 3, border: 'none', background: 'none' }} onClick={() => setContactFor(s)}>
+                                <Phone size={14} color="var(--dp-ink-soft)" />
                               </button>
                             </div>
                           </td>
@@ -532,7 +649,7 @@ export default function AttendancePage() {
                             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
                               {kindButton('present', st === 'present', () => setAttendanceStatus(s.id, checkinDate, className, 'present'), <CircleCheck size={13} />)}
                               {kindButton('absent', st === 'absent', () => setAttendanceStatus(s.id, checkinDate, className, 'absent'), <CircleX size={13} />)}
-                              {kindButton('excused', st === 'excused', () => setAttendanceStatus(s.id, checkinDate, className, 'excused'), <CalendarClock size={13} />)}
+                              {kindButton('excused', st === 'excused', async () => askMakeup([await setAttendanceStatus(s.id, checkinDate, className, 'excused')]), <CalendarClock size={13} />)}
                               {kindButton('double', st === 'double', () => setAttendanceStatus(s.id, checkinDate, className, 'double'), <Copy size={13} />)}
                               {kindButton('private', st === 'private', () => setAttendanceStatus(s.id, checkinDate, className, 'private', record?.minutes || 30), <User size={13} />)}
                               {st === 'private' && (
@@ -544,7 +661,7 @@ export default function AttendancePage() {
                               )}
                               {kindButton('vacation', st === 'vacation', () => setAttendanceStatus(s.id, checkinDate, className, 'vacation'), <Plane size={13} />)}
                               {record && (
-                                <button className="dp-btn" title="Clear" style={{ padding: '3px 6px', fontSize: 11.5, color: '#8A8D84', border: 'none' }} onClick={() => clearAttendance(record)}>
+                                <button className="dp-btn" title="Clear" style={{ padding: '3px 6px', fontSize: 12.5, color: 'var(--dp-ink-faint)', border: 'none' }} onClick={() => clearAttendance(record)}>
                                   clear
                                 </button>
                               )}
@@ -558,11 +675,11 @@ export default function AttendancePage() {
                     const st = studentMap[a.student_id];
                     if (!st) return null;
                     return (
-                      <tr key={'drop_' + a.id} className="dp-row" style={{ background: '#FCFAF3' }}>
+                      <tr key={'drop_' + a.id} className="dp-row" style={{ background: 'var(--dp-canvas)' }}>
                         <td style={{ fontWeight: 500 }}>
                           {st.name}
                           <StudentFlags s={st} style={{ marginLeft: 6 }} />
-                          <span style={{ marginLeft: 6, fontSize: 10.5, color: '#1E4566', border: '1px solid #B9D3E4', background: '#E6F0F6', borderRadius: 999, padding: '1px 6px' }}>Drop-in</span>
+                          <span style={{ marginLeft: 6, fontSize: 12.5, color: 'var(--dp-info)', border: '1px solid var(--dp-line)', background: 'var(--dp-canvas)', borderRadius: 999, padding: '1px 6px' }}>Drop-in</span>
                         </td>
                         <td className="dp-hide-sm">{a.class_name} (home class: {st.class_name || 'Unassigned'})</td>
                         <td className="dp-att-actions">
@@ -573,7 +690,7 @@ export default function AttendancePage() {
                   })}
                   {makeupGuests.length > 0 && (
                     <tr>
-                      <td colSpan={3} style={{ background: '#FCFAF3', fontSize: 11.5, fontWeight: 600, color: '#854F0B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Makeup guests</td>
+                      <td colSpan={3} style={{ background: 'var(--dp-canvas)', fontSize: 12.5, fontWeight: 600, color: 'var(--dp-warning)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Makeup guests</td>
                     </tr>
                   )}
                   {makeupGuests.map((m) => {
@@ -582,11 +699,11 @@ export default function AttendancePage() {
                     const className = m.reservation_class_name || checkinClass;
                     const record = attendance.find((a) => a.student_id === s.id && a.date === checkinDate && a.class_name === className);
                     return (
-                      <tr key={'guest_' + m.id} className="dp-row" style={{ background: '#FCFAF3' }}>
+                      <tr key={'guest_' + m.id} className="dp-row" style={{ background: 'var(--dp-canvas)' }}>
                         <td style={{ fontWeight: 500 }}>
                           {s.name}
                           <StudentFlags s={s} style={{ marginLeft: 6 }} />
-                          <span style={{ marginLeft: 6, fontSize: 10.5, color: '#854F0B', border: '1px solid #F0D9A8', background: '#FAEEDA', borderRadius: 999, padding: '1px 6px' }}>Makeup</span>
+                          <span style={{ marginLeft: 6, fontSize: 12.5, color: 'var(--dp-warning)', border: '1px solid var(--dp-warning-tint)', background: 'var(--dp-warning-tint)', borderRadius: 999, padding: '1px 6px' }}>Makeup</span>
                         </td>
                         <td className="dp-hide-sm">{className} (home class: {s.class_name || 'Unassigned'})</td>
                         <td className="dp-att-actions">
@@ -602,7 +719,7 @@ export default function AttendancePage() {
               </table>
             )}
           </div>
-          <p style={{ fontSize: 12, color: '#8A8D84', marginTop: 8 }}>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginTop: 8 }}>
             Absent = no-show, no makeup. Excused = absent with notice — gets a makeup class (not Comp Team, which is unlimited). Double = took two classes that day (counts as 2). Private = private lesson (counted in minutes). Vacation = away. Students not marked by the end of the day are recorded as Absent.
           </p>
         </>
@@ -619,9 +736,9 @@ export default function AttendancePage() {
             </select>
           </div>
           {!historyStudentId ? (
-            <div style={styles.card}><p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Select a student.</p></div>
+            <div style={styles.card}><p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>Select a student.</p></div>
           ) : (
-            <StudentAttendance student={studentMap[historyStudentId]} records={recordsBy[historyStudentId] || []} packages={packagesBy[historyStudentId] || []} onClear={(r) => setConfirm({ msg: `Remove the ${formatDate(r.date)} ${r.class_name} record?`, run: () => clearAttendance(r) })} />
+            <StudentAttendance student={studentMap[historyStudentId]} schedule={schedule} records={recordsBy[historyStudentId] || []} packages={packagesBy[historyStudentId] || []} onClear={(r) => setConfirm({ msg: `Remove the ${formatDate(r.date)} ${r.class_name} record?`, run: () => clearAttendance(r) })} />
           )}
         </>
       )}
@@ -629,7 +746,7 @@ export default function AttendancePage() {
       {view === 'makeup' && (
         <>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
-            <p style={{ fontSize: 13, color: '#5B5F56', margin: 0, flex: 1 }}>
+            <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: 0, flex: 1 }}>
               Makeups come only from <b>Excused</b> absences. A makeup can be taken before or after the missed class, up to 30 days after it (confirmed once the next tuition is paid; if it isn't, it ends with the last paid day).
             </p>
             <button className="dp-btn dp-btn-primary" onClick={() => setAbsenceModal({ student_id: '', from: todayISO(), to: todayISO(), kind: 'excused', note: '', skip: {}, msg: '' })}>
@@ -638,7 +755,7 @@ export default function AttendancePage() {
           </div>
           <div style={styles.card}>
             {makeupRecords.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No makeup classes.</p>
+              <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No makeup classes.</p>
             ) : (
               <table className="dp-table">
                 <thead>
@@ -662,20 +779,20 @@ export default function AttendancePage() {
                       return (
                         <tr key={m.id} className="dp-row">
                           <td style={{ fontWeight: 500 }}>{student ? student.name : '(withdrawn / deleted)'}</td>
-                          <td>{m.absence_date}<div style={{ fontSize: 11.5, color: '#8A8D84' }}>{m.class_name}</div></td>
+                          <td>{m.absence_date}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{m.class_name}</div></td>
                           <td>
                             {m.expiration_date}
                             {m.conditional && (
-                              <div style={{ fontSize: 11, color: '#8A7A00', marginTop: 2 }}>
+                              <div style={{ fontSize: 12, color: '#8A7A00', marginTop: 2 }}>
                                 <CalendarClock size={11} style={{ verticalAlign: '-1px', marginRight: 3 }} />
                                 Awaiting payment
                               </div>
                             )}
                           </td>
                           {isAdmin && (
-                            <td style={{ fontSize: 12.5, color: '#5B5F56' }}>
+                            <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>
                               {m.next_billing_date}
-                              <div style={{ color: payment?.paid ? '#2A5A30' : '#8A8D84' }}>{payment?.paid ? 'Paid' : 'Not paid yet'}</div>
+                              <div style={{ color: payment?.paid ? 'var(--dp-success)' : 'var(--dp-ink-faint)' }}>{payment?.paid ? 'Paid' : 'Not paid yet'}</div>
                             </td>
                           )}
                           <td>
@@ -686,7 +803,7 @@ export default function AttendancePage() {
                               </select>
                             </div>
                             {m.reservation_date && m.expiration_date && m.reservation_date > m.expiration_date && m.status !== 'completed' && (
-                              <div style={{ fontSize: 11, color: '#9A2B2B', marginTop: 3 }}>After it expires ({m.expiration_date}) — must be within 30 days</div>
+                              <div style={{ fontSize: 12, color: 'var(--dp-danger)', marginTop: 3 }}>After it expires ({m.expiration_date}) — must be within 30 days</div>
                             )}
                           </td>
                           <td>{statusBadge(m.status === 'pending' && m.expiration_date && m.expiration_date < todayISO() ? 'expired' : m.status)}</td>
@@ -694,7 +811,7 @@ export default function AttendancePage() {
                             <div style={{ display: 'flex', gap: 4 }}>
                               {student && m.status !== 'completed' && (
                                 <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} disabled={!student.guardian_email} title={student.guardian_email ? (m.status === 'reserved' ? 'Email the booked makeup date' : 'Email the expiry date') : 'No guardian email'} onClick={() => openMakeupEmail(m)}>
-                                  <Mail size={12} /> Email{m.emailed_at ? ' ✓' : ''}
+                                  <Mail size={12} /> Email{(() => { const n = familyMakeups(m).length; return n > 1 ? ` all ${n}` : ''; })()}{m.emailed_at ? ' ✓' : ''}
                                 </button>
                               )}
                               {m.status !== 'completed' && (
@@ -720,7 +837,7 @@ export default function AttendancePage() {
           </div>
           <div style={styles.card}>
             {privateRows.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No private lessons yet. A package is usually 5 × 30 min (2.5 hours); lessons are counted in minutes, so 30-minute and 1-hour lessons both work.</p>
+              <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No private lessons yet. A package is usually 5 × 30 min (2.5 hours); lessons are counted in minutes, so 30-minute and 1-hour lessons both work.</p>
             ) : (
               <table className="dp-table">
                 <thead>
@@ -741,11 +858,11 @@ export default function AttendancePage() {
                         <td style={{ fontWeight: 500 }}>{s.name}</td>
                         <td>{minutesLabel(sum.privateBought)}</td>
                         <td>{minutesLabel(sum.privateUsed)}</td>
-                        <td style={{ fontWeight: 600, color: sum.privateLeft <= 0 ? '#9A2B2B' : sum.privateLeft <= 30 ? '#854F0B' : '#2A5A30' }}>
+                        <td style={{ fontWeight: 600, color: sum.privateLeft <= 0 ? 'var(--dp-danger)' : sum.privateLeft <= 30 ? 'var(--dp-warning)' : 'var(--dp-success)' }}>
                           {sum.privateLeft < 0 ? `${minutesLabel(-sum.privateLeft)} over` : minutesLabel(sum.privateLeft)}
-                          <div style={{ fontSize: 11, fontWeight: 400, color: '#8A8D84' }}>= {Math.max(sum.privateLeft, 0) / 30} × 30 min</div>
+                          <div style={{ fontSize: 12, fontWeight: 400, color: 'var(--dp-ink-faint)' }}>= {Math.max(sum.privateLeft, 0) / 30} × 30 min</div>
                         </td>
-                        <td style={{ fontSize: 12, color: '#5B5F56' }}>{lessons.slice(0, 6).map((r) => `${r.date.slice(5)} (${r.minutes || 30}m)`).join(', ')}{lessons.length > 6 ? ' …' : ''}</td>
+                        <td style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>{lessons.slice(0, 6).map((r) => `${r.date.slice(5)} (${r.minutes || 30}m)`).join(', ')}{lessons.length > 6 ? ' …' : ''}</td>
                         <td>
                           <div style={{ display: 'flex', gap: 4 }}>
                             <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setSessionModal({ student_id: s.id, date: todayISO(), minutes: 30, error: '' })}>+ Lesson</button>
@@ -769,7 +886,7 @@ export default function AttendancePage() {
                       <td>{formatDate(p.purchased_date)}</td>
                       <td>{studentMap[p.student_id]?.name || '—'}</td>
                       <td>{minutesLabel(p.total_minutes)}</td>
-                      <td style={{ color: '#5B5F56' }}>{p.notes}</td>
+                      <td style={{ color: 'var(--dp-ink-soft)' }}>{p.notes}</td>
                       <td style={{ width: 40 }}>
                         <button className="dp-btn dp-btn-danger" style={{ padding: 4 }} aria-label="Delete package" onClick={() => setConfirm({ msg: 'Delete this package?', run: async () => { await supabase.from('private_packages').delete().eq('id', p.id); setPackages((prev) => prev.filter((x) => x.id !== p.id)); } })}>
                           <Trash2 size={13} />
@@ -787,12 +904,12 @@ export default function AttendancePage() {
       {view === 'absence' && (
         <>
           <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Below their classes</h3>
-          <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
+          <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 12px' }}>
             Fewer classes in the last {REGULAR_WINDOW / 7} weeks than their plan (e.g. 2x/week → 4), or Comp Team with 0–1 class in the last week. Excused / vacation count as came; cancelled classes aren't expected. Counted up to yesterday.
           </p>
           <div style={{ ...styles.card, marginBottom: 22 }}>
             {frequent.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Everyone is keeping up with their classes.</p>
+              <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>Everyone is keeping up with their classes.</p>
             ) : (
               <table className="dp-table">
                 <thead>
@@ -809,10 +926,10 @@ export default function AttendancePage() {
                   {frequent.map(({ s, came, expected, comp, from, last }) => (
                     <tr key={s.id} className="dp-row">
                       <td style={{ fontWeight: 500 }}>{s.name}</td>
-                      <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{s.class_name || '—'}</td>
-                      <td style={{ fontSize: 13 }}><span style={{ color: '#9A2B2B', fontWeight: 500 }}>{came} / {expected}</span> <span style={{ fontSize: 12, color: '#8A8D84' }}>since {formatDate(from)}{comp ? ' · Comp Team' : ''}</span></td>
-                      <td style={{ fontSize: 13 }}>{last ? formatDate(last) : <span style={{ color: '#8A8D84' }}>None yet</span>}</td>
-                      <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{s.absence_emailed_at ? new Date(s.absence_emailed_at).toLocaleDateString('en-CA') : '—'}</td>
+                      <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{s.class_name || '—'}</td>
+                      <td style={{ fontSize: 13 }}><span style={{ color: 'var(--dp-danger)', fontWeight: 500 }}>{came} / {expected}</span> <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>since {formatDate(from)}{comp ? ' · Comp Team' : ''}</span></td>
+                      <td style={{ fontSize: 13 }}>{last ? formatDate(last) : <span style={{ color: 'var(--dp-ink-faint)' }}>None yet</span>}</td>
+                      <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{s.absence_emailed_at ? new Date(s.absence_emailed_at).toLocaleDateString('en-CA') : '—'}</td>
                       <td>
                         <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} disabled={!s.guardian_email} title={s.guardian_email ? '' : 'No guardian email'} onClick={() => openAbsenceEmail(s, last)}>
                           <Mail size={12} /> Email
@@ -826,12 +943,12 @@ export default function AttendancePage() {
           </div>
 
           <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 4px' }}>Not in class for {NOT_SEEN_DAYS}+ days</h3>
-          <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
+          <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 12px' }}>
             Students with no class in the last {NOT_SEEN_DAYS} days and no vacation marked. Send a quick "is everything okay?" email (wording in Invoice Settings → Email templates).
           </p>
           <div style={styles.card}>
             {absentees.length === 0 ? (
-              <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>Everyone has been in class this week.</p>
+              <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>Everyone has been in class this week.</p>
             ) : (
               <table className="dp-table">
                 <thead>
@@ -847,9 +964,9 @@ export default function AttendancePage() {
                   {absentees.map(({ s, last, days }) => (
                     <tr key={s.id} className="dp-row">
                       <td style={{ fontWeight: 500 }}>{s.name}</td>
-                      <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{s.class_name || '—'}</td>
-                      <td>{last ? `${formatDate(last)} (${days} days ago)` : <span style={{ color: '#8A8D84' }}>No record yet</span>}</td>
-                      <td style={{ fontSize: 12.5, color: '#5B5F56' }}>{s.absence_emailed_at ? new Date(s.absence_emailed_at).toLocaleDateString('en-CA') : '—'}</td>
+                      <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{s.class_name || '—'}</td>
+                      <td>{last ? `${formatDate(last)} (${days} days ago)` : <span style={{ color: 'var(--dp-ink-faint)' }}>No record yet</span>}</td>
+                      <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{s.absence_emailed_at ? new Date(s.absence_emailed_at).toLocaleDateString('en-CA') : '—'}</td>
                       <td>
                         <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} disabled={!s.guardian_email} title={s.guardian_email ? '' : 'No guardian email'} onClick={() => openAbsenceEmail(s, last)}>
                           <Mail size={12} /> Email
@@ -870,10 +987,10 @@ export default function AttendancePage() {
         const edit = (i, patch) => setSchedDraft(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
         return (
           <>
-            <p style={{ fontSize: 13, color: '#5B5F56', margin: '0 0 12px' }}>
+            <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 12px' }}>
               The kiosk opens the class that's on now. At the end of the day, students who weren't checked in are marked absent (with a makeup, except Comp Team) — so you can still enter attendance after classes. Use "Class cancelled today" in the kiosk for holidays.
             </p>
-            {schedMsg && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{schedMsg}</p>}
+            {schedMsg && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{schedMsg}</p>}
             <div style={{ ...styles.card, padding: 14, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 13.5 }}>
               Mark students who weren't checked in as absent at
               <input
@@ -928,13 +1045,13 @@ export default function AttendancePage() {
             </div>
             {cancellations.length > 0 && (
               <div style={{ ...styles.card, marginTop: 14 }}>
-                <p style={{ ...styles.metricLabel, padding: '12px 12px 0', margin: 0 }}>Cancelled classes (last 30 days)</p>
+                <p style={{ ...styles.metricLabel, padding: '12px 12px 0', margin: 0 }}>Days off & cancelled classes</p>
                 <table className="dp-table">
                   <tbody>
                     {cancellations.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).map((c) => (
                       <tr key={c.id}>
                         <td>{formatDate(c.date)}</td>
-                        <td>{c.class_name || 'All classes'}</td>
+                        <td>{c.class_name || 'All classes'}{c.reason ? <span style={{ color: 'var(--dp-ink-faint)' }}> · {c.reason}</span> : null}</td>
                         <td style={{ width: 40 }}>
                           <button className="dp-btn dp-btn-danger" style={{ padding: 4 }} aria-label="Undo" title="Undo cancellation" onClick={async () => { await supabase.from('class_cancellations').delete().eq('id', c.id); setCancellations((prev) => prev.filter((x) => x.id !== c.id)); }}><Trash2 size={13} /></button>
                         </td>
@@ -949,9 +1066,29 @@ export default function AttendancePage() {
         );
       })()}
 
+      {contactFor && (
+        <Modal title={`Contact — ${contactFor.name}`} maxWidth={420} onClose={() => setContactFor(null)} footer={<button className="dp-btn" onClick={() => setContactFor(null)}>Close</button>}>
+          {[
+            ['Parent / guardian', contactFor.guardian_name, contactFor.guardian_phone],
+            ['Emergency contact', contactFor.emergency_name, contactFor.emergency_phone],
+          ].map(([label, name, phone]) => (
+            <div key={label} style={{ border: '1px solid #E4E6DF', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+              <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 500, margin: '2px 0' }}>{name || '—'}</div>
+              {phone ? (
+                <a href={`tel:${String(phone).replace(/[^0-9+]/g, '')}`} className="dp-btn" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', padding: '5px 12px', textDecoration: 'none', fontSize: 14 }}><Phone size={14} /> {phone}</a>
+              ) : <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No phone on file</span>}
+            </div>
+          ))}
+          {String(contactFor.medical || '').trim() && (
+            <p style={{ background: 'var(--dp-danger-tint)', color: 'var(--dp-danger)', borderRadius: 8, padding: '8px 12px', fontSize: 13, margin: 0 }}><b>Medical:</b> {contactFor.medical}</p>
+          )}
+        </Modal>
+      )}
+
       {statsFor && (
         <Modal title={`Attendance — ${statsFor.name}`} maxWidth={640} onClose={() => setStatsFor(null)} footer={<button className="dp-btn" onClick={() => setStatsFor(null)}>Close</button>}>
-          <StudentAttendance student={statsFor} records={recordsBy[statsFor.id] || []} packages={packagesBy[statsFor.id] || []} compact />
+          <StudentAttendance student={statsFor} schedule={schedule} records={recordsBy[statsFor.id] || []} packages={packagesBy[statsFor.id] || []} compact />
         </Modal>
       )}
 
@@ -965,6 +1102,62 @@ export default function AttendancePage() {
           }}
         />
       )}
+
+      {dayOff && (() => {
+        const f = dayOff;
+        const cls = f.all ? null : f.class_name;
+        const hit = (r) => r.date === f.date && (!cls || r.class_name === cls);
+        const auto = attendance.filter((r) => hit(r) && r.auto && r.status === 'absent').length;
+        const manual = attendance.filter((r) => hit(r) && !r.auto && ['absent', 'excused'].includes(r.status)).length;
+        const set = (patch) => setDayOff({ ...f, ...patch, msg: '' });
+        return (
+          <Modal
+            title="Day off / no classes"
+            maxWidth={480}
+            onClose={() => setDayOff(null)}
+            footer={
+              <>
+                <button className="dp-btn" onClick={() => setDayOff(null)}>Cancel</button>
+                <button className="dp-btn dp-btn-primary" onClick={saveDayOff}><Check size={15} /> Save day off</button>
+              </>
+            }
+          >
+            <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 12px' }}>No attendance that day: nobody is expected or marked absent, and trial bookings skip it.</p>
+            <Field label="Date"><input type="date" className="dp-input" value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>
+            <Field label="Which classes">
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 13.5 }}><input type="radio" checked={f.all} onChange={() => set({ all: true })} /> All classes</label>
+                <label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 13.5 }}><input type="radio" checked={!f.all} onChange={() => set({ all: false })} /> One class</label>
+                {!f.all && (
+                  <select className="dp-select" value={f.class_name} onChange={(e) => set({ class_name: e.target.value })}>
+                    {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+              </div>
+            </Field>
+            <Field label="Reason">
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['Holiday', 'Belt testing', 'Tournament', 'Other'].map((r) => (
+                  <button key={r} type="button" className="dp-btn" style={{ padding: '4px 10px', fontSize: 12.5, ...(f.reason === r ? { background: 'var(--dp-ink)', color: '#fff', borderColor: 'var(--dp-ink)' } : {}) }} onClick={() => set({ reason: r })}>{r}</button>
+                ))}
+              </div>
+              {f.reason === 'Other' && <input className="dp-input" style={{ width: '100%', marginTop: 6 }} placeholder="e.g. Remembrance Day" value={f.other} onChange={(e) => set({ other: e.target.value })} />}
+            </Field>
+            {(auto > 0 || manual > 0) && (
+              <div style={{ background: 'var(--dp-warning-tint)', border: '1px solid var(--dp-warning-tint)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: 'var(--dp-warning)' }}>
+                {auto > 0 && <div>{auto} automatic absence{auto === 1 ? '' : 's'} on this day will be removed.</div>}
+                {manual > 0 && (
+                  <label style={{ display: 'flex', gap: 6, alignItems: 'flex-start', marginTop: auto ? 4 : 0 }}>
+                    <input type="checkbox" checked={f.removeManual} onChange={(e) => set({ removeManual: e.target.checked })} style={{ marginTop: 3 }} />
+                    <span>Also remove {manual} absent / excused record{manual === 1 ? '' : 's'} entered by hand (and their unused makeups).</span>
+                  </label>
+                )}
+              </div>
+            )}
+            {f.msg && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '8px 0 0' }}>{f.msg}</p>}
+          </Modal>
+        );
+      })()}
 
       {absenceModal && (() => {
         const st = studentMap[absenceModal.student_id];
@@ -1004,7 +1197,7 @@ export default function AttendancePage() {
             {st && (
               <div style={{ border: '1px solid #EDEAE0', borderRadius: 8, padding: 8, maxHeight: 200, overflowY: 'auto' }}>
                 {list.length === 0 ? (
-                  <span style={{ fontSize: 13, color: '#8A8D84' }}>No classes for {st.name} on those days.</span>
+                  <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No classes for {st.name} on those days.</span>
                 ) : (
                   list.map((x) => {
                     const key = `${x.date}|${x.class_name}`;
@@ -1018,8 +1211,8 @@ export default function AttendancePage() {
                 )}
               </div>
             )}
-            {st && inClass(st, 'Comp Team') && absenceModal.kind === 'excused' && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '8px 0 0' }}>Comp Team is unlimited, so no makeup is created.</p>}
-            {absenceModal.msg && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{absenceModal.msg}</p>}
+            {st && inClass(st, 'Comp Team') && absenceModal.kind === 'excused' && <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '8px 0 0' }}>Comp Team is unlimited, so no makeup is created.</p>}
+            {absenceModal.msg && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '8px 0 0' }}>{absenceModal.msg}</p>}
           </Modal>
         );
       })()}
@@ -1059,12 +1252,12 @@ export default function AttendancePage() {
           {walkInModal.student_id && (() => {
             const open = makeupRecords.filter((m) => m.student_id === walkInModal.student_id && ['pending', 'reserved'].includes(m.status) && m.absence_date !== checkinDate && m.expiration_date >= checkinDate).sort((a, b) => (a.absence_date < b.absence_date ? -1 : 1));
             return (
-              <p style={{ fontSize: 13, color: '#5B5F56', margin: 0 }}>
+              <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: 0 }}>
                 {open.length ? `Uses the makeup for the class missed on ${formatDate(open[0].absence_date)} (${open.length} open).` : 'No open makeup — recorded as an extra class.'}
               </p>
             );
           })()}
-          {walkInModal.msg && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '8px 0 0' }}>{walkInModal.msg}</p>}
+          {walkInModal.msg && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '8px 0 0' }}>{walkInModal.msg}</p>}
         </Modal>
       )}
 
@@ -1102,7 +1295,7 @@ export default function AttendancePage() {
             <Field label="Total minutes"><input type="number" className="dp-input" style={{ width: '100%' }} value={pkgModal.total_minutes} onChange={(e) => setPkgModal({ ...pkgModal, total_minutes: e.target.value })} /></Field>
           )}
           <Field label="Notes"><input className="dp-input" style={{ width: '100%' }} value={pkgModal.notes} onChange={(e) => setPkgModal({ ...pkgModal, notes: e.target.value })} /></Field>
-          {pkgModal.error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: 0 }}>{pkgModal.error}</p>}
+          {pkgModal.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: 0 }}>{pkgModal.error}</p>}
         </Modal>
       )}
 
@@ -1134,7 +1327,54 @@ export default function AttendancePage() {
               </select>
             </Field>
           </div>
-          {sessionModal.error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: 0 }}>{sessionModal.error}</p>}
+          {sessionModal.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: 0 }}>{sessionModal.error}</p>}
+        </Modal>
+      )}
+
+      {makeupAsk && (
+        <Modal
+          title="Schedule the makeup class now?"
+          maxWidth={520}
+          onClose={() => setMakeupAsk(null)}
+          footer={
+            <>
+              <button className="dp-btn" onClick={() => setMakeupAsk(null)}>Not now</button>
+              <button className="dp-btn dp-btn-primary" disabled={!makeupAsk.some((x) => x.date)} onClick={saveMakeupAsk}><Check size={15} /> Book makeup</button>
+            </>
+          }
+        >
+          <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 10px' }}>
+            Excused absence saved — a makeup class was created. Pick a date now, or leave it and book it later under <b>Makeup Classes</b>.
+          </p>
+          {makeupAsk.map((it, i) => {
+            const st = studentMap[it.m.student_id];
+            const set = (patch) => setMakeupAsk(makeupAsk.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+            const times = upcomingTimes(it.cls, it.m.expiration_date);
+            return (
+              <div key={it.m.id} style={{ border: '1px solid #E4E6DF', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{st?.name || 'Student'}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 8 }}>
+                  Missing {new Date(it.m.absence_date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })} · {it.m.class_name} — use by {formatDate(it.m.expiration_date)}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <input type="date" className="dp-input" style={{ padding: '5px 8px', fontSize: 13 }} value={it.date} max={it.m.expiration_date || undefined} onChange={(e) => set({ date: e.target.value })} />
+                  <select className="dp-select" style={{ padding: '5px 6px', fontSize: 13 }} value={it.cls} onChange={(e) => set({ cls: e.target.value, date: '' })}>
+                    {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                {times.length > 0 && (
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 8 }}>
+                    {times.map((t) => (
+                      <button key={t.date + t.start} type="button" className="dp-btn" style={{ padding: '3px 9px', fontSize: 12, ...(it.date === t.date ? { background: 'var(--dp-ink)', color: '#fff', borderColor: 'var(--dp-ink)' } : {}) }} onClick={() => set({ date: t.date })}>
+                        {new Date(t.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })} {String(t.start || '').slice(0, 5)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {it.date && it.m.expiration_date && it.date > it.m.expiration_date && <div style={{ fontSize: 12.5, color: 'var(--dp-danger)', marginTop: 4 }}>After it expires — must be within 30 days.</div>}
+              </div>
+            );
+          })}
         </Modal>
       )}
 
@@ -1154,8 +1394,17 @@ export default function AttendancePage() {
 }
 
 // Month + billing-cycle counts, private-lesson balance and the record list.
-function StudentAttendance({ student, records, packages, compact, onClear }) {
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const shortTime = (t) => {
+  const [h, m] = String(t || '').split(':').map(Number);
+  if (Number.isNaN(h)) return '';
+  return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')}`;
+};
+
+function StudentAttendance({ student, records, packages, compact, onClear, schedule = [] }) {
   if (!student) return null;
+  const plan = weeklyPlan(student, schedule);
+  const planDays = new Set(plan.map((c) => c.weekday));
   const sum = studentSummary(student, records, packages);
   const sorted = records.slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   const box = (title, p) => (
@@ -1165,16 +1414,16 @@ function StudentAttendance({ student, records, packages, compact, onClear }) {
         <>
           <p style={{ ...styles.metricValue, fontSize: 22 }}>
             {p.classes}
-            {p.expected ? <span style={{ fontSize: 13, color: '#8A8D84', fontWeight: 400 }}> / ~{p.expected} expected</span> : <span style={{ fontSize: 13, color: '#8A8D84', fontWeight: 400 }}> classes</span>}
+            {p.expected ? <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)', fontWeight: 400 }}> / ~{p.expected} expected</span> : <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)', fontWeight: 400 }}> classes</span>}
           </p>
-          <p style={{ fontSize: 12, color: '#5B5F56', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-soft)', margin: '4px 0 0' }}>
             {formatDate(p.from)} – {formatDate(p.to)}
             <br />
             {p.absent} absent · {p.excused} excused · {p.vacation} vacation{p.privateMinutes ? ` · private ${minutesLabel(p.privateMinutes)}` : ''}
           </p>
         </>
       ) : (
-        <p style={{ fontSize: 13, color: '#8A8D84' }}>No billing date set</p>
+        <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No billing date set</p>
       )}
     </div>
   );
@@ -1186,17 +1435,29 @@ function StudentAttendance({ student, records, packages, compact, onClear }) {
         {(sum.privateBought > 0 || sum.privateUsed > 0) && (
           <div style={{ ...styles.metricCard, flex: 1, minWidth: 150 }}>
             <p style={styles.metricLabel}>Private lessons left</p>
-            <p style={{ ...styles.metricValue, fontSize: 22, color: sum.privateLeft <= 0 ? '#9A2B2B' : '#20241F' }}>{minutesLabel(Math.abs(sum.privateLeft))}{sum.privateLeft < 0 ? ' over' : ''}</p>
-            <p style={{ fontSize: 12, color: '#5B5F56', margin: '4px 0 0' }}>{minutesLabel(sum.privateUsed)} used of {minutesLabel(sum.privateBought)}</p>
+            <p style={{ ...styles.metricValue, fontSize: 22, color: sum.privateLeft <= 0 ? 'var(--dp-danger)' : 'var(--dp-ink)' }}>{minutesLabel(Math.abs(sum.privateLeft))}{sum.privateLeft < 0 ? ' over' : ''}</p>
+            <p style={{ fontSize: 12, color: 'var(--dp-ink-soft)', margin: '4px 0 0' }}>{minutesLabel(sum.privateUsed)} used of {minutesLabel(sum.privateBought)}</p>
           </div>
         )}
       </div>
-      <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 8px' }}>
+      <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 8px' }}>
         {inClass(student, 'Comp Team') ? 'Comp Team — unlimited classes (no makeups needed)' : student.classes_per_week ? `${student.classes_per_week} classes per week` : 'Classes per week not set (Students → Edit)'} · last class {sum.lastAttended ? formatDate(sum.lastAttended) : '—'}
       </p>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', margin: '0 0 10px', fontSize: 12.5 }}>
+        <span style={{ color: 'var(--dp-ink-soft)' }}>Every week:</span>
+        {plan.length === 0 ? (
+          <span style={{ color: 'var(--dp-ink-faint)' }}>no class days set</span>
+        ) : (
+          plan.map((c) => (
+            <span key={c.id || `${c.weekday}${c.class_name}${c.start_time}`} style={{ background: '#EEF2EA', color: 'var(--dp-success)', borderRadius: 999, padding: '3px 10px', fontWeight: 500 }}>
+              {WD[c.weekday]} {shortTime(c.start_time)} · {c.class_name}
+            </span>
+          ))
+        )}
+      </div>
       <div style={styles.card}>
         {sorted.length === 0 ? (
-          <p style={{ padding: 16, color: '#5B5F56', fontSize: 13.5 }}>No attendance records.</p>
+          <p style={{ padding: 16, color: 'var(--dp-ink-soft)', fontSize: 13.5 }}>No attendance records.</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -1212,8 +1473,11 @@ function StudentAttendance({ student, records, packages, compact, onClear }) {
                 const k = ATTENDANCE_KINDS[r.status] || ATTENDANCE_KINDS.present;
                 return (
                   <tr key={r.id} className="dp-row">
-                    <td>{r.date}</td>
-                    <td>{r.class_name}{r.is_makeup ? ' (makeup)' : ''}{r.auto ? ' · auto' : ''}{r.note ? <span style={{ color: '#8A8D84' }}> · {r.note}</span> : null}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-block', width: 34, fontWeight: 600, color: planDays.size && !planDays.has(new Date(r.date + 'T00:00:00').getDay()) ? 'var(--dp-warning)' : 'var(--dp-ink)' }}>{WD[new Date(r.date + 'T00:00:00').getDay()]}</span>
+                      {r.date}
+                    </td>
+                    <td>{r.class_name}{r.is_makeup ? ' (makeup)' : ''}{r.auto ? ' · auto' : ''}{r.note ? <span style={{ color: 'var(--dp-ink-faint)' }}> · {r.note}</span> : null}</td>
                     <td style={{ color: k.color }}>{k.label}{r.status === 'private' ? ` · ${r.minutes || 30} min` : ''}</td>
                     {onClear && (
                       <td style={{ width: 40 }}>

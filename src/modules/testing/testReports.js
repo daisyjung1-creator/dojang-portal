@@ -78,6 +78,7 @@ const beltBar = (name) => {
 };
 
 function sectionCard(sec, comment, wide) {
+  if (!sec) return ''; // section this belt doesn't do
   const filled = sec.marks.some((m) => m != null);
   return `<div class="card${wide ? ' span2' : ''}">
     <div class="top"><h3>${esc(sec.label)}</h3><span class="score">${filled ? sec.total : '–'}<small> / ${sec.max}</small></span>${pill(sec.rank)}</div>
@@ -89,7 +90,7 @@ function sectionCard(sec, comment, wide) {
 
 function reportPage({ s, e }, test, logo) {
   const sc = e.scores || {};
-  const sum = summarize(sc);
+  const sum = summarize(sc, e.current_belt);
   const comments = sc.comments || {};
   const by = Object.fromEntries(sum.sections.map((x) => [x.key, x]));
   const tiles = [
@@ -103,7 +104,7 @@ function reportPage({ s, e }, test, logo) {
     ${sum.mental.map((m, i) => `<div class="crit"><span class="c">${esc(m.label)}${i === 2 ? `<small>${esc(MENTAL.note)}</small>` : ''}</span>${pips(m.value)}<span class="n">${m.value ?? ''}</span>${pill(m.rank)}</div>`).join('')}
     ${comments.mental ? `<div class="cm">${esc(comments.mental)}</div>` : ''}
   </div>`;
-  const legend = SECTIONS.map((x) => `<tr><td><b>${esc(x.label)}</b></td><td>${esc(x.scale[0])}</td><td>${esc(x.scale[1])}</td><td>${esc(x.scale[2])}</td></tr>`).join('');
+  const legend = sum.sections.map((x) => `<tr><td><b>${esc(x.label)}</b></td><td>${esc(x.scale[0])}</td><td>${esc(x.scale[1])}</td><td>${esc(x.scale[2])}</td></tr>`).join('');
   return `<div class="page">
   <div class="hd">
     <div><div class="accent"></div><div class="dojang">${esc(DOJANG_NAME)}</div><h1>Promotion Test Report</h1></div>

@@ -16,13 +16,12 @@ export default function WelcomeEmailModal({ student, students: many, onClose, on
   const [state, setState] = useState(null);
 
   useEffect(() => {
-    supabase
-      .from('invoice_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle()
-      .then(({ data: st }) => {
-        const s = st || {};
+    Promise.all([
+      supabase.from('invoice_settings').select('*').eq('id', 1).maybeSingle(),
+      supabase.from('class_schedule').select('class_name, weekday, start_time, end_time').eq('active', true).order('weekday').order('start_time'),
+    ]).then(([{ data: st }, { data: schedule }]) => {
+        // The class days and times go into {classes}.
+        const s = { ...(st || {}), schedule: schedule || [] };
         setState({
           to: student.guardian_email || '',
           subject: fillFamilyWelcome(s.welcome_subject || 'Welcome to {business}, {student}!', students, s),
@@ -64,13 +63,13 @@ export default function WelcomeEmailModal({ student, students: many, onClose, on
         </>
       }
     >
-      {student.welcome_sent_at && <p style={{ fontSize: 12.5, color: '#854F0B', margin: '0 0 10px' }}>Already sent on {new Date(student.welcome_sent_at).toLocaleDateString('en-CA')}.</p>}
+      {student.welcome_sent_at && <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '0 0 10px' }}>Already sent on {new Date(student.welcome_sent_at).toLocaleDateString('en-CA')}.</p>}
       <Field label="To (comma-separated)"><input className="dp-input" style={{ width: '100%' }} value={state.to} onChange={(e) => setState({ ...state, to: e.target.value })} /></Field>
       <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={state.subject} onChange={(e) => setState({ ...state, subject: e.target.value })} /></Field>
       <Field label="Message (edit for this family if needed)">
         <textarea className="dp-input" rows={16} style={{ width: '100%', resize: 'vertical', fontSize: 13, lineHeight: 1.5 }} value={state.message} onChange={(e) => setState({ ...state, message: e.target.value })} />
       </Field>
-      {state.error && <p style={{ color: '#9A2B2B', fontSize: 13, margin: 0 }}>{state.error}</p>}
+      {state.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: 0 }}>{state.error}</p>}
     </Modal>
   );
 }

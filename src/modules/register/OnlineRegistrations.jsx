@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Globe, Copy, Eye, Printer, X, ArrowDownToLine, Check } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { SCHOOL, INTRO, TERMS, boldParts, EMERGENCY_AUTH, ACKNOWLEDGMENTS, PHOTO_YES, PHOTO_NO, FREQUENCIES } from '../../lib/agreement';
+import { notice } from '../../lib/dialogs';
 
 // Registrations families sent from the public /join form, waiting for review.
 export const JOIN_URL = `${window.location.origin}/join`;
@@ -21,6 +23,7 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
   const [view, setView] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const [askDismiss, setAskDismiss] = useState(null); // registration waiting for "are you sure?"
 
   const load = () =>
     supabase.from('registrations').select('*').order('created_at', { ascending: false }).limit(60).then(({ data }) => setRows(data || []));
@@ -29,12 +32,18 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
   const pending = rows.filter((r) => r.status === 'new');
   const handled = rows.filter((r) => r.status !== 'new');
   const dismiss = async (r) => {
+    // A card saved on the form's card step is deleted from TD too.
+    setAskDismiss(null);
+    if (r.card_profile_code) {
+      const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'reg_card_remove', registration_id: r.id } });
+      if (error || data?.error) return notice('The saved card could not be deleted from TD: ' + (data?.error || error.message) + '\nNothing was dismissed.', { title: 'Not dismissed' });
+    }
     await supabase.from('registrations').update({ status: 'dismissed', handled_at: new Date().toISOString() }).eq('id', r.id);
     setView(null);
     load();
   };
   const copy = async () => {
-    try { await navigator.clipboard.writeText(JOIN_URL); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { window.prompt('Copy this link:', JOIN_URL); }
+    try { await navigator.clipboard.writeText(JOIN_URL); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { notice(JOIN_URL, { title: 'Copy this link' }); }
   };
 
   const list = showDone ? handled : pending;
@@ -47,6 +56,8 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button className="dp-btn" onClick={copy}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy form link'}</button>
           <a className="dp-btn" href="/join" target="_blank" rel="noreferrer">Open form</a>
+          <a className="dp-btn" href="/enrollment-form.pdf" target="_blank" rel="noreferrer" title="Print for families who register in person">Paper form (PDF)</a>
+          <a className="dp-btn" href="/preauth-form.pdf" target="_blank" rel="noreferrer" title="Credit card pre-authorized payment form (Part 7.1)">Card pre-auth form (PDF)</a>
         </span>
       </div>
       <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 10, wordBreak: 'break-all' }}>{JOIN_URL} — send this to new families (email, text, QR code).</div>
@@ -60,6 +71,7 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
               <div style={{ fontWeight: 600, fontSize: 14 }}>{(r.kids || []).map(kidName).join(', ')}</div>
               <div style={{ fontSize: 12.5, color: '#8A8D84' }}>
                 {r.family?.guardian_name}{r.adult_student ? ' (adult student)' : ''} · {fmtDate(r.created_at)} · {r.plan}
+                {r.card_profile_code && <> · <b style={{ color: '#2A5A30' }}>Card saved ··{r.card_last4}</b></>}
                 {r.status !== 'new' && <> · <b>{r.status === 'approved' ? 'Enrolled' : 'Dismissed'}</b></>}
               </div>
             </div>
@@ -84,11 +96,19 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
             <div style={{ overflowY: 'auto', padding: '4px 20px 16px', fontSize: 13.5 }} dangerouslySetInnerHTML={{ __html: summaryHtml(view) }} />
             <div style={{ display: 'flex', gap: 8, padding: '12px 20px', borderTop: '1px solid #E4E0D4', flexWrap: 'wrap' }}>
               <button className="dp-btn" onClick={() => printAgreement(view)}><Printer size={14} /> Print / PDF</button>
-              {view.status === 'new' && <button className="dp-btn" onClick={() => dismiss(view)}>Dismiss</button>}
+              {view.status === 'new' && <button className="dp-btn" onClick={() => setAskDismiss(view)}>Dismiss</button>}
               {view.status === 'new' && <button className="dp-btn dp-btn-primary" style={{ marginLeft: 'auto' }} onClick={() => { onLoad(view); setView(null); }}><ArrowDownToLine size={14} /> Enroll</button>}
             </div>
           </div>
         </div>
+      )}
+      {askDismiss && (
+        <ConfirmDialog
+          message={`Dismiss the registration for ${(askDismiss.kids || []).map(kidName).join(', ')}? It moves to "handled" and can't be enrolled from the list any more.${askDismiss.card_profile_code ? ` The card they saved (ending ${askDismiss.card_last4 || '····'}) is also deleted from TD Online Mart.` : ''}`}
+          confirmLabel="Dismiss"
+          onCancel={() => setAskDismiss(null)}
+          onConfirm={() => dismiss(askDismiss)}
+        />
       )}
     </div>
   );
@@ -108,13 +128,13 @@ function summaryHtml(r) {
   <h3 style="font-size:14px;margin:14px 0 4px">${r.adult_student ? 'Adult student' : 'Parent / guardian'}</h3>
   <table>${row('Name', esc(f.guardian_name) + (f.relationship && !r.adult_student ? ` (${esc(f.relationship)})` : ''))}${row('Phone', esc(f.phone))}${row('Email', esc(f.email))}${row('Address', `${esc(f.address)} ${esc(f.postal)}`)}${row('Emergency', `${esc(f.emergency_name)} · ${esc(f.emergency_phone)}${f.emergency_relationship ? ` (${esc(f.emergency_relationship)})` : ''}`)}${row('Heard from', esc(f.heard === 'Other' ? `Other: ${f.heard_other || ''}` : f.heard || '—'))}</table>
   <h3 style="font-size:14px;margin:14px 0 4px">Membership</h3>
-  <table>${row('Frequency', esc(freqLabel(r)))}${row('Payment', esc(r.plan))}${row('Start', esc(fmtDate(r.start_date)))}${row('Photo/video', r.photo_consent ? 'Yes — consents' : '<b style="color:#BF1C21">No</b> — no promotional photos')}${row('Initials', esc(TERMS.filter((t) => t.initial).map((t) => `${t.title.split(' — ')[0].replace('Part ', 'P')}: ${r.initials?.[t.key] || '—'}`).join(' · ')))}${row('Signed', `${esc(r.signature_name)} · ${esc(fmtDate(r.signed_on))} · version ${esc(r.agreement_version)}${sigImg(r, 46)}`)}</table>`;
+  <table>${row('Frequency', esc(freqLabel(r)))}${row('Payment', esc(r.plan))}${r.card_profile_code ? row('Card', `<b style="color:#2A5A30">${esc(r.card_type || 'Card')} ending ${esc(r.card_last4)}</b> saved online ${esc(tsDate(r.card_saved_at))} — no charge yet`) : r.card_removed_at ? row('Card', 'Saved card deleted from TD') : ''}${row('Start', esc(fmtDate(r.start_date)))}${row('Photo/video', r.photo_consent ? 'Yes — consents' : '<b style="color:#BF1C21">No</b> — no promotional photos')}${row('Initials', esc(TERMS.filter((t) => t.initial).map((t) => `${t.title.split(' — ')[0].replace('Part ', 'P')}: ${r.initials?.[t.key] || '—'}`).join(' · ')))}${row('Signed', `${esc(r.signature_name)} · ${esc(fmtDate(r.signed_on))} · version ${esc(r.agreement_version)}${sigImg(r, 46)}`)}</table>`;
 }
 
 // The full signed agreement as a printable page (Save as PDF to keep a copy).
 export function printAgreement(r) {
   const w = window.open('', '_blank');
-  if (!w) return alert('Allow pop-ups to print.');
+  if (!w) return notice('Allow pop-ups for this site to print the agreement.', { title: 'Pop-up blocked' });
   const terms = TERMS.map(
     (t) => `<h3>${esc(t.title)}</h3>${t.body.map((b) => (typeof b === 'string' ? `<p>${rich(b)}</p>` : `<ul>${b.list.map((x) => `<li>${rich(x)}</li>`).join('')}</ul>`)).join('')}${t.initial ? `<div class="init">Initials: <b>${esc(r.initials?.[t.key] || '____')}</b></div>` : ''}`
   ).join('');

@@ -56,3 +56,61 @@ export const TEMPLATE_HELP = {
   tryout: '{student} {student_full} {date} {time} {class} {address} {phone} {business}',
   reminder: '{customer} {number} {total} {balance} {due_date} {business}',
 };
+
+// One email for several open makeups of the same family (siblings too).
+export function combinedMakeupEmail(list, studentsById, settings = {}) {
+  const kids = [...new Set(list.map((m) => studentsById[m.student_id]).filter(Boolean))];
+  const guardian = kids[0]?.guardian_name || 'Parent/Guardian';
+  const names = kids.map((s) => first(s.name));
+  const who = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0] || '';
+  const day = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }) : '');
+  const rows = list
+    .slice()
+    .sort((a, b) => (a.absence_date < b.absence_date ? -1 : 1))
+    .map((m) => {
+      const s = studentsById[m.student_id];
+      const lead = kids.length > 1 ? `${first(s?.name)}: ` : '';
+      const booked = m.status === 'reserved' && m.reservation_date;
+      return `• ${lead}missed ${day(m.absence_date)} (${m.class_name}) — ${booked ? `booked for ${day(m.reservation_date)} (${m.reservation_class_name || m.class_name})` : `use by ${day(m.expiration_date)}`}`;
+    });
+  const open = list.some((m) => !(m.status === 'reserved' && m.reservation_date));
+  return {
+    subject: `Makeup classes for ${who}`,
+    message: [
+      `Hello ${guardian},`,
+      '',
+      `Here are ${who}'s makeup classes:`,
+      '',
+      ...rows,
+      '',
+      open ? 'A makeup can be taken in any suitable class before its "use by" date. Please let us know which days work for you and we\'ll book them in.' : 'See you on the mat!',
+      '',
+      'Best Regards,',
+      'Master Daisy',
+    ].join('\n'),
+  };
+}
+
+// Follow-up after a trial class for families who haven't joined yet.
+export function trialFollowup(t, settings, joinLink) {
+  const v = tryoutVars(t, settings);
+  const guardian = first(t.guardian_name) || 'there';
+  const cls = t.class_name ? ` in our ${t.class_name} class` : '';
+  const subject = `${v.student}'s taekwondo trial — would you like to join?`;
+  const message = `Hi ${guardian},
+
+Thank you for bringing ${v.student} to the free trial class at ${v.business}. We hope ${v.student} had fun!
+
+If ${v.student} would like to keep training, we would love to have ${v.student} join us${cls}. You can register online here:
+${joinLink}
+Paper forms are also available at the Dojang.
+
+We also have a few options that make getting started easier, such as a free uniform with a three-month membership and help with KidSport grant applications. If you are interested, just ask us for details.
+
+If you have any questions, or would like ${v.student} to try another class first, just reply to this email${v.phone ? ` or call us at ${v.phone}` : ''}.
+
+Master Daisy
+${v.business}`;
+  const text = `Hi ${guardian}, this is Master Daisy from ${v.business}. Thank you for bringing ${v.student} to the trial class! We hope ${v.student} had fun. If ${v.student} would like to keep training, we would love to have ${v.student} join us${cls}. Register online: ${joinLink} (paper forms at the Dojang too). We also have a few options to make getting started easier (free uniform, KidSport help) — just ask if you're interested!`;
+  return { subject, message, text };
+}

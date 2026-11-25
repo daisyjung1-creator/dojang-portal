@@ -1,4 +1,4 @@
--- HP weight tracking. Admin (coach) only. Safe to run more than once. Run after 044_ytp.sql.
+-- HP weight tracking. Admin (coach) only. Safe to run more than once. Run after 077_ytp.sql.
 --
 --   hp_athletes.weight_limit  the category limit in kg (e.g. 52 for -52kg), filled from the category text
 --   hp_weights                one weigh-in per row

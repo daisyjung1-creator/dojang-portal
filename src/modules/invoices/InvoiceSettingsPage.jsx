@@ -5,7 +5,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import { money } from '../../lib/invoiceUtils';
-import { loadSettings, clearPaymentMethodsCache, loadInvoiceFull, saveInvoice } from './api';
+import { loadSettings, clearPaymentMethodsCache, loadInvoiceFull, saveInvoice, DEFAULT_PREAUTH_NOTE } from './api';
 import { WELCOME_PLACEHOLDERS } from '../../lib/welcomeEmail';
 import { PAYMENT_METHODS } from '../../lib/invoiceUtils';
 import { TEMPLATE_HELP } from '../../lib/emailTemplates';
@@ -170,7 +170,7 @@ export default function InvoiceSettingsPage() {
     setItems((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  if (!s) return <p style={{ color: '#5B5F56' }}>Loading…</p>;
+  if (!s) return <p style={{ color: 'var(--dp-ink-soft)' }}>Loading…</p>;
   const set = (k) => (e) => setS({ ...s, [k]: e.target.value });
 
   return (
@@ -182,7 +182,7 @@ export default function InvoiceSettingsPage() {
         </div>
         <button className="dp-btn dp-btn-primary" onClick={saveSettings}><Check size={15} /> Save Settings</button>
       </div>
-      {saved && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{saved}</p>}
+      {saved && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{saved}</p>}
 
       <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 18, alignItems: 'start' }}>
         <div style={{ ...styles.card, padding: 18 }}>
@@ -193,7 +193,7 @@ export default function InvoiceSettingsPage() {
           <Field label="Address"><textarea className="dp-input" rows={3} style={{ width: '100%' }} value={s.address || ''} onChange={set('address')} /></Field>
           <Field label="Logo (printed on invoices)">
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              {s.logo_data ? <img src={s.logo_data} alt="Logo" style={{ maxHeight: 60, maxWidth: 120, border: '1px solid #EDEAE0', borderRadius: 4 }} /> : <span style={{ fontSize: 13, color: '#8A8D84' }}>No logo</span>}
+              {s.logo_data ? <img src={s.logo_data} alt="Logo" style={{ maxHeight: 60, maxWidth: 120, border: '1px solid #EDEAE0', borderRadius: 4 }} /> : <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No logo</span>}
               <button className="dp-btn" onClick={() => logoRef.current?.click()}><Upload size={14} /> Upload</button>
               {s.logo_data && <button className="dp-btn dp-btn-danger" onClick={() => setS({ ...s, logo_data: null })}>Remove</button>}
               <input ref={logoRef} type="file" accept="image/png,image/jpeg" style={{ display: 'none' }} onChange={onLogo} />
@@ -216,11 +216,16 @@ export default function InvoiceSettingsPage() {
           <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Invoice email</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.email_subject || ''} onChange={set('email_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={5} style={{ width: '100%' }} value={s.email_message || ''} onChange={set('email_message')} /></Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>You can use {'{customer}'}, {'{number}'}, {'{total}'}, {'{balance}'}, {'{due_date}'}, {'{business}'}.</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>You can use {'{customer}'}, {'{number}'}, {'{total}'}, {'{balance}'}, {'{due_date}'}, {'{business}'}.</p>
+          <Field label="Extra paragraph for pre-authorized card families">
+            <textarea className="dp-input" rows={4} style={{ width: '100%' }} value={s.preauth_note ?? DEFAULT_PREAUTH_NOTE} onChange={set('preauth_note')} />
+          </Field>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>Added to the invoice email when the family pays by pre-authorized credit card and the invoice has an amount due (e.g. belt test fees, uniforms). Leave empty to turn it off.</p>
+          <OnlinePaySettings s={s} setS={setS} />
           <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Sports grant (subsidy) reminder email</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.subsidy_reminder_subject || ''} onChange={set('subsidy_reminder_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={9} style={{ width: '100%' }} value={s.subsidy_reminder_message || ''} onChange={set('subsidy_reminder_message')} /></Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>You can use {'{student}'} (first name), {'{student_full}'}, {'{guardian}'}, {'{subsidy}'}, {'{end_month}'} (e.g. October 2026), {'{end_date}'}, {'{business}'}. Sent from the yellow alert on the Students page.</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>You can use {'{student}'} (first name), {'{student_full}'}, {'{guardian}'}, {'{subsidy}'}, {'{end_month}'} (e.g. October 2026), {'{end_date}'}, {'{business}'}. Sent from the yellow alert on the Students page.</p>
         </div>
       </div>
 
@@ -236,7 +241,7 @@ export default function InvoiceSettingsPage() {
               onChange={(e) => setMethodsText(e.target.value)}
             />
           </Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>Payments already recorded keep the name they were saved with. Click Save Settings at the top after changing.</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>Payments already recorded keep the name they were saved with. Click Save Settings at the top after changing.</p>
           <p style={{ ...styles.metricLabel, margin: '18px 0 8px' }}>Refund policy</p>
           <Field label="Inserted into the welcome email as {refund_policy}">
             <textarea className="dp-input" rows={7} style={{ width: '100%', fontSize: 13 }} value={s.refund_policy || ''} onChange={set('refund_policy')} />
@@ -246,7 +251,7 @@ export default function InvoiceSettingsPage() {
           <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Welcome email (sent when a student enrolls)</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.welcome_subject || ''} onChange={set('welcome_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={18} style={{ width: '100%', fontSize: 13 }} value={s.welcome_message || ''} onChange={set('welcome_message')} /></Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>Filled in from the student's details: {WELCOME_PLACEHOLDERS}</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>Filled in from the student's details: {WELCOME_PLACEHOLDERS}</p>
         </div>
       </div>
 
@@ -264,22 +269,22 @@ export default function InvoiceSettingsPage() {
           <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Tuition reminder email (re-sends the invoice)</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.reminder_subject || ''} onChange={set('reminder_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={7} style={{ width: '100%', fontSize: 13 }} value={s.reminder_message || ''} onChange={set('reminder_message')} /></Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>{TEMPLATE_HELP.reminder}</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>{TEMPLATE_HELP.reminder}</p>
           <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Trial booking confirmation</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.tryout_subject || ''} onChange={set('tryout_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={10} style={{ width: '100%', fontSize: 13 }} value={s.tryout_message || ''} onChange={set('tryout_message')} /></Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>{TEMPLATE_HELP.tryout}</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>{TEMPLATE_HELP.tryout}</p>
         </div>
         <div style={{ ...styles.card, padding: 18 }}>
           <p style={{ ...styles.metricLabel, marginBottom: 12 }}>Makeup class email</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.makeup_subject || ''} onChange={set('makeup_subject')} /></Field>
           <Field label="Message — not booked yet (gives the expiry date)"><textarea className="dp-input" rows={7} style={{ width: '100%', fontSize: 13 }} value={s.makeup_message || ''} onChange={set('makeup_message')} /></Field>
           <Field label="Message — booked (confirms the makeup date)"><textarea className="dp-input" rows={6} style={{ width: '100%', fontSize: 13 }} value={s.makeup_reserved_message || ''} onChange={set('makeup_reserved_message')} /></Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>{TEMPLATE_HELP.makeup}</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>{TEMPLATE_HELP.makeup}</p>
           <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Absence check email (no class for a week)</p>
           <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={s.absence_subject || ''} onChange={set('absence_subject')} /></Field>
           <Field label="Message"><textarea className="dp-input" rows={9} style={{ width: '100%', fontSize: 13 }} value={s.absence_message || ''} onChange={set('absence_message')} /></Field>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: 0 }}>{TEMPLATE_HELP.absence}</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>{TEMPLATE_HELP.absence}</p>
         </div>
       </div>
 
@@ -316,6 +321,36 @@ export default function InvoiceSettingsPage() {
           </tbody>
         </table>
       </div>
+    </>
+  );
+}
+
+// Online card payments (TD Online Mart "Pay now").
+function OnlinePaySettings({ s, setS }) {
+  const [test, setTest] = useState('');
+  async function runTest() {
+    setTest('Testing…');
+    const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'selftest' } });
+    if (error || !data) return setTest('Could not reach the payment function.');
+    setTest(data.ok ? `Connected — TD test account approved a $1.00 test charge (no real money).${data.live_secrets_set ? ' Live account keys are set.' : ' Live account keys are NOT set.'}` : `Not approved: ${data.message || data.error || 'unknown error'}`);
+  }
+  return (
+    <>
+      <p style={{ ...styles.metricLabel, margin: '16px 0 8px' }}>Online card payments (Pay now)</p>
+      <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+        <input type="checkbox" checked={!!s.online_pay} onChange={(e) => setS({ ...s, online_pay: e.target.checked })} /> Let families pay invoices online by credit card (TD Online Mart)
+      </label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+        <select className="dp-select" value={s.online_pay_mode || 'test'} onChange={(e) => setS({ ...s, online_pay_mode: e.target.value })}>
+          <option value="test">Test mode — TD test account, test cards only</option>
+          <option value="live">Live — real card payments</option>
+        </select>
+        <button type="button" className="dp-btn" onClick={runTest}>Test connection</button>
+      </div>
+      {test && <p style={{ fontSize: 12.5, color: /^Connected/.test(test) ? 'var(--dp-success)' : 'var(--dp-danger)', margin: '0 0 6px' }}>{test}</p>}
+      <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: 0 }}>
+        Each invoice gets a secure "Pay now" link (Invoices → open an invoice → Copy pay link). In Live mode the invoice email also gets a Pay now button. Payments are recorded automatically and the receipt is emailed. Card numbers go straight to TD and are never stored in the portal.
+      </p>
     </>
   );
 }

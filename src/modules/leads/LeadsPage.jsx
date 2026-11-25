@@ -17,10 +17,10 @@ export function leadKids(lead) {
 const joinNames = (names) => (names.length <= 1 ? names[0] || '' : names.slice(0, -1).join(', ') + ' & ' + names[names.length - 1]);
 
 function emptyForm() {
-  return { student_name: '', guardian_name: '', phone: '', email: '', student_age: '', source: 'Phone', inquiry_date: todayISO(), consult_date: '', status: 'New Inquiry', notes: '', linked_student_id: null };
+  return { student_name: '', guardian_name: '', phone: '', email: '', student_age: '', source: 'Phone', inquiry_date: todayISO(), status: 'New Inquiry', notes: '', linked_student_id: null };
 }
 
-export default function LeadsPage({ setActiveTab }) {
+export default function LeadsPage({ setActiveTab, tabs }) {
   const [leads, setLeads] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -104,6 +104,10 @@ export default function LeadsPage({ setActiveTab }) {
     let submitError;
     const { kids: _k, ...rest } = form;
     const row = { ...rest, children: kids.length ? kids : null, student_name: joinNames(names) || null, guardian_name: String(form.guardian_name || '').trim() || null, student_age: kids[0]?.age ?? null };
+    // Empty fields are saved as blank, not "".
+    Object.keys(row).forEach((k) => {
+      if (typeof row[k] === 'string' && !row[k].trim()) row[k] = null;
+    });
     if (editingId) ({ error: submitError } = await supabase.from('leads').update(row).eq('id', editingId));
     else ({ error: submitError } = await supabase.from('leads').insert(row));
     if (submitError) {
@@ -166,7 +170,7 @@ export default function LeadsPage({ setActiveTab }) {
     <>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>Leads</h1>
+          {tabs || <h1 style={styles.title}>Leads</h1>}
           <p style={styles.subtitle}>{leads.length} inquiries on record</p>
         </div>
         <button className="dp-btn dp-btn-primary" onClick={openAdd}>
@@ -189,14 +193,14 @@ export default function LeadsPage({ setActiveTab }) {
             Enrollment Rate
           </p>
           <p style={styles.metricValue}>
-            {stats.rate}% <span style={{ fontSize: 13, color: '#5B5F56', fontWeight: 400 }}>({stats.enrolled}/{stats.total})</span>
+            {stats.rate}% <span style={{ fontSize: 13, color: 'var(--dp-ink-soft)', fontWeight: 400 }}>({stats.enrolled}/{stats.total})</span>
           </p>
         </div>
       </div>
 
       <div style={styles.filterBar}>
         <div style={styles.searchBox}>
-          <Search size={15} color="#5B5F56" />
+          <Search size={15} color="var(--dp-ink-soft)" />
           <input className="dp-input" style={{ border: 'none', flex: 1, padding: '4px 6px' }} placeholder="Search by student, guardian, or phone" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -211,7 +215,7 @@ export default function LeadsPage({ setActiveTab }) {
 
       <div style={styles.card}>
         {filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No matching inquiries.</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No matching inquiries.</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -221,7 +225,6 @@ export default function LeadsPage({ setActiveTab }) {
                 <th>Phone</th>
                 <th>Source</th>
                 <th>Inquiry Date</th>
-                <th>Consult Date</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -232,22 +235,21 @@ export default function LeadsPage({ setActiveTab }) {
                 return (
                   <tr key={l.id} className="dp-row">
                     <td style={{ fontWeight: 500 }}>
-                      {l.student_name || <span style={{ color: '#8A8D84', fontWeight: 400 }}>{leadKids(l).length > 1 ? `${leadKids(l).length} children` : 'Child'} (no name yet)</span>}
-                      {leadKids(l).some((k) => k.age !== '' && k.age != null) && <span style={{ fontWeight: 400, color: '#8A8D84', fontSize: 12.5 }}> · {leadKids(l).map((k) => (k.age !== '' && k.age != null ? k.age + 'y' : '?')).join(', ')}</span>}
+                      {l.student_name || <span style={{ color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{leadKids(l).length > 1 ? `${leadKids(l).length} children` : 'Child'} (no name yet)</span>}
+                      {leadKids(l).some((k) => k.age !== '' && k.age != null) && <span style={{ fontWeight: 400, color: 'var(--dp-ink-faint)', fontSize: 12.5 }}> · {leadKids(l).map((k) => (k.age !== '' && k.age != null ? k.age + 'y' : '?')).join(', ')}</span>}
                       {l.linked_student_id && (
-                        <span style={{ marginLeft: 6, fontSize: 10.5, color: '#5B5F56', border: '1px solid #DEDACC', borderRadius: 999, padding: '1px 6px' }}>Linked</span>
+                        <span style={{ marginLeft: 6, fontSize: 12.5, color: 'var(--dp-ink-soft)', border: '1px solid var(--dp-line)', borderRadius: 999, padding: '1px 6px' }}>Linked</span>
                       )}
                     </td>
                     <td>{l.guardian_name || '—'}</td>
                     <td>
                       {l.phone || '—'}
                       {l.contacted_at && (
-                        <div style={{ fontSize: 11, color: '#2A5A30' }}>✓ {l.contacted_by === 'email' ? 'Emailed' : 'Texted'} {new Date(l.contacted_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</div>
+                        <div style={{ fontSize: 12, color: 'var(--dp-success)' }}>✓ {l.contacted_by === 'email' ? 'Emailed' : 'Texted'} {new Date(l.contacted_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</div>
                       )}
                     </td>
                     <td>{l.source}</td>
                     <td>{l.inquiry_date || '—'}</td>
-                    <td>{l.consult_date || '—'}</td>
                     <td>
                       <select
                         className="dp-select"
@@ -303,7 +305,7 @@ export default function LeadsPage({ setActiveTab }) {
             </>
           }
         >
-          <div style={{ background: '#F6F4EF', border: '1px solid #DEDACC', borderRadius: 6, padding: 10, marginBottom: 14 }}>
+          <div style={{ background: '#F6F4EF', border: '1px solid var(--dp-line)', borderRadius: 6, padding: 10, marginBottom: 14 }}>
             {linkedStudent ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
                 <span>
@@ -315,7 +317,7 @@ export default function LeadsPage({ setActiveTab }) {
               </div>
             ) : (
               <>
-                <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>If this child was previously enrolled, search by name or phone to link their record.</p>
+                <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 6px' }}>If this child was previously enrolled, search by name or phone to link their record.</p>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input
                     className="dp-input"
@@ -332,7 +334,7 @@ export default function LeadsPage({ setActiveTab }) {
                 {pastMatches.length > 0 && (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {pastMatches.map((s) => (
-                      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, background: '#FFFFFF', border: '1px solid #DEDACC', borderRadius: 6, padding: '5px 8px' }}>
+                      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, background: '#FFFFFF', border: '1px solid var(--dp-line)', borderRadius: 6, padding: '5px 8px' }}>
                         <span>
                           {s.name} · {s.status === 'withdrawn' ? 'Withdrawn' : 'Active'} · enrolled {s.enroll_date || '—'}
                         </span>
@@ -346,9 +348,9 @@ export default function LeadsPage({ setActiveTab }) {
               </>
             )}
           </div>
-          <p style={{ fontSize: 12, color: '#8A8D84', margin: '0 0 6px' }}>The child’s name or the parent’s name is enough to save.</p>
+          <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '0 0 6px' }}>The child’s name or the parent’s name is enough to save.</p>
           <div style={{ marginBottom: 12 }}>
-            <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Child{(form.kids || []).length > 1 ? 'ren' : ''} — name and age</span>
+            <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>Child{(form.kids || []).length > 1 ? 'ren' : ''} — name and age</span>
             {(form.kids || [{ name: '', age: '' }]).map((k, i) => (
               <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
                 <input className="dp-input" style={{ flex: 1 }} placeholder={i === 0 ? 'Child’s name' : 'Sibling’s name'} value={k.name || ''} onChange={(e) => setForm({ ...form, kids: form.kids.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
@@ -384,9 +386,6 @@ export default function LeadsPage({ setActiveTab }) {
             </Field>
           </div>
           <div style={styles.formRow}>
-            <Field label="Consult Date">
-              <input type="date" className="dp-input" style={{ width: '100%' }} value={form.consult_date || ''} onChange={(e) => setForm({ ...form, consult_date: e.target.value })} />
-            </Field>
             <Field label="Status">
               <select className="dp-select" style={{ width: '100%' }} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 {LEAD_STATUSES.map((s) => (
@@ -400,7 +399,7 @@ export default function LeadsPage({ setActiveTab }) {
           <Field label="Notes">
             <textarea className="dp-input" style={{ width: '100%', minHeight: 60, resize: 'vertical' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </Field>
-          {formError && <p style={{ color: '#9A2B2B', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
+          {formError && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '4px 0 0' }}>{formError}</p>}
         </Modal>
       )}
 
@@ -411,7 +410,7 @@ export default function LeadsPage({ setActiveTab }) {
           onClose={(note) => { setMessaging(null); if (note) { setFlash(note); setTimeout(() => setFlash(''), 4000); } }}
         />
       )}
-      {flash && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#20241F', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13.5, zIndex: 300 }}>{flash}</div>}
+      {flash && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'var(--dp-ink)', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13.5, zIndex: 300 }}>{flash}</div>}
 
       {confirmDeleteId && <ConfirmDialog message="Delete this inquiry? This can't be undone." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
     </>

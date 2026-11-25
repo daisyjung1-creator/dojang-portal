@@ -50,8 +50,8 @@ export default function FitnessTests() {
     return out;
   }, [cols]);
 
-  if (error) return <div style={{ ...styles.card, padding: 16, color: '#9A2B2B' }}>Couldn't load tests: {error}</div>;
-  if (!base) return <div style={{ color: '#5B5F56' }}>Loading...</div>;
+  if (error) return <div style={{ ...styles.card, padding: 16, color: 'var(--dp-danger)' }}>Couldn't load tests: {error}</div>;
+  if (!base) return <div style={{ color: 'var(--dp-ink-soft)' }}>Loading...</div>;
   if (managing) return <ManageTests onBack={() => { setManaging(false); setData(null); loadBase(true); if (testDate) loadDateResults(testDate).then(setData).catch(fail); }} />;
 
   const dates = testDate && !base.dates.includes(testDate) ? [testDate, ...base.dates] : base.dates;
@@ -61,14 +61,14 @@ export default function FitnessTests() {
     <>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         <label>
-          <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>Test date</span>
+          <span style={{ display: 'block', fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>Test date</span>
           <select className="dp-select" value={testDate} onChange={(e) => setTestDate(e.target.value)} style={{ minWidth: 170 }}>
             {!dates.length && <option value="">No tests yet</option>}
             {dates.map((d) => <option key={d} value={d}>{prettyDate(d)}</option>)}
           </select>
         </label>
         <label>
-          <span style={{ display: 'block', fontSize: 12.5, color: '#5B5F56', marginBottom: 4 }}>New test day</span>
+          <span style={{ display: 'block', fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>New test day</span>
           <span style={{ display: 'flex', gap: 6 }}>
             <input type="date" className="dp-input" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
             <button className="dp-btn" disabled={!newDate} onClick={() => setTestDate(newDate)}>Open</button>
@@ -79,12 +79,12 @@ export default function FitnessTests() {
         </label>
         <button className="dp-btn" onClick={() => setManaging(true)}>Manage tests</button>
       </div>
-      <p style={{ fontSize: 12.5, color: '#8A8D84', margin: '0 0 10px' }}>
+      <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)', margin: '0 0 10px' }}>
         {students.length} active Comp Team students. Each box saves when you leave it. Type "full" for a full front split (saved as 0).
       </p>
 
-      {!testDate && <div style={{ ...styles.card, padding: 16, color: '#5B5F56' }}>Pick a test day and press Open to start.</div>}
-      {testDate && !data && <div style={{ color: '#5B5F56' }}>Loading...</div>}
+      {!testDate && <div style={{ ...styles.card, padding: 16, color: 'var(--dp-ink-soft)' }}>Pick a test day and press Open to start.</div>}
+      {testDate && !data && <div style={{ color: 'var(--dp-ink-soft)' }}>Loading...</div>}
       {testDate && data && (
         <div className="ft-scroll">
           <style>{CSS}</style>
@@ -174,18 +174,18 @@ function NoteCell({ studentId, testDate, initial }) {
 }
 
 const CSS = `
-.ft-scroll { overflow: auto; max-height: calc(100vh - 260px); -webkit-overflow-scrolling: touch; background: #fff; border: 1px solid #DEDACC; border-radius: 10px; }
-.ft-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 12.5px; }
-.ft-table th, .ft-table td { border-right: 1px solid #EFECE3; border-bottom: 1px solid #EFECE3; padding: 0; }
-.ft-table thead th { position: sticky; background: #FAF8F3; z-index: 2; font-weight: 500; color: #45483F; }
-.ft-group th { top: 0; height: 26px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #8A8D84; text-align: left; padding: 0 8px; border-right: 1px solid #DEDACC; }
-.ft-head th { top: 26px; height: 54px; width: ${COL_W}px; font-size: 11.5px; line-height: 1.2; padding: 4px; vertical-align: bottom; text-align: center; }
-.ft-unit { display: block; color: #8A8D84; font-size: 10.5px; margin-top: 2px; }
-.ft-name { position: sticky; left: 0; z-index: 3 !important; background: #FAF8F3; width: ${NAME_W}px; text-align: left !important; padding: 0 10px !important;
-  font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid #DEDACC !important; }
+.ft-scroll { overflow: auto; max-height: calc(100vh - 260px); -webkit-overflow-scrolling: touch; background: var(--dp-paper); border: 1px solid var(--dp-line); border-radius: 10px; }
+.ft-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 13px; }
+.ft-table th, .ft-table td { border-right: 1px solid var(--dp-line); border-bottom: 1px solid var(--dp-line); padding: 0; }
+.ft-table thead th { position: sticky; background: var(--dp-canvas); z-index: 2; font-weight: 500; color: var(--dp-ink-soft); }
+.ft-group th { top: 0; height: 26px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--dp-ink-faint); text-align: left; padding: 0 8px; border-right: 1px solid var(--dp-line); }
+.ft-head th { top: 26px; height: 54px; width: ${COL_W}px; font-size: 12px; line-height: 1.2; padding: 4px; vertical-align: bottom; text-align: center; }
+.ft-unit { display: block; color: var(--dp-ink-faint); font-size: 12px; margin-top: 2px; }
+.ft-name { position: sticky; left: 0; z-index: 3 !important; background: var(--dp-canvas); width: ${NAME_W}px; text-align: left !important; padding: 0 10px !important;
+  font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid var(--dp-line) !important; }
 tbody .ft-name { z-index: 1 !important; height: 34px; }
 .ft-table td input { all: unset; box-sizing: border-box; width: 100%; height: 34px; text-align: center; font-variant-numeric: tabular-nums; padding: 0 4px; }
-.ft-table td input:focus { outline: 2px solid ${HP_ORANGE}; outline-offset: -2px; background: #FFF8F2; }
-.ft-table td.ft-bad { background: #FBEAEA; }
-.ft-table td.ft-saving { background: #FFF8F2; }
+.ft-table td input:focus { outline: 2px solid ${HP_ORANGE}; outline-offset: -2px; background: var(--hp-orange-tint); }
+.ft-table td.ft-bad { background: var(--dp-danger-tint); }
+.ft-table td.ft-saving { background: var(--hp-orange-tint); }
 `;

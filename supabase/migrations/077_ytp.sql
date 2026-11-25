@@ -1,4 +1,5 @@
 -- YTP (Yearly Training Plan) for HP athletes. Admin (coach) only.
+-- (Files 077–083 were first written as 044–050 on the feature/ytp branch and renumbered after main used 044–076; already applied to the live database.)
 -- Safe to run more than once.
 --
 --   hp_athletes   one row per HP athlete (optionally linked to students for attendance)

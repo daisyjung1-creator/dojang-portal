@@ -4,7 +4,7 @@
 // Shown on the public /join form and printed with each online registration.
 // Change AGREEMENT_VERSION whenever the wording changes, so each signed
 // registration records which version the family agreed to.
-export const AGREEMENT_VERSION = '2026-11-g';
+export const AGREEMENT_VERSION = '2026-11-i';
 
 export const SCHOOL = {
   name: 'Champion Hankook Taekwondo',
@@ -60,6 +60,7 @@ export const TERMS = [
       { list: ['2 classes per week: **$150 per month**, or **$435 for three months**', '3 classes per week: **$170 per month**, or **$495 for three months**', '4 classes per week: **$200 per month**, or **$585 for three months**'] },
       'All tuition is subject to 5% GST.',
       'Three-month memberships **save $15** compared with paying monthly, whatever the payment method. **New students who start with a three-month membership receive a free uniform.**',
+      '**Big family discount:** When **three or more siblings** in the same family are enrolled at the same time, the sibling with the **lowest tuition** receives a **20% discount** on their tuition. The discount does not apply to Competition Team tuition. If fewer than three siblings remain enrolled, the discount ends from the next payment date.',
       'The guaranteed number of classes applies to **each fully paid monthly service period**; for three-month memberships, it applies to each month of the period. Additional regularly scheduled classes may be available depending on the calendar and program schedule.',
       'The Dojang will confirm the membership start date and payment dates by email before the first payment.',
     ],
@@ -72,7 +73,7 @@ export const TERMS = [
       'New students may request cancellation and a refund **before the start of their third scheduled class**.',
       'The cancellation request must be **submitted by email to hankooktkd@gmail.com** and received before the third scheduled class begins.',
       'For an eligible voluntary cancellation, the following deductions will apply:',
-      { list: ['**Cancellation Administration Fee: $20**', '**Classes Already Attended: $20 per class**'] },
+      { list: ['**Cancellation Administration Fee: $20**', '**Classes Already Attended: $20 per class**', '**Free uniform received with a three-month membership: $110**, unless the uniform is returned unworn'] },
       'The refund will be calculated by subtracting these amounts from the tuition paid. Deductions will not exceed the amount paid.',
       'After the third scheduled class has begun, **tuition is generally non-refundable for voluntary withdrawal**.',
       'Refunds are issued **within 14 days** to the original payment method.',
@@ -99,14 +100,33 @@ export const TERMS = [
     initial: true,
     title: 'Part 7 — Payment Policy',
     body: [
+      '**Responsibility for payment:** The parent/guardian who signs this agreement (or the adult student) is **responsible for all tuition and fees** under this agreement.',
       '**7.1 Pre-Authorized Credit Card Payments:** Members who select pre-authorized credit card payments may arrange automatic tuition payments monthly or every three months. **A separate Credit Card Authorization must be completed** before automatic charges begin. The authorization will identify the payment amount, frequency, charge date, cancellation process, and applicable rights. **Cancelling the credit card authorization does not automatically cancel the underlying membership agreement** or eliminate valid outstanding charges.',
       '**7.2 Members Not Using Pre-Authorized Credit Card Payments:** Members who do not select pre-authorized credit card payments **must pay tuition for three months in advance**. The following payment methods are accepted:',
       { list: ['Cash', 'Debit Card', 'E-transfer'] },
       'Payment must be completed **before the start of each three-month membership period**. Members are responsible for making their next three-month payment by the applicable renewal date. No automatic credit card charge will occur without a separate Credit Card Authorization.',
-      '**7.3 Overdue Payments:** Tuition must be paid by the agreed payment date. If payment is overdue or unsuccessful, the Dojang **may temporarily suspend class participation** after providing reasonable notice and an opportunity to resolve the outstanding balance.',
+      '**7.3 Full Payment & Overdue Payments:** Tuition must be **paid in full** by the agreed payment date. **Partial payments do not count as payment for the membership period**; any remaining balance is treated as overdue. If payment is overdue, incomplete or unsuccessful, the Dojang **may temporarily suspend class participation** after providing reasonable notice and an opportunity to resolve the outstanding balance.',
       '**7.4 Re-Registration Fee:** A **$20 re-registration fee** applies when a student’s membership has ended or been cancelled and the student subsequently registers again. The fee does not apply to an active membership or a temporary payment issue resolved before membership termination.',
-      '**7.5 Additional Fees:** Belt testing, tournaments, coaching fees, uniforms, private lessons, and special events are **not included in regular tuition** unless expressly stated. Applicable fees will be disclosed before purchase or registration.',
+      '**7.5 Additional Fees:** Belt testing, tournaments, coaching fees, uniforms, private lessons, and special events are **not included in regular tuition** unless expressly stated. Applicable fees will be disclosed before purchase or registration. **Uniforms and equipment are non-refundable once they have been worn or used.**',
       '**7.6 Tuition Changes:** The Dojang may change tuition with **at least 30 days’ written notice by email**. The new rate applies from the first payment date after the notice period.',
+      '**7.7 KidSport & Other Grants:** Families who apply for a KidSport grant or another funding grant apply directly to the grant provider; the Dojang provides the Proof of Enrollment once registration is complete. Approval and the grant amount are decided by the grant provider. **Until the grant is approved and received by the Dojang, tuition is payable in full** under this Part. Once the grant is received, the approved amount is returned to the family as a refund or a credit toward tuition, as the Dojang confirms by email. If a grant is declined or is less than expected, the family remains responsible for the full tuition.',
+      {
+        list: [
+          'Grants apply only to regular tuition for the named student — **not** to belt testing, uniforms, equipment, tournaments or other fees.',
+          'Grants **cannot be transferred** to another student, family member or person.',
+          'Grants apply only within the grant period and **cannot be extended** or carried over to a later period.',
+          'When a grant ends or is used up, tuition **automatically returns to the regular amount** from the next payment date, without further notice. **Applying for a new or renewed grant is the family’s responsibility.**',
+          'If the student withdraws, **any unused grant balance is not refundable** to the family. Where the grant provider’s rules require it, unused funds are returned to the grant provider.',
+        ],
+      },
+      '**7.8 Private Lessons:** Private lessons are sold as a **package of 5 thirty-minute lessons for $200** (plus 5% GST) and are booked in advance with the Dojang, subject to instructor availability.',
+      {
+        list: [
+          'To cancel or reschedule, please let the Dojang know **at least 3 hours before the lesson starts**. A later cancellation or a no-show **counts as a used lesson**.',
+          'A package is valid for **one year from the date of purchase**. Lessons not used within that year expire.',
+          'Private lesson packages are **non-refundable**.',
+        ],
+      },
     ],
   },
   {
@@ -143,7 +163,9 @@ export const TERMS = [
       'The Dojang may make reasonable adjustments to class schedules, instructors, or training groups for operational, educational, or safety reasons.',
       'Reasonable advance notice of material changes will be provided whenever practicable.',
       'If a material change substantially affects the Dojang’s ability to provide the agreed training services, the Dojang will discuss appropriate alternatives or adjustments with the member, subject to applicable law.',
+      '**Holiday closures:** The Dojang is **closed on all Alberta general holidays** — New Year’s Day, Family Day, Good Friday, Victoria Day, Canada Day, Labour Day, Thanksgiving Day, Remembrance Day and Christmas Day — and also on **Easter Monday, Heritage Day, the National Day for Truth and Reconciliation, Boxing Day, Christmas Eve and New Year’s Eve**. Other closures (such as belt testing days) will be announced by email at least 14 days in advance.',
       '**Changes to this agreement:** The Dojang may update these terms with **at least 30 days’ written notice by email**. The updated terms apply to the membership after that date; members who do not agree may cancel under Part 6.',
+      '**Notices & contact details:** Notices under this agreement are sent to the email address on file and are considered delivered when sent. Families must keep their **email address, phone number and payment card up to date** and tell the Dojang promptly of any change.',
     ],
   },
   {
@@ -181,7 +203,7 @@ export const TERMS = [
     title: 'Part 12 — Privacy & Personal Information',
     body: [
       'Champion Hankook Taekwondo collects and uses personal information reasonably necessary for student registration, communication, billing, attendance management, safety, and administration.',
-      'Relevant information may be shared with authorized staff, payment providers, insurers, or emergency responders where reasonably necessary and legally permitted.',
+      'Relevant information may be shared with authorized staff, payment providers, grant providers (such as KidSport), insurers, or emergency responders where reasonably necessary and legally permitted.',
       'Personal information will be protected using reasonable security measures and retained only as long as reasonably required for legitimate business or legal purposes.',
       'Members may contact the Dojang to request access to their personal information, request corrections, or ask questions about privacy practices. Privacy Contact: Champion Hankook Taekwondo — hankooktkd@gmail.com',
       'I agree to receive **emails and text messages from the Dojang** about classes, schedules, events, billing and my account. I can unsubscribe from non-essential messages at any time.',

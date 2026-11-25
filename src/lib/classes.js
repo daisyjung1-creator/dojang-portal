@@ -43,3 +43,11 @@ export function comesOn(student, weekday, className) {
   const days = student.class_days;
   return !days || !days.length || days.includes(`${weekday}:${className}`);
 }
+
+// The weekly class times this student is expected at (schedule rows), by weekday.
+export function weeklyPlan(student, schedule = []) {
+  const mine = splitClasses(student?.class_name);
+  return schedule
+    .filter((c) => c.active !== false && mine.includes(c.class_name) && comesOn(student, c.weekday, c.class_name))
+    .sort((a, b) => a.weekday - b.weekday || String(a.start_time).localeCompare(String(b.start_time)));
+}

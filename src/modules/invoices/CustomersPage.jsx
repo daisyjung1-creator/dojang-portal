@@ -5,9 +5,13 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
+import StatementModal from './StatementModal';
+import YearReceiptsModal from './YearReceiptsModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, downloadCSV, localISO } from '../../lib/invoiceUtils';
 import { loadCustomers, fetchAll } from './api';
+import { CardLinkButton } from './CardLink';
+import CardWallet from '../../components/CardWallet';
 import { StatusPill } from './InvoicesPage';
 
 const IMPORT_FIELDS = [
@@ -36,6 +40,7 @@ export default function CustomersPage() {
   const [onlyOwing, setOnlyOwing] = useState(false);
   const [modal, setModal] = useState(null); // {form, id, studentIds}
   const [statementFor, setStatementFor] = useState(null);
+  const [yearFor, setYearFor] = useState(null);
   const [importState, setImportState] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [flash, setFlash] = useState('');
@@ -57,6 +62,16 @@ export default function CustomersPage() {
     setBalances(Object.fromEntries((b || []).map((r) => [r.customer_id, r])));
     setStudents(s || []);
   }
+
+  // #customers/<id> (e.g. "Payment settings" on a student page) opens that family.
+  const [openFromLink, setOpenFromLink] = useState(() => (/^#customers\/([0-9a-f-]{8,})/i.exec(window.location.hash) || [])[1] || null);
+  useEffect(() => {
+    if (!openFromLink || !customers.length) return;
+    const c = customers.find((x) => x.id === openFromLink);
+    setOpenFromLink(null);
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#customers`);
+    if (c) openEdit(c);
+  }, [openFromLink, customers, students]);
 
   const studentsByCustomer = useMemo(() => {
     const m = {};
@@ -221,6 +236,7 @@ export default function CustomersPage() {
           <p style={styles.subtitle}>Families and payers you invoice · total owing {money(totalOwing)}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button className="dp-btn" onClick={() => setYearFor(customers)} title="Receipts of fees paid in a year, for taxes — print or email all families"><FileText size={15} /> Year-end receipts</button>
           <button className="dp-btn" onClick={createFromStudents} title="Create a customer for each guardian of an unlinked student"><Users size={15} /> From Students</button>
           <button className="dp-btn" onClick={() => fileRef.current?.click()}><Upload size={15} /> Import</button>
           <button className="dp-btn" onClick={exportCSV}><Download size={15} /> Export</button>
@@ -228,11 +244,11 @@ export default function CustomersPage() {
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={onFile} />
         </div>
       </div>
-      {flash && <p style={{ background: '#E8F1E9', color: '#2A5A30', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
+      {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
 
       <div style={{ ...styles.filterBar, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={styles.searchBox}>
-          <Search size={15} color="#8A8D84" />
+          <Search size={15} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Name, email, phone, student…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={onlyOwing} onChange={(e) => setOnlyOwing(e.target.checked)} /> Owing only</label>
@@ -241,7 +257,7 @@ export default function CustomersPage() {
 
       <div style={styles.card}>
         {filtered.length === 0 ? (
-          <p style={{ padding: 20, color: '#5B5F56', fontSize: 14 }}>No customers yet. Add one, import your Express Invoice customer list, or click "From Students".</p>
+          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No customers yet. Add one, import your Express Invoice customer list, or click "From Students".</p>
         ) : (
           <table className="dp-table">
             <thead>
@@ -262,15 +278,15 @@ export default function CustomersPage() {
                 return (
                   <tr key={c.id} className="dp-row" style={{ cursor: 'pointer', opacity: c.active === false ? 0.55 : 1 }} onClick={() => openEdit(c)}>
                     <td style={{ fontWeight: 500 }}>{c.name}</td>
-                    <td style={{ textAlign: 'right', color: bal > 0 ? '#9A2B2B' : '#8A8D84' }}>
+                    <td style={{ textAlign: 'right', color: bal > 0 ? 'var(--dp-danger)' : 'var(--dp-ink-faint)' }}>
                       {money(bal)}
-                      {credits[c.id] > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
+                      {credits[c.id] > 0.004 && <div style={{ fontSize: 12.5, color: 'var(--dp-success)' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
                     </td>
                     <td>{bal > 0 ? balances[c.id]?.oldest_due_date : ''}</td>
                     <td>{balances[c.id]?.last_invoice_number || ''}</td>
                     <td>{c.phone}</td>
                     <td>{c.email}</td>
-                    <td style={{ color: '#5B5F56' }}>{(studentsByCustomer[c.id] || []).map((s) => s.name).join(', ')}</td>
+                    <td style={{ color: 'var(--dp-ink-soft)' }}>{(studentsByCustomer[c.id] || []).map((s) => s.name).join(', ')}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setStatementFor(c)}><FileText size={13} /> Statement</button>
                     </td>
@@ -317,7 +333,7 @@ export default function CustomersPage() {
                 <Field label="Notes"><textarea className="dp-input" rows={2} style={{ width: '100%' }} value={f.notes || ''} onChange={(e) => set({ notes: e.target.value })} /></Field>
                 <Field label="Students paid for by this customer">
                   <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid #EDEAE0', borderRadius: 6, padding: 6 }}>
-                    {students.filter((s) => s.status !== 'withdrawn' || modal.studentIds.includes(s.id)).length === 0 && <span style={{ fontSize: 13, color: '#8A8D84' }}>No students yet.</span>}
+                    {students.filter((s) => s.status !== 'withdrawn' || modal.studentIds.includes(s.id)).length === 0 && <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No students yet.</span>}
                     {students
                       .filter((s) => s.status !== 'withdrawn' || modal.studentIds.includes(s.id))
                       .slice()
@@ -327,7 +343,7 @@ export default function CustomersPage() {
                         return (
                           <label key={s.id} style={{ display: 'flex', gap: 6, fontSize: 13, padding: '2px 0' }}>
                             <input type="checkbox" checked={modal.studentIds.includes(s.id)} onChange={(e) => setModal({ ...modal, studentIds: e.target.checked ? [...modal.studentIds, s.id] : modal.studentIds.filter((x) => x !== s.id) })} />
-                            {s.name} {other ? <span style={{ color: '#8A8D84' }}>· now in {other.name}</span> : null}
+                            {s.name} {other ? <span style={{ color: 'var(--dp-ink-faint)' }}>· now in {other.name}</span> : null}
                           </label>
                         );
                       })}
@@ -338,14 +354,55 @@ export default function CustomersPage() {
                     <option value="preauth">Pre-authorized credit card (charged on the billing date, no advance emails)</option>
                     <option value="manual">Pays manually — debit / cash (invoice 7 days before + reminder 3 days before)</option>
                   </select>
+                  {(f.payment_type || 'preauth') === 'preauth' && (
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                      <a href="/preauth-form.pdf" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--dp-info)' }}>Print the card pre-authorization form (PDF)</a>
+                      {f.id && !f.card_profile_code && <CardLinkButton customer={f} onSent={(at) => set({ card_link_sent_at: at })} />}
+                    </div>
+                  )}
+                  {f.rb_account_id && (
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: '1px solid #CFE3D0', background: 'var(--dp-success-tint)', fontSize: 12.5 }}>
+                      <b style={{ fontWeight: 500 }}>Automatic tuition (TD Recurring Billing):</b> account #{f.rb_account_id}
+                      {f.rb_amount ? ` · $${Number(f.rb_amount).toFixed(2)} ${Number(f.rb_months) === 3 ? 'every 3 months' : 'every month'}` : ''}
+                      {f.rb_first_billing ? ` · from ${f.rb_first_billing}` : ''}
+                      {f.rb_card_last4 ? ` · card ···${f.rb_card_last4}` : ''}
+                      {f.rb_mode === 'test' ? ' · TEST account' : ''}
+                      <div style={{ color: 'var(--dp-ink-soft)', marginTop: 2 }}>Set up online by the family. Change the amount or cancel it in TD Online Mart → Recurring billing.</div>
+                    </div>
+                  )}
+                  {f.card_profile_code && (
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${f.card_declined_at ? '#E7B7B7' : '#CFE3D0'}`, background: f.card_declined_at ? '#FBEDEC' : 'var(--dp-success-tint)', fontSize: 12.5 }}>
+                      <b style={{ fontWeight: 500 }}>Saved cards</b> (the <i>tuition</i> one is charged automatically)
+                      <div style={{ margin: '4px 0 2px' }}><CardWallet customerId={f.id} /></div>
+                      {f.card_declined_at && <div style={{ color: 'var(--dp-danger)', marginTop: 2 }}>Last charge declined {String(f.card_declined_at).slice(0, 10)}: {f.card_decline_message}</div>}
+                      {f.card_legacy_rb_pending && (
+                        <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 6, background: 'var(--dp-warning-tint)', border: '1px solid var(--dp-warning-tint)', color: 'var(--dp-warning)' }}>
+                          Saved through the card link. <b style={{ fontWeight: 500 }}>Close this family's old Recurring Billing account in TD Online Mart</b> before their next billing date so they aren't charged twice — automatic charges from the portal start only after you tick this:
+                          <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, color: 'var(--dp-ink)', fontWeight: 500 }}>
+                            <input
+                              type="checkbox"
+                              onChange={async (e) => {
+                                if (!e.target.checked) return;
+                                await supabase.from('customers').update({ card_legacy_rb_pending: false }).eq('id', f.id);
+                                set({ card_legacy_rb_pending: false });
+                              }}
+                            />
+                            Old TD Recurring Billing is closed — start automatic tuition
+                          </label>
+                        </div>
+                      )}
+                      
+                      <CardLinkButton customer={f} style={{ marginLeft: 6 }} onSent={(at) => set({ card_link_sent_at: at })} />
+                    </div>
+                  )}
                 </Field>
                 <label style={{ fontSize: 13, display: 'flex', gap: 6, marginBottom: 6 }}>
                   <input type="checkbox" checked={!!f.separate_invoices} onChange={(e) => set({ separate_invoices: e.target.checked })} />
                   Separate invoice for each student (otherwise siblings with the same billing date share one invoice)
                 </label>
                 <label style={{ fontSize: 13, display: 'flex', gap: 6 }}><input type="checkbox" checked={f.active !== false} onChange={(e) => set({ active: e.target.checked })} /> Active</label>
-                <p style={{ fontSize: 12, color: '#8A8D84', margin: '8px 0 0' }}>Email, address and contact name are shared with the students in this family — changing them here updates the students, and the other way round.</p>
-                {modal.error && <p style={{ color: '#9A2B2B', fontSize: 13 }}>{modal.error}</p>}
+                <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>Email, address and contact name are shared with the students in this family — changing them here updates the students, and the other way round.</p>
+                {modal.error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{modal.error}</p>}
               </>
             );
           })()}
@@ -365,7 +422,7 @@ export default function CustomersPage() {
             </>
           }
         >
-          <p style={{ fontSize: 13, color: '#5B5F56', marginTop: 0 }}>Match the columns in your file. Names that already exist are skipped.</p>
+          <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 0 }}>Match the columns in your file. Names that already exist are skipped.</p>
           {IMPORT_FIELDS.map((f) => (
             <Field key={f.key} label={f.label} required={f.required}>
               <select className="dp-select" style={{ width: '100%' }} value={importState.mapping[f.key]} onChange={(e) => setImportState({ ...importState, mapping: { ...importState.mapping, [f.key]: Number(e.target.value) } })}>
@@ -377,64 +434,9 @@ export default function CustomersPage() {
         </Modal>
       )}
 
-      {statementFor && <Statement customer={statementFor} onClose={() => setStatementFor(null)} />}
+      {statementFor && <StatementModal customer={statementFor} onClose={() => setStatementFor(null)} />}
+      {yearFor && <YearReceiptsModal customers={yearFor} onClose={() => setYearFor(null)} />}
     </>
   );
 }
 
-// Customer statement: every invoice and payment, with a running balance.
-function Statement({ customer, onClose }) {
-  const [rows, setRows] = useState(null);
-  useEffect(() => {
-    (async () => {
-      const [{ data: inv }, { data: pay }, { data: ref }] = await Promise.all([
-        supabase.from('invoice_summary').select('*').eq('customer_id', customer.id).eq('voided', false),
-        supabase.from('invoice_payments').select('*, invoices(invoice_number)').eq('customer_id', customer.id),
-        supabase.from('invoice_refunds').select('*, invoices(invoice_number)').eq('customer_id', customer.id),
-      ]);
-      const list = [
-        ...(inv || []).map((i) => ({ date: i.invoice_date, kind: 'Invoice', ref: i.is_opening_balance ? 'Opening balance' : '#' + i.invoice_number, charge: Number(i.total), credit: 0, status: i.status, key: 'i' + i.id })),
-        // A refund credits the invoice and pays the money back, so it doesn't change what's owed.
-        ...(ref || []).map((r) => ({ date: r.refund_date, kind: 'Refund', ref: `Refund #${r.refund_number}${r.invoices ? ' → #' + r.invoices.invoice_number : ''}`, method: r.method, charge: -Number(r.amount), credit: -Number(r.amount), key: 'r' + r.id })),
-        ...(pay || []).map((p) => ({ date: p.payment_date, kind: 'Payment', ref: `Receipt #${p.receipt_number}${p.invoices ? ' → #' + p.invoices.invoice_number : ''}`, method: p.method, charge: 0, credit: Number(p.amount), key: 'p' + p.id })),
-      ].sort((a, b) => (a.date === b.date ? (a.kind === 'Invoice' ? -1 : 1) : a.date < b.date ? -1 : 1));
-      let bal = 0;
-      list.forEach((r) => (r.balance = bal = bal + r.charge - r.credit));
-      setRows(list.reverse());
-    })();
-  }, [customer.id]);
-
-  return (
-    <Modal title={`Statement — ${customer.name}`} onClose={onClose} maxWidth={760}>
-      {!rows ? (
-        <p style={{ fontSize: 14, color: '#5B5F56' }}>Loading…</p>
-      ) : rows.length === 0 ? (
-        <p style={{ fontSize: 14, color: '#5B5F56' }}>No invoices or payments yet.</p>
-      ) : (
-        <table className="dp-table">
-          <thead>
-            <tr><th>Date</th><th>Type</th><th>Ref</th><th style={{ textAlign: 'right' }}>Charge</th><th style={{ textAlign: 'right' }}>Payment</th><th style={{ textAlign: 'right' }}>Balance</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key}>
-                <td>{formatDate(r.date)}</td>
-                <td>{r.kind === 'Invoice' ? <>Invoice <StatusPill status={r.status} /></> : <>{r.kind} <span style={{ color: '#8A8D84' }}>· {r.method}</span></>}</td>
-                <td>{r.ref}</td>
-                {r.kind === 'Refund' ? (
-                  <td colSpan={2} style={{ textAlign: 'right', color: '#4B3A86' }}>{money(-r.charge)} paid back</td>
-                ) : (
-                  <>
-                    <td style={{ textAlign: 'right' }}>{r.charge ? money(r.charge) : ''}</td>
-                    <td style={{ textAlign: 'right' }}>{r.credit ? money(r.credit) : ''}</td>
-                  </>
-                )}
-                <td style={{ textAlign: 'right', fontWeight: 500 }}>{money(r.balance)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </Modal>
-  );
-}

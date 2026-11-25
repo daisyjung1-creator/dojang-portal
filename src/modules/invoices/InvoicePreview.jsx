@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, Mail, Pencil, Wallet, Ban, Trash2, RotateCcw } from 'lucide-react';
+import { Printer, Mail, Pencil, Wallet, Ban, Trash2, RotateCcw, Link2, CreditCard } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import InvoiceDocument from './InvoiceDocument';
+import InvoiceEditor from './InvoiceEditor';
 import ReceiptPreview from './ReceiptPreview';
-import { loadInvoiceFull, queueEmail, loadCredit, applyCredit } from './api';
+import { loadInvoiceFull, queueEmail, loadCredit, applyCredit, chargeSavedCards, loadCustomers, loadItems } from './api';
 import { money, formatDate, INVOICE_STATUS_STYLES } from '../../lib/invoiceUtils';
 import { confirmSend } from '../../components/ConfirmSend';
+import { askConfirm } from '../../lib/dialogs';
 
 export function PrintPortal({ children }) {
   const [el] = useState(() => {
@@ -26,8 +28,21 @@ export function PrintPortal({ children }) {
 export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, onPay, onRefund, onChanged }) {
   const [data, setData] = useState(null);
   const [msg, setMsg] = useState('');
+  const [charging, setCharging] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [receiptId, setReceiptId] = useState(null);
+
+  // Edit right here when the page that opened the preview has no editor of its own (Billing, Home, Reports).
+  const [editor, setEditor] = useState(null); // { customers, items, students }
+  async function startEdit() {
+    if (onEdit) return onEdit(data);
+    const [customers, items, { data: students }] = await Promise.all([
+      loadCustomers(),
+      loadItems(),
+      supabase.from('students').select('id, name, class_name, tuition, customer_id, status').order('name'),
+    ]);
+    setEditor({ customers, items, students: students || [] });
+  }
 
   const [credit, setCredit] = useState(0);
   async function reload() {
@@ -51,16 +66,34 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
   }, [invoiceId]);
 
   if (!data || !data.invoice) return null;
+  if (editor)
+    return (
+      <InvoiceEditor
+        settings={settings}
+        customers={editor.customers}
+        items={editor.items}
+        students={editor.students}
+        editing={data}
+        onClose={() => setEditor(null)}
+        onSaved={async () => {
+          setEditor(null);
+          setMsg('Invoice saved.');
+          await reload();
+          onChanged && onChanged();
+        }}
+        onCustomersChanged={async () => setEditor((e) => e && { ...e })}
+      />
+    );
   const { invoice, lines, payments, refunds, credits = [] } = data;
   const refundable = Number(invoice.amount_paid) - Number(invoice.credit_used || 0) - Number(invoice.amount_refunded);
   const st = INVOICE_STATUS_STYLES[invoice.status] || INVOICE_STATUS_STYLES['Not Paid'];
 
   async function sendEmail() {
-    if (!invoice.customer_email) return setMsg('This customer has no email address. Add one in Customers, then edit the invoice to pick it up.');
-    if (!(await confirmSend({ what: `Invoice #${invoice.invoice_number} (PDF) — ${invoice.customer_name || ''}`, to: invoice.customer_email }))) return;
+    const to = await confirmSend({ what: `Invoice #${invoice.invoice_number} (PDF) — ${invoice.customer_name || ''}`, to: invoice.customer_email, extra: true });
+    if (!to) return;
     try {
-      await queueEmail('invoice', invoice.customer_email, { invoice_id: invoice.id });
-      setMsg(`Invoice queued to send to ${invoice.customer_email}.`);
+      await queueEmail('invoice', to, { invoice_id: invoice.id });
+      setMsg(`Invoice queued to send to ${to}.`);
     } catch (e) {
       setMsg('Could not queue email: ' + e.message);
     }
@@ -90,9 +123,49 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
             <button className="dp-btn dp-btn-danger" onClick={() => setConfirm(payments.length || refunds.length ? 'cantDelete' : 'delete')}><Trash2 size={14} /> Delete</button>
             <button className="dp-btn" onClick={() => setConfirm('void')}><Ban size={14} /> {invoice.voided ? 'Un-void' : 'Void'}</button>
             <div style={{ flex: 1 }} />
-            <button className="dp-btn" onClick={() => onEdit(data)}><Pencil size={14} /> Edit</button>
+            <button className="dp-btn" onClick={startEdit}><Pencil size={14} /> Edit</button>
             <button className="dp-btn" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
             <button className="dp-btn" onClick={sendEmail}><Mail size={14} /> Email</button>
+            {invoice.saved_card && !invoice.voided && Number(invoice.balance) > 0.004 && (
+              <button
+                className="dp-btn"
+                disabled={charging}
+                title="Charge the card this family saved online (TD Online Mart)"
+                onClick={async () => {
+                  if (!(await askConfirm(`${invoice.saved_card.legacyPending ? 'This family may still have an active TD Recurring Billing account — make sure it is closed or this charge could be a double charge.\n\n' : ''}Charge ${money(invoice.balance)} to ${invoice.saved_card.type || 'card'} ···${invoice.saved_card.last4 || ''}${invoice.saved_card.mode === 'test' ? ' (TEST account)' : ''}?`, { title: 'Charge saved card', confirmLabel: 'Charge card' }))) return;
+                  setCharging(true);
+                  try {
+                    const r = await chargeSavedCards([invoice.id]);
+                    const x = r.results?.[0] || {};
+                    setMsg(x.approved ? (x.test ? `Test mode: approved by the TD test account (${money(x.amount)}). Nothing recorded.` : `Charged ${money(x.amount)} — payment recorded and receipt emailed.`) : `Not charged: ${x.declined || x.error || x.skipped || 'unknown'}`);
+                    await reload();
+                    onChanged && onChanged();
+                  } catch (e) {
+                    setMsg('Could not charge: ' + e.message);
+                  }
+                  setCharging(false);
+                }}
+              >
+                <CreditCard size={14} /> {charging ? 'Charging…' : `Charge saved card ···${invoice.saved_card.last4 || ''}`}
+              </button>
+            )}
+            {invoice.pay_token && !invoice.voided && Number(invoice.balance) > 0.004 && (
+              <button
+                className="dp-btn"
+                title="Secure link where the family can pay this invoice by credit card"
+                onClick={async () => {
+                  const url = `${window.location.origin}/pay/${invoice.pay_token}`;
+                  try {
+                    await navigator.clipboard.writeText(url);
+                    setMsg('Pay link copied — paste it into a text or email: ' + url);
+                  } catch (_e) {
+                    setMsg('Pay link: ' + url);
+                  }
+                }}
+              >
+                <Link2 size={14} /> Copy pay link
+              </button>
+            )}
             {refundable > 0.005 && onRefund && (
               <button className="dp-btn" onClick={() => onRefund(invoice, refundable)}><RotateCcw size={14} /> Refund</button>
             )}
@@ -107,17 +180,17 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
       >
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', fontSize: 13 }}>
           <span style={{ background: st.bg, color: st.text, border: `1px solid ${st.border}`, borderRadius: 999, padding: '2px 10px', fontSize: 12.5 }}>{invoice.status}</span>
-          <span style={{ color: '#5B5F56' }}>Balance {money(invoice.balance)}</span>
-          {Number(invoice.amount_refunded) > 0 && <span style={{ color: '#4B3A86' }}>· Refunded {money(invoice.amount_refunded)}</span>}
-          {invoice.emailed_at && <span style={{ color: '#5B5F56' }}>· Emailed {new Date(invoice.emailed_at).toLocaleString('en-CA')}</span>}
+          <span style={{ color: 'var(--dp-ink-soft)' }}>Balance {money(invoice.balance)}</span>
+          {Number(invoice.amount_refunded) > 0 && <span style={{ color: 'var(--dp-ink-soft)' }}>· Refunded {money(invoice.amount_refunded)}</span>}
+          {invoice.emailed_at && <span style={{ color: 'var(--dp-ink-soft)' }}>· Emailed {new Date(invoice.emailed_at).toLocaleString('en-CA')}</span>}
         </div>
-        {msg && <p style={{ background: '#E6F0F6', color: '#1E4566', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
+        {msg && <p style={{ background: 'var(--dp-canvas)', color: 'var(--dp-info)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
         <div style={{ border: '1px solid #EDEAE0', borderRadius: 8 }}>
           <InvoiceDocument invoice={invoice} lines={lines} payments={payments} refunds={refunds} settings={settings} />
         </div>
         {payments.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>Payments</p>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 6px' }}>Payments</p>
             <table className="dp-table">
               <tbody>
                 {payments.map((p) => (
@@ -128,7 +201,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                     <td>{p.reference}</td>
                     <td style={{ textAlign: 'right' }}>
                       {money(p.amount)}
-                      {Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 11.5, color: '#2A5A30' }}>{money(p.credit_amount)} to family credit</div>}
+                      {Number(p.credit_amount) > 0.004 && <div style={{ fontSize: 12.5, color: 'var(--dp-success)' }}>{money(p.credit_amount)} to family credit</div>}
                     </td>
                     <td style={{ width: 90 }}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setReceiptId(p.id)}><Printer size={12} /> Receipt</button>
@@ -141,7 +214,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
         )}
         {credits.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>Account credit used</p>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 6px' }}>Account credit used</p>
             <table className="dp-table">
               <tbody>
                 {credits.map((c) => (
@@ -172,7 +245,7 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
         )}
         {refunds.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <p style={{ fontSize: 12.5, color: '#5B5F56', margin: '0 0 6px' }}>Refunds</p>
+            <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '0 0 6px' }}>Refunds</p>
             <table className="dp-table">
               <tbody>
                 {refunds.map((r) => (
@@ -180,8 +253,8 @@ export default function InvoicePreview({ invoiceId, settings, onClose, onEdit, o
                     <td>{formatDate(r.refund_date)}</td>
                     <td>Refund #{r.refund_number}</td>
                     <td>{r.method}</td>
-                    <td style={{ color: '#5B5F56' }}>{r.reason}</td>
-                    <td style={{ textAlign: 'right', color: '#5B5F56' }}>GST {money(r.gst_amount)}</td>
+                    <td style={{ color: 'var(--dp-ink-soft)' }}>{r.reason}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--dp-ink-soft)' }}>GST {money(r.gst_amount)}</td>
                     <td style={{ textAlign: 'right' }}>-{money(r.amount)}</td>
                   </tr>
                 ))}

@@ -37,6 +37,15 @@ export async function loadInvoiceFull(id) {
     supabase.from('invoice_refunds').select('*').eq('invoice_id', id).order('refund_date'),
     supabase.from('credit_applications').select('*').eq('invoice_id', id).order('applied_date'),
   ]);
+  if (invoice?.customer_id) {
+    const { data: c } = await supabase.from('customers').select('payment_type, card_profile_code, card_profile_mode, card_last4, card_type, card_legacy_rb_pending').eq('id', invoice.customer_id).maybeSingle();
+    invoice.payment_type = c?.payment_type || null;
+    invoice.saved_card = c?.card_profile_code ? { mode: c.card_profile_mode, last4: c.card_last4, type: c.card_type, legacyPending: !!c.card_legacy_rb_pending } : null;
+  }
+  if (invoice) {
+    const { data: t } = await supabase.from('invoices').select('pay_token').eq('id', invoice.id).maybeSingle();
+    invoice.pay_token = t?.pay_token || null;
+  }
   return { invoice, lines: lines || [], payments: payments || [], refunds: refunds || [], credits: credits || [] };
 }
 
@@ -78,6 +87,7 @@ export async function saveInvoice(form, lines, existingId) {
       invoice_id: invoice.id,
       position: i,
       fee_item_id: l.fee_item_id || null,
+      size: l.size || null,
       student_id: l.student_id || null,
       // Tuition lines made from Billing remember which billing cycle they cover.
       cycle_start: l.cycle_start || null,
@@ -114,7 +124,46 @@ export async function payInvoicesInFull(invoices, method, paymentDate, emailRece
   return done;
 }
 
+export const DEFAULT_PREAUTH_NOTE =
+  'As your account is set up for pre-authorized credit card payments, we would be happy to charge the balance of {balance} to your card on file. Simply reply to this email to approve, and we will process the payment and send your receipt. You are also welcome to pay securely online using the button below, or by cash, debit or e-transfer at the front desk.';
+// New family (no card saved yet, nothing paid): the first invoice is paid online
+// and the card is saved for automatic tuition at the same time.
+export const NEW_FAMILY_NOTE =
+  'To complete your registration, please pay this invoice securely online using the button below. During checkout you will be asked to save your card for automatic tuition payments, so future tuition is charged on each billing date and a receipt is emailed to you every time. Only credit cards can be accepted (debit cards are not supported).';
+export const DEFAULT_EMAIL_MESSAGE =
+  'Dear {customer},\n\nThank you for training with us. Please find attached invoice #{number} for {balance}, due {due_date}.\n\nKind regards,\nMaster Daisy\n{business}';
+
+// Invoice emails to families on pre-authorized card payments get an extra
+// paragraph asking them to reply if they'd like the card on file charged.
+async function withPreauthNote(payload) {
+  if (!payload?.invoice_id || payload.reminder || payload.message) return payload;
+  const { data: inv } = await supabase.from('invoice_summary').select('customer_id, balance').eq('id', payload.invoice_id).maybeSingle();
+  if (!inv?.customer_id || Number(inv.balance) <= 0.004) return payload;
+  const [{ data: c }, { data: s }] = await Promise.all([
+    supabase.from('customers').select('payment_type, card_profile_code, rb_account_id').eq('id', inv.customer_id).maybeSingle(),
+    supabase.from('invoice_settings').select('email_message, preauth_note, online_pay, online_pay_mode').eq('id', 1).maybeSingle(),
+  ]);
+  if ((c?.payment_type || 'preauth') !== 'preauth') return payload;
+  // With online payments live the email shows a Pay now button and one short line instead.
+  if (s?.online_pay && s.online_pay_mode === 'live') return payload;
+  // A new family with no card saved and nothing paid yet: pay online and save the card.
+  let isNew = false;
+  if (s?.online_pay && s.online_pay_mode === 'live' && !c?.card_profile_code && !c?.rb_account_id) {
+    const { count } = await supabase.from('invoice_payments').select('id', { count: 'exact', head: true }).eq('customer_id', inv.customer_id);
+    isNew = !count;
+  }
+  const note = (isNew ? NEW_FAMILY_NOTE : s?.preauth_note ?? DEFAULT_PREAUTH_NOTE).trim();
+  if (!note) return payload;
+  const base = s?.email_message || DEFAULT_EMAIL_MESSAGE;
+  // Put the note before the sign-off when the template ends with one.
+  const parts = base.split(/\n\s*\n/);
+  const last = parts[parts.length - 1];
+  const message = parts.length > 1 && last.length < 80 ? [...parts.slice(0, -1), note, last].join('\n\n') : `${base}\n\n${note}`;
+  return { ...payload, message, preauth_note: true };
+}
+
 export async function queueEmail(type, recipient, payload) {
+  if (type === 'invoice') payload = await withPreauthNote(payload);
   const { error } = await supabase.from('email_queue').insert({ type, recipient_email: recipient, payload });
   if (error) throw error;
 }
@@ -191,4 +240,21 @@ export async function applyCredit(invoiceId, amount = null) {
   const { data, error } = await supabase.rpc('apply_customer_credit', { p_invoice: invoiceId, p_amount: amount });
   if (error) throw error;
   return Number(data || 0);
+}
+
+// Charge families' saved cards (TD Online Mart) for these invoices' balances.
+// Returns { mode, results: [{ id, number, customer, approved | declined | error, amount }] }.
+export async function chargeSavedCards(invoiceIds) {
+  const { data, error } = await supabase.functions.invoke('td-pay', { body: { action: 'charge', invoice_ids: invoiceIds } });
+  if (error) {
+    let m = error.message;
+    try {
+      m = (await error.context.json())?.error || m;
+    } catch (_e) {
+      /* keep */
+    }
+    throw new Error(m);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
 }
