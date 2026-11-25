@@ -127,6 +127,9 @@ The palette is ink on white with one red. Status colors exist only to report sta
 ### Secondary
 - **HP Orange** (#E8701A): High Performance / Comp Team surfaces only (HP badges, YTP pages). Never mixed with Hankook Red on one element. *(Confirm against the HP logo / team colour.)*
 
+### HP palette (YTP / HP Plans pages only)
+Shades of HP Orange show how far a skill has come (Introduced → Developed → Consolidated → Refined; grey = Maintained), and calm greens → warm oranges show the season phase (General Prep → Specific Prep → Pre-Competition → Competition; Taper is HP Orange, Peak is Danger red). Camp (green) and Testing (violet) tag events; gold/silver/bronze mark medals. Tokens: `--hp-*` in `src/styles/tokens.css`. Never used outside the HP screens.
+
 ### Neutral
 - **Ink** (#20241F): body text, headings, primary buttons, the kiosk header bar.
 - **Ink Soft** (#5B5F56): supporting text, secondary labels.
@@ -204,7 +207,7 @@ Small, firm corners: 6px for controls, 10px for touch buttons, 12px for cards an
 
 ### Navigation
 - Sidebar (ink background): items 14px, light grey text; the active item gets white bold text, a soft white tint and a Hankook Red icon (no side stripe). Counts show as red badges.
-- Admin groups, each with a small plain heading: Home · People (Students, Leads & Trials, Enrollment, Email) · Classes (Attendance, Belt Testing, Events) · Money (Billing, Invoices, Payments, Customers, Sales & GST) · Admin (Payroll, Inventory, Invoice Settings, Staff Logins). Staff see only Today, Trials, Attendance, Tapes.
+- Admin groups, each with a small plain heading: Home · People (Students, Leads & Trials, Enrollment, Email) · Classes (Attendance, Belt Testing, Events, HP Plans) · Money (Billing, Invoices, Payments, Customers, Sales & GST) · Admin (Payroll, Inventory, Invoice Settings, Staff Logins). Staff see only Today, Trials, Attendance, Tapes.
 
 ### Belt strip (signature component)
 One shared `<BeltStrip belt="..." />` used everywhere a rank appears (kiosk, student list, belt testing, parent portal). It replaces every other belt chip or color bar.

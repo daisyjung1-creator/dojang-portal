@@ -50,6 +50,23 @@
   --dp-hankook-red-deep: #9A2B2B;
   --dp-hp-orange: #E8701A;
 
+  /* HP palette — YTP / HP Plans pages only (DESIGN.md → Colors → HP palette) */
+  --hp-orange-tint: #FDF0E6;
+  --hp-orange-deep: #8A3A0E;
+  --hp-stage-i: #FCEBDD;  --hp-stage-i-text: #8A4A1C;
+  --hp-stage-d: #F6C39A;  --hp-stage-d-text: #6B3410;
+  --hp-stage-c: #EC9254;  --hp-stage-c-text: #3E1C06;
+  --hp-stage-r: #B8501B;
+  --hp-stage-m: #DAD6CB;
+  --hp-phase-gp: #DDE7DD; --hp-phase-gp-text: #2E4A33;
+  --hp-phase-sp: #B7CFBB; --hp-phase-sp-text: #22392A;
+  --hp-phase-pc: #F7DCC0; --hp-phase-pc-text: #6B3A12;
+  --hp-phase-c: #F0A56E;  --hp-phase-c-text: #4A2208;
+  --hp-phase-tr: #E7E3D8;
+  --hp-camp: #4F7A57;     --hp-camp-tint: #EEF3EE;
+  --hp-testing: #6A5FA8;  --hp-testing-tint: #F2F0FA;
+  --hp-gold: #C9A227;     --hp-silver: #9AA0A6;     --hp-bronze: #B0703C;
+
   /* Status */
   --dp-success: #2A5A30;
   --dp-success-tint: #E8F1E9;

@@ -18,6 +18,7 @@ import InventoryPage from './modules/invoices/InventoryPage';
 import EmailPage from './modules/email/EmailPage';
 import TestingPage from './modules/testing/TestingPage';
 import ProgressOverview from './modules/testing/ProgressOverview';
+import HpPlansPage from './modules/hp/HpPlansPage';
 import PayrollPage from './modules/payroll/PayrollPage';
 import ConfirmSendHost from './components/ConfirmSend';
 import HomePage from './modules/home/HomePage';
@@ -75,7 +76,7 @@ export default function App() {
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
-  const adminOnlyTabs = ['home', 'students', 'events', 'email', 'leads', 'register', 'testing', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
+  const adminOnlyTabs = ['home', 'students', 'events', 'email', 'leads', 'register', 'testing', 'hp', 'billing', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
   const startTab = activeTab || (isAdmin ? 'home' : 'today');
   const effectiveTab = !isAdmin && adminOnlyTabs.includes(startTab) ? 'today' : isAdmin && startTab === 'today' ? 'home' : isAdmin && startTab === 'tapes' ? 'testing' : startTab;
 
@@ -94,6 +95,7 @@ export default function App() {
         {isAdmin && effectiveTab === 'testing' && <TestingPage />}
         {isAdmin && effectiveTab === 'events' && <EventsPage setActiveTab={setActiveTab} />}
         {!isAdmin && effectiveTab === 'tapes' && <ProgressOverview isAdmin={false} />}
+        {isAdmin && effectiveTab === 'hp' && <HpPlansPage />}
         {isAdmin && effectiveTab === 'payroll' && <PayrollPage />}
         {isAdmin && effectiveTab === 'billing' && <BillingPage />}
         {isAdmin && effectiveTab === 'email' && <EmailPage />}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import BrandMark from './BrandMark';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X, KeyRound, Sun, Ticket } from 'lucide-react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Target, Menu, X, KeyRound, Sun, Ticket } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 import { useBadges } from '../lib/badges';
@@ -21,6 +21,7 @@ export const ALL_TABS = [
   { id: 'tapes', label: 'Tapes', icon: Award, staffOnly: true, staff: true },
   { id: 'testing', label: 'Belt Testing', icon: Award, adminOnly: true, group: 'Classes' },
   { id: 'events', label: 'Events', icon: Ticket, adminOnly: true, group: 'Classes' },
+  { id: 'hp', label: 'HP Plans', icon: Target, adminOnly: true, group: 'Classes' },
   { id: 'billing', label: 'Billing', icon: Wallet, adminOnly: true, group: 'Money' },
   { id: 'invoices', label: 'Invoices', icon: FileText, adminOnly: true, group: 'Money' },
   { id: 'payments', label: 'Payments', icon: Receipt, adminOnly: true, group: 'Money' },

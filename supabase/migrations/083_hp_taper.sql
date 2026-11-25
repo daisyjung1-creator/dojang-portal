@@ -1,0 +1,147 @@
+-- Taper checklists for competitions. Admin (coach) only. Safe to run more than once.
+--
+--   hp_taper_items   the checklist template (from the "Taper Plan" sheet of Ytp 2027.xlsx; editable)
+--   hp_taper_checks  ticks for one competition. comp_key = event name + '|' + week number, shared by
+--                    every HP athlete going to that competition.
+
+create table if not exists hp_taper_items (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  label text not null,
+  sort int not null default 0,
+  active boolean not null default true,
+  unique (category, label)
+);
+
+insert into hp_taper_items (category, label, sort) values
+  ('Oversee Logistics', 'Confirm taper training schedule', 10),
+  ('Oversee Logistics', 'Confirm competition date and venue', 20),
+  ('Oversee Logistics', 'Confirm weigh-in date and time', 30),
+  ('Oversee Logistics', 'Confirm competition start time', 40),
+  ('Oversee Logistics', 'Confirm athlete registration', 50),
+  ('Oversee Logistics', 'Confirm accreditation requirements', 60),
+  ('Identify Roles for Stakeholders', 'Assign head coach', 70),
+  ('Identify Roles for Stakeholders', 'Assign assistant coach/team manager', 80),
+  ('Identify Roles for Stakeholders', 'Clarify athlete responsibilities', 90),
+  ('Identify Roles for Stakeholders', 'Clarify parent responsibilities', 100),
+  ('Identify Roles for Stakeholders', 'Identify medical/physio support', 110),
+  ('Identify Roles for Stakeholders', 'Confirm who handles transportation and equipment', 120),
+  ('Nutrition & Hydration', 'Confirm athlete is on target for competition weight', 130),
+  ('Nutrition & Hydration', 'Prepare weight-management plan if needed', 140),
+  ('Nutrition & Hydration', 'Plan meals during taper period', 150),
+  ('Nutrition & Hydration', 'Plan hydration strategy', 160),
+  ('Nutrition & Hydration', 'Prepare post-weigh-in recovery meal/drinks', 170),
+  ('Nutrition & Hydration', 'Prepare competition-day snacks', 180),
+  ('Nutrition & Hydration', 'Avoid unfamiliar foods before competition', 190),
+  ('Competition Rules', 'Review current WT competition rules', 200),
+  ('Competition Rules', 'Review scoring rules', 210),
+  ('Competition Rules', 'Review Gam-jeom rules', 220),
+  ('Competition Rules', 'Review weigh-in procedures', 230),
+  ('Competition Rules', 'Review equipment requirements', 240),
+  ('Competition Rules', 'Review protest/video replay procedures', 250),
+  ('Competition Rules', 'Inform athletes of any recent rule changes', 260),
+  ('Travel', 'Confirm flights or driving arrangements', 270),
+  ('Travel', 'Confirm hotel reservation', 280),
+  ('Travel', 'Confirm airport/venue transportation', 290),
+  ('Travel', 'Provide enough time for recovery after travel', 300),
+  ('Travel', 'Consider time-zone adjustment', 310),
+  ('Travel', 'Confirm passports/ID/travel documents', 320),
+  ('Travel', 'Confirm competition venue transportation plan', 330),
+  ('Athlete Behavior Expectations', 'Set sleep expectations', 340),
+  ('Athlete Behavior Expectations', 'Set curfew', 350),
+  ('Athlete Behavior Expectations', 'Set meeting times', 360),
+  ('Athlete Behavior Expectations', 'Set expectations for punctuality', 370),
+  ('Athlete Behavior Expectations', 'Limit unnecessary physical activity', 380),
+  ('Athlete Behavior Expectations', 'Set expectations for phone/social media use', 390),
+  ('Athlete Behavior Expectations', 'Review appropriate team behavior', 400),
+  ('Communication', 'Send competition schedule to athletes/parents', 410),
+  ('Communication', 'Send hotel information', 420),
+  ('Communication', 'Send venue address', 430),
+  ('Communication', 'Send transportation schedule', 440),
+  ('Communication', 'Send meeting times', 450),
+  ('Communication', 'Provide emergency contact information', 460),
+  ('Communication', 'Communicate any schedule changes', 470),
+  ('Equipment Readiness', 'Dobok', 480),
+  ('Equipment Readiness', 'Belt', 490),
+  ('Equipment Readiness', 'Mouthguard', 500),
+  ('Equipment Readiness', 'Electronic socks', 510),
+  ('Equipment Readiness', 'Headgear', 520),
+  ('Equipment Readiness', 'Chest protector/PSS requirements confirmed', 530),
+  ('Equipment Readiness', 'Shin guards', 540),
+  ('Equipment Readiness', 'Forearm guards', 550),
+  ('Equipment Readiness', 'Gloves', 560),
+  ('Equipment Readiness', 'Groin protector', 570),
+  ('Equipment Readiness', 'Water bottle', 580),
+  ('Equipment Readiness', 'Towel', 590),
+  ('Equipment Readiness', 'Athletic tape', 600),
+  ('Equipment Readiness', 'Backup equipment if available', 610),
+  ('Equipment Readiness', 'Check all equipment for correct size and condition', 620),
+  ('Finances', 'Competition registration paid', 630),
+  ('Finances', 'Hotel paid/confirmed', 640),
+  ('Finances', 'Transportation costs confirmed', 650),
+  ('Finances', 'Coaching fees confirmed', 660),
+  ('Finances', 'Athlete payments completed', 670),
+  ('Finances', 'Meal budget prepared', 680),
+  ('Finances', 'Emergency funds available', 690),
+  ('Environmental Factors', 'Check competition location temperature', 700),
+  ('Environmental Factors', 'Check humidity', 710),
+  ('Environmental Factors', 'Consider altitude', 720),
+  ('Environmental Factors', 'Consider time-zone difference', 730),
+  ('Environmental Factors', 'Consider travel fatigue', 740),
+  ('Environmental Factors', 'Confirm local food availability', 750),
+  ('Environmental Factors', 'Confirm access to drinking water', 760),
+  ('Environmental Factors', 'Plan clothing for local conditions', 770),
+  ('Taper & Recovery', 'Reduce training volume as planned', 780),
+  ('Taper & Recovery', 'Maintain appropriate intensity', 790),
+  ('Taper & Recovery', 'Avoid unnecessary hard sparring', 800),
+  ('Taper & Recovery', 'Monitor athlete fatigue', 810),
+  ('Taper & Recovery', 'Monitor soreness/injury', 820),
+  ('Taper & Recovery', 'Schedule adequate sleep', 830),
+  ('Taper & Recovery', 'Schedule recovery/rest periods', 840),
+  ('Taper & Recovery', 'Coordinate physio or treatment if needed', 850),
+  ('Taper & Recovery', 'Avoid introducing new exercises or techniques', 860),
+  ('Weigh-In', 'Check athlete''s weight daily if necessary', 870),
+  ('Weigh-In', 'Confirm weigh-in location', 880),
+  ('Weigh-In', 'Confirm weigh-in time', 890),
+  ('Weigh-In', 'Prepare required ID/accreditation', 900),
+  ('Weigh-In', 'Arrange transportation to weigh-in', 910),
+  ('Weigh-In', 'Prepare food and fluids for immediately after weigh-in', 920),
+  ('Weigh-In', 'Monitor athlete recovery after weigh-in', 930),
+  ('Competition Day', 'Confirm match number', 940),
+  ('Competition Day', 'Confirm ring/court number', 950),
+  ('Competition Day', 'Estimate match time', 960),
+  ('Competition Day', 'Plan meal timing', 970),
+  ('Competition Day', 'Plan warm-up time', 980),
+  ('Competition Day', 'Confirm call-room/staging procedures', 990),
+  ('Competition Day', 'Prepare athlete equipment before warm-up', 1000),
+  ('Competition Day', 'Confirm coach accreditation', 1010),
+  ('Competition Day', 'Keep athlete hydrated', 1020),
+  ('Competition Day', 'Allow adequate rest between matches', 1030),
+  ('Emergency / Backup Plan', 'Emergency contact list available', 1040),
+  ('Emergency / Backup Plan', 'First-aid supplies available', 1050),
+  ('Emergency / Backup Plan', 'Medical facility information available', 1060),
+  ('Emergency / Backup Plan', 'Backup transportation plan', 1070),
+  ('Emergency / Backup Plan', 'Backup equipment available', 1080),
+  ('Emergency / Backup Plan', 'Plan for delayed/cancelled matches', 1090),
+  ('Emergency / Backup Plan', 'Plan for lost or damaged equipment', 1100)
+on conflict (category, label) do nothing;
+
+create table if not exists hp_taper_checks (
+  comp_key text not null,
+  item_id uuid not null references hp_taper_items(id) on delete cascade,
+  done boolean not null default false,
+  note text,
+  updated_at timestamptz not null default now(),
+  primary key (comp_key, item_id)
+);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['hp_taper_items', 'hp_taper_checks']
+  loop
+    execute format('alter table %I enable row level security', t);
+    execute format('drop policy if exists %I on %I', t || ' admin', t);
+    execute format('create policy %I on %I for all using (is_admin()) with check (is_admin())', t || ' admin', t);
+  end loop;
+end $$;
