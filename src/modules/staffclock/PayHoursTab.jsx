@@ -9,7 +9,7 @@ const dayLabel = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-CA', { 
 // Staff Clock → Pay Hours: the hours each employee is actually paid for,
 // month by month. These totals are what Payroll fills in.
 export default function PayHoursTab({ employees }) {
-  const [offset, setOffset] = useState(-1); // last month by default (payroll runs after the month)
+  const [offset, setOffset] = useState(0); // opens on the current month
   const base = new Date();
   const first = new Date(base.getFullYear(), base.getMonth() + offset, 1);
   const from = `${first.getFullYear()}-${pad(first.getMonth() + 1)}-01`;
