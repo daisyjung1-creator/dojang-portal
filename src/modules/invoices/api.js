@@ -88,6 +88,8 @@ export async function saveInvoice(form, lines, existingId) {
       position: i,
       fee_item_id: l.fee_item_id || null,
       size: l.size || null,
+      // Gear set: the parts handed over (with sizes) — stock comes off these.
+      components: Array.isArray(l.components) && l.components.length ? l.components : null,
       student_id: l.student_id || null,
       // Tuition lines made from Billing remember which billing cycle they cover.
       cycle_start: l.cycle_start || null,

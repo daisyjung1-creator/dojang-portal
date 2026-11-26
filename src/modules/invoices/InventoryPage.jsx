@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, ClipboardCheck, Check, Ruler } from 'lucide-react';
+import { Search, Plus, ClipboardCheck, Check, Ruler, Package, Trash2 } from 'lucide-react';
 import { matchScore } from '../../components/SearchSelect';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
@@ -37,7 +37,7 @@ export default function InventoryPage() {
   async function load() {
     const [{ data: l }, { data: it }] = await Promise.all([
       fetchAll(() => supabase.from('inventory_levels').select('*').order('name')),
-      fetchAll(() => supabase.from('fee_items').select('id, name, description, track_inventory, active, sizes, low_stock_at').order('name')),
+      fetchAll(() => supabase.from('fee_items').select('id, name, description, track_inventory, active, sizes, low_stock_at, components, default_amount').order('name')),
     ]);
     const rows = (l || []).filter((x) => x.active !== false);
     setLevels(rows);
@@ -91,7 +91,10 @@ export default function InventoryPage() {
           <h1 style={styles.title}>Inventory</h1>
           <p style={styles.subtitle}>Stock on hand for gear, uniforms and belts, by size · goes down automatically when you invoice them</p>
         </div>
-        <button className="dp-btn" onClick={() => setModal({ mode: 'track' })}><Plus size={15} /> Choose Items to Track</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="dp-btn" onClick={() => setModal({ mode: 'sets' })}><Package size={15} /> Gear Sets</button>
+          <button className="dp-btn" onClick={() => setModal({ mode: 'track' })}><Plus size={15} /> Choose Items to Track</button>
+        </div>
       </div>
       {flash && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash}</p>}
 
@@ -190,6 +193,7 @@ export default function InventoryPage() {
       {modal?.mode === 'history' && <HistoryModal item={modal.item} onClose={() => setModal(null)} />}
       {modal?.mode === 'sizes' && <SizesModal item={modal.item} onClose={() => setModal(null)} onDone={done} />}
       {modal?.mode === 'track' && <TrackModal items={allItems} onClose={() => setModal(null)} onDone={done} />}
+      {modal?.mode === 'sets' && <SetsModal items={allItems} onClose={() => setModal(null)} onDone={done} />}
     </>
   );
 }
@@ -318,16 +322,24 @@ function HistoryModal({ item, onClose }) {
   const sized = item.rows.some((r) => r.size);
   useEffect(() => {
     (async () => {
-      const [{ data: mv }, { data: ln }] = await Promise.all([
+      const [{ data: mv }, { data: own }, { data: inSets }] = await Promise.all([
         supabase.from('inventory_movements').select('*').eq('fee_item_id', item.fee_item_id),
-        supabase.from('invoice_lines').select('quantity, size, invoices!inner(invoice_number, invoice_date, customer_name, voided, created_at)').eq('fee_item_id', item.fee_item_id),
+        supabase.from('invoice_lines').select('quantity, size, components, invoices!inner(invoice_number, invoice_date, customer_name, voided, created_at)').eq('fee_item_id', item.fee_item_id),
+        supabase.from('invoice_lines').select('quantity, item_name, components, invoices!inner(invoice_number, invoice_date, customer_name, voided, created_at)').contains('components', JSON.stringify([{ fee_item_id: item.fee_item_id }])),
       ]);
+      // Sold on its own, plus handed over as part of a set (one row per part).
+      const ln = [
+        ...(own || []).filter((l) => !(Array.isArray(l.components) && l.components.length)),
+        ...(inSets || []).flatMap((l) => (l.components || [])
+          .filter((c) => c.fee_item_id === item.fee_item_id)
+          .map((c) => ({ quantity: Number(l.quantity) * (Number(c.quantity) || 1), size: c.size, set: l.item_name, invoices: l.invoices }))),
+      ];
       const since = item.inventory_since;
       const list = [
         ...(mv || []).map((m) => ({ key: 'm' + m.id, date: m.movement_date, size: m.size || '', what: KINDS[m.kind] || 'Count', who: m.note || '', qty: Number(m.quantity) })),
         ...(ln || [])
           .filter((l) => l.invoices && !l.invoices.voided && since && l.invoices.created_at >= since)
-          .map((l, i) => ({ key: 'l' + i, date: l.invoices.invoice_date, size: l.size || '', what: `Sold · invoice #${l.invoices.invoice_number}`, who: l.invoices.customer_name, qty: -Number(l.quantity) })),
+          .map((l, i) => ({ key: 'l' + i, date: l.invoices.invoice_date, size: l.size || '', what: `Sold${l.set ? ` in ${l.set}` : ''} · invoice #${l.invoices.invoice_number}`, who: l.invoices.customer_name, qty: -Number(l.quantity) })),
       ].sort((a, b) => (a.date < b.date ? 1 : -1));
       setRows(list);
     })();
@@ -405,6 +417,75 @@ function TrackModal({ items, onClose, onDone }) {
         ))}
       </div>
       <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>Turn tracking on for things you keep in stock (gear, uniforms, belts). Fees and plans don't need it.</p>
+    </Modal>
+  );
+}
+
+// Gear sets: an item sold as a bundle (e.g. Full Sparring Gear). Selling a set
+// takes each part out of stock in the size picked on the invoice; the set
+// itself isn't counted.
+function SetsModal({ items, onClose, onDone }) {
+  const active = items.filter((i) => i.active !== false);
+  const byId = Object.fromEntries(items.map((i) => [i.id, i]));
+  const sets = active.filter((i) => Array.isArray(i.components) && i.components.length);
+  const parts = active.filter((i) => i.track_inventory && !(Array.isArray(i.components) && i.components.length));
+  const [edit, setEdit] = useState(null); // { id, components: [{ fee_item_id, quantity }] }
+  const [error, setError] = useState('');
+
+  async function save() {
+    const comps = edit.components.filter((c) => c.fee_item_id).map((c) => ({ fee_item_id: c.fee_item_id, quantity: Math.max(1, Number(c.quantity) || 1) }));
+    if (!edit.id) return setError('Pick the set item.');
+    const patch = comps.length ? { components: comps, track_inventory: false } : { components: null };
+    const { error: e } = await supabase.from('fee_items').update(patch).eq('id', edit.id);
+    if (e) return setError(e.message);
+    onDone(comps.length ? `${byId[edit.id]?.name}: set of ${comps.length} parts saved.` : `${byId[edit.id]?.name} is no longer a set.`);
+  }
+
+  if (edit) {
+    const setItem = byId[edit.id];
+    return (
+      <Modal title={setItem ? `Set — ${setItem.name}` : 'New gear set'} onClose={onClose} maxWidth={540}
+        footer={<><button className="dp-btn" onClick={() => setEdit(null)}>Back</button><button className="dp-btn dp-btn-primary" onClick={save}><Check size={15} /> Save</button></>}>
+        {!edit.existing && (
+          <Field label="Item that is sold as a set">
+            <select className="dp-select" style={{ width: '100%' }} value={edit.id} onChange={(e) => setEdit({ ...edit, id: e.target.value })}>
+              <option value="">Choose…</option>
+              {active.filter((i) => !sets.includes(i)).map((i) => <option key={i.id} value={i.id}>{i.name} — {money(i.default_amount || 0)}</option>)}
+            </select>
+          </Field>
+        )}
+        <div style={{ fontSize: 13, fontWeight: 500, margin: '4px 0 6px' }}>What's in it</div>
+        {edit.components.map((c, i) => (
+          <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+            <select className="dp-select" style={{ flex: 1 }} value={c.fee_item_id} onChange={(e) => setEdit({ ...edit, components: edit.components.map((x, j) => (j === i ? { ...x, fee_item_id: e.target.value } : x)) })}>
+              <option value="">Choose a part…</option>
+              {parts.map((p) => <option key={p.id} value={p.id}>{p.name}{p.sizes?.length ? ` (${p.sizes.join('/')})` : ''}</option>)}
+            </select>
+            <input className="dp-input" type="number" min="1" style={{ width: 60 }} aria-label="Quantity" value={c.quantity} onChange={(e) => setEdit({ ...edit, components: edit.components.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)) })} />
+            <button className="dp-btn dp-btn-danger" style={{ padding: 5 }} aria-label="Remove part" onClick={() => setEdit({ ...edit, components: edit.components.filter((_, j) => j !== i) })}><Trash2 size={13} /></button>
+          </div>
+        ))}
+        <button className="dp-btn" style={{ fontSize: 12.5 }} onClick={() => setEdit({ ...edit, components: [...edit.components, { fee_item_id: '', quantity: 1 }] })}><Plus size={13} /> Add part</button>
+        <p style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', margin: '10px 0 0' }}>On an invoice you pick the size of each part. The parts come out of stock; the set itself isn't counted. Parts must be tracked items.</p>
+        {error && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{error}</p>}
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title="Gear Sets" onClose={onClose} maxWidth={560}
+      footer={<><button className="dp-btn" onClick={onClose}>Close</button><button className="dp-btn dp-btn-primary" onClick={() => { setError(''); setEdit({ id: '', components: [{ fee_item_id: '', quantity: 1 }] }); }}><Plus size={15} /> New set</button></>}>
+      {sets.length === 0 ? (
+        <p style={{ fontSize: 14, color: 'var(--dp-ink-soft)' }}>No sets yet. Make one for bundles like Full Sparring Gear, so selling it takes the right parts and sizes out of stock.</p>
+      ) : sets.map((st) => (
+        <div key={st.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid var(--dp-canvas)' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 500 }}>{st.name} <span style={{ color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{money(st.default_amount || 0)}</span></div>
+            <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{st.components.map((c) => `${c.quantity > 1 ? c.quantity + '× ' : ''}${byId[c.fee_item_id]?.name || '?'}`).join(' · ')}</div>
+          </div>
+          <button className="dp-btn" style={{ fontSize: 12 }} onClick={() => { setError(''); setEdit({ id: st.id, existing: true, components: st.components.map((c) => ({ ...c })) }); }}>Edit</button>
+        </div>
+      ))}
     </Modal>
   );
 }
