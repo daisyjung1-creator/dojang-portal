@@ -649,7 +649,10 @@ function CalendarTab({ d }) {
         <div style={card}>
           <h2 style={h2}><Award size={17} /> Key dates</h2>
           {d.next_test && (
-            <div style={{ fontSize: 16, padding: '4px 0' }}><b style={{ fontWeight: 600 }}>{fday(d.next_test.date)}</b> · Belt test (no regular classes)</div>
+            <div style={{ fontSize: 16, padding: '4px 0' }}>
+              <b style={{ fontWeight: 600 }}>{fday(d.next_test.date)}</b> · Belt test (no regular classes)
+              <div style={{ fontSize: 13, color: C.faint }}>Planned date — it may change. We'll let you know if it does.</div>
+            </div>
           )}
           {events.map((e) => (
             <div key={e.id} style={{ fontSize: 16, padding: '4px 0' }}><b style={{ fontWeight: 600 }}>{fday(e.start_date)}</b> · {e.title}</div>
