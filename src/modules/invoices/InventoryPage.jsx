@@ -433,7 +433,10 @@ function SetsModal({ items, onClose, onDone }) {
   const [error, setError] = useState('');
 
   async function save() {
-    const comps = edit.components.filter((c) => c.fee_item_id).map((c) => ({ fee_item_id: c.fee_item_id, quantity: Math.max(1, Number(c.quantity) || 1) }));
+    const comps = edit.components.filter((c) => c.fee_item_id).map((c) => {
+      const opts = [...new Set([c.fee_item_id, ...(c.options || [])].filter(Boolean))];
+      return { fee_item_id: c.fee_item_id, quantity: Math.max(1, Number(c.quantity) || 1), ...(opts.length > 1 ? { options: opts } : {}) };
+    });
     if (!edit.id) return setError('Pick the set item.');
     const patch = comps.length ? { components: comps, track_inventory: false } : { components: null };
     const { error: e } = await supabase.from('fee_items').update(patch).eq('id', edit.id);
@@ -456,13 +459,29 @@ function SetsModal({ items, onClose, onDone }) {
         )}
         <div style={{ fontSize: 13, fontWeight: 500, margin: '4px 0 6px' }}>What's in it</div>
         {edit.components.map((c, i) => (
-          <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+          <div key={i}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
             <select className="dp-select" style={{ flex: 1 }} value={c.fee_item_id} onChange={(e) => setEdit({ ...edit, components: edit.components.map((x, j) => (j === i ? { ...x, fee_item_id: e.target.value } : x)) })}>
               <option value="">Choose a part…</option>
               {parts.map((p) => <option key={p.id} value={p.id}>{p.name}{p.sizes?.length ? ` (${p.sizes.join('/')})` : ''}</option>)}
             </select>
             <input className="dp-input" type="number" min="1" style={{ width: 60 }} aria-label="Quantity" value={c.quantity} onChange={(e) => setEdit({ ...edit, components: edit.components.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)) })} />
             <button className="dp-btn dp-btn-danger" style={{ padding: 5 }} aria-label="Remove part" onClick={() => setEdit({ ...edit, components: edit.components.filter((_, j) => j !== i) })}><Trash2 size={13} /></button>
+            </div>
+            {c.fee_item_id && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center', fontSize: 12, margin: '0 0 8px 4px', color: 'var(--dp-ink-soft)' }}>
+                {(c.options || []).filter((id) => id !== c.fee_item_id).map((id) => (
+                  <span key={id} style={{ background: 'var(--dp-canvas)', borderRadius: 6, padding: '2px 6px' }}>
+                    or {byId[id]?.name}{' '}
+                    <button aria-label="Remove option" style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} onClick={() => setEdit({ ...edit, components: edit.components.map((x, j) => (j === i ? { ...x, options: (x.options || []).filter((o) => o !== id) } : x)) })}>×</button>
+                  </span>
+                ))}
+                <select className="dp-select" style={{ fontSize: 12, padding: '2px 4px' }} value="" onChange={(e) => e.target.value && setEdit({ ...edit, components: edit.components.map((x, j) => (j === i ? { ...x, options: [...new Set([x.fee_item_id, ...(x.options || []), e.target.value])] } : x)) })}>
+                  <option value="">+ or another item…</option>
+                  {parts.filter((p) => p.id !== c.fee_item_id && !(c.options || []).includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         ))}
         <button className="dp-btn" style={{ fontSize: 12.5 }} onClick={() => setEdit({ ...edit, components: [...edit.components, { fee_item_id: '', quantity: 1 }] })}><Plus size={13} /> Add part</button>
@@ -481,7 +500,7 @@ function SetsModal({ items, onClose, onDone }) {
         <div key={st.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid var(--dp-canvas)' }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 500 }}>{st.name} <span style={{ color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{money(st.default_amount || 0)}</span></div>
-            <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{st.components.map((c) => `${c.quantity > 1 ? c.quantity + '× ' : ''}${byId[c.fee_item_id]?.name || '?'}`).join(' · ')}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{st.components.map((c) => `${c.quantity > 1 ? c.quantity + '× ' : ''}${(c.options?.length > 1 ? c.options : [c.fee_item_id]).map((id) => byId[id]?.name || '?').join(' or ')}`).join(' · ')}</div>
           </div>
           <button className="dp-btn" style={{ fontSize: 12 }} onClick={() => { setError(''); setEdit({ id: st.id, existing: true, components: st.components.map((c) => ({ ...c })) }); }}>Edit</button>
         </div>

@@ -129,7 +129,11 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     const parts = partsOf(it);
     return {
       fee_item_id: it.id, item_name: it.name, description: it.description || it.name, unit_price: it.default_amount ?? '', taxable: it.taxable !== false, size: null,
-      components: parts.length ? parts.map((c) => ({ fee_item_id: c.fee_item_id, item_name: itemById[c.fee_item_id].name, size: null, quantity: Number(c.quantity) || 1 })) : null,
+      // A part can be one of a few items (e.g. groin guard male / female): options.
+      components: parts.length ? parts.map((c) => {
+        const opts = (c.options || []).filter((id) => itemById[id]);
+        return { fee_item_id: c.fee_item_id, item_name: itemById[c.fee_item_id].name, size: null, quantity: Number(c.quantity) || 1, ...(opts.length > 1 ? { options: opts } : {}) };
+      }) : null,
     };
   }
   function pickItem(i, itemId) {
@@ -144,10 +148,17 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
       return [...kept, { ...blankLine(), ...itemPatch(it) }];
     });
   }
-  // Set: pick the size of one part; the description lists the parts and sizes.
+  // Set: pick the size of one part (or which item, for a part with options);
+  // the description lists the parts and sizes.
+  function pickPartOption(i, pi, id) {
+    setPart(i, pi, { fee_item_id: id, item_name: itemById[id]?.name || '', size: null });
+  }
   function pickPartSize(i, pi, size) {
+    setPart(i, pi, { size: size || null });
+  }
+  function setPart(i, pi, patch) {
     const l = lines[i];
-    const comps = l.components.map((c, j) => (j === pi ? { ...c, size: size || null } : c));
+    const comps = l.components.map((c, j) => (j === pi ? { ...c, ...patch } : c));
     const it = itemById[l.fee_item_id];
     const base = String(it?.description || it?.name || l.item_name || '').trim();
     const sizes = comps.filter((c) => c.size).map((c) => `${c.item_name} ${c.size}`);
@@ -310,7 +321,19 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
                         const sz = itemById[c.fee_item_id]?.sizes || [];
                         return (
                           <div key={pi} style={{ fontSize: 12 }}>
-                            <div style={{ color: 'var(--dp-ink-soft)' }}>{c.quantity > 1 ? `${c.quantity}× ` : ''}{c.item_name}{!sz.length && stockOf(c.fee_item_id) !== undefined ? ` · ${stockOf(c.fee_item_id)} in stock` : ''}</div>
+                            {c.options?.length > 1 ? (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                                {c.options.map((id) => (
+                                  <button key={id} type="button" onClick={() => pickPartOption(i, pi, id)} style={{
+                                    padding: '2px 7px', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                                    border: `1px solid ${c.fee_item_id === id ? 'var(--dp-ink)' : 'var(--dp-line)'}`,
+                                    background: c.fee_item_id === id ? 'var(--dp-canvas)' : '#fff', fontWeight: c.fee_item_id === id ? 600 : 400, color: 'var(--dp-ink)',
+                                  }}>{itemById[id]?.name}</button>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ color: 'var(--dp-ink-soft)' }}>{c.quantity > 1 ? `${c.quantity}× ` : ''}{c.item_name}{!sz.length && stockOf(c.fee_item_id) !== undefined ? ` · ${stockOf(c.fee_item_id)} in stock` : ''}</div>
+                            )}
                             {sz.length > 0 && <SizeChips sizes={sz} value={c.size} stockFor={(z) => stockOf(c.fee_item_id, z)} onPick={(z) => pickPartSize(i, pi, z)} />}
                           </div>
                         );
