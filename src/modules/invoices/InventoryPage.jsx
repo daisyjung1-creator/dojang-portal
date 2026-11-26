@@ -336,7 +336,7 @@ function HistoryModal({ item, onClose }) {
       ];
       const since = item.inventory_since;
       const list = [
-        ...(mv || []).map((m) => ({ key: 'm' + m.id, date: m.movement_date, size: m.size || '', what: KINDS[m.kind] || 'Count', who: m.note || '', qty: Number(m.quantity) })),
+        ...(mv || []).map((m) => ({ key: 'm' + m.id, date: m.movement_date, size: m.size || '', what: m.kind === 'promotion' ? 'Given at promotion' : KINDS[m.kind] || 'Count', who: m.note || '', qty: Number(m.quantity) })),
         ...(ln || [])
           .filter((l) => l.invoices && !l.invoices.voided && since && l.invoices.created_at >= since)
           .map((l, i) => ({ key: 'l' + i, date: l.invoices.invoice_date, size: l.size || '', what: `Sold${l.set ? ` in ${l.set}` : ''} · invoice #${l.invoices.invoice_number}`, who: l.invoices.customer_name, qty: -Number(l.quantity) })),

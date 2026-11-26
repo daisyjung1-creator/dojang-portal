@@ -314,6 +314,11 @@ export default function TestingPage() {
   async function promote() {
     setBusy(true);
     let n = 0;
+    // Colour belt stock: each promotion takes one belt of the new colour
+    // (only once the Color Belt item has been counted on Inventory).
+    const { data: beltItem } = await supabase.from('fee_items').select('id, sizes, inventory_since, track_inventory').eq('name', 'Color Belt').maybeSingle();
+    const beltStock = beltItem?.track_inventory && beltItem.inventory_since ? beltItem : null;
+    const handed = [];
     for (const { e, s } of stats.toPromote) {
       const { error } = await supabase.from('students').update({ belt: e.target_belt, last_test_date: test.test_date }).eq('id', s.id);
       if (error) {
@@ -321,8 +326,10 @@ export default function TestingPage() {
         break;
       }
       await supabase.from('belt_test_entries').update({ promoted_at: new Date().toISOString() }).eq('id', e.id);
+      if (beltStock && (beltStock.sizes || []).includes(e.target_belt)) handed.push({ fee_item_id: beltStock.id, size: e.target_belt, kind: 'promotion', quantity: -1, movement_date: test.test_date, note: `Promoted: ${s.name}` });
       n++;
     }
+    if (handed.length) await supabase.from('inventory_movements').insert(handed);
     // Everyone who tested (pass or retest) starts counting again from today's test.
     const others = rows.filter((r) => r.e.result === 'retest').map((r) => r.s.id);
     if (others.length) await supabase.from('students').update({ last_test_date: test.test_date }).in('id', others);
