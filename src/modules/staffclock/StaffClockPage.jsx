@@ -1,0 +1,37 @@
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '../../auth/AuthContext';
+import StaffClockAdmin from './StaffClockAdmin';
+import EmployeeClock from './EmployeeClock';
+import ClockSignIn from './ClockSignIn';
+
+// Staff Clock tab. Admin: the full clock dashboard (employees, schedule,
+// hours, alerts, swap requests, notes, audit log, settings).
+// Staff login (front-desk iPad): each employee signs in with their own PIN.
+// The iPad is shared, so the employee is signed out after a few idle minutes
+// or when they leave the tab, and nothing is remembered on the device.
+const IDLE_MS = 3 * 60 * 1000;
+
+export default function StaffClockPage() {
+  const { isAdmin } = useAuth();
+  const [employee, setEmployee] = useState(null);
+
+  useEffect(() => {
+    if (!employee) return undefined;
+    let timer;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setEmployee(null), IDLE_MS);
+    };
+    const events = ['pointerdown', 'keydown', 'touchstart', 'wheel'];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true, capture: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset, { capture: true }));
+    };
+  }, [employee]);
+
+  if (isAdmin) return <StaffClockAdmin />;
+  if (!employee) return <ClockSignIn onSuccess={setEmployee} />;
+  return <EmployeeClock employee={employee} onLogout={() => setEmployee(null)} />;
+}

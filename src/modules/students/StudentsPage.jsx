@@ -1,5 +1,8 @@
 import StudentFlags from '../../components/StudentFlags';
 import BeltStrip from '../../components/BeltStrip';
+import ClassChip from '../../components/ClassChip';
+import { notice } from '../../lib/dialogs';
+import { splitClasses } from '../../lib/classes';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX, FileText } from 'lucide-react';
@@ -106,7 +109,9 @@ export default function StudentsPage() {
   const [reminder, setReminder] = useState(null);
   const [endingId, setEndingId] = useState(null); // subsidy waiting for "Confirm"
   const [welcomeFor, setWelcomeFor] = useState(null);
-  const [families, setFamilies] = useState({}); // customer id → { name, payment_type } // { student, subject, message, to, error, sending }
+  const [families, setFamilies] = useState({});
+  // Subsidy alert box: open on wide screens, folded on phones so the student list shows first.
+  const [subsOpen, setSubsOpen] = useState(() => typeof window === 'undefined' || !window.matchMedia('(max-width: 860px)').matches); // customer id → { name, payment_type } // { student, subject, message, to, error, sending }
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -123,15 +128,18 @@ export default function StudentsPage() {
 
   async function fetchStudents() {
     setLoading(true);
-    const [{ data, error: fetchError }, { data: fams }, { data: credits }] = await Promise.all([
+    const [{ data, error: fetchError }, { data: fams }, { data: credits }, { data: owing }] = await Promise.all([
       supabase.from('students').select('*').order('name'),
       supabase.from('customers').select('id, name, payment_type, email, phone'),
       supabase.from('customer_credit').select('customer_id, credit').neq('credit', 0),
+      supabase.from('invoice_summary').select('customer_id, balance').eq('voided', false).gt('balance', 0),
     ]);
     if (fetchError) setError('Could not load the student list.');
     else setStudents(data || []);
     const creditBy = Object.fromEntries((credits || []).map((r) => [r.customer_id, Number(r.credit)]));
-    setFamilies(Object.fromEntries((fams || []).map((c) => [c.id, { ...c, credit: creditBy[c.id] || 0 }])));
+    const dueBy = {};
+    (owing || []).forEach((r) => { dueBy[r.customer_id] = (dueBy[r.customer_id] || 0) + Number(r.balance); });
+    setFamilies(Object.fromEntries((fams || []).map((c) => [c.id, { ...c, credit: creditBy[c.id] || 0, due: dueBy[c.id] || 0 }])));
     setLoading(false);
   }
 
@@ -286,6 +294,38 @@ export default function StudentsPage() {
     students.forEach((x) => x.customer_id && x.status !== 'withdrawn' && (m[x.customer_id] ||= []).push(x));
     return m;
   }, [students]);
+  // Status column: membership state first, then money / subsidy notes.
+  // Status column: membership state, then the first note (subsidy, manual pay, …); the rest as "+n" with a tooltip.
+  const StatusChips = ({ s }) => {
+    const fam = families[s.customer_id];
+    const state = s.status === 'withdrawn' ? <Badge c={GREY}>Withdrawn</Badge> : onHold(s, todayISO()) ? (
+      <Badge c={AMBER} title={`${s.hold_reason || 'On hold'} — until ${s.hold_until}`}>On hold · {new Date(s.hold_until + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</Badge>
+    ) : null; // active is the normal case — only show it when there's nothing else to say
+    const notes = [
+      s.subsidy && s.subsidy_status === 'pending' && { c: AMBER, t: `${(s.subsidy_name || 'Subsidy').trim()} — waiting`, tip: `Applied ${s.subsidy_applied_on || '?'}` },
+      s.subsidy && s.subsidy_status !== 'pending' && { c: GREEN, t: (s.subsidy_name || 'Subsidy').trim(), tip: `until ${s.subsidy_end_date || '?'}` },
+      fam?.payment_type === 'manual' && !s.billing_exempt && { c: GREY, t: 'Manual pay', tip: 'Pays manually (debit / cash)' },
+      s.family_discount && { c: GREY, t: 'Family -20%', tip: 'Big family discount' },
+      fam?.credit > 0.004 && { c: GREEN, t: `Credit $${Number(fam.credit).toFixed(2)}`, tip: 'Family account credit — used on the next invoice' },
+    ].filter(Boolean);
+    return (
+      <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 4 }}>
+        {state}
+        {!state && !notes.length && <Badge c={GREEN}>Active</Badge>}
+        {/* One chip, then "+n": on hold / withdrawn take the slot before any note. */}
+        {!state && notes[0] && <Badge c={notes[0].c} title={notes[0].tip}>{notes[0].t}</Badge>}
+        {(state ? notes : notes.slice(1)).length > 0 && (
+          <span title={(state ? notes : notes.slice(1)).map((n) => n.t).join(', ')} style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>+{(state ? notes : notes.slice(1)).length}</span>
+        )}
+      </div>
+    );
+  };
+  const NextBilling = ({ s }) => (
+    <div style={{ fontVariantNumeric: 'tabular-nums' }}>
+      {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: 'var(--dp-danger)', fontSize: 'var(--dp-text-label)', fontWeight: 600 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
+      {s.reregistration_fee_due && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-warning)' }}>+ re-registration fee</div>}
+    </div>
+  );
   const filtered = useMemo(() => {
     return students.filter((s) => {
       const fam = families[s.customer_id];
@@ -439,10 +479,15 @@ export default function StudentsPage() {
 
       {isAdmin && subsidyAlerts.length > 0 && (
         <div role="region" aria-label="Subsidies ending soon" style={{ background: 'var(--dp-warning-tint)', borderRadius: 'var(--dp-radius-lg)', padding: '12px 16px', marginBottom: 14, fontSize: 'var(--dp-text-label)', color: 'var(--dp-warning)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 'var(--dp-text-body)', marginBottom: 6 }}>
-            <AlertTriangle size={16} aria-hidden="true" /> Subsidies ending soon ({subsidyAlerts.length})
-          </div>
-          {subsidyAlerts.map((s) => (
+          <button
+            onClick={() => setSubsOpen((v) => !v)}
+            aria-expanded={subsOpen}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', fontWeight: 700, fontSize: 'var(--dp-text-body)', marginBottom: subsOpen ? 6 : 0, padding: 0, border: 'none', background: 'none', color: 'inherit', fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <AlertTriangle size={16} aria-hidden="true" /> <span style={{ flex: 1 }}>Subsidies ending soon ({subsidyAlerts.length})</span>
+            <span style={{ fontSize: 'var(--dp-text-label)', fontWeight: 500 }}>{subsOpen ? 'Hide' : 'Show'}</span>
+          </button>
+          {subsOpen && subsidyAlerts.map((s) => (
             <div key={s.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', flexWrap: 'wrap', color: 'var(--dp-ink)' }}>
               <button className="dp-btn" style={{ padding: '4px 10px', fontSize: 'var(--dp-text-label)' }} onClick={() => openEdit(s)}>{s.name}</button>
               <span>
@@ -479,72 +524,89 @@ export default function StudentsPage() {
             </p>
           </div>
         ) : (
-          <table className="dp-table">
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table className="dp-table dp-table-compact">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Belt</th>
-                <th>Class</th>
+                <th>Student</th>
                 <th>Guardian</th>
-                <th>Phone</th>
-                <th>Plan</th>
-                <th>Next billing</th>
-                {isAdmin && <th style={{ width: 50 }}></th>}
+                <th>Classes</th>
+                <th>Medical</th>
+                <th>Billing</th>
+                <th>Status</th>
+                {isAdmin && <th style={{ width: 44 }}></th>}
               </tr>
             </thead>
             <tbody>
               {filtered.map((s) => {
-                const sibs = s.customer_id ? (siblingsBy[s.customer_id] || []).filter((x) => x.id !== s.id) : [];
+                const fam = families[s.customer_id];
+                const phones = String(s.guardian_phone || '').split(/\s*[,;\/]\s*/).filter(Boolean);
+                const med = String(s.medical || '').trim();
                 return (
                   <tr key={s.id} className="dp-row">
-                    <td style={{ fontWeight: 500 }}>
-                      <button
-                        onClick={() => setProfileId(s.id)}
-                        title="Open student profile"
-                        style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, color: 'var(--dp-ink)', cursor: 'pointer', textAlign: 'left', textDecoration: 'underline', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }}
-                      >
-                        {s.name}
-                      </button>
-                      <StudentFlags s={s} style={{ marginLeft: 6 }} />
-                      {s.status === 'withdrawn' && (
-                        <Badge c={GREY}>Withdrawn</Badge>
-                      )}
-                      {sibs.length > 0 && (
-                        <div style={{ fontSize: 'var(--dp-text-caption)', fontWeight: 400, color: 'var(--dp-ink-soft)', marginTop: 2 }} title={`Same family: ${families[s.customer_id]?.name || ''}`}>
-                          Sibling{sibs.length > 1 ? 's' : ''}: {sibs.map((x) => x.name.split(' ')[0]).join(', ')}
+                    <td>
+                      <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 6 }}>
+                        <button
+                          onClick={() => setProfileId(s.id)}
+                          title="Open student profile"
+                          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: 14, fontWeight: 600, color: 'var(--dp-ink)', cursor: 'pointer', textAlign: 'left', maxWidth: 210, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        >
+                          {s.name}
+                        </button>
+                        <StudentFlags s={s} hideMedical compact />
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: 6, marginTop: 2, fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }}>
+                        {fam?.name && <span>{fam.name} ·</span>}
+                        <BeltStrip belt={s.belt} width={30} />
+                        <span>{s.belt || 'White'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div>{s.guardian_name || '—'}</div>
+                      {phones.length > 0 && (
+                        <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginTop: 2 }}>
+                          <a href={`tel:${phones[0].replace(/[^\d+]/g, '')}`} style={{ color: 'inherit', textDecoration: 'none' }}>{phones[0]}</a>
+                          {phones.length > 1 && <span title={phones.slice(1).join(', ')}> · +{phones.length - 1}</span>}
                         </div>
                       )}
                     </td>
                     <td>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 'var(--dp-text-label)' }}>
-                        <BeltStrip belt={s.belt} width={44} />
-                        {s.belt || 'White'}
-                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 4 }}>
+                        {splitClasses(s.class_name).slice(0, 2).map((c) => <ClassChip key={c} name={c} size={12} />)}
+                        {splitClasses(s.class_name).length > 2 && <span title={splitClasses(s.class_name).slice(2).join(', ')} style={{ fontSize: 12, color: 'var(--dp-ink-soft)', alignSelf: 'center' }}>+{splitClasses(s.class_name).length - 2}</span>}
+                        {!s.class_name && '—'}
+                      </div>
                     </td>
-                    <td>{s.class_name || '—'}</td>
-                    <td>{s.guardian_name || '—'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{s.guardian_phone || '—'}</td>
                     <td>
-                      {s.billing_exempt ? <Badge c={GREY}>Staff · no invoice</Badge> : s.plan || '1 Month'}
-                      {families[s.customer_id]?.payment_type === 'manual' && !s.billing_exempt && <Badge c={GREY} title="Pays manually (debit / cash)">Manual pay</Badge>}
-                      {s.classes_per_week ? <Badge c={GREY}>{s.classes_per_week}x/wk</Badge> : null}
-                      {s.family_discount && <Badge c={GREY} title="Big family discount">Family -20%</Badge>}
-                      {families[s.customer_id]?.credit > 0.004 && <Badge c={GREEN} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
-                      {onHold(s, todayISO()) && <Badge c={AMBER} title={s.hold_reason || ''}>On hold until {s.hold_until}</Badge>}
-                      {s.subsidy && s.subsidy_status === 'pending' && <Badge c={AMBER} title={`Applied ${s.subsidy_applied_on || '?'}`}>{(s.subsidy_name || 'Subsidy').trim()} — waiting</Badge>}
-                      {s.subsidy && s.subsidy_status !== 'pending' && <Badge c={GREEN} title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`}>Subsidy</Badge>}
+                      {med ? (
+                        <button
+                          onClick={() => notice(med, { title: `${s.name} — medical` })}
+                          title={med}
+                          style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 500, color: 'var(--dp-danger)', background: 'var(--dp-danger-tint)', borderRadius: 999, padding: '2px 9px' }}
+                        >
+                          {med}
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>
+                      )}
                     </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: 'var(--dp-danger)', fontSize: 'var(--dp-text-label)', fontWeight: 600 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
-                      {s.reregistration_fee_due && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-warning)' }}>+ re-registration fee</div>}
+                    <td>
+                      {fam?.due > 0.004 && <div style={{ color: 'var(--dp-danger)', fontWeight: 600 }}>${fam.due.toFixed(2)} due</div>}
+                      <div style={fam?.due > 0.004 ? { fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginTop: 2 } : undefined}>
+                        <NextBilling s={s} />
+                      </div>
+                      {!(fam?.due > 0.004) && (
+                        <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginTop: 2 }}>
+                          {s.billing_exempt ? 'Staff · no invoice' : s.plan || '1 Month'}{s.classes_per_week ? ` · ${s.classes_per_week}x/wk` : ''}
+                        </div>
+                      )}
                     </td>
+                    <td><StatusChips s={s} /></td>
                     {isAdmin && (
                       <td>
-                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                          <button aria-label="Edit" className="dp-btn" style={{ padding: 6 }} onClick={() => openEdit(s)}>
-                            <Pencil size={14} />
-                          </button>
-                        </div>
+                        <button aria-label={`Edit ${s.name}`} className="dp-btn" style={{ width: 36, minHeight: 36, padding: 0, justifyContent: 'center' }} onClick={() => openEdit(s)}>
+                          <Pencil size={14} />
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -552,6 +614,7 @@ export default function StudentsPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
       </>)}
@@ -928,7 +991,7 @@ const GREY = ['var(--dp-ink-soft)', 'var(--dp-canvas)'];
 const GREEN = ['var(--dp-success)', 'var(--dp-success-tint)'];
 const AMBER = ['var(--dp-warning)', 'var(--dp-warning-tint)'];
 function Badge({ c, title, children }) {
-  return <span title={title} style={{ display: 'inline-block', margin: '2px 0 2px 6px', fontSize: 'var(--dp-text-caption)', fontWeight: 500, color: c[0], background: c[1], border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-pill)', padding: '1px 8px', whiteSpace: 'nowrap', lineHeight: 1.5 }}>{children}</span>;
+  return <span title={title} style={{ display: 'inline-block', margin: 0, fontSize: 'var(--dp-text-caption)', fontWeight: 500, color: c[0], background: c[1], border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-pill)', padding: '1px 8px', whiteSpace: 'nowrap', lineHeight: 1.5 }}>{children}</span>;
 }
 
 // Standard tuition (before GST) for a number of classes a week.
@@ -937,3 +1000,7 @@ export function suggestedTuition(perWeek, plan) {
   if (plan === '3 Months') return perWeek === 2 ? 435 : perWeek === 3 ? 495 : perWeek >= 4 ? 585 : '';
   return perWeek === 1 ? 135 : perWeek === 2 ? 150 : perWeek === 3 ? 170 : 200;
 }
+
+
+
+

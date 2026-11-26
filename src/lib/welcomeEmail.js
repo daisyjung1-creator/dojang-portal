@@ -77,7 +77,31 @@ export function fillWelcomeTemplate(tpl, student, settings = {}) {
     .replaceAll('{business}', settings.business_name || '')
     .replaceAll('{address}', settings.address || '')
     .replaceAll('{phone}', settings.phone || '')
-    .replaceAll('{email}', settings.email || '');
+    .replaceAll('{email}', settings.email || '')
+    .replaceAll('{parent_portal}', portalUrl(settings));
+}
+
+// Where parents sign in to the parent portal.
+export function portalUrl(settings = {}) {
+  if (settings.portal_url) return settings.portal_url;
+  return (typeof window !== 'undefined' ? window.location.origin : '') + '/parent';
+}
+
+// Older saved templates don't mention the parent portal: add a short paragraph
+// with the link just before the sign-off (or at the end).
+export function withPortalLink(text, students, settings = {}) {
+  const url = portalUrl(settings);
+  if (!text || text.includes(url)) return text;
+  const first = (s) => (s.name || '').split(' ')[0];
+  const names = (students || []).filter(Boolean).map(first).filter(Boolean);
+  const who = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0] || 'your child';
+  const para = `Parent portal
+Follow ${who}'s classes, belt progress and attendance, let us know about an absence, sign up for events and see your invoices online:
+${url}
+You'll get a separate email to set your password. After that, sign in any time with this email address.`;
+  const m = text.match(/^[ \t]*(best regards|warm regards|kind regards|regards|sincerely|thank you|thanks)\b.*$/im);
+  if (m) return text.slice(0, m.index) + para + '\n\n' + text.slice(m.index);
+  return text.replace(/\s*$/, '') + '\n\n' + para;
 }
 
 function addDay(iso, n) {
@@ -86,7 +110,7 @@ function addDay(iso, n) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export const WELCOME_PLACEHOLDERS = '{guardian} {student} {student_full} {classes} {start_date} {plan} {tuition} {billing_schedule} {next_billing} {subsidy_note} {payment_methods} {refund_policy} {business} {address} {phone} {email}';
+export const WELCOME_PLACEHOLDERS = '{guardian} {student} {student_full} {classes} {start_date} {plan} {tuition} {billing_schedule} {next_billing} {subsidy_note} {payment_methods} {refund_policy} {business} {address} {phone} {email} {parent_portal}';
 
 // One welcome email for siblings registered together. With one child this is
 // the normal template; with several, the per-child parts become short lists.

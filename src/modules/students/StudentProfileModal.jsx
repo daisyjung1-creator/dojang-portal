@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import TapeList from '../../components/TapeList';
 import BeltWithTapes from '../../components/BeltWithTapes';
+import { beltPaint } from '../../components/BeltStrip';
 import { CardLinkButton } from '../invoices/CardLink';
 import CardWallet from '../../components/CardWallet';
 import { hasTapes, loadTapes, TAPE_COUNT } from '../../lib/tapes';
@@ -12,7 +13,9 @@ import { BELTS } from '../../lib/constants';
 import { todayISO, addDaysISO, billingAnchor, nextDueDate, planMonths } from '../../lib/billingDates';
 import { weeklyPlan, splitClasses, classColor } from '../../lib/classes';
 import { MIN_CLASSES, classesSince } from '../../lib/beltTesting';
-import { formatDate, money } from '../../lib/invoiceUtils';
+import { formatDate, money, calcTotals, round2 } from '../../lib/invoiceUtils';
+import { tuitionLines, isBillable, onHold as onHoldOn } from '../../lib/tuitionBilling';
+import { studentSummary } from '../../lib/attendanceStats';
 import { PATCHES } from '../../lib/testAwards';
 
 // Everything about one student on one screen: details, family, health,
@@ -51,6 +54,9 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const [copied, setCopied] = useState('');
   const [msg, setMsg] = useState('');
   const [subUsed, setSubUsed] = useState(null);
+  const [gstRate, setGstRate] = useState(5);
+  const [makeups, setMakeups] = useState(null);
+  const [lastBill, setLastBill] = useState(undefined); // { cycle, total, balance, number } | null
   const [tapes, setTapes] = useState(null);
   useEffect(() => {
     loadTapes([s]).then((m) => setTapes(m[s.id] || new Set()));
@@ -73,15 +79,53 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
     });
   }, [s.id]);
 
+  // Last tuition billing for this student: their lines on the most recent
+  // (not voided) tuition invoice, with GST, and whether it has been paid.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let live = true;
+    (async () => {
+      const [{ data: st }, { data: ls }] = await Promise.all([
+        supabase.from('invoice_settings').select('gst_rate').eq('id', 1).maybeSingle(),
+        supabase.from('invoice_lines').select('invoice_id, cycle_start, amount, taxable, line_kind, quantity, unit_price').eq('student_id', s.id).not('cycle_start', 'is', null).order('cycle_start', { ascending: false }).limit(40),
+      ]);
+      const rate = st?.gst_rate ?? 5;
+      if (!live) return;
+      setGstRate(rate);
+      const ids = Array.from(new Set((ls || []).map((l) => l.invoice_id)));
+      if (!ids.length) return setLastBill(null);
+      const { data: invs } = await supabase.from('invoice_summary').select('id, invoice_number, balance, total, voided').in('id', ids);
+      const ok = new Map((invs || []).filter((i) => !i.voided).map((i) => [i.id, i]));
+      const top = (ls || []).find((l) => ok.has(l.invoice_id));
+      if (!live) return;
+      if (!top) return setLastBill(null);
+      const lines = ls.filter((l) => l.invoice_id === top.invoice_id);
+      const inv = ok.get(top.invoice_id);
+      setLastBill({ cycle: top.cycle_start, total: calcTotals(lines, rate).total, balance: Number(inv.balance || 0), number: inv.invoice_number, invoiceTotal: Number(inv.total || 0) });
+    })();
+    return () => {
+      live = false;
+    };
+  }, [s.id, isAdmin]);
+
+  useEffect(() => {
+    supabase.from('makeup_records').select('id, absence_date, class_name, status, expiration_date, reservation_date, reservation_class_name, conditional').eq('student_id', s.id).order('absence_date', { ascending: false }).limit(30).then(({ data }) => setMakeups(data || []));
+  }, [s.id]);
+
   const belt = BELTS.find((b) => b.value === s.belt) || BELTS[0];
   const plan = weeklyPlan(s, schedule);
   const age = ageOf(s.dob);
   const since = att ? classesSince(s, att) : null;
-  const month = todayISO().slice(0, 7);
-  const thisMonth = att ? att.filter((r) => r.date.startsWith(month) && ['present', 'double'].includes(r.status)).length : null;
   const last = att?.find((r) => ['present', 'double'].includes(r.status));
   const withdrawn = s.status === 'withdrawn';
   const next = billingAnchor(s) ? nextDueDate(s, todayISO()) : null;
+  // Next billing: this student's lines (tuition, family discount, subsidy) + GST,
+  // and the family total when brothers/sisters are billed the same day.
+  const nextLines = next && Number(s.tuition) > 0 && !s.billing_exempt ? tuitionLines(subUsed != null ? { ...s, _subsidyUsed: subUsed } : s, next) : null;
+  const nextCalc = nextLines ? calcTotals(nextLines, gstRate) : null;
+  const sameDaySibs = next ? siblings.filter((x) => isBillable(x) && nextDueDate(x, todayISO()) === next && !onHoldOn(x, next)) : [];
+  const familyNext = nextCalc && sameDaySibs.length ? round2(nextCalc.total + sameDaySibs.reduce((n, x) => n + calcTotals(tuitionLines(x, next), gstRate).total, 0)) : null;
+  const attSum = att ? studentSummary(s, att) : null;
   const streak = att ? weekStreak(att) : 0;
   const card = { border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' };
 
@@ -169,26 +213,125 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
         {isAdmin && <button className="dp-btn dp-btn-primary" onClick={onEdit}><Pencil size={14} /> Edit details</button>}
       </div>
 
-      <BeltJourney s={s} since={since} tapes={tapes} />
+      <BeltJourney s={s} since={since} tapes={tapes}>
+        {hasTapes(s.belt) && <TapeList student={s} onChange={setTapes} editable />}
+      </BeltJourney>
 
       {/* Tapes + family side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: hasTapes(s.belt) ? 'minmax(0, 2fr) minmax(260px, 1fr)' : 'minmax(0, 1fr)', gap: 14, marginBottom: 14 }} className="dp-student-split">
-        {hasTapes(s.belt) && (
+      <div style={{ marginBottom: 14 }} className="dp-student-split">
+        {/* Family + Billing side by side (stacked on narrow screens). */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, alignItems: 'start', minWidth: 0 }}>
           <div style={card}>
-            <TapeList student={s} onChange={setTapes} editable />
+            <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Family</h2>
+            <Row k="Parent / guardian">{s.guardian_name || '—'}</Row>
+            <Row k="Phone">{s.guardian_phone ? <a href={`tel:${s.guardian_phone}`}>{s.guardian_phone}</a> : '—'}</Row>
+            <Row k="Email">{s.guardian_email || '—'}</Row>
+            <Row k="Address">{s.address || '—'}</Row>
+            <Row k="Emergency">{[s.emergency_name, s.emergency_phone].filter(Boolean).join(' · ') || '—'}</Row>
+            {siblings.length > 0 && <Row k="Siblings">{siblings.map((x) => x.name).join(', ')}</Row>}
+            {family?.name && <Row k="Family account">{family.name}</Row>}
+            {isAdmin && s.customer_id && <Row k="Parent portal"><ParentInvite customerId={s.customer_id} /></Row>}
+          </div>
+          {isAdmin && (
+            <Box title="Billing">
+              {s.billing_exempt ? (
+                <Row k="Plan">Staff — no invoices</Row>
+              ) : (
+                <>
+                  <Row k="Plan">{s.plan || '1 Month'} · {s.tuition ? `${money(s.tuition)}${planMonths(s) > 1 ? ' / 3 months' : ' / month'} + GST` : 'tuition not set'}</Row>
+                  <Row k="Pays by">{family?.payment_type === 'manual' ? 'Manual (debit / cash / e-transfer)' : 'Pre-authorized credit card'}</Row>
+                  {s.customer_id && <Row k="Card"><FamilyCard customerId={s.customer_id} /></Row>}
+                  <Row k="Next billing">
+                    {s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? (
+                      <>
+                        <div>{formatDate(next)}{nextCalc && <> · <b style={{ fontWeight: 700 }}>{money(nextCalc.total)}</b></>}</div>
+                        {nextLines && (
+                          <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--dp-ink-soft)', fontVariantNumeric: 'tabular-nums' }}>
+                            {nextLines.map((l, i) => (
+                              <div key={i} style={{ display: 'flex', gap: 8 }}>
+                                <span style={{ flex: 1 }}>{l.line_kind === 'tuition' ? 'Tuition' : l.line_kind === 'discount' ? 'Family discount' : l.line_kind === 'subsidy' ? (s.subsidy_name || 'Subsidy').trim() : 'Re-registration fee'}</span>
+                                <span>{Number(l.quantity * l.unit_price) < 0 ? '−' : ''}{money(Math.abs(l.quantity * l.unit_price))}</span>
+                              </div>
+                            ))}
+                            {nextCalc.gst > 0 && <div style={{ display: 'flex', gap: 8 }}><span style={{ flex: 1 }}>GST</span><span>{money(nextCalc.gst)}</span></div>}
+                            <div style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--dp-line)', marginTop: 3, paddingTop: 3, color: 'var(--dp-ink)', fontWeight: 600 }}><span style={{ flex: 1 }}>{s.name.split(' ')[0]} pays</span><span>{money(nextCalc.total)}</span></div>
+                            {familyNext != null && (
+                              <div style={{ display: 'flex', gap: 8, color: 'var(--dp-ink)', fontWeight: 600 }}><span style={{ flex: 1 }}>Family total ({sameDaySibs.length + 1} kids)</span><span>{money(familyNext)}</span></div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : '—'}
+                  </Row>
+                  <Row k="Last billing">
+                    {lastBill === undefined ? <span style={{ color: 'var(--dp-ink-faint)' }}>…</span> : !lastBill ? '—' : (
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {formatDate(lastBill.cycle)} · <b style={{ fontWeight: 700 }}>{money(lastBill.total)}</b>{' '}
+                        {lastBill.balance > 0.004 ? (
+                          <span style={{ color: 'var(--dp-danger)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Unpaid</span>
+                        ) : (
+                          <span style={{ color: 'var(--dp-success)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Paid</span>
+                        )}
+                        {Math.abs(lastBill.invoiceTotal - lastBill.total) > 0.004 && (
+                          <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>Family invoice #{lastBill.number}: {money(lastBill.invoiceTotal)}</div>
+                        )}
+                        {Math.abs(lastBill.invoiceTotal - lastBill.total) <= 0.004 && <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}> · #{lastBill.number}</span>}
+                      </span>
+                    )}
+                  </Row>
+                  {s.family_discount && <Row k="Discount">Big family −20%</Row>}
+                  {s.subsidy && (
+                    <Row k="Subsidy">
+                      {(s.subsidy_name || 'Subsidy').trim()}{s.subsidy_amount ? ` ${money(s.subsidy_amount)} per billing` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}
+                      {s.subsidy_status === 'pending' && <div style={{ color: 'var(--dp-warning)' }}>Waiting for approval{s.subsidy_applied_on ? ` — applied ${formatDate(s.subsidy_applied_on)}` : ''}</div>}
+                      {s.subsidy_status === 'denied' && <div style={{ color: 'var(--dp-danger)' }}>Not approved{s.subsidy_applied_on ? ` (applied ${formatDate(s.subsidy_applied_on)})` : ''}</div>}
+                      {s.subsidy_status === 'approved' && s.subsidy_applied_on && <div style={{ color: 'var(--dp-ink-soft)' }}>Approved — applied {formatDate(s.subsidy_applied_on)}</div>}
+                      {!s.subsidy_status && s.subsidy_applied_on && <div style={{ color: 'var(--dp-ink-soft)' }}>Applied {formatDate(s.subsidy_applied_on)}</div>}
+                      {Number(s.subsidy_total) > 0 && subUsed != null && <div style={{ color: 'var(--dp-success)' }}>{money(Math.max(Number(s.subsidy_total) - subUsed, 0))} left of the {money(s.subsidy_total)} grant</div>}
+                    </Row>
+                  )}
+                  {family?.credit > 0.004 && <Row k="Family credit">{money(family.credit)}</Row>}
+                  {s.reregistration_fee_due && <Row k="Next invoice">+ $20 re-registration fee</Row>}
+                </>
+              )}
+            </Box>
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 14, border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, flex: 1 }}>Attendance</h2>
+          <button type="button" className="dp-btn" style={{ fontSize: 13 }} onClick={() => (window.location.hash = `attendance/history/${s.id}`)}>
+            <Pencil size={12} /> Edit in Attendance
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14 }}>
+          <Ring label="This month" value={attSum?.month.classes} goal={attSum?.month.expected} sub={attSum ? `${attSum.month.absent} absent · ${attSum.month.excused} excused` : ''} />
+          <Ring label="This billing cycle" value={attSum?.cycle?.classes} goal={attSum?.cycle?.expected} sub={attSum?.cycle ? `${formatDate(attSum.cycle.from).replace(/, \d{4}$/, '')} – ${formatDate(attSum.cycle.to).replace(/, \d{4}$/, '')}` : 'No billing date'} />
+          <Ring label="Since last test" value={since} goal={MIN_CLASSES} done={since != null && since >= MIN_CLASSES} sub={since != null && since >= MIN_CLASSES ? 'Eligible to test' : s.last_test_date ? `Last test ${formatDate(s.last_test_date)}` : 'No test yet'} />
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 8 }}>
+          Last class: {last ? `${WD[new Date(last.date + 'T00:00:00').getDay()]} ${formatDate(last.date)}` : '—'}
+        </div>
+        {att == null ? (
+          <span style={{ color: 'var(--dp-ink-faint)', fontSize: 13 }}>…</span>
+        ) : att.length === 0 ? (
+          <span style={{ color: 'var(--dp-ink-faint)', fontSize: 13 }}>No classes recorded in the last year.</span>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {att.slice(0, 16).map((r, i) => {
+              const ok = ['present', 'double'].includes(r.status);
+              const col = ok ? ['var(--dp-success)', 'var(--dp-success-tint)'] : r.status === 'absent' ? ['var(--dp-danger)', 'var(--dp-danger-tint)'] : ['var(--dp-warning)', 'var(--dp-warning-tint)'];
+              return (
+                <span key={i} title={`${r.class_name} · ${r.status}`} style={{ fontSize: 13, color: col[0], background: col[1], borderRadius: 6, padding: '3px 9px' }}>
+                  {WD[new Date(r.date + 'T00:00:00').getDay()]} {r.date.slice(5).replace('-', '/')} · {r.status === 'present' ? 'here' : r.status}
+                </span>
+              );
+            })}
           </div>
         )}
-        <div style={card}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Family</h2>
-          <Row k="Parent / guardian">{s.guardian_name || '—'}</Row>
-          <Row k="Phone">{s.guardian_phone ? <a href={`tel:${s.guardian_phone}`}>{s.guardian_phone}</a> : '—'}</Row>
-          <Row k="Email">{s.guardian_email || '—'}</Row>
-          <Row k="Address">{s.address || '—'}</Row>
-          <Row k="Emergency">{[s.emergency_name, s.emergency_phone].filter(Boolean).join(' · ') || '—'}</Row>
-          {siblings.length > 0 && <Row k="Siblings">{siblings.map((x) => x.name).join(', ')}</Row>}
-          {family?.name && <Row k="Family account">{family.name}</Row>}
-          {isAdmin && s.customer_id && <Row k="Parent portal"><ParentInvite customerId={s.customer_id} /></Row>}
-        </div>
+        <MakeupList makeups={makeups} onOpen={() => (window.location.hash = `attendance/makeup/${s.id}`)} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
@@ -205,18 +348,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <Row k="Enrolled">{s.enroll_date ? formatDate(s.enroll_date) : '—'}</Row>
         </Box>
 
-        <Box title="Belt & attendance">
-          <Row k="Last test">{s.last_test_date ? formatDate(s.last_test_date) : '—'}</Row>
-          <Row k="Since last test">
-            {since == null ? '…' : (
-              <span style={{ color: since >= MIN_CLASSES ? 'var(--dp-success)' : 'var(--dp-ink)' }}>
-                <b>{since}</b> / {MIN_CLASSES} classes{since >= MIN_CLASSES ? ' — eligible' : ''}
-              </span>
-            )}
-          </Row>
-          <Row k="This month">{thisMonth == null ? '…' : `${thisMonth} class${thisMonth === 1 ? '' : 'es'}`}</Row>
-          <Row k="Last class">{last ? `${WD[new Date(last.date + 'T00:00:00').getDay()]} ${formatDate(last.date)}` : '—'}</Row>
-        </Box>
 
         <AwardsBox studentId={s.id} />
 
@@ -226,34 +357,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <Row k="Date of birth">{s.dob ? formatDate(s.dob) : '—'}</Row>
           {s.notes && <Row k="Notes"><span style={{ whiteSpace: 'pre-line' }}>{s.notes}</span></Row>}
         </Box>
-
-        {isAdmin && (
-          <Box title="Billing">
-            {s.billing_exempt ? (
-              <Row k="Plan">Staff — no invoices</Row>
-            ) : (
-              <>
-                <Row k="Plan">{s.plan || '1 Month'} · {s.tuition ? `${money(s.tuition)}${planMonths(s) > 1 ? ' / 3 months' : ' / month'} + GST` : 'tuition not set'}</Row>
-                <Row k="Pays by">{family?.payment_type === 'manual' ? 'Manual (debit / cash / e-transfer)' : 'Pre-authorized credit card'}</Row>
-                {s.customer_id && <Row k="Card"><FamilyCard customerId={s.customer_id} /></Row>}
-                <Row k="Next billing">{s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? formatDate(next) : '—'}</Row>
-                {s.family_discount && <Row k="Discount">Big family −20%</Row>}
-                {s.subsidy && (
-                  <Row k="Subsidy">
-                    {(s.subsidy_name || 'Subsidy').trim()}{s.subsidy_amount ? ` ${money(s.subsidy_amount)} per billing` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}
-                    {s.subsidy_status === 'pending' && <div style={{ color: 'var(--dp-warning)' }}>Waiting for approval{s.subsidy_applied_on ? ` — applied ${formatDate(s.subsidy_applied_on)}` : ''}</div>}
-                    {s.subsidy_status === 'denied' && <div style={{ color: 'var(--dp-danger)' }}>Not approved{s.subsidy_applied_on ? ` (applied ${formatDate(s.subsidy_applied_on)})` : ''}</div>}
-                    {s.subsidy_status === 'approved' && s.subsidy_applied_on && <div style={{ color: 'var(--dp-ink-soft)' }}>Approved — applied {formatDate(s.subsidy_applied_on)}</div>}
-                    {!s.subsidy_status && s.subsidy_applied_on && <div style={{ color: 'var(--dp-ink-soft)' }}>Applied {formatDate(s.subsidy_applied_on)}</div>}
-                    {Number(s.subsidy_total) > 0 && subUsed != null && <div style={{ color: 'var(--dp-success)' }}>{money(Math.max(Number(s.subsidy_total) - subUsed, 0))} left of the {money(s.subsidy_total)} grant</div>}
-                  </Row>
-                )}
-                {family?.credit > 0.004 && <Row k="Family credit">{money(family.credit)}</Row>}
-                {s.reregistration_fee_due && <Row k="Next invoice">+ $20 re-registration fee</Row>}
-              </>
-            )}
-          </Box>
-        )}
 
         {isAdmin && (
           <Box
@@ -306,23 +409,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
         )}
       </div>
 
-      {att && att.length > 0 && (
-        <div style={{ marginTop: 14, border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Recent attendance</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {att.slice(0, 16).map((r, i) => {
-              const ok = ['present', 'double'].includes(r.status);
-              const col = ok ? ['var(--dp-success)', 'var(--dp-success-tint)'] : r.status === 'absent' ? ['var(--dp-danger)', 'var(--dp-danger-tint)'] : ['var(--dp-warning)', 'var(--dp-warning-tint)'];
-              return (
-                <span key={i} title={`${r.class_name} · ${r.status}`} style={{ fontSize: 13, color: col[0], background: col[1], borderRadius: 6, padding: '3px 9px' }}>
-                  {WD[new Date(r.date + 'T00:00:00').getDay()]} {r.date.slice(5).replace('-', '/')} · {r.status === 'present' ? 'here' : r.status}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {actions && (
         <div style={{ marginTop: 14, border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Membership</h2>
@@ -372,6 +458,68 @@ function AwardsBox({ studentId }) {
         <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)', margin: '6px 0 0' }}>Given on Belt Testing → Awards. Not shown in the parent portal.</p>
       </div>
     </Box>
+  );
+}
+
+// Makeup classes from excused absences: open ones first (to book / booked),
+// then the latest used or expired ones.
+function MakeupList({ makeups, onOpen }) {
+  if (makeups == null) return null;
+  const today = todayISO();
+  const state = (m) => (m.status === 'completed' ? 'used' : m.status === 'reserved' ? 'booked' : m.expiration_date && m.expiration_date < today ? 'expired' : 'open');
+  const open = makeups.filter((m) => ['open', 'booked'].includes(state(m)));
+  const past = makeups.filter((m) => !['open', 'booked'].includes(state(m))).slice(0, 4);
+  const md = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' }) : '');
+  const tone = { open: ['var(--dp-warning)', 'var(--dp-warning-tint)'], booked: ['var(--dp-info)', 'var(--dp-canvas)'], used: ['var(--dp-success)', 'var(--dp-success-tint)'], expired: ['var(--dp-ink-faint)', 'var(--dp-canvas)'] };
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--dp-line)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, flex: 1 }}>
+          Makeup classes{open.length ? <span style={{ color: 'var(--dp-warning)', fontWeight: 600 }}> · {open.length} open</span> : ''}
+        </h3>
+        <button type="button" className="dp-btn" style={{ fontSize: 13 }} onClick={onOpen}><Pencil size={12} /> Edit makeups</button>
+      </div>
+      {open.length + past.length === 0 ? (
+        <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No makeup classes. They come from excused absences.</span>
+      ) : (
+        <div style={{ display: 'grid', gap: 4 }}>
+          {[...open, ...past].map((m) => {
+            const st = state(m);
+            return (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: tone[st][0], background: tone[st][1], border: '1px solid var(--dp-line)', borderRadius: 999, padding: '1px 8px', minWidth: 58, textAlign: 'center' }}>{st === 'open' ? 'To book' : st === 'booked' ? 'Booked' : st === 'used' ? 'Used' : 'Expired'}</span>
+                <span>Missed {md(m.absence_date)} · {m.class_name}</span>
+                <span style={{ color: 'var(--dp-ink-soft)' }}>
+                  {st === 'booked' ? `→ ${md(m.reservation_date)}${m.reservation_class_name && m.reservation_class_name !== m.class_name ? ` · ${m.reservation_class_name}` : ''}` : st === 'open' ? `use by ${md(m.expiration_date)}${m.conditional ? ' (after next payment)' : ''}` : st === 'used' && m.reservation_date ? `on ${md(m.reservation_date)}` : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Donut: classes done against what's expected for the period.
+function Ring({ label, value, goal, sub, done }) {
+  const size = 96, w = 9, rad = (size - w) / 2, circ = 2 * Math.PI * rad;
+  const v = value == null ? 0 : value;
+  const pct = goal ? Math.min(v / goal, 1) : 0;
+  const color = done || (goal && v >= goal) ? 'var(--dp-success)' : 'var(--dp-ink)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 210 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${label}: ${value ?? '—'}${goal ? ` of ${goal}` : ''}`}>
+        <circle cx={size / 2} cy={size / 2} r={rad} fill="none" stroke="var(--dp-line)" strokeWidth={w} />
+        {pct > 0 && <circle cx={size / 2} cy={size / 2} r={rad} fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" strokeDasharray={`${circ * pct} ${circ}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />}
+        <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 24, fontWeight: 700, fill: 'var(--dp-ink)', fontVariantNumeric: 'tabular-nums' }}>{value == null ? '…' : value}</text>
+        {goal ? <text x="50%" y="70%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 12, fill: 'var(--dp-ink-soft)' }}>of {goal}</text> : null}
+      </svg>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{label}</div>
+        {sub && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginTop: 2 }}>{sub}</div>}
+      </div>
+    </div>
   );
 }
 
@@ -485,7 +633,7 @@ function weekStreak(att) {
 
 // White → Black Belt 1st Dan as one bar; the current belt is outlined.
 const JOURNEY = BELTS.slice(0, BELTS.findIndex((b) => b.value === 'Black Belt 1st Dan') + 1);
-function BeltJourney({ s, since, tapes }) {
+function BeltJourney({ s, since, tapes, children }) {
   const i = Math.max(0, JOURNEY.findIndex((b) => b.value === (s.belt || 'White')));
   const done = i >= JOURNEY.length - 1 || BELTS.findIndex((b) => b.value === s.belt) >= JOURNEY.length - 1;
   const pct = done ? 100 : Math.round((i / (JOURNEY.length - 1)) * 100);
@@ -521,19 +669,7 @@ function BeltJourney({ s, since, tapes }) {
               <BeltWithTapes belt={b.value} tapes={tapes} width="100%" height={22} outline="2.5px solid var(--dp-ink)" />
             </div>
           ) : (
-            <div
-              key={b.value}
-              title={b.value}
-              style={{
-                flex: 1,
-                height: 22,
-                borderRadius: 4,
-                background: b.bg,
-                opacity: k < i ? 1 : 0.22,
-                border: `1px solid ${b.border}`,
-                boxSizing: 'border-box',
-              }}
-            />
+            <JourneyBelt key={b.value} belt={b.value} faded={k > i} />
           )
         )}
       </div>
@@ -546,6 +682,18 @@ function BeltJourney({ s, since, tapes }) {
           {hint.includes('more') ? `${hint} and ${first} is ready to test for ${next}.`.replace(' and ' + first, `, then ${first}`) : `${first} is ready to test for ${next}.`}
         </p>
       )}
+      {children && <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--dp-line)' }}>{children}</div>}
+    </div>
+  );
+}
+
+// One belt in the journey strip: the belt colour, and for stripe belts the
+// next colour as a stripe along the middle (like the real belt).
+function JourneyBelt({ belt, faded }) {
+  const p = beltPaint(belt);
+  return (
+    <div title={belt} style={{ flex: 1, height: 22, borderRadius: 4, background: p.fill, border: `1px solid ${p.edge}`, boxSizing: 'border-box', position: 'relative', overflow: 'hidden', opacity: faded ? 0.25 : 1 }}>
+      {p.stripe && <div style={{ position: 'absolute', left: 0, right: 0, top: '34%', height: '32%', background: p.stripe }} />}
     </div>
   );
 }

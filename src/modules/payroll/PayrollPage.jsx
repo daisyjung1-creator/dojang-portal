@@ -10,6 +10,7 @@ import { money, formatDate, localISO } from '../../lib/invoiceUtils';
 import { PrintPortal } from '../invoices/InvoicePreview';
 import { calcPayslip, ytdTotals, ratesFor, PAY_TYPES, PAYROLL_RATES, parseHours } from '../../lib/payroll';
 import PayslipDocument from './PayslipDocument';
+import { loadPayHours, fmtHours } from '../../lib/clockPayHours';
 import { queueEmail } from '../invoices/api';
 import { confirmSend } from '../../components/ConfirmSend';
 
@@ -243,8 +244,19 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
   const [sendEmail, setSendEmail] = useState(true);
   const active = employees.filter((e) => e.active !== false);
 
-  // Hours are typed in (the clock-in app's times include late log-outs that
-  // aren't paid). Everyone with an hourly rate starts ticked.
+  // Paid hours from Staff Clock → Pay Hours (clock times trimmed to the
+  // schedule) for staff linked to a Staff Clock name. null = still loading.
+  const [clock, setClock] = useState(null);
+  useEffect(() => {
+    let live = true;
+    setClock(null);
+    loadPayHours(from, to).then((d) => live && setClock(d)).catch(() => live && setClock({}));
+    return () => { live = false; };
+  }, [from]);
+  const clockMins = (e) => (e.attendance_employee_id && clock ? clock[e.attendance_employee_id]?.total ?? 0 : null);
+
+  // Hours start from Staff Clock's Pay Hours and can still be typed over.
+  // Everyone with an hourly rate starts ticked.
   useEffect(() => {
     setRows(() => {
       const next = {};
@@ -268,7 +280,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
         }
         next[e.id] = {
           include: !!e.hourly_rate,
-          hours: '',
+          hours: clockMins(e) ? fmtHours(clockMins(e)) : '',
           rate: e.hourly_rate ?? '',
           overtime_hours: 0,
           overtime_rate: e.hourly_rate ? Math.round(e.hourly_rate * 150) / 100 : 0,
@@ -282,7 +294,7 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
       });
       return next;
     });
-  }, [employees, payDate, slips.length]);
+  }, [employees, payDate, slips.length, clock]);
 
   const calc = (e) => {
     const r = rows[e.id];
@@ -410,7 +422,12 @@ function RunPayroll({ employees, slips, onSaved, onError }) {
                         </div>
                       </td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(78)} inputMode="decimal" placeholder="0 or h:mm" title="Hours as a number (36.52) or hours:minutes (36:31)" value={r?.hours ?? ''} onChange={(ev) => set(e.id, 'hours', ev.target.value)} />
-                        {String(r?.hours ?? '').includes(':') && <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>= {parseHours(r.hours).toFixed(3)} h</div>}</td>
+                        {String(r?.hours ?? '').includes(':') && <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>= {parseHours(r.hours).toFixed(3)} h</div>}
+                        {clockMins(e) != null && (
+                          Math.abs(parseHours(r?.hours) * 60 - clockMins(e)) < 0.5
+                            ? <div style={{ fontSize: 12, color: 'var(--dp-success)' }}>From Staff Clock</div>
+                            : <button className="dp-btn" style={{ fontSize: 12, padding: '2px 6px', marginTop: 3 }} title="Paid hours from Staff Clock → Pay Hours" onClick={() => set(e.id, 'hours', fmtHours(clockMins(e)))}>Staff Clock: {fmtHours(clockMins(e))}</button>
+                        )}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(62)} type="number" step="0.01" value={r?.rate ?? ''} onChange={(ev) => set(e.id, 'rate', ev.target.value)} /></td>
                       <td style={{ textAlign: 'right' }}>{c ? money(c.vacation_pay) : ''}</td>
                       <td style={{ textAlign: 'right' }}><input className="dp-input" style={inp(70)} type="number" step="0.01" value={r?.bonus ?? ''} onChange={(ev) => set(e.id, 'bonus', ev.target.value)} /></td>
@@ -678,6 +695,10 @@ function EmployeeModal({ employee, onClose, onSaved }) {
   const [f, setF] = useState(employee);
   const [err, setErr] = useState('');
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const [clockStaff, setClockStaff] = useState([]);
+  useEffect(() => {
+    supabase.from('staff_clock_employees').select('id, name').order('name').then(({ data }) => setClockStaff(data || []));
+  }, []);
   async function save() {
     if (!f.name?.trim()) return setErr('Name is required.');
     const row = {
@@ -691,6 +712,7 @@ function EmployeeModal({ employee, onClose, onSaved }) {
       payment_method: f.payment_method || 'Cheque',
       hourly_rate: f.hourly_rate === '' || f.hourly_rate == null ? null : Number(f.hourly_rate),
       vacation_pct: f.vacation_pct === '' || f.vacation_pct == null ? null : Number(f.vacation_pct),
+      attendance_employee_id: f.attendance_employee_id || null,
       active: f.active !== false,
     };
     const { error } = f.id ? await supabase.from('payroll_employees').update(row).eq('id', f.id) : await supabase.from('payroll_employees').insert(row);
@@ -710,6 +732,12 @@ function EmployeeModal({ employee, onClose, onSaved }) {
     >
       {err && <p style={{ color: 'var(--dp-danger)', fontSize: 13 }}>{err}</p>}
       <Field label="Name (as on the payslip)" required><input className="dp-input" style={{ width: '100%' }} value={f.name || ''} onChange={(e) => set('name', e.target.value)} /></Field>
+      <Field label="Staff Clock name (hours come from Pay Hours)">
+        <select className="dp-select" style={{ width: '100%' }} value={f.attendance_employee_id || ''} onChange={(e) => set('attendance_employee_id', e.target.value)}>
+          <option value="">Not linked — type hours by hand</option>
+          {clockStaff.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </Field>
       <div style={styles.formRow}>
         <Field label="Hourly rate ($)"><input className="dp-input" style={{ width: '100%' }} type="number" step="0.01" value={f.hourly_rate ?? ''} onChange={(e) => set('hourly_rate', e.target.value)} /></Field>
         <Field label="Vacation pay %"><input className="dp-input" style={{ width: '100%' }} type="number" step="0.01" placeholder="4" value={f.vacation_pct ?? ''} onChange={(e) => set('vacation_pct', e.target.value)} /></Field>

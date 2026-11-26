@@ -9,7 +9,10 @@ import StatementModal from './StatementModal';
 import YearReceiptsModal from './YearReceiptsModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, downloadCSV, localISO } from '../../lib/invoiceUtils';
-import { loadCustomers, fetchAll } from './api';
+import { loadCustomers, loadSettings, fetchAll } from './api';
+import { isBillable, onHold, tuitionLines } from '../../lib/tuitionBilling';
+import { nextDueDate, todayISO } from '../../lib/billingDates';
+import { calcTotals } from '../../lib/invoiceUtils';
 import { CardLinkButton } from './CardLink';
 import CardWallet from '../../components/CardWallet';
 import { StatusPill } from './InvoicesPage';
@@ -33,10 +36,13 @@ function emptyForm() {
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
   const [credits, setCredits] = useState({});
+  const [lastPaid, setLastPaid] = useState({}); // customer_id → { date, amount }
+  const [settings, setSettings] = useState({});
   const [balances, setBalances] = useState({});
   const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [payFilter, setPayFilter] = useState(''); // '', 'manual', 'card', 'nocard'
   const [onlyOwing, setOnlyOwing] = useState(false);
   const [modal, setModal] = useState(null); // {form, id, studentIds}
   const [statementFor, setStatementFor] = useState(null);
@@ -51,12 +57,25 @@ export default function CustomersPage() {
   }, []);
 
   async function loadAll() {
-    const [c, { data: b }, { data: s }, { data: cr }] = await Promise.all([
+    const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
+    const [c, { data: b }, { data: s }, { data: cr }, st, { data: pays }] = await Promise.all([
       loadCustomers(),
       fetchAll(() => supabase.from('customer_balances').select('*')),
-      supabase.from('students').select('id, name, guardian_name, guardian_email, guardian_phone, address, customer_id, status').order('name'),
+      supabase.from('students').select('*').order('name'),
       supabase.from('customer_credit').select('customer_id, credit').neq('credit', 0),
+      loadSettings(),
+      fetchAll(() => supabase.from('invoice_payments').select('customer_id, payment_date, amount').gte('payment_date', since).order('payment_date', { ascending: false })),
     ]);
+    // Most recent payment per family.
+    const lp = {};
+    (pays || []).forEach((p) => {
+      if (!p.customer_id || Number(p.amount) <= 0) return;
+      const cur = lp[p.customer_id];
+      if (!cur) lp[p.customer_id] = { date: p.payment_date, amount: Number(p.amount) };
+      else if (cur.date === p.payment_date) cur.amount += Number(p.amount);
+    });
+    setLastPaid(lp);
+    setSettings(st || {});
     setCredits(Object.fromEntries((cr || []).map((r) => [r.customer_id, Number(r.credit)])));
     setCustomers(c);
     setBalances(Object.fromEntries((b || []).map((r) => [r.customer_id, r])));
@@ -79,16 +98,46 @@ export default function CustomersPage() {
     return m;
   }, [students]);
 
+  // Next tuition billing per family: the earliest upcoming billing date of its
+  // students, and the estimated total (with GST) of everyone billed that day.
+  const nextBill = useMemo(() => {
+    const today = todayISO();
+    const out = {};
+    Object.entries(studentsByCustomer).forEach(([cid, kids]) => {
+      const dated = kids.filter(isBillable).map((k) => {
+        let d = nextDueDate(k, today);
+        for (let n = 0; n < 6 && d && onHold(k, d); n++) d = nextDueDate(k, d);
+        if (!d || (k.billing_end_date && d > k.billing_end_date)) return null;
+        return { k, d };
+      }).filter(Boolean);
+      if (!dated.length) return;
+      const first = dated.reduce((a, x) => (x.d < a ? x.d : a), dated[0].d);
+      const lines = dated.filter((x) => x.d === first).flatMap((x) => tuitionLines(x.k, first, settings));
+      out[cid] = { date: first, total: calcTotals(lines, settings.gst_rate ?? 5).total };
+    });
+    return out;
+  }, [studentsByCustomer, settings]);
+
   const filtered = useMemo(() => {
     const k = search.trim().toLowerCase();
     return customers.filter((c) => {
       if (!showInactive && c.active === false) return false;
       if (onlyOwing && !(Number(balances[c.id]?.balance) > 0)) return false;
+      if (payFilter && payKind(c).key !== payFilter && !(payFilter === 'card' && payKind(c).key === 'declined')) return false;
       if (!k) return true;
       const kids = (studentsByCustomer[c.id] || []).map((s) => s.name).join(' ');
       return [c.name, c.contact_name, c.email, c.phone, kids].some((v) => (v || '').toLowerCase().includes(k));
     });
-  }, [customers, search, showInactive, onlyOwing, balances, studentsByCustomer]);
+  }, [customers, search, showInactive, onlyOwing, payFilter, balances, studentsByCustomer]);
+  const payCounts = useMemo(() => {
+    const n = { manual: 0, card: 0, nocard: 0 };
+    customers.forEach((c) => {
+      if (c.active === false) return;
+      const k = payKind(c).key;
+      n[k === 'declined' ? 'card' : k] += 1;
+    });
+    return n;
+  }, [customers]);
 
   const totalOwing = Object.values(balances).reduce((s, b) => s + Number(b.balance || 0), 0);
 
@@ -251,6 +300,12 @@ export default function CustomersPage() {
           <Search size={15} color="var(--dp-ink-faint)" />
           <input style={{ border: 'none', outline: 'none', padding: '6px 0', fontSize: 14, flex: 1, fontFamily: 'inherit' }} placeholder="Name, email, phone, student…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <select className="dp-select" aria-label="How they pay" value={payFilter} onChange={(e) => setPayFilter(e.target.value)}>
+          <option value="">All payment types</option>
+          <option value="card">Card saved ({payCounts.card})</option>
+          <option value="nocard">Card — not saved yet ({payCounts.nocard})</option>
+          <option value="manual">Manual ({payCounts.manual})</option>
+        </select>
         <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={onlyOwing} onChange={(e) => setOnlyOwing(e.target.checked)} /> Owing only</label>
         <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show inactive</label>
       </div>
@@ -259,16 +314,15 @@ export default function CustomersPage() {
         {filtered.length === 0 ? (
           <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No customers yet. Add one, import your Express Invoice customer list, or click "From Students".</p>
         ) : (
+          <div style={{ overflowX: 'auto' }}>
           <table className="dp-table">
             <thead>
               <tr>
-                <th>Customer</th>
+                <th>Family</th>
+                <th>Payment</th>
+                <th>Next billing</th>
+                <th>Last payment</th>
                 <th style={{ textAlign: 'right' }}>Balance</th>
-                <th>Due Date</th>
-                <th>Last Invoice</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Students</th>
                 <th></th>
               </tr>
             </thead>
@@ -277,16 +331,32 @@ export default function CustomersPage() {
                 const bal = Number(balances[c.id]?.balance || 0);
                 return (
                   <tr key={c.id} className="dp-row" style={{ cursor: 'pointer', opacity: c.active === false ? 0.55 : 1 }} onClick={() => openEdit(c)}>
-                    <td style={{ fontWeight: 500 }}>{c.name}</td>
-                    <td style={{ textAlign: 'right', color: bal > 0 ? 'var(--dp-danger)' : 'var(--dp-ink-faint)' }}>
-                      {money(bal)}
-                      {credits[c.id] > 0.004 && <div style={{ fontSize: 12.5, color: 'var(--dp-success)' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
+                    <td style={{ maxWidth: 280 }}>
+                      <div style={{ fontWeight: 600 }}>{c.name}</div>
+                      <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginTop: 2 }}>{(studentsByCustomer[c.id] || []).filter((x) => (x.status || 'active') !== 'withdrawn').map((x) => x.name).join(', ') || 'No active students'}</div>
                     </td>
-                    <td>{bal > 0 ? balances[c.id]?.oldest_due_date : ''}</td>
-                    <td>{balances[c.id]?.last_invoice_number || ''}</td>
-                    <td>{c.phone}</td>
-                    <td>{c.email}</td>
-                    <td style={{ color: 'var(--dp-ink-soft)' }}>{(studentsByCustomer[c.id] || []).map((s) => s.name).join(', ')}</td>
+                    <td><PayChip c={c} /></td>
+                    <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {nextBill[c.id] ? (
+                        <>
+                          <div>{formatDate(nextBill[c.id].date)}</div>
+                          <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }} title="Estimated tuition with GST">≈ {money(nextBill[c.id].total)}</div>
+                        </>
+                      ) : <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {lastPaid[c.id] ? (
+                        <>
+                          <div>{formatDate(lastPaid[c.id].date)}</div>
+                          <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }}>{money(lastPaid[c.id].amount)}</div>
+                        </>
+                      ) : <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}
+                    </td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      <div style={{ color: bal > 0 ? 'var(--dp-danger)' : 'var(--dp-ink-faint)', fontWeight: bal > 0 ? 600 : 400 }}>{money(bal)}</div>
+                      {bal > 0 && balances[c.id]?.oldest_due_date && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }}>since {formatDate(balances[c.id].oldest_due_date)}</div>}
+                      {credits[c.id] > 0.004 && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-success)' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
+                    </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setStatementFor(c)}><FileText size={13} /> Statement</button>
                     </td>
@@ -295,6 +365,7 @@ export default function CustomersPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -440,3 +511,29 @@ export default function CustomersPage() {
   );
 }
 
+// How a family pays, at a glance: manual (debit/cash), a saved card that's
+// charged automatically, or pre-authorized card with no card saved yet.
+function payKind(c) {
+  if (c.payment_type === 'manual') return { key: 'manual', label: 'Manual' };
+  const last4 = c.card_last4 || c.rb_card_last4;
+  if (c.card_profile_code && c.card_declined_at) return { key: 'declined', label: `Declined${last4 ? ' ··' + last4 : ''}` };
+  if (c.card_profile_code) return { key: 'card', label: `Card${last4 ? ' ··' + last4 : ''}` };
+  if (c.rb_account_id) return { key: 'card', label: `TD RB${last4 ? ' ··' + last4 : ''}`, title: 'Card on TD Recurring Billing (old system)' };
+  return { key: 'nocard', label: 'Card · not saved' };
+}
+
+const PAY_CHIP = {
+  manual: { background: 'var(--dp-canvas)', color: 'var(--dp-ink-soft)', border: '1px solid var(--dp-line)' },
+  card: { background: 'var(--dp-success-tint)', color: 'var(--dp-success)', border: '1px solid transparent' },
+  declined: { background: '#FBEDEC', color: 'var(--dp-danger)', border: '1px solid transparent' },
+  nocard: { background: '#FBF3E2', color: 'var(--dp-warning)', border: '1px solid transparent' },
+};
+
+function PayChip({ c }) {
+  const k = payKind(c);
+  return (
+    <span title={k.title || (k.key === 'nocard' ? 'Pre-authorized card family, but no card is saved in the portal yet — send the card link' : undefined)} style={{ ...PAY_CHIP[k.key], display: 'inline-block', borderRadius: 999, padding: '2px 9px', fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap' }}>
+      {k.label}
+    </span>
+  );
+}

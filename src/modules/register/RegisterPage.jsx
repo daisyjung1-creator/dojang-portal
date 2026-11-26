@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Mail, Plus, X, Users } from 'lucide-react';
+import { Check, Mail, Plus, X, Users, Send } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
@@ -11,7 +11,8 @@ import WelcomeEmailModal from '../../components/WelcomeEmailModal';
 import { allClassNames } from '../../lib/classes';
 import { suggestedTuition } from '../students/StudentsPage';
 import CustomerPicker from '../invoices/CustomerPicker';
-import OnlineRegistrations, { kidName } from './OnlineRegistrations';
+import OnlineRegistrations, { kidName, JOIN_URL } from './OnlineRegistrations';
+import EmailComposeModal from '../../components/EmailComposeModal';
 import { REREGISTRATION_FEE } from '../../lib/tuitionBilling';
 
 // Parent / family details — entered once for all the children.
@@ -44,7 +45,7 @@ function emptyChild(copyFrom) {
   };
 }
 
-const sectionLabel = { fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--dp-ink-faint)', margin: '4px 0 10px' };
+const sectionLabel = { fontSize: 'var(--dp-text-title)', fontWeight: 700, color: 'var(--dp-ink)', margin: '0 0 10px' };
 
 // The family's inquiry (same email or phone) is marked Enrolled once they're in.
 const digits = (v) => String(v || '').replace(/\D/g, '').slice(-10);
@@ -67,6 +68,7 @@ export default function RegisterPage() {
   const [recent, setRecent] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [welcomeFor, setWelcomeFor] = useState(null); // array of students
+  const [formEmail, setFormEmail] = useState(null); // draft: email the online registration form
   // The online registration (from /join) currently loaded into the form.
   const [fromOnline, setFromOnline] = useState(null);
   const [onlineReload, setOnlineReload] = useState(0);
@@ -287,6 +289,35 @@ export default function RegisterPage() {
 
   const inp = { width: '100%' };
 
+  // Email the online registration form (/join) to a new family.
+  async function openFormEmail() {
+    const { data: st } = await supabase.from('invoice_settings').select('business_name').eq('id', 1).maybeSingle();
+    const business = st?.business_name || 'Champion Hankook Taekwondo';
+    const first = String(family.guardian_name || '').trim();
+    setFormEmail({
+      title: 'Email the registration form',
+      // Sent as a 'welcome'-type email so the dojang gets a copy (Bcc), like other family emails.
+      type: 'welcome',
+      payload: { kind: 'registration_form' },
+      to: family.guardian_email || '',
+      subject: `Registration form — ${business}`,
+      message: `Hello${first ? ' ' + first : ''},
+
+Thank you for choosing ${business}! Please fill in the student registration form online:
+
+${JOIN_URL}
+
+It takes about 10 minutes. You'll enter the student and parent details, choose the classes, read the membership terms and sign at the end. You can register brothers and sisters on the same form.
+
+Once we receive it, we'll confirm the classes and tuition and send you a welcome email.
+
+If you have any questions, just reply to this email.
+
+Best regards,
+Master Daisy`,
+    });
+  }
+
   return (
     <>
       <div style={styles.header}>
@@ -296,11 +327,21 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      <OnlineRegistrations onLoad={loadOnline} reloadKey={onlineReload} />
+      {/* Wide screens: the form on the left, online + recent registrations on the right. */}
+      <div className="dp-enroll-grid">
+      <div className="dp-ea-online">
+        <OnlineRegistrations onLoad={loadOnline} reloadKey={onlineReload} />
+      </div>
 
-      <div id="enroll-form" style={{ ...styles.card, padding: 20, marginBottom: 20, maxWidth: 680 }}>
+      <div id="enroll-form" className="dp-ea-form" style={{ ...styles.card, padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '0 0 16px', marginBottom: 16, borderBottom: '1px solid var(--dp-line)' }}>
+          <span style={{ flex: '1 1 220px', fontSize: 13, color: 'var(--dp-ink-soft)' }}>New family registering from home? Email them the online registration form.</span>
+          <button className="dp-btn" style={{ minHeight: 40 }} onClick={openFormEmail}>
+            <Send size={14} /> Email registration form
+          </button>
+        </div>
         {fromOnline && (
-          <div style={{ background: '#EAF1F7', border: '1px solid #C5D6E6', color: 'var(--dp-info)', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ background: 'var(--dp-canvas)', border: '1px solid var(--dp-line)', color: 'var(--dp-info)', borderRadius: 'var(--dp-radius-md)', padding: '10px 12px', fontSize: 13, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ flex: 1 }}>
               Online registration loaded: <b>{fromOnline.names}</b>. Check the classes, set the tuition, then Register.
               {fromOnline.family && <> Matched existing family <b>{fromOnline.family}</b> by email.</>}
@@ -310,13 +351,13 @@ export default function RegisterPage() {
           </div>
         )}
         {success && (
-          <div style={{ background: 'var(--dp-success-tint)', border: '1px solid var(--dp-success-tint)', color: 'var(--dp-success)', borderRadius: 6, padding: '8px 12px', fontSize: 13.5, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div role="status" style={{ background: 'var(--dp-success-tint)', border: '1px solid var(--dp-success-tint)', color: 'var(--dp-success)', borderRadius: 'var(--dp-radius-md)', padding: '10px 12px', fontSize: 13, marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{success}</span>
             <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => setSuccess('')}>Close</button>
           </div>
         )}
 
-        <div style={sectionLabel}>Parent / guardian</div>
+        <h2 style={sectionLabel}>Parent / guardian</h2>
         <Field label="Adding to a family that's already registered? (optional)">
           <CustomerPicker customers={customers} value={family.existing_customer_id} onChange={pickFamily} includeInactive={false} />
         </Field>
@@ -350,9 +391,9 @@ export default function RegisterPage() {
         </Field>
 
         {kids.map((k, i) => (
-          <div key={i} style={{ border: '1px solid #EDEAE0', borderRadius: 10, padding: '14px 14px 4px', margin: '16px 0 0', background: i ? '#FCFBF8' : '#fff' }}>
+          <div key={i} style={{ border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-lg)', padding: '14px 14px 4px', margin: '18px 0 0', background: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ ...sectionLabel, margin: 0 }}>{kids.length === 1 ? 'Student' : `Child ${i + 1}`}</div>
+              <h2 style={{ ...sectionLabel, margin: 0 }}>{kids.length === 1 ? 'Student' : `Child ${i + 1}`}</h2>
               {kids.length > 1 && (
                 <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => removeKid(i)}><X size={12} /> Remove</button>
               )}
@@ -395,7 +436,7 @@ export default function RegisterPage() {
               </Field>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 4 }}>Classes (pick all that apply)</span>
+              <span style={{ display: 'block', fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 6 }}>Classes (pick all that apply)</span>
               <ClassPicker value={k.class_name || ''} onChange={(v) => setKid(i, { class_name: v })} options={classes} />
             </div>
             <ClassDaysPicker classNames={k.class_name} perWeek={k.classes_per_week} value={k.class_days} onChange={(v) => setKid(i, { class_days: v })} />
@@ -459,56 +500,46 @@ export default function RegisterPage() {
           </div>
         ))}
 
-        <button className="dp-btn" style={{ marginTop: 12 }} onClick={addKid}>
-          <Plus size={14} /> Add a sibling
-        </button>
-        <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)', marginLeft: 10 }}>Same parent, phone, email and address — just the child’s own details.</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+          <button className="dp-btn" onClick={addKid}>
+            <Plus size={14} /> Add a sibling
+          </button>
+          <span style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }}>Same parent, phone, email and address — just the child’s own details.</span>
+        </div>
 
         {formError && <p style={{ color: 'var(--dp-danger)', fontSize: 13, margin: '12px 0 0' }}>{formError}</p>}
-        <div style={{ marginTop: 16 }}>
-          <button className="dp-btn dp-btn-primary" disabled={saving} onClick={submitRegistration}>
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--dp-line)' }}>
+          <button className="dp-btn dp-btn-primary" style={{ minHeight: 44, padding: '10px 20px' }} disabled={saving} onClick={submitRegistration}>
             {kids.length > 1 ? <Users size={15} /> : <Check size={15} />} {saving ? 'Saving…' : kids.length > 1 ? `Register ${kids.length} children` : 'Complete registration'}
           </button>
         </div>
       </div>
 
-      <h2 style={{ fontSize: 15, fontWeight: 500, margin: '0 0 8px' }}>Recently registered</h2>
-      <div style={styles.card}>
+      <div className="dp-ea-recent" style={{ ...styles.card, padding: 16 }}>
+        <h2 style={{ fontSize: 'var(--dp-text-title)', fontWeight: 700, margin: '0 0 6px' }}>Recently registered</h2>
         {recent.length === 0 ? (
-          <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No students yet.</p>
+          <p style={{ color: 'var(--dp-ink-soft)', fontSize: 13, margin: 0 }}>No students yet.</p>
         ) : (
-          <table className="dp-table">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Guardian Email</th>
-                <th>Enrolled</th>
-                <th>Welcome email</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map((w) => (
-                <tr key={w.id} className="dp-row">
-                  <td style={{ fontWeight: 500 }}>{w.name}</td>
-                  <td>{w.guardian_email || <span style={{ color: 'var(--dp-ink-faint)' }}>none</span>}</td>
-                  <td>{w.enroll_date}</td>
-                  <td>
-                    <span style={{ fontSize: 12.5, color: w.welcome_sent_at ? 'var(--dp-success)' : 'var(--dp-ink-soft)' }}>
-                      {w.welcome_sent_at ? 'Sent ' + new Date(w.welcome_sent_at).toLocaleDateString('en-CA') : 'Not sent'}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="dp-btn" style={{ padding: '4px 8px', fontSize: 12 }} disabled={!w.guardian_email} onClick={() => setWelcomeFor([w])}>
-                      <Mail size={13} /> {w.welcome_sent_at ? 'Send again' : 'Send'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          recent.map((w) => (
+            <div key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: '1px solid var(--dp-line)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.name}</div>
+                <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  Enrolled {w.enroll_date ? new Date(w.enroll_date + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                  {' · '}
+                  {w.welcome_sent_at ? <span style={{ color: 'var(--dp-success)' }}>Welcome sent {new Date(w.welcome_sent_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</span> : w.guardian_email ? 'Welcome not sent' : 'No email on file'}
+                </div>
+              </div>
+              <button className="dp-btn" style={{ flexShrink: 0 }} disabled={!w.guardian_email} title={w.guardian_email || 'Add a guardian email first'} onClick={() => setWelcomeFor([w])}>
+                <Mail size={14} /> {w.welcome_sent_at ? 'Resend' : 'Send'}
+              </button>
+            </div>
+          ))
         )}
       </div>
+      </div>
+
+      {formEmail && <EmailComposeModal draft={formEmail} onClose={() => setFormEmail(null)} onSent={() => { setFormEmail(null); setSuccess('Registration form emailed.'); }} />}
 
       {welcomeFor && (
         <WelcomeEmailModal

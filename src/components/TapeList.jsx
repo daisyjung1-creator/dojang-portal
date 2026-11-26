@@ -4,9 +4,8 @@ import { supabase } from '../supabaseClient';
 import { TAPES, TAPE_COUNT, hasTapes, setTape } from '../lib/tapes';
 import { formatDate } from '../lib/invoiceUtils';
 
-// The 7 curriculum tapes for a student's current belt, one row each with the
-// date it was earned. Tap a row to tick / untick it. (What each tape covers
-// will be added here later.)
+// The 7 curriculum tapes for a student's current belt as small tiles with the
+// date each was earned. Tap a tile to tick / untick it.
 export default function TapeList({ student, onChange, editable = true }) {
   const [rows, setRows] = useState(null); // tape -> earned_on
   const [busy, setBusy] = useState('');
@@ -42,13 +41,14 @@ export default function TapeList({ student, onChange, editable = true }) {
   return (
     <div data-testid="tape-list" data-count={earned}>
       <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 10 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, flex: 1 }}>Curriculum tapes on {belt}</h2>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, flex: 1 }}>Curriculum tapes on {belt}</h3>
         <span style={{ fontSize: 13, color: earned >= TAPE_COUNT ? 'var(--dp-success)' : 'var(--dp-ink-soft)', fontWeight: earned >= TAPE_COUNT ? 600 : 400 }}>{earned} of {TAPE_COUNT} earned</span>
       </div>
       {!rows ? (
         <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>Loading…</p>
       ) : (
-        <div style={{ display: 'grid', gap: 6 }}>
+        // Compact: 7 small tiles, the tape's colour as a strip on top. Tap to tick.
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))', gap: 6 }}>
           {TAPES.map((t) => {
             const on = !!rows[t.id];
             return (
@@ -58,41 +58,28 @@ export default function TapeList({ student, onChange, editable = true }) {
                 data-tape={t.id}
                 aria-pressed={on}
                 disabled={!editable}
+                title={on ? `${t.label} tape — earned ${formatDate(rows[t.id])}` : `${t.label} tape — not yet`}
                 onClick={() => toggle(t)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '10px 12px',
+                  position: 'relative',
+                  minHeight: 52,
+                  padding: '14px 8px 6px',
                   borderRadius: 8,
-                  border: `1px solid ${on ? '#CFE3D1' : '#E4E6DF'}`,
-                  background: on ? '#F1F7F1' : '#fff',
+                  border: `1px solid ${on ? 'var(--dp-success)' : 'var(--dp-line)'}`,
+                  background: on ? 'var(--dp-success-tint)' : '#fff',
                   cursor: editable ? 'pointer' : 'default',
                   fontFamily: 'inherit',
-                  opacity: busy === t.id ? 0.6 : 1,
+                  textAlign: 'center',
+                  overflow: 'hidden',
+                  opacity: busy === t.id ? 0.6 : on ? 1 : 0.85,
                 }}
               >
-                <span style={{ width: 6, alignSelf: 'stretch', minHeight: 30, borderRadius: 3, background: t.color, border: t.id === 'white' ? '1px solid #BDB9AC' : 'none' }} />
-                <span style={{ flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600, color: 'var(--dp-ink)' }}>{t.label} tape</span>
-                  <span style={{ display: 'block', fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>{on ? `Earned ${formatDate(rows[t.id])}` : editable ? 'Tap when earned' : 'Not yet'}</span>
+                <span style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 7, background: t.color, borderBottom: t.id === 'white' ? '1px solid var(--dp-line)' : 'none', opacity: on ? 1 : 0.35 }} />
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 13.5, fontWeight: 600, color: on ? 'var(--dp-success)' : 'var(--dp-ink-soft)' }}>
+                  {on && <Check size={14} aria-hidden="true" />}
+                  {t.label}
                 </span>
-                <span
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: '50%',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: on ? '#2E7D32' : 'transparent',
-                    border: on ? 'none' : '1.5px dashed #CFCBBE',
-                  }}
-                >
-                  {on && <Check size={15} color="#fff" />}
-                </span>
+                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--dp-ink-faint)', marginTop: 1 }}>{on ? formatDate(rows[t.id]).replace(/, \d{4}$/, '') : '—'}</span>
               </button>
             );
           })}

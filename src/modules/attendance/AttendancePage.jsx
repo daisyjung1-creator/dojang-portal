@@ -32,11 +32,21 @@ export default function AttendancePage() {
   const [payments, setPayments] = useState([]);
   const [packages, setPackages] = useState([]);
   const [settings, setSettings] = useState({});
-  const [view, setView] = useState('checkin');
+  // #attendance/history/<studentId> or #attendance/makeup/<studentId> (from a
+  // student's page) opens that view for that student.
+  const [deepLink] = useState(() => {
+    const m = /^#attendance\/(history|makeup)\/([^/?#]+)/.exec(window.location.hash);
+    return m ? { view: m[1], id: decodeURIComponent(m[2]) } : null;
+  });
+  const [view, setView] = useState(deepLink?.view || 'checkin');
+  const [makeupStudentId, setMakeupStudentId] = useState(deepLink?.view === 'makeup' ? deepLink.id : '');
+  useEffect(() => {
+    if (deepLink) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#attendance`);
+  }, []);
   const [checkinDate, setCheckinDate] = useState(todayISO());
   const [checkinClass, setCheckinClass] = useState('all');
   const [sortBy, setSortBy] = useState('class');
-  const [historyStudentId, setHistoryStudentId] = useState('');
+  const [historyStudentId, setHistoryStudentId] = useState(deepLink?.view === 'history' ? deepLink.id : '');
   const [statsFor, setStatsFor] = useState(null);
   const [contactFor, setContactFor] = useState(null);
   const [email, setEmail] = useState(null);
@@ -753,8 +763,14 @@ export default function AttendancePage() {
               <CalendarClock size={14} /> Report absence ahead
             </button>
           </div>
+          {makeupStudentId && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, fontSize: 13 }}>
+              Showing <b>{studentMap[makeupStudentId]?.name || 'one student'}</b>
+              <button className="dp-btn" style={{ padding: '3px 10px', fontSize: 12.5 }} onClick={() => setMakeupStudentId('')}>Show all</button>
+            </div>
+          )}
           <div style={styles.card}>
-            {makeupRecords.length === 0 ? (
+            {makeupRecords.filter((m) => !makeupStudentId || String(m.student_id) === String(makeupStudentId)).length === 0 ? (
               <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No makeup classes.</p>
             ) : (
               <table className="dp-table">
@@ -771,7 +787,7 @@ export default function AttendancePage() {
                 </thead>
                 <tbody>
                   {makeupRecords
-                    .slice()
+                    .filter((m) => !makeupStudentId || String(m.student_id) === String(makeupStudentId))
                     .sort((a, b) => (a.absence_date < b.absence_date ? 1 : -1))
                     .map((m) => {
                       const student = studentMap[m.student_id];
