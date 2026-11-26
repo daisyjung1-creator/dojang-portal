@@ -12,8 +12,9 @@ import { BELTS } from '../../lib/constants';
 import { todayISO, addDaysISO, billingAnchor, nextDueDate, planMonths } from '../../lib/billingDates';
 import { weeklyPlan, splitClasses, classColor } from '../../lib/classes';
 import { MIN_CLASSES, classesSince } from '../../lib/beltTesting';
-import { formatDate, money, calcTotals } from '../../lib/invoiceUtils';
-import { tuitionLines } from '../../lib/tuitionBilling';
+import { formatDate, money, calcTotals, round2 } from '../../lib/invoiceUtils';
+import { tuitionLines, isBillable, onHold as onHoldOn } from '../../lib/tuitionBilling';
+import { studentSummary } from '../../lib/attendanceStats';
 import { PATCHES } from '../../lib/testAwards';
 
 // Everything about one student on one screen: details, family, health,
@@ -91,14 +92,14 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
       setGstRate(rate);
       const ids = Array.from(new Set((ls || []).map((l) => l.invoice_id)));
       if (!ids.length) return setLastBill(null);
-      const { data: invs } = await supabase.from('invoice_summary').select('id, invoice_number, balance, voided').in('id', ids);
+      const { data: invs } = await supabase.from('invoice_summary').select('id, invoice_number, balance, total, voided').in('id', ids);
       const ok = new Map((invs || []).filter((i) => !i.voided).map((i) => [i.id, i]));
       const top = (ls || []).find((l) => ok.has(l.invoice_id));
       if (!live) return;
       if (!top) return setLastBill(null);
       const lines = ls.filter((l) => l.invoice_id === top.invoice_id);
       const inv = ok.get(top.invoice_id);
-      setLastBill({ cycle: top.cycle_start, total: calcTotals(lines, rate).total, balance: Number(inv.balance || 0), number: inv.invoice_number });
+      setLastBill({ cycle: top.cycle_start, total: calcTotals(lines, rate).total, balance: Number(inv.balance || 0), number: inv.invoice_number, invoiceTotal: Number(inv.total || 0) });
     })();
     return () => {
       live = false;
@@ -109,12 +110,16 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const plan = weeklyPlan(s, schedule);
   const age = ageOf(s.dob);
   const since = att ? classesSince(s, att) : null;
-  const month = todayISO().slice(0, 7);
-  const thisMonth = att ? att.filter((r) => r.date.startsWith(month) && ['present', 'double'].includes(r.status)).length : null;
   const last = att?.find((r) => ['present', 'double'].includes(r.status));
   const withdrawn = s.status === 'withdrawn';
   const next = billingAnchor(s) ? nextDueDate(s, todayISO()) : null;
-  const nextTotal = next && Number(s.tuition) > 0 && !s.billing_exempt ? calcTotals(tuitionLines(subUsed != null ? { ...s, _subsidyUsed: subUsed } : s, next), gstRate).total : null;
+  // Next billing: this student's lines (tuition, family discount, subsidy) + GST,
+  // and the family total when brothers/sisters are billed the same day.
+  const nextLines = next && Number(s.tuition) > 0 && !s.billing_exempt ? tuitionLines(subUsed != null ? { ...s, _subsidyUsed: subUsed } : s, next) : null;
+  const nextCalc = nextLines ? calcTotals(nextLines, gstRate) : null;
+  const sameDaySibs = next ? siblings.filter((x) => isBillable(x) && nextDueDate(x, todayISO()) === next && !onHoldOn(x, next)) : [];
+  const familyNext = nextCalc && sameDaySibs.length ? round2(nextCalc.total + sameDaySibs.reduce((n, x) => n + calcTotals(tuitionLines(x, next), gstRate).total, 0)) : null;
+  const attSum = att ? studentSummary(s, att) : null;
   const streak = att ? weekStreak(att) : 0;
   const card = { border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' };
 
@@ -224,6 +229,35 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
         </div>
       </div>
 
+      <div style={{ marginBottom: 14, border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Attendance</h2>
+        <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14 }}>
+          <Ring label="This month" value={attSum?.month.classes} goal={attSum?.month.expected} sub={attSum ? `${attSum.month.absent} absent · ${attSum.month.excused} excused` : ''} />
+          <Ring label="This billing cycle" value={attSum?.cycle?.classes} goal={attSum?.cycle?.expected} sub={attSum?.cycle ? `${formatDate(attSum.cycle.from).replace(/, \d{4}$/, '')} – ${formatDate(attSum.cycle.to).replace(/, \d{4}$/, '')}` : 'No billing date'} />
+          <Ring label="Since last test" value={since} goal={MIN_CLASSES} done={since != null && since >= MIN_CLASSES} sub={since != null && since >= MIN_CLASSES ? 'Eligible to test' : s.last_test_date ? `Last test ${formatDate(s.last_test_date)}` : 'No test yet'} />
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginBottom: 8 }}>
+          Last class: {last ? `${WD[new Date(last.date + 'T00:00:00').getDay()]} ${formatDate(last.date)}` : '—'}
+        </div>
+        {att == null ? (
+          <span style={{ color: 'var(--dp-ink-faint)', fontSize: 13 }}>…</span>
+        ) : att.length === 0 ? (
+          <span style={{ color: 'var(--dp-ink-faint)', fontSize: 13 }}>No classes recorded in the last year.</span>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {att.slice(0, 16).map((r, i) => {
+              const ok = ['present', 'double'].includes(r.status);
+              const col = ok ? ['var(--dp-success)', 'var(--dp-success-tint)'] : r.status === 'absent' ? ['var(--dp-danger)', 'var(--dp-danger-tint)'] : ['var(--dp-warning)', 'var(--dp-warning-tint)'];
+              return (
+                <span key={i} title={`${r.class_name} · ${r.status}`} style={{ fontSize: 13, color: col[0], background: col[1], borderRadius: 6, padding: '3px 9px' }}>
+                  {WD[new Date(r.date + 'T00:00:00').getDay()]} {r.date.slice(5).replace('-', '/')} · {r.status === 'present' ? 'here' : r.status}
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
         <Box title="Classes">
           <Row k="Classes">{splitClasses(s.class_name).join(', ') || '—'}</Row>
@@ -238,18 +272,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <Row k="Enrolled">{s.enroll_date ? formatDate(s.enroll_date) : '—'}</Row>
         </Box>
 
-        <Box title="Belt & attendance">
-          <Row k="Last test">{s.last_test_date ? formatDate(s.last_test_date) : '—'}</Row>
-          <Row k="Since last test">
-            {since == null ? '…' : (
-              <span style={{ color: since >= MIN_CLASSES ? 'var(--dp-success)' : 'var(--dp-ink)' }}>
-                <b>{since}</b> / {MIN_CLASSES} classes{since >= MIN_CLASSES ? ' — eligible' : ''}
-              </span>
-            )}
-          </Row>
-          <Row k="This month">{thisMonth == null ? '…' : `${thisMonth} class${thisMonth === 1 ? '' : 'es'}`}</Row>
-          <Row k="Last class">{last ? `${WD[new Date(last.date + 'T00:00:00').getDay()]} ${formatDate(last.date)}` : '—'}</Row>
-        </Box>
 
         <AwardsBox studentId={s.id} />
 
@@ -272,20 +294,38 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
                 <Row k="Next billing">
                   {s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? (
                     <>
-                      {formatDate(next)}
-                      {nextTotal != null && <span style={{ fontVariantNumeric: 'tabular-nums' }}> · <b style={{ fontWeight: 600 }}>{money(nextTotal)}</b> <span style={{ color: 'var(--dp-ink-soft)', fontSize: 12.5 }}>incl. GST (est.)</span></span>}
+                      <div>{formatDate(next)}{nextCalc && <> · <b style={{ fontWeight: 700 }}>{money(nextCalc.total)}</b></>}</div>
+                      {nextLines && (
+                        <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--dp-ink-soft)', fontVariantNumeric: 'tabular-nums' }}>
+                          {nextLines.map((l, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 8 }}>
+                              <span style={{ flex: 1 }}>{l.line_kind === 'tuition' ? 'Tuition' : l.line_kind === 'discount' ? 'Family discount' : l.line_kind === 'subsidy' ? (s.subsidy_name || 'Subsidy').trim() : 'Re-registration fee'}</span>
+                              <span>{Number(l.quantity * l.unit_price) < 0 ? '−' : ''}{money(Math.abs(l.quantity * l.unit_price))}</span>
+                            </div>
+                          ))}
+                          {nextCalc.gst > 0 && <div style={{ display: 'flex', gap: 8 }}><span style={{ flex: 1 }}>GST</span><span>{money(nextCalc.gst)}</span></div>}
+                          <div style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--dp-line)', marginTop: 3, paddingTop: 3, color: 'var(--dp-ink)', fontWeight: 600 }}><span style={{ flex: 1 }}>{s.name.split(' ')[0]} pays</span><span>{money(nextCalc.total)}</span></div>
+                          {familyNext != null && (
+                            <div style={{ display: 'flex', gap: 8, color: 'var(--dp-ink)', fontWeight: 600 }}><span style={{ flex: 1 }}>Family total ({sameDaySibs.length + 1} kids)</span><span>{money(familyNext)}</span></div>
+                          )}
+                        </div>
+                      )}
                     </>
                   ) : '—'}
                 </Row>
                 <Row k="Last billing">
                   {lastBill === undefined ? <span style={{ color: 'var(--dp-ink-faint)' }}>…</span> : !lastBill ? '—' : (
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {formatDate(lastBill.cycle)} · <b style={{ fontWeight: 600 }}>{money(lastBill.total)}</b>{' '}
+                      {formatDate(lastBill.cycle)} · <b style={{ fontWeight: 700 }}>{money(lastBill.total)}</b>{' '}
                       {lastBill.balance > 0.004 ? (
-                        <span style={{ color: 'var(--dp-danger)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Unpaid · #{lastBill.number}</span>
+                        <span style={{ color: 'var(--dp-danger)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Unpaid</span>
                       ) : (
-                        <span style={{ color: 'var(--dp-success)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Paid · #{lastBill.number}</span>
+                        <span style={{ color: 'var(--dp-success)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Paid</span>
                       )}
+                      {Math.abs(lastBill.invoiceTotal - lastBill.total) > 0.004 && (
+                        <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>Family invoice #{lastBill.number}: {money(lastBill.invoiceTotal)}</div>
+                      )}
+                      {Math.abs(lastBill.invoiceTotal - lastBill.total) <= 0.004 && <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}> · #{lastBill.number}</span>}
                     </span>
                   )}
                 </Row>
@@ -358,23 +398,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
         )}
       </div>
 
-      {att && att.length > 0 && (
-        <div style={{ marginTop: 14, border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Recent attendance</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {att.slice(0, 16).map((r, i) => {
-              const ok = ['present', 'double'].includes(r.status);
-              const col = ok ? ['var(--dp-success)', 'var(--dp-success-tint)'] : r.status === 'absent' ? ['var(--dp-danger)', 'var(--dp-danger-tint)'] : ['var(--dp-warning)', 'var(--dp-warning-tint)'];
-              return (
-                <span key={i} title={`${r.class_name} · ${r.status}`} style={{ fontSize: 13, color: col[0], background: col[1], borderRadius: 6, padding: '3px 9px' }}>
-                  {WD[new Date(r.date + 'T00:00:00').getDay()]} {r.date.slice(5).replace('-', '/')} · {r.status === 'present' ? 'here' : r.status}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {actions && (
         <div style={{ marginTop: 14, border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Membership</h2>
@@ -424,6 +447,28 @@ function AwardsBox({ studentId }) {
         <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)', margin: '6px 0 0' }}>Given on Belt Testing → Awards. Not shown in the parent portal.</p>
       </div>
     </Box>
+  );
+}
+
+// Donut: classes done against what's expected for the period.
+function Ring({ label, value, goal, sub, done }) {
+  const size = 96, w = 9, rad = (size - w) / 2, circ = 2 * Math.PI * rad;
+  const v = value == null ? 0 : value;
+  const pct = goal ? Math.min(v / goal, 1) : 0;
+  const color = done || (goal && v >= goal) ? 'var(--dp-success)' : 'var(--dp-ink)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 210 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${label}: ${value ?? '—'}${goal ? ` of ${goal}` : ''}`}>
+        <circle cx={size / 2} cy={size / 2} r={rad} fill="none" stroke="var(--dp-line)" strokeWidth={w} />
+        {pct > 0 && <circle cx={size / 2} cy={size / 2} r={rad} fill="none" stroke={color} strokeWidth={w} strokeLinecap="round" strokeDasharray={`${circ * pct} ${circ}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />}
+        <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 24, fontWeight: 700, fill: 'var(--dp-ink)', fontVariantNumeric: 'tabular-nums' }}>{value == null ? '…' : value}</text>
+        {goal ? <text x="50%" y="70%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 12, fill: 'var(--dp-ink-soft)' }}>of {goal}</text> : null}
+      </svg>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{label}</div>
+        {sub && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginTop: 2 }}>{sub}</div>}
+      </div>
+    </div>
   );
 }
 
