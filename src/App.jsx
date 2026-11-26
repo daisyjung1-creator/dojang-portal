@@ -29,8 +29,9 @@ import PayPage from './modules/join/PayPage';
 import CardPage from './modules/join/CardPage';
 import ParentApp from './modules/parent/ParentApp';
 import EventsPage from './modules/events/EventsPage';
+import StaffClockPage from './modules/staffclock/StaffClockPage';
 
-const TABS = ['home', 'today', 'tapes', 'students', 'events', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins'];
+const TABS = ['home', 'today', 'tapes', 'students', 'events', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins', 'clock'];
 const tabFromHash = () => {
   // #students/<id> = a student's page inside the Students tab.
   const t = decodeURIComponent(window.location.hash.slice(1)).split('/')[0];
@@ -94,6 +95,7 @@ export default function App() {
         {isAdmin && effectiveTab === 'testing' && <TestingPage />}
         {isAdmin && effectiveTab === 'events' && <EventsPage setActiveTab={setActiveTab} />}
         {!isAdmin && effectiveTab === 'tapes' && <ProgressOverview isAdmin={false} />}
+        {(isAdmin || role === 'staff') && effectiveTab === 'clock' && <StaffClockPage />}
         {isAdmin && effectiveTab === 'payroll' && <PayrollPage />}
         {isAdmin && effectiveTab === 'billing' && <BillingPage />}
         {isAdmin && effectiveTab === 'email' && <EmailPage />}

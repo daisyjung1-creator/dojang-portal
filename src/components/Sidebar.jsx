@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import BrandMark from './BrandMark';
-import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X, KeyRound, Sun, Ticket } from 'lucide-react';
+import { Users, ClipboardCheck, Wallet, FileText, Receipt, PhoneCall, CalendarPlus, UserPlus, LogOut, Contact, Clock, BarChart3, Settings, Package, Mail, Award, Banknote, LayoutDashboard, Menu, X, KeyRound, Sun, Ticket } from 'lucide-react';
 import { styles } from '../lib/uiStyles';
 import { useAuth } from '../auth/AuthContext';
 import { useBadges } from '../lib/badges';
@@ -26,6 +26,9 @@ export const ALL_TABS = [
   { id: 'payments', label: 'Payments', icon: Receipt, adminOnly: true, group: 'Money' },
   { id: 'customers', label: 'Customers', icon: Contact, adminOnly: true, group: 'Money' },
   { id: 'reports', label: 'Sales & GST', icon: BarChart3, adminOnly: true, group: 'Money' },
+  // Staff clock-in / schedule (moved in from the separate Team Hankook app).
+  // Staff logins see it as Time Clock, where each employee uses their PIN.
+  { id: 'clock', label: 'Staff Clock', staffLabel: 'Time Clock', icon: Clock, adminOnly: true, staff: true, staffRoles: ['staff'], group: 'Admin' },
   { id: 'payroll', label: 'Payroll', icon: Banknote, adminOnly: true, group: 'Admin' },
   { id: 'inventory', label: 'Inventory', icon: Package, adminOnly: true, group: 'Admin' },
   { id: 'invoice-settings', label: 'Invoice Settings', icon: Settings, adminOnly: true, group: 'Admin' },
@@ -33,9 +36,9 @@ export const ALL_TABS = [
 ];
 
 export default function Sidebar({ activeTab, setActiveTab }) {
-  const { isAdmin, signOut } = useAuth();
-  // Staff logins (e.g. the front-desk iPad) only get Attendance and Trials.
-  const tabs = ALL_TABS.filter((t) => (isAdmin ? !t.staffOnly : t.staff));
+  const { isAdmin, role, signOut } = useAuth();
+  // Staff logins (e.g. the front-desk iPad) only get their few tabs.
+  const tabs = ALL_TABS.filter((t) => (isAdmin ? !t.staffOnly : t.staff && (!t.staffRoles || t.staffRoles.includes(role))));
   // On a phone the sidebar becomes a top bar; the menu slides in from the left.
   const [open, setOpen] = useState(false);
   const current = ALL_TABS.find((t) => t.id === activeTab || t.also?.includes(activeTab));

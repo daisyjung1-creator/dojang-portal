@@ -11,7 +11,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 
 const ROLE = {
   admin: ['Admin — everything', 'var(--dp-ink-soft)', 'var(--dp-canvas)'],
-  staff: ['Staff — Today, Attendance, Trials', 'var(--dp-success)', 'var(--dp-success-tint)'],
+  staff: ['Staff — Today, Attendance, Trials, Time Clock', 'var(--dp-success)', 'var(--dp-success-tint)'],
   coach: ['Tournament coach', 'var(--dp-info)', 'var(--dp-canvas)'],
 };
 
