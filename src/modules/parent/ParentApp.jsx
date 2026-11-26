@@ -458,12 +458,18 @@ function Kids({ d, onAbsence, onTest }) {
 
             <Section title="Classes">
               {plan.length ? (
-                plan.map((c, i) => (
-                  <div key={i} style={{ fontSize: 16, display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 8, rowGap: 4, padding: '3px 0' }}>
-                    <span style={{ whiteSpace: 'nowrap' }}><b style={{ fontWeight: 600, display: 'inline-block', minWidth: 38 }}>{WD[c.weekday]}</b> {ftime(c.start_time)}–{ftime(c.end_time)}</span>
-                    <ClassChip name={c.class_name} size={14} />
-                  </div>
-                ))
+                // One grid for all rows so day, time and class chip line up in columns.
+                <div style={{ display: 'grid', gridTemplateColumns: 'max-content max-content minmax(0, 1fr)', columnGap: 10, rowGap: 8, alignItems: 'center', fontSize: 16 }}>
+                  {plan.map((c, i) => (
+                    <React.Fragment key={i}>
+                      <b style={{ fontWeight: 600 }}>{WD[c.weekday]}</b>
+                      <span style={{ whiteSpace: 'nowrap' }}>{ftime(c.start_time)}–{ftime(c.end_time)}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <ClassChip name={c.class_name} size={14} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle' }} />
+                      </span>
+                    </React.Fragment>
+                  ))}
+                </div>
               ) : (
                 <div style={{ fontSize: 16 }}>{splitClasses(s.class_name).join(', ') || '—'}</div>
               )}
