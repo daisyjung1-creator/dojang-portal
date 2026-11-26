@@ -105,8 +105,14 @@ export default function BillingPage() {
     (i) => isManual(custById[i.customer_id]) && Number(i.balance) > 0 && !i.reminded_at && i.customer_email && i.due_date && i.due_date > today && i.due_date <= addDaysISO(today, reminderLead)
   );
   const dueUnpaid = tuitionInvoices.filter((i) => Number(i.balance) > 0 && (i.due_date || i.invoice_date) <= today).sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
+  // Manual payers get their invoice about a week early: show it faded under Unpaid
+  // until the billing date, then it turns into a normal due row.
+  const upcomingUnpaid = tuitionInvoices
+    .filter((i) => isManual(custById[i.customer_id]) && Number(i.balance) > 0 && i.due_date && i.due_date > today)
+    .sort((a, b) => (a.due_date < b.due_date ? -1 : 1));
+  const unpaidList = [...dueUnpaid, ...upcomingUnpaid];
   useEffect(() => {
-    setPaySel(Object.fromEntries(dueUnpaid.map((i) => [i.id, true])));
+    setPaySel(Object.fromEntries([...dueUnpaid.map((i) => [i.id, true]), ...upcomingUnpaid.map((i) => [i.id, false])]));
     const ids = dueUnpaid.map((i) => i.id);
     if (ids.length) supabase.from('invoices').select('id, overdue_notice_at').in('id', ids).then(({ data }) => setNoticeAt(Object.fromEntries((data || []).map((x) => [x.id, x.overdue_notice_at]))));
   }, [tuitionInvoices]);
@@ -234,7 +240,7 @@ export default function BillingPage() {
   }
 
   async function recordPayments() {
-    const list = dueUnpaid.filter((i) => paySel[i.id]);
+    const list = unpaidList.filter((i) => paySel[i.id]);
     setBusy('pay');
     try {
       const done = await payInvoicesInFull(list, payMethod, today, emailReceipts);
@@ -360,12 +366,12 @@ export default function BillingPage() {
       </Panel>
 
       {/* 4 ── Unpaid invoices that are due */}
-      <Panel icon={<Wallet size={15} />} title={`Unpaid — record payments (${dueUnpaid.length})`}>
-        {dueUnpaid.length === 0 ? (
+      <Panel icon={<Wallet size={15} />} title={`Unpaid — record payments (${dueUnpaid.length})${upcomingUnpaid.length ? ` · ${upcomingUnpaid.length} sent, not due yet` : ''}`}>
+        {unpaidList.length === 0 ? (
           <Empty>No unpaid tuition invoices that are due.</Empty>
         ) : (
           <>
-            <InvoiceList list={dueUnpaid} onOpen={setPreviewId} sel={paySel} setSel={setPaySel} custById={custById} noticeAt={noticeAt} onNotice={setNotice} />
+            <InvoiceList list={unpaidList} today={today} onOpen={setPreviewId} sel={paySel} setSel={setPaySel} custById={custById} noticeAt={noticeAt} onNotice={setNotice} />
             <ActionBar>
               <select className="dp-select" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
                 {methods.map((m) => <option key={m}>{m}</option>)}
@@ -373,8 +379,8 @@ export default function BillingPage() {
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
                 <input type="checkbox" checked={emailReceipts} onChange={(e) => setEmailReceipts(e.target.checked)} /> Email receipts
               </label>
-              <button className="dp-btn dp-btn-primary" disabled={!dueUnpaid.some((i) => paySel[i.id]) || !!busy} onClick={recordPayments}>
-                <Wallet size={14} /> {busy === 'pay' ? 'Saving…' : `Mark ${dueUnpaid.filter((i) => paySel[i.id]).length} paid in full`}
+              <button className="dp-btn dp-btn-primary" disabled={!unpaidList.some((i) => paySel[i.id]) || !!busy} onClick={recordPayments}>
+                <Wallet size={14} /> {busy === 'pay' ? 'Saving…' : `Mark ${unpaidList.filter((i) => paySel[i.id]).length} paid in full`}
               </button>
             </ActionBar>
           </>
@@ -562,7 +568,7 @@ function ActionBar({ children }) {
   return <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end', padding: '10px 14px', borderTop: '1px solid #EDEAE0', flexWrap: 'wrap' }}>{children}</div>;
 }
 
-function InvoiceList({ list, onOpen, sel, setSel, custById, noticeAt, onNotice }) {
+function InvoiceList({ list, today, onOpen, sel, setSel, custById, noticeAt, onNotice }) {
   return (
     <table className="dp-table">
       <thead>
@@ -577,15 +583,19 @@ function InvoiceList({ list, onOpen, sel, setSel, custById, noticeAt, onNotice }
         </tr>
       </thead>
       <tbody>
-        {list.map((i) => (
-          <tr key={i.id} className="dp-row">
+        {list.map((i) => {
+          // Sent early, billing date not reached yet: faded until it's due.
+          const early = !!today && !!i.due_date && i.due_date > today;
+          return (
+          <tr key={i.id} className="dp-row" style={early ? { opacity: 0.5 } : undefined} title={early ? `Invoice sent — due ${formatDate(i.due_date)}` : undefined}>
             {sel && <td><input type="checkbox" checked={!!sel[i.id]} onChange={(e) => setSel({ ...sel, [i.id]: e.target.checked })} /></td>}
             <td>{formatDate(i.due_date || i.invoice_date)}</td>
             <td><button className="dp-btn" style={{ padding: '1px 6px', fontSize: 12.5 }} onClick={() => onOpen(i.id)}>#{i.invoice_number}</button></td>
             <td>{i.customer_name}{custById && custById[i.customer_id] && !isManual(custById[i.customer_id]) && tag('card', BLUE)}{!i.customer_email && tag('no email', GREY)}</td>
             <td style={{ textAlign: 'right' }}>{money(i.balance)}</td>
-            <td><StatusPill status={i.status} /></td>
-            {onNotice && (
+            <td>{early ? <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', whiteSpace: 'nowrap' }}>Not due yet</span> : <StatusPill status={i.status} />}</td>
+            {onNotice && early && <td></td>}
+            {onNotice && !early && (
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12.5 }} title="Email the family: payment not received / didn't go through (agreement 7.3)" onClick={() => onNotice(i)}>
                   <Mail size={12} /> {noticeAt?.[i.id] ? 'Again' : 'Notice'}
@@ -594,7 +604,8 @@ function InvoiceList({ list, onOpen, sel, setSel, custById, noticeAt, onNotice }
               </td>
             )}
           </tr>
-        ))}
+          );
+        })}
       </tbody>
     </table>
   );
