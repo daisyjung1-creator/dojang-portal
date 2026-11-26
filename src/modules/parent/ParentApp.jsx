@@ -658,7 +658,7 @@ function CalendarTab({ d }) {
           {d.next_test && (
             <div style={{ fontSize: 16, padding: '4px 0' }}>
               <b style={{ fontWeight: 600 }}>{fday(d.next_test.date)}</b> · Belt test (no regular classes)
-              <div style={{ fontSize: 13, color: C.faint }}>Planned date — it may change. We'll let you know if it does.</div>
+              <div style={{ fontSize: 13, color: C.faint }}>Tentative date. The test date is not confirmed until it is officially announced by the dojang.</div>
             </div>
           )}
           {events.map((e) => (
