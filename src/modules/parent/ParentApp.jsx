@@ -205,7 +205,7 @@ function ParentLogin({ notice }) {
           <button type="button" style={{ ...btn, border: 'none', color: C.soft }} onClick={forgot} disabled={busy}>Forgot password?</button>
         </div>
       </form>
-      <p style={{ fontSize: 16, color: C.faint, textAlign: 'center' }}>No account yet? Ask the dojang to send you a parent portal invite.</p>
+      <p style={{ fontSize: 14, color: C.soft, textAlign: 'center' }}>No account yet? Ask the dojang to send you a parent portal invite.</p>
     </Shell>
   );
 }
@@ -479,7 +479,7 @@ function Kids({ d, onAbsence, onTest }) {
               {hasTapes(s.belt) && (
                 <div style={{ marginBottom: 6 }}>
                   <TapeTracker student={s} earned={tapes} editable={false} size="lg" />
-                  <div style={{ fontSize: 16, color: C.faint, marginTop: 2 }}>Curriculum tapes for {s.belt} ({tapes.size} of {TAPE_COUNT})</div>
+                  <div style={{ fontSize: 13, color: C.soft, marginTop: 4 }}>Curriculum tapes for {s.belt} ({tapes.size} of {TAPE_COUNT})</div>
                 </div>
               )}
               <div style={{ fontSize: 16 }}>
@@ -493,11 +493,11 @@ function Kids({ d, onAbsence, onTest }) {
 
             <Section title="Recent classes">
               {recent.length === 0 ? (
-                <div style={{ fontSize: 16, color: C.faint }}>No classes recorded yet.</div>
+                <div style={{ fontSize: 14, color: C.soft }}>No classes recorded yet.</div>
               ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
                   {recent.map((a, i) => (
-                    <span key={i} title={a.class_name} style={{ fontSize: 13, padding: '4px 9px', borderRadius: 8, background: attLook(a.status).bg, color: attLook(a.status).c }}>
+                    <span key={i} title={a.class_name} style={{ fontSize: 13, lineHeight: 1.35, padding: '6px 10px', borderRadius: 8, background: attLook(a.status).bg, color: attLook(a.status).c }}>
                       {fday(a.date)} · {attLook(a.status).t}
                     </span>
                   ))}
@@ -547,7 +547,7 @@ function TestStatus({ d, s, n, tapes, onHold, onTest }) {
     return (
       <div style={{ fontSize: 13, color: C.soft }} data-testid="test-need">
         <b style={{ color: C.ink, fontWeight: 600 }}>{missing}</b> to be eligible for the belt test on {fdate(nt.date)}.
-        <div style={{ fontSize: 13, color: C.faint }}>To test: {MIN_CLASSES} classes since the last test{hasTapes(s.belt) ? ` and all ${TAPE_COUNT} curriculum tapes` : ''}.</div>
+        <div style={{ fontSize: 13, color: C.soft }}>To test: {MIN_CLASSES} classes since the last test{hasTapes(s.belt) ? ` and all ${TAPE_COUNT} curriculum tapes` : ''}.</div>
       </div>
     );
   const open = nt.date > today && !onHold;
@@ -626,7 +626,7 @@ function CalendarTab({ d }) {
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
       <div style={card} data-testid="calendars">
         <h2 style={h2}><CalendarDays size={17} /> Monthly calendar</h2>
-        {!d.calendars?.length && <p style={{ fontSize: 16, color: C.faint, margin: 0 }}>This month's calendar will be posted here.</p>}
+        {!d.calendars?.length && <p style={{ fontSize: 14, color: C.soft, margin: 0 }}>This month's calendar will be posted here.</p>}
         {(d.calendars || []).map((m) => (
           <div key={m.month} style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -644,27 +644,27 @@ function CalendarTab({ d }) {
       <div>
         <div style={card} data-testid="closures">
           <h2 style={h2}><CalendarX size={17} /> Dojang closed (next 3 months)</h2>
-          {!closed.length && <p style={{ fontSize: 16, color: C.faint, margin: 0 }}>No closures in the next 3 months.</p>}
+          {!closed.length && <p style={{ fontSize: 14, color: C.soft, margin: 0 }}>No closures in the next 3 months.</p>}
           {closed.map((c, i) => (
             <div key={i} style={{ display: 'flex', gap: 10, fontSize: 16, padding: '5px 0', borderTop: i ? `1px solid ${C.line}` : 'none' }}>
               <span style={{ width: 112, flexShrink: 0, fontWeight: 600 }}>{fday(c.date)}</span>
               <span style={{ color: C.soft }}>{c.class_name ? `No ${c.class_name} class` : 'No classes'}{c.reason ? ` — ${c.reason}` : ''}</span>
             </div>
           ))}
-          <p style={{ fontSize: 13, color: C.faint, margin: '8px 0 0' }}>Make-ups aren't given for statutory holidays. If a closure leaves your child below the guaranteed number of classes, the dojang will arrange make-ups.</p>
+          <p style={{ fontSize: 13, color: C.soft, margin: '8px 0 0' }}>Make-ups aren't given for statutory holidays. If a closure leaves your child below the guaranteed number of classes, the dojang will arrange make-ups.</p>
         </div>
         <div style={card}>
           <h2 style={h2}><Award size={17} /> Key dates</h2>
           {d.next_test && (
             <div style={{ fontSize: 16, padding: '4px 0' }}>
               <b style={{ fontWeight: 600 }}>{fday(d.next_test.date)}</b> · Belt test (no regular classes)
-              <div style={{ fontSize: 13, color: C.faint }}>Tentative — to be confirmed by official dojang announcement.</div>
+              <div style={{ fontSize: 13, color: C.soft }}>Tentative — to be confirmed by official dojang announcement.</div>
             </div>
           )}
           {events.map((e) => (
             <div key={e.id} style={{ fontSize: 16, padding: '4px 0' }}><b style={{ fontWeight: 600 }}>{fday(e.start_date)}</b> · {e.title}</div>
           ))}
-          {!d.next_test && !events.length && <p style={{ fontSize: 16, color: C.faint, margin: 0 }}>Nothing scheduled yet.</p>}
+          {!d.next_test && !events.length && <p style={{ fontSize: 14, color: C.soft, margin: 0 }}>Nothing scheduled yet.</p>}
         </div>
       </div>
     </div>
@@ -703,7 +703,7 @@ function Makeups({ list }) {
             <Check size={14} aria-hidden="true" style={{ verticalAlign: -2, marginRight: 4, color: C.green }} />Made up {m.reservation_date ? fday(m.reservation_date) : ''} for {fday(m.absence_date)}
           </div>
         ))}
-        {open.length > 0 && <div style={{ fontSize: 13, color: C.faint, marginTop: 3 }}>To book a make-up, ask at the front desk or email the dojang (Contact tab).</div>}
+        {open.length > 0 && <div style={{ fontSize: 13, color: C.soft, marginTop: 3 }}>To book a make-up, ask at the front desk or email the dojang (Contact tab).</div>}
       </div>
     </Section>
   );
@@ -731,16 +731,16 @@ function Billing({ d, open, onDoc }) {
           open.map((i) => (
             <Row key={i.id}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <b style={{ fontWeight: 600 }}>Invoice #{i.invoice_number}</b> <span style={{ color: C.soft }}>· {fdate(i.invoice_date)}</span>
-                {i.notes && <div style={{ fontSize: 16, color: C.faint }}>{i.notes}</div>}
-                <div style={{ fontSize: 13, color: (i.due_date || i.invoice_date) < today ? C.red : C.soft }}>Due {fdate(i.due_date || i.invoice_date)}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700 }}>{money(i.balance)}</div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                  <button style={{ ...btn, padding: '8px 14px', fontSize: 16 }} onClick={() => onDoc({ kind: 'invoice', invoice: i })}>View</button>
-                  {i.pay_token && <PLink style={{ ...primary, padding: '8px 14px', fontSize: 16 }} href={`/pay/${i.pay_token}`}>Pay now</PLink>}
+                <b style={{ fontWeight: 600 }}>Invoice #{i.invoice_number}</b>
+                <div style={{ fontSize: 13, color: C.soft, marginTop: 2 }}>
+                  {fdate(i.invoice_date)} · <span style={{ color: (i.due_date || i.invoice_date) < today ? C.red : C.soft }}>Due {fdate(i.due_date || i.invoice_date)}</span>
                 </div>
+                {i.notes && <div style={{ fontSize: 13, color: C.soft, marginTop: 2 }}>{i.notes}</div>}
+              </div>
+              <div style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{money(i.balance)}</div>
+              <div style={{ flexBasis: '100%', display: 'grid', gridTemplateColumns: i.pay_token ? '1fr 1fr' : '1fr', gap: 8, maxWidth: 400, marginLeft: 'auto' }}>
+                <button style={{ ...btn, fontSize: 16 }} onClick={() => onDoc({ kind: 'invoice', invoice: i })}>View</button>
+                {i.pay_token && <PLink style={{ ...primary, fontSize: 16 }} href={`/pay/${i.pay_token}`}>Pay now</PLink>}
               </div>
             </Row>
           ))
@@ -752,7 +752,7 @@ function Billing({ d, open, onDoc }) {
         <h2 style={h2}><CalendarDays size={17} /> Tuition</h2>
         {d.students.map((s) => (
           <Row key={s.id}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <b style={{ fontWeight: 600 }}>{s.name}</b>
               <div style={{ fontSize: 13, color: C.soft }}>
                 {s.plan === '3 Months' ? 'Every 3 months' : 'Monthly'}
@@ -760,13 +760,13 @@ function Billing({ d, open, onDoc }) {
                 {s.subsidy && s.subsidy_name ? ` · ${s.subsidy_name}${s.subsidy_end_date ? ` until ${fdate(s.subsidy_end_date)}` : ''}` : ''}
               </div>
             </div>
-            <div style={{ textAlign: 'right', fontSize: 16 }}>
+            <div style={{ textAlign: 'right', fontSize: 16, fontVariantNumeric: 'tabular-nums', alignSelf: 'flex-start' }}>
               {s.billing_exempt ? (
                 <span style={{ color: C.soft }}>No tuition</span>
               ) : (
                 <>
                   {s.tuition != null && <div style={{ fontWeight: 600 }}>{money(s.tuition)} <span style={{ fontWeight: 400, color: C.faint, fontSize: 13 }}>+ GST</span></div>}
-                  {(s.billing_start_date || s.enroll_date) && <div style={{ fontSize: 16, color: C.soft }}>Next: {fdate(nextDueDate(s, today))}</div>}
+                  {(s.billing_start_date || s.enroll_date) && <div style={{ fontSize: 13, color: C.soft, marginTop: 2 }}>Next: {fdate(nextDueDate(s, today))}</div>}
                 </>
               )}
             </div>
@@ -779,9 +779,9 @@ function Billing({ d, open, onDoc }) {
         {(d.cards || []).length ? (
           (d.cards || []).map((k, i) => (
             <Row key={i}>
-              <div style={{ flex: 1 }}>
-                {k.type || 'Card'} ending <b>{k.last4}</b>
-                {k.expiry ? <span style={{ color: C.soft }}> · expires {k.expiry}</span> : null}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <b style={{ fontWeight: 600 }}>{k.type || 'Card'} ending {k.last4}</b>
+                {k.expiry ? <div style={{ fontSize: 13, color: C.soft, marginTop: 2 }}>Expires {k.expiry}</div> : null}
               </div>
               {k.is_default && <span style={{ fontSize: 13, fontWeight: 600, color: C.green, background: C.greenTint, borderRadius: 999, padding: '3px 10px' }}>Used for tuition</span>}
             </Row>
@@ -790,9 +790,9 @@ function Billing({ d, open, onDoc }) {
           <p style={{ margin: '0 0 10px', fontSize: 16, color: C.soft }}>{f.payment_type === 'manual' ? 'You pay tuition by invoice (debit or cash).' : 'No card saved yet.'}</p>
         )}
         {f.card_link_token && (
-          <PLink style={{ ...btn, marginTop: 10 }} href={`/card/${f.card_link_token}`}>{(d.cards || []).length ? 'Add or change cards' : 'Save a card'}</PLink>
+          <PLink style={{ ...btn, marginTop: 12, width: '100%', maxWidth: 400 }} href={`/card/${f.card_link_token}`}>{(d.cards || []).length ? 'Add or change cards' : 'Save a card'}</PLink>
         )}
-        {(d.cards || []).length > 0 && <p style={{ fontSize: 16, color: C.faint, margin: '8px 0 0' }}>You can add cards and choose which one is used for tuition. A card can be removed only when you have another card saved.</p>}
+        {(d.cards || []).length > 0 && <p style={{ fontSize: 14, color: C.soft, margin: '8px 0 0' }}>You can add cards and choose which one is used for tuition. A card can be removed only when you have another card saved.</p>}
       </div>
 
       <DocList
@@ -867,7 +867,7 @@ function DocList({ testid, title, icon: Icon, noun, empty, items, dateOf, row, o
 }
 
 function Row({ children }) {
-  return <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderTop: `1px solid ${C.line}`, fontSize: 16 }}>{children}</div>;
+  return <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, rowGap: 10, padding: '12px 0', borderTop: `1px solid ${C.line}`, fontSize: 16 }}>{children}</div>;
 }
 
 // One receipt / invoice line: date and details on the left, amount and button on the right.
@@ -876,9 +876,9 @@ function DocRow({ date, sub, amount, action, onOpen }) {
     <Row>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600 }}>{date}</div>
-        <div style={{ fontSize: 14, color: C.soft, lineHeight: 1.35 }}>{sub}</div>
+        <div style={{ fontSize: 13, color: C.soft, lineHeight: 1.35, marginTop: 2 }}>{sub}</div>
       </div>
-      <div style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{amount}</div>
+      <div style={{ fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{amount}</div>
       <button style={{ ...btn, padding: '8px 12px', fontSize: 15, flexShrink: 0 }} onClick={onOpen}>{action}</button>
     </Row>
   );
@@ -920,8 +920,8 @@ function Events({ d, onSignUp }) {
           ) : (
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div style={{ fontWeight: 700 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</div>
-              {Number(e.price) > 0 && <div style={{ fontSize: 13, color: C.faint }}>per student{e.taxable ? ' + GST' : ''}</div>}
-              {e.allow_guests && <div style={{ fontSize: 13, color: C.faint }}>Guests {Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}</div>}
+              {Number(e.price) > 0 && <div style={{ fontSize: 13, color: C.soft }}>per student{e.taxable ? ' + GST' : ''}</div>}
+              {e.allow_guests && <div style={{ fontSize: 13, color: C.soft }}>Guests {Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}</div>}
             </div>
           )}
         </div>
@@ -1008,7 +1008,7 @@ function AbsenceModal({ d, student, onClose, onDone }) {
     <Modal title={`Absence — ${student.name}`} onClose={onClose} footer={<><button style={btn} onClick={onClose}>Cancel</button><button style={primary} onClick={send} disabled={busy || !date}>Send to the dojang</button></>}>
       <label style={label}>Which class will {first} miss?</label>
       <div data-testid="absence-calendar" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center' }}>
-        {WD.map((w) => <div key={w} style={{ fontSize: 13, color: C.faint, padding: '2px 0' }}>{w}</div>)}
+        {WD.map((w) => <div key={w} style={{ fontSize: 13, color: C.soft, padding: '2px 0' }}>{w}</div>)}
         {cells.map((iso) => {
           const ok = !!byDate[iso] && !told.has(iso);
           const on = iso === date;
@@ -1166,7 +1166,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
           <SignaturePad onChange={setSignature} />
           <label style={label}>Full name of parent / guardian *</label>
           <input style={input} value={signer} onChange={(e) => setSigner(e.target.value)} maxLength={120} aria-label="Full name of parent or guardian" />
-          <div style={{ fontSize: 13, color: C.faint, marginTop: 4 }}>Signed {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })} for {pickedKids.map((k) => k.name).join(', ')}.</div>
+          <div style={{ fontSize: 13, color: C.soft, marginTop: 4 }}>Signed {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })} for {pickedKids.map((k) => k.name).join(', ')}.</div>
         </div>
       )}
       {sub > 0 && <p style={{ fontSize: 13, color: C.soft }}>An invoice for {money(total)} (incl. GST) is added to your account. You can pay it right away or later under Billing.</p>}
@@ -1203,8 +1203,8 @@ function Contact({ d, onSent }) {
         <label style={label}>Message</label>
         <textarea style={{ ...input, minHeight: 130 }} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={4000} />
         {error && <p style={{ color: C.red, fontSize: 13 }}>{error}</p>}
-        <button style={{ ...primary, marginTop: 12 }} onClick={send} disabled={busy}>Send</button>
-        <p style={{ fontSize: 16, color: C.faint, marginBottom: 0 }}>We'll reply to {d.family?.email?.split(/[,;\s]+/)[0] || 'your email'}.</p>
+        <button style={{ ...primary, marginTop: 14, width: '100%' }} onClick={send} disabled={busy}>Send</button>
+        <p style={{ fontSize: 14, color: C.soft, marginBottom: 0 }}>We'll reply to {d.family?.email?.split(/[,;\s]+/)[0] || 'your email'}.</p>
       </div>
       <div style={{ ...card, fontSize: 16, color: C.soft }}>
         <div style={{ fontWeight: 600, color: C.ink }}>{b.business_name || 'Champion Hankook Taekwondo'}</div>
