@@ -19,6 +19,7 @@ import BeltProgressCard from './BeltProgressCard';
 import TapeSummaryCard from './TapeSummaryCard';
 import NotSeenCard from './NotSeenCard';
 import MeetingsCard from './MeetingsCard';
+import StaffNotesCard from './StaffNotesCard';
 import Modal from '../../components/Modal';
 import { guaranteeShortfalls } from '../../lib/guarantee';
 import ClassChip from '../../components/ClassChip';
@@ -610,6 +611,7 @@ export default function HomePage({ setActiveTab }) {
 
         {/* ── Right column ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <StaffNotesCard setActiveTab={setActiveTab} />
           <MeetingsCard settings={settings} today={today} onSaved={setSettings} />
           {headsUp.length > 0 && (
             <Card title="Coming up" icon={CircleCheck}>

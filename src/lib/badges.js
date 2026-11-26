@@ -8,7 +8,7 @@ const count = (r) => (r && !r.error ? r.count ?? (r.data || []).length : 0);
 
 export async function loadBadges() {
   const today = todayISO();
-  const [leads, toText, regs, declined, overdue, stock, todos] = await Promise.all([
+  const [leads, toText, regs, declined, overdue, stock, todos, staffNotes, swaps] = await Promise.all([
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'New Inquiry'),
     // Trials booked online with a phone only: confirm by text.
     supabase.from('tryouts').select('id', { count: 'exact', head: true }).eq('confirmation_sent', false).is('guardian_email', null).not('guardian_phone', 'is', null).gte('date', today).neq('status', 'Cancelled'),
@@ -17,11 +17,15 @@ export async function loadBadges() {
     supabase.from('invoice_summary').select('id, due_date, invoice_date, voided').gt('balance', 0).eq('voided', false),
     supabase.from('inventory_levels').select('*'),
     supabase.from('dashboard_notes').select('id, note_date, auto_key').eq('done', false),
+    // Staff Clock: unread notes from staff and shift swaps waiting for approval.
+    supabase.from('staff_clock_notes').select('id', { count: 'exact', head: true }).eq('author', 'employee').eq('read', false),
+    supabase.from('staff_clock_swaps').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
   ]);
   const late = (overdue.data || []).filter((i) => (i.due_date || i.invoice_date) < today).length;
   const due = (todos.data || []).filter((t) => t.auto_key || (t.note_date && t.note_date <= today)).length;
   return {
-    home: due,
+    home: due + count(staffNotes),
+    clock: count(staffNotes) + count(swaps),
     leads: count(leads) + count(toText),
     register: count(regs),
     billing: count(declined),

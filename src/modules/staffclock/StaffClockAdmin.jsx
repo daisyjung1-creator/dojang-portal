@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Users, Calendar, BarChart3, StickyNote, Plus, X, Trash2, ChevronLeft, ChevronRight, Pencil, Download, Settings, AlertTriangle, Bell, Repeat, History, Check as CheckIcon, Zap, Copy, Mail, Star, Eye, EyeOff, Banknote } from 'lucide-react'
+import { Users, Calendar, BarChart3, StickyNote, Plus, X, Trash2, ChevronLeft, ChevronRight, Pencil, Download, Settings, AlertTriangle, Bell, Repeat, History, Check as CheckIcon, Zap, Copy, Mail, Star, Eye, EyeOff, Banknote, Eraser, Ban, Paintbrush } from 'lucide-react'
 import PayHoursTab from './PayHoursTab'
 import * as XLSX from 'xlsx'
 import html2canvas from 'html2canvas'
 import { supabase, loadPins, savePin, emailScheduleImage } from './clockDb.js'
 import { styles } from '../../lib/uiStyles'
+import { refreshBadges } from '../../lib/badges'
 import { COLORS, inputStyle, navBtnStyle, globalFontImport } from './clockTheme.js'
 import { pad, todayStr, DAYS, minutesBetween, fmtHM, colorForIndex, getLateMinutes, getOvertimeMinutes, isoToLocalInput, localInputToIso, getMonthDates, formatTime12h, formatClockTime, parseLocalDate } from './clockUtils.js'
 
@@ -51,6 +52,7 @@ export default function StaffClockAdmin() {
   const markNotesRead = async (ids) => {
     if (!ids || ids.length === 0) return
     await supabase.from('notes').update({ read: true }).in('id', ids)
+    refreshBadges()
     refreshUnreadNotes()
   }
 
@@ -143,12 +145,12 @@ function TabBar({ tab, setTab, pendingCount, unreadNotesCount }) {
     { key: 'settings', label: 'Settings', icon: Settings },
   ]
   return (
-    <div style={{ display: 'flex', gap: 6, borderBottom: `1px solid ${COLORS.cardLine}`, overflowX: 'auto' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, borderBottom: `1px solid ${COLORS.cardLine}` }}>
       {items.map(({ key, label, icon: Icon, badge }) => {
         const active = tab === key
         return (
           <button key={key} onClick={() => setTab(key)} style={{
-            background: 'transparent', border: 'none', padding: '10px 14px', display: 'flex',
+            background: 'transparent', border: 'none', padding: '10px 10px', display: 'flex',
             alignItems: 'center', gap: 7, fontSize: 14, fontWeight: active ? 700 : 500,
             color: active ? COLORS.navy : COLORS.textFaint, borderBottom: active ? `2px solid ${COLORS.amber}` : '2px solid transparent',
             whiteSpace: 'nowrap', position: 'relative',
@@ -399,6 +401,15 @@ function EditedTag() {
   )
 }
 
+// "16:30" -> "4:30", "10:00" -> "10a" style short label for tight cells
+function shortTime(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number)
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? ':' + pad(m) : ''}${h < 12 ? 'a' : ''}`
+}
+const shiftLabel = (st, en) => `${shortTime(st)}–${shortTime(en)}`
+const DEFAULT_PRESETS = [['16:30', '19:30'], ['16:30', '18:30'], ['17:00', '19:30'], ['10:00', '13:30']]
+
 // ---------- Schedule (week / month) ----------
 function ScheduleTab({ employees, colorMap }) {
   const [view, setView] = useState('week')
@@ -425,6 +436,26 @@ function ScheduleTab({ employees, colorMap }) {
   const [events, setEvents] = useState([])
   const [eventModal, setEventModal] = useState(null) // { id?, date, type, title, note }
   const gridRef = useRef(null)
+  // Tap-to-fill: pick a brush (a shift time, Off or Erase), then tap cells.
+  const [brush, setBrush] = useState(null) // { kind: 'shift', start, end } | { kind: 'off' } | { kind: 'erase' }
+  const [presets, setPresets] = useState(DEFAULT_PRESETS)
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customStart, setCustomStart] = useState('16:30')
+  const [customEnd, setCustomEnd] = useState('19:30')
+  const [flash, setFlash] = useState('')
+
+  // Presets = the shift times used most in the last 3 months (plus the usual ones).
+  useEffect(() => {
+    (async () => {
+      const since = new Date(); since.setDate(since.getDate() - 90)
+      const { data } = await supabase.from('schedule').select('start_time, end_time').gte('date', todayStr(since))
+      const counts = {}
+      ;(data || []).forEach((r) => { if (r.end_time > r.start_time) { const k = `${r.start_time}|${r.end_time}`; counts[k] = (counts[k] || 0) + 1 } })
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => k.split('|'))
+      const seen = new Set()
+      setPresets([...top, ...DEFAULT_PRESETS].filter(([a, b]) => { const k = a + b; if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 7))
+    })()
+  }, [])
 
   const weekDates = useMemo(() => {
     const today = new Date()
@@ -453,6 +484,16 @@ function ScheduleTab({ employees, colorMap }) {
     setLoading(false)
   }
   useEffect(() => { refresh() }, [weekOffset, monthOffset, view, employees.length])
+  // Reload without the Loading… flash (after tap-to-fill, to pick up real ids).
+  const refreshQuiet = async () => {
+    const from = todayStr(columns[0]); const to = todayStr(columns[columns.length - 1])
+    const [a, b] = await Promise.all([
+      supabase.from('schedule').select('*').gte('date', from).lte('date', to),
+      supabase.from('time_off').select('*').gte('date', from).lte('date', to),
+    ])
+    if (a.data) setShifts(a.data)
+    if (b.data) setTimeOff(b.data)
+  }
 
   const shiftFor = (empId, dateStr) => shifts.find((s) => s.employee_id === empId && s.date === dateStr)
   const blockedFor = (empId, dateStr) => timeOff.find((t) => t.employee_id === empId && t.date === dateStr)
@@ -529,6 +570,42 @@ function ScheduleTab({ employees, colorMap }) {
     setEditing(null)
     refresh()
   }
+
+  const say = (t) => { setFlash(t); setTimeout(() => setFlash(''), 2500) }
+
+  const applyBrush = async (emp, dateStr) => {
+    if (isHoliday(dateStr)) return
+    const existing = shiftFor(emp.id, dateStr)
+    const blocked = blockedFor(emp.id, dateStr)
+    if (brush.kind === 'shift') {
+      if (blocked) { say(`${emp.name.split(' ')[0]} is off that day — use Erase first.`); return }
+      // Tapping a cell that already has this exact shift clears it.
+      if (existing && existing.start_time === brush.start && existing.end_time === brush.end) {
+        setShifts((list) => list.filter((x) => x.id !== existing.id))
+        await supabase.from('schedule').delete().eq('employee_id', emp.id).eq('date', dateStr)
+        return
+      }
+      const row = { employee_id: emp.id, date: dateStr, start_time: brush.start, end_time: brush.end, is_lead: existing?.is_lead || false }
+      setShifts((list) => [...list.filter((x) => !(x.employee_id === emp.id && x.date === dateStr)), { id: existing?.id || `tmp-${emp.id}-${dateStr}`, ...row }])
+      const { error } = await supabase.from('schedule').upsert(row, { onConflict: 'employee_id,date' })
+      if (error) { say('Could not save — please try again.'); refresh() }
+      else if (!existing) refreshQuiet()
+    } else if (brush.kind === 'off') {
+      if (blocked) return
+      setShifts((list) => list.filter((x) => !(x.employee_id === emp.id && x.date === dateStr)))
+      setTimeOff((list) => [...list, { id: `tmp-off-${emp.id}-${dateStr}`, employee_id: emp.id, date: dateStr, created_by: 'admin' }])
+      if (existing) await supabase.from('schedule').delete().eq('employee_id', emp.id).eq('date', dateStr)
+      await supabase.from('time_off').upsert({ employee_id: emp.id, date: dateStr, created_by: 'admin' }, { onConflict: 'employee_id,date' })
+      await logAction('mark_unavailable', emp.id, `${emp.name} marked unavailable on ${dateStr} by admin`)
+      refreshQuiet()
+    } else if (brush.kind === 'erase') {
+      setShifts((list) => list.filter((x) => !(x.employee_id === emp.id && x.date === dateStr)))
+      setTimeOff((list) => list.filter((x) => !(x.employee_id === emp.id && x.date === dateStr)))
+      if (existing) await supabase.from('schedule').delete().eq('employee_id', emp.id).eq('date', dateStr)
+      if (blocked) await supabase.from('time_off').delete().eq('employee_id', emp.id).eq('date', dateStr)
+    }
+  }
+  const tapCell = (emp, dateStr) => (brush ? applyBrush(emp, dateStr) : openEditor(emp, dateStr))
 
   const openQuickFill = () => {
     setQfEmployeeIds(employees.map((e) => e.id))
@@ -685,9 +762,46 @@ function ScheduleTab({ employees, colorMap }) {
       </div>
 
       {emailResult && <div style={{ fontSize: 13, fontWeight: 700, color: emailResult.startsWith('Sent') ? COLORS.teal : COLORS.rust, marginBottom: 14 }}>{emailResult}</div>}
-      <div style={{ fontSize: 12, color: COLORS.textFaint, marginBottom: 10 }}>Tap a date in the header row to add a holiday or event for that day.</div>
+      <div style={{ background: '#FFF', border: `1px solid ${COLORS.cardLine}`, borderRadius: 12, padding: '10px 12px', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: COLORS.textMuted, marginRight: 4 }}><Paintbrush size={14} /> Tap to fill</span>
+          {presets.map(([a, b]) => {
+            const on = brush?.kind === 'shift' && brush.start === a && brush.end === b
+            return (
+              <button key={a + b} onClick={() => setBrush(on ? null : { kind: 'shift', start: a, end: b })} className="mono" style={{
+                border: `1px solid ${on ? COLORS.navy : COLORS.cardLine}`, background: on ? COLORS.navy : COLORS.bg, color: on ? '#FFF' : COLORS.navy,
+                borderRadius: 999, padding: '6px 12px', fontSize: 13, fontWeight: 700,
+              }}>{shiftLabel(a, b)}</button>
+            )
+          })}
+          <button onClick={() => setCustomOpen(true)} style={{ border: `1px dashed ${COLORS.cardLine}`, background: 'transparent', color: COLORS.textMuted, borderRadius: 999, padding: '6px 12px', fontSize: 13, fontWeight: 700 }}>+ Other time</button>
+          <span style={{ width: 1, height: 22, background: COLORS.cardLine, margin: '0 4px' }} />
+          {[['off', 'Off', Ban], ['erase', 'Erase', Eraser]].map(([k, l, Icon]) => {
+            const on = brush?.kind === k
+            return (
+              <button key={k} onClick={() => setBrush(on ? null : { kind: k })} style={{
+                display: 'flex', alignItems: 'center', gap: 5, border: `1px solid ${on ? COLORS.rust : COLORS.cardLine}`,
+                background: on ? COLORS.rust : COLORS.bg, color: on ? '#FFF' : COLORS.textMuted, borderRadius: 999, padding: '6px 12px', fontSize: 13, fontWeight: 700,
+              }}><Icon size={14} /> {l}</button>
+            )
+          })}
+          {brush && <button onClick={() => setBrush(null)} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: COLORS.teal, fontSize: 13, fontWeight: 700 }}>Done</button>}
+        </div>
+        <div style={{ fontSize: 12, color: brush ? COLORS.navy : COLORS.textFaint, marginTop: 6 }}>
+          {brush
+            ? (brush.kind === 'shift' ? `Tap boxes to put ${shiftLabel(brush.start, brush.end)} there. Tap again to clear it.` : brush.kind === 'off' ? 'Tap boxes to mark the person off that day.' : 'Tap boxes to clear them.')
+            : 'Pick a time, then tap boxes to fill them — no pop-ups. Tap a date to add a holiday or event.'}
+          {flash && <span style={{ color: COLORS.rust, fontWeight: 700, marginLeft: 8 }}>{flash}</span>}
+        </div>
+      </div>
 
-      {loading ? <div style={{ color: COLORS.textFaint, textAlign: 'center', padding: 40 }}>Loading…</div> : (
+      {loading ? <div style={{ color: COLORS.textFaint, textAlign: 'center', padding: 40 }}>Loading…</div> : view === 'month' ? (
+        <MonthCalendar
+          gridRef={gridRef} dates={monthDates} employees={employees} colorMap={colorMap}
+          shiftFor={shiftFor} blockedFor={blockedFor} eventsFor={eventsFor}
+          onCell={tapCell} onDate={(dateStr) => { const ev = eventsFor(dateStr); ev.length ? editEventModal(ev[0]) : openEventModal(dateStr) }}
+        />
+      ) : (
         <div className="scrollbar-none" style={{ overflowX: 'auto' }}>
           <div ref={gridRef} style={{ minWidth: Math.max(700, columns.length * 64 + 110), background: COLORS.bg, padding: 4 }}>
             <div style={{ display: 'grid', gridTemplateColumns: `110px repeat(${columns.length}, 1fr)`, gap: 4, marginBottom: 4 }}>
@@ -733,14 +847,14 @@ function ScheduleTab({ employees, colorMap }) {
                   return (
                     <button
                       key={dateStr}
-                      onClick={() => openEditor(emp, dateStr)}
+                      onClick={() => tapCell(emp, dateStr)}
                       disabled={holiday}
                       style={{
                         minHeight: 48, borderRadius: 8,
                         border: holiday ? `1px solid ${COLORS.cardLine}` : blocked ? `1px solid ${COLORS.rust}55` : s ? 'none' : `1px dashed ${COLORS.inputLine}`,
                         background: holiday ? COLORS.bg : blocked ? `${COLORS.rust}14` : s ? `${colorMap[emp.id]}1A` : '#FFF',
                         color: holiday ? COLORS.textFaint : blocked ? COLORS.rust : s ? colorMap[emp.id] : '#D1D5DB',
-                        fontSize: 9, fontWeight: 700, padding: 3, lineHeight: 1.35,
+                        fontSize: 11, fontWeight: 700, padding: 3, lineHeight: 1.35,
                         cursor: holiday ? 'default' : 'pointer',
                       }}
                     >
@@ -767,15 +881,17 @@ function ScheduleTab({ employees, colorMap }) {
             </>
           ) : (
             <>
-              <button
-                onClick={() => { setStart('16:30'); setEnd('19:30') }}
-                style={{
-                  width: '100%', background: COLORS.bg, color: COLORS.teal, border: `1px solid ${COLORS.cardLine}`,
-                  borderRadius: 10, padding: 10, fontWeight: 700, fontSize: 13, marginBottom: 16,
-                }}
-              >
-                Use usual hours (4:30 – 7:30 PM)
-              </button>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                {presets.map(([a, b]) => {
+                  const on = start === a && end === b
+                  return (
+                    <button key={a + b} onClick={() => { setStart(a); setEnd(b) }} className="mono" style={{
+                      border: `1px solid ${on ? COLORS.navy : COLORS.cardLine}`, background: on ? COLORS.navy : COLORS.bg, color: on ? '#FFF' : COLORS.navy,
+                      borderRadius: 999, padding: '7px 12px', fontSize: 13, fontWeight: 700,
+                    }}>{shiftLabel(a, b)}</button>
+                  )
+                })}
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16 }}>
                 <label>
                   <div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 4 }}>Start</div>
@@ -846,6 +962,24 @@ function ScheduleTab({ employees, colorMap }) {
         </Modal>
       )}
 
+      {customOpen && (
+        <Modal title="Other time" onClose={() => setCustomOpen(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 18 }}>
+            <label><div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 4 }}>Start</div><TimeSelect12h value={customStart} onChange={setCustomStart} /></label>
+            <label><div style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 4 }}>End</div><TimeSelect12h value={customEnd} onChange={setCustomEnd} /></label>
+          </div>
+          <button
+            disabled={customEnd <= customStart}
+            onClick={() => {
+              setPresets((p) => (p.some(([a, b]) => a === customStart && b === customEnd) ? p : [...p, [customStart, customEnd]]))
+              setBrush({ kind: 'shift', start: customStart, end: customEnd })
+              setCustomOpen(false)
+            }}
+            style={{ width: '100%', background: customEnd > customStart ? COLORS.navy : '#D1D5DB', color: '#FFF', border: 'none', borderRadius: 10, padding: 12, fontWeight: 700 }}
+          >Use this time</button>
+        </Modal>
+      )}
+
       {qfOpen && (
         <Modal title="Quick Fill Schedule" onClose={() => setQfOpen(false)}>
           <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 4, fontWeight: 700 }}>Employees</div>
@@ -903,6 +1037,67 @@ function ScheduleTab({ employees, colorMap }) {
           }}>{qfApplying ? 'Applying…' : `Apply to ${qfEmployeeIds.length} employee${qfEmployeeIds.length === 1 ? '' : 's'}`}</button>
         </Modal>
       )}
+    </div>
+  )
+}
+
+// Month as a calendar (Mon–Sun rows) so the whole month fits on one screen.
+// Each day lists every employee: tap a name line to fill / edit, tap the date for events.
+function MonthCalendar({ gridRef, dates, employees, colorMap, shiftFor, blockedFor, eventsFor, onCell, onDate }) {
+  const lead = (dates[0].getDay() + 6) % 7
+  const cells = [...Array(lead).fill(null), ...dates]
+  while (cells.length % 7) cells.push(null)
+  const today = todayStr()
+  return (
+    <div ref={gridRef} style={{ background: COLORS.bg, padding: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+          <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: COLORS.textMuted, padding: '2px 0' }}>{d}</div>
+        ))}
+        {cells.map((d, i) => {
+          if (!d) return <div key={`b${i}`} />
+          const dateStr = todayStr(d)
+          const evs = eventsFor(dateStr)
+          const holiday = evs.find((e) => e.type === 'holiday')
+          const isToday = dateStr === today
+          return (
+            <div key={dateStr} style={{
+              background: holiday ? `${COLORS.rust}10` : '#FFF', border: `1px solid ${isToday ? COLORS.navy : COLORS.cardLine}`,
+              borderRadius: 8, padding: 3, minWidth: 0,
+            }}>
+              <button onClick={() => onDate(dateStr)} style={{ display: 'flex', alignItems: 'center', gap: 4, width: '100%', background: 'transparent', border: 'none', padding: '1px 2px', minWidth: 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: isToday ? '#FFF' : COLORS.navy, background: isToday ? COLORS.navy : 'transparent', borderRadius: 999, minWidth: 18, textAlign: 'center' }}>{d.getDate()}</span>
+                {evs[0] && <span style={{ fontSize: 10, fontWeight: 700, color: holiday ? COLORS.rust : COLORS.amber, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evs[0].title}</span>}
+              </button>
+              {!holiday && employees.map((emp) => {
+                const s = shiftFor(emp.id, dateStr)
+                const off = blockedFor(emp.id, dateStr)
+                return (
+                  <button key={emp.id} onClick={() => onCell(emp, dateStr)} title={emp.name} style={{
+                    display: 'flex', alignItems: 'center', gap: 4, width: '100%', border: 'none', borderRadius: 5, marginTop: 1,
+                    padding: '2px 3px', minHeight: 18, background: s ? `${colorMap[emp.id]}1A` : 'transparent', minWidth: 0,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: colorMap[emp.id], flexShrink: 0 }} />
+                    <span className="mono" style={{
+                      fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      color: off ? COLORS.rust : s ? colorMap[emp.id] : '#D1D5DB',
+                    }}>
+                      {off ? 'Off' : s ? `${s.is_lead ? '★' : ''}${shiftLabel(s.start_time, s.end_time)}` : emp.name.split(' ')[0]}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
+        {employees.map((emp) => (
+          <span key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: colorMap[emp.id] }} />{emp.name}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
