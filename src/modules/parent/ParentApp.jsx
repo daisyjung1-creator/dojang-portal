@@ -392,6 +392,16 @@ function BeltChip({ belt }) {
   );
 }
 
+// How each attendance mark reads for parents. Excused = told the dojang ahead
+// (gets a make-up); unexcused = absent without notice (no make-up).
+function attLook(st) {
+  if (st === 'present' || st === 'double') return { t: 'present', bg: C.greenTint, c: C.green };
+  if (st === 'private') return { t: 'private lesson', bg: C.greenTint, c: C.green };
+  if (st === 'excused') return { t: 'excused', bg: C.amberTint, c: C.amber };
+  if (st === 'vacation') return { t: 'vacation', bg: 'var(--dp-canvas)', c: C.soft };
+  return { t: 'unexcused', bg: C.redTint, c: C.red };
+}
+
 function Kids({ d, onAbsence, onTest }) {
   const today = todayISO();
   if (!d.students.length) return <div style={card}>No active students on this account.</div>;
@@ -449,8 +459,8 @@ function Kids({ d, onAbsence, onTest }) {
               ) : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                   {recent.map((a, i) => (
-                    <span key={i} title={a.class_name} style={{ fontSize: 13, padding: '4px 9px', borderRadius: 8, background: a.status === 'present' ? C.greenTint : C.redTint, color: a.status === 'present' ? C.green : C.red }}>
-                      {fday(a.date)} · {a.status === 'present' ? 'present' : 'absent'}
+                    <span key={i} title={a.class_name} style={{ fontSize: 13, padding: '4px 9px', borderRadius: 8, background: attLook(a.status).bg, color: attLook(a.status).c }}>
+                      {fday(a.date)} · {attLook(a.status).t}
                     </span>
                   ))}
                 </div>
