@@ -110,7 +110,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     });
   }
   const itemOptions = useMemo(
-    () => items.map((it) => ({ value: it.id, label: it.name, hint: it.description && it.description !== it.name ? it.description : '', keywords: it.description || '' })),
+    () => items.map((it) => ({ value: it.id, label: it.name, hint: [it.category, it.description && it.description !== it.name ? it.description : ''].filter(Boolean).join(' · '), keywords: `${it.description || ''} ${it.category || ''}` })),
     [items]
   );
   const linkedStudents = useMemo(() => students.filter((s) => form.customer_id && s.customer_id === form.customer_id && s.status !== 'withdrawn'), [students, form.customer_id]);
@@ -178,7 +178,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     return items
       .filter((it) => it.active !== false && (it.track_inventory || partsOf(it).length))
       .filter((it) => !q || (it.name + ' ' + (it.description || '')).toLowerCase().includes(q))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => (Number(a.sort_order) || 100) - (Number(b.sort_order) || 100) || a.name.localeCompare(b.name));
   }, [items, shopQ, itemById]);
   const totalStock = (it) => {
     const keys = Object.keys(stock).filter((k) => k.startsWith(it.id + '|'));
@@ -201,6 +201,23 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     setQuickAdd(null);
   }
 
+  // A description typed on a line becomes the item's description next time
+  // (without the size / set parts, which are added per sale).
+  async function rememberDescriptions() {
+    const latest = {};
+    effLines.forEach((l) => {
+      const it = l.fee_item_id && itemById[l.fee_item_id];
+      if (!it) return;
+      let d = String(l.description || '').trim();
+      if (l.size) d = d.replace(/ \(Size [^)]*\)$/, '');
+      if (l.components?.length) d = d.replace(/ \([^)]*\)$/, '');
+      if (d && d !== (it.description || it.name)) latest[it.id] = d;
+    });
+    for (const [id, description] of Object.entries(latest)) {
+      await supabase.from('fee_items').update({ description }).eq('id', id);
+    }
+  }
+
   async function submit(action) {
     setError('');
     if (!form.customer_name.trim()) return setError('Please choose a customer.');
@@ -221,6 +238,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
     setSaving(true);
     try {
       const invoice = await saveInvoice(form, effLines, isEdit ? editing.invoice.id : null);
+      await rememberDescriptions();
       const usedCredit = useFamCredit && famCredit > 0.004 ? await applyCredit(invoice.id) : 0;
       if (payNow && !isEdit && invoice.total - usedCredit > 0.004) {
         await savePayment({ invoice_id: invoice.id, customer_id: invoice.customer_id, payment_date: invoice.invoice_date, method: payMethod, amount: round2(invoice.total - usedCredit) });
@@ -412,12 +430,15 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
               <input className="dp-input" autoFocus style={{ flex: 1, fontSize: 13, padding: '5px 8px' }} placeholder="Find gear, uniform, belt…" value={shopQ} onChange={(e) => setShopQ(e.target.value)} />
               <button className="dp-btn" style={{ padding: 5 }} aria-label="Close" onClick={() => setShopOpen(false)}><X size={14} /></button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
-              {shopItems.map((it) => {
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+              {shopItems.map((it, idx) => {
                 const parts = partsOf(it);
                 const st = parts.length ? undefined : totalStock(it);
+                const head = idx === 0 || shopItems[idx - 1].category !== it.category;
                 return (
-                  <button key={it.id} onClick={() => addFromShop(it)} style={{ textAlign: 'left', background: '#fff', border: '1px solid var(--dp-line)', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <React.Fragment key={it.id}>
+                  {head && <div style={{ gridColumn: '1 / -1', fontSize: 12, fontWeight: 600, color: 'var(--dp-ink-soft)', margin: idx ? '6px 0 0' : 0 }}>{it.category || 'Other'}</div>}
+                  <button onClick={() => addFromShop(it)} style={{ textAlign: 'left', background: '#fff', border: '1px solid var(--dp-line)', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--dp-ink)' }}>{it.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--dp-ink-soft)' }}>
                       {money(it.default_amount || 0)}
@@ -425,6 +446,7 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
                       {st !== undefined && <span style={{ color: st > 0 ? 'var(--dp-ink-faint)' : 'var(--dp-danger)' }}> · {st} left</span>}
                     </div>
                   </button>
+                  </React.Fragment>
                 );
               })}
               {shopItems.length === 0 && <div style={{ fontSize: 13, color: 'var(--dp-ink-faint)', padding: 6 }}>No matching items.</div>}

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ITEM_CATEGORIES, categorySort } from '../../lib/itemCategories';
 import * as XLSX from 'xlsx';
 import { Check, Plus, Trash2, Upload } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
@@ -111,7 +112,8 @@ export default function InvoiceSettingsPage() {
     const before = Object.fromEntries((origItems.current || []).map((it) => [it.id, it]));
     const changed = [];
     for (const it of items) {
-      const row = { name: it.name, description: it.description || null, default_amount: Number(it.default_amount) || 0, taxable: !!it.taxable, active: it.active !== false, sort_order: Number(it.sort_order) || 100 };
+      const category = it.category || 'Other fees';
+      const row = { name: it.name, description: it.description || null, default_amount: Number(it.default_amount) || 0, taxable: !!it.taxable, active: it.active !== false, category, sort_order: categorySort(category) };
       if (!row.name.trim()) continue;
       if (it.id) {
         await supabase.from('fee_items').update(row).eq('id', it.id);
@@ -300,7 +302,7 @@ export default function InvoiceSettingsPage() {
           </div>
         </div>
         <table className="dp-table">
-          <thead><tr><th style={{ width: 200 }}>Item</th><th>Description</th><th style={{ width: 110 }}>Value</th><th style={{ width: 90 }}>Tax</th><th style={{ width: 70 }}>Active</th><th style={{ width: 84 }}>Order</th><th style={{ width: 40 }}></th></tr></thead>
+          <thead><tr><th style={{ width: 200 }}>Item</th><th>Description</th><th style={{ width: 110 }}>Value</th><th style={{ width: 90 }}>Tax</th><th style={{ width: 70 }}>Active</th><th style={{ width: 170 }}>Category</th><th style={{ width: 40 }}></th></tr></thead>
           <tbody>
             {items.map((it, i) => (!itemSearch.trim() || matchScore(itemSearch, it.name + ' ' + (it.description || '')) !== null) && (
               <tr key={it.id || 'new' + i}>
@@ -314,7 +316,11 @@ export default function InvoiceSettingsPage() {
                   </select>
                 </td>
                 <td style={{ textAlign: 'center' }}><input type="checkbox" checked={it.active !== false} onChange={(e) => setItem(i, { active: e.target.checked })} /></td>
-                <td><input type="number" className="dp-input" style={{ width: '100%', padding: 6, fontSize: 13 }} value={it.sort_order ?? 100} onChange={(e) => setItem(i, { sort_order: e.target.value })} /></td>
+                <td>
+                  <select className="dp-select" style={{ width: '100%', padding: 6, fontSize: 13 }} value={it.category || 'Other fees'} onChange={(e) => setItem(i, { category: e.target.value })}>
+                    {ITEM_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </td>
                 <td><button className="dp-btn dp-btn-danger" style={{ padding: 5 }} aria-label="Delete item" onClick={() => deleteItem(it, i)}><Trash2 size={13} /></button></td>
               </tr>
             ))}
