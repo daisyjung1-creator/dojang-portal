@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { LogOut, CalendarX, Users, PartyPopper, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download, CircleCheck } from 'lucide-react';
+import { LogOut, CalendarX, Users, Ticket, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download, CircleCheck } from 'lucide-react';
 import logo from '../../assets/logo.png';
 import { supabase } from '../../supabaseClient';
 import { useAuth, IDLE_FLAG, touch } from '../../auth/AuthContext';
@@ -361,7 +361,7 @@ function ParentPortal({ onSignOut, preview }) {
   const TABS = [
     ['kids', narrow ? 'Children' : 'My children', Users],
     ['billing', 'Billing', FileText],
-    ['events', 'Events', PartyPopper],
+    ['events', 'Events', Ticket],
     ['calendar', 'Calendar', CalendarDays],
     ['contact', 'Contact', Mail],
   ];
@@ -715,7 +715,6 @@ function Section({ title, children }) {
 function Billing({ d, open, onDoc }) {
   const f = d.family || {};
   const today = todayISO();
-  const paid = d.invoices.filter((i) => Number(i.balance) <= 0.004);
   return (
     <>
       <div style={card}>
@@ -811,24 +810,6 @@ function Billing({ d, open, onDoc }) {
         onDownload={(list, label) => onDoc({ kind: 'many', title: `Receipts — ${label}`, docs: list.map((p) => <ReceiptDoc key={p.id} d={d} payment={p} />) })}
       />
 
-      {paid.length > 0 && (
-        <DocList
-          testid="past-invoices"
-          title="Past invoices"
-          icon={FileText}
-          noun="invoice"
-          items={[...paid].sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : a.invoice_date > b.invoice_date ? -1 : Number(b.invoice_number) - Number(a.invoice_number)))}
-          dateOf={(i) => i.invoice_date}
-          row={(i) => (
-            <DocRow
-              key={i.id}
-              date={fdate(i.invoice_date)}
-              sub={`Invoice #${i.invoice_number} · Paid`}
-              amount={money(i.total)}
-              action="View"
-              onOpen={() => onDoc({ kind: 'invoice', invoice: i })}
-            />
-          )}
           onDownload={(list, label) => onDoc({ kind: 'many', title: `Invoices — ${label}`, docs: list.map((i) => <InvoiceDoc key={i.id} d={d} invoice={i} />) })}
         />
       )}
