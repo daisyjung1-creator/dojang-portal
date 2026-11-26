@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Users, Calendar, BarChart3, StickyNote, Plus, X, Trash2, ChevronLeft, ChevronRight, Pencil, Download, Settings, AlertTriangle, Bell, Repeat, History, Check as CheckIcon, Zap, Copy, Mail, Star, Eye, EyeOff } from 'lucide-react'
+import { Users, Calendar, BarChart3, StickyNote, Plus, X, Trash2, ChevronLeft, ChevronRight, Pencil, Download, Settings, AlertTriangle, Bell, Repeat, History, Check as CheckIcon, Zap, Copy, Mail, Star, Eye, EyeOff, Banknote } from 'lucide-react'
+import PayHoursTab from './PayHoursTab'
 import * as XLSX from 'xlsx'
 import html2canvas from 'html2canvas'
 import { supabase, loadPins, savePin, emailScheduleImage } from './clockDb.js'
@@ -81,6 +82,7 @@ export default function StaffClockAdmin() {
         )}
         {tab === 'schedule' && <ScheduleTab employees={employees} colorMap={colorMap} />}
         {tab === 'hours' && <HoursTab employees={employees} />}
+        {tab === 'payhours' && <PayHoursTab employees={employees} />}
         {tab === 'notes' && <NotesTab employees={employees} colorMap={colorMap} unreadNotes={unreadNotes} markNotesRead={markNotesRead} />}
         {tab === 'alerts' && <AlertsTab employees={employees} />}
         {tab === 'requests' && <RequestsTab employees={employees} />}
@@ -132,7 +134,8 @@ function TabBar({ tab, setTab, pendingCount, unreadNotesCount }) {
   const items = [
     { key: 'employees', label: 'Employees', icon: Users },
     { key: 'schedule', label: 'Schedule', icon: Calendar },
-    { key: 'hours', label: 'Hours', icon: BarChart3 },
+    { key: 'hours', label: 'Clock Hours', icon: BarChart3 },
+    { key: 'payhours', label: 'Pay Hours', icon: Banknote },
     { key: 'alerts', label: 'Alerts', icon: Bell },
     { key: 'requests', label: 'Requests', icon: Repeat, badge: pendingCount },
     { key: 'notes', label: 'Notes', icon: StickyNote, badge: unreadNotesCount },
