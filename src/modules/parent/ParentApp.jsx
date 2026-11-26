@@ -459,8 +459,9 @@ function Kids({ d, onAbsence, onTest }) {
             <Section title="Classes">
               {plan.length ? (
                 plan.map((c, i) => (
-                  <div key={i} style={{ fontSize: 16 }}>
-                    <b style={{ fontWeight: 600 }}>{WD[c.weekday]}</b> {ftime(c.start_time)}–{ftime(c.end_time)} <ClassChip name={c.class_name} size={14} style={{ marginLeft: 4 }} />
+                  <div key={i} style={{ fontSize: 16, display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 8, rowGap: 4, padding: '3px 0' }}>
+                    <span style={{ whiteSpace: 'nowrap' }}><b style={{ fontWeight: 600, display: 'inline-block', minWidth: 38 }}>{WD[c.weekday]}</b> {ftime(c.start_time)}–{ftime(c.end_time)}</span>
+                    <ClassChip name={c.class_name} size={14} />
                   </div>
                 ))
               ) : (
