@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import TapeList from '../../components/TapeList';
 import BeltWithTapes from '../../components/BeltWithTapes';
+import { beltPaint } from '../../components/BeltStrip';
 import { CardLinkButton } from '../invoices/CardLink';
 import CardWallet from '../../components/CardWallet';
 import { hasTapes, loadTapes, TAPE_COUNT } from '../../lib/tapes';
@@ -212,17 +213,14 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
         {isAdmin && <button className="dp-btn dp-btn-primary" onClick={onEdit}><Pencil size={14} /> Edit details</button>}
       </div>
 
-      <BeltJourney s={s} since={since} tapes={tapes} />
+      <BeltJourney s={s} since={since} tapes={tapes}>
+        {hasTapes(s.belt) && <TapeList student={s} onChange={setTapes} editable />}
+      </BeltJourney>
 
       {/* Tapes + family side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: hasTapes(s.belt) ? 'minmax(0, 2fr) minmax(260px, 1fr)' : 'minmax(0, 1fr)', gap: 14, marginBottom: 14 }} className="dp-student-split">
-        {hasTapes(s.belt) && (
-          <div style={card}>
-            <TapeList student={s} onChange={setTapes} editable />
-          </div>
-        )}
-        {/* Family + Billing: stacked beside the tapes; side by side when there are no tapes. */}
-        <div style={{ display: 'grid', gridTemplateColumns: hasTapes(s.belt) ? 'minmax(0, 1fr)' : 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, alignContent: 'start', minWidth: 0 }}>
+      <div style={{ marginBottom: 14 }} className="dp-student-split">
+        {/* Family + Billing side by side (stacked on narrow screens). */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, alignItems: 'start', minWidth: 0 }}>
           <div style={card}>
             <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Family</h2>
             <Row k="Parent / guardian">{s.guardian_name || '—'}</Row>
@@ -635,7 +633,7 @@ function weekStreak(att) {
 
 // White → Black Belt 1st Dan as one bar; the current belt is outlined.
 const JOURNEY = BELTS.slice(0, BELTS.findIndex((b) => b.value === 'Black Belt 1st Dan') + 1);
-function BeltJourney({ s, since, tapes }) {
+function BeltJourney({ s, since, tapes, children }) {
   const i = Math.max(0, JOURNEY.findIndex((b) => b.value === (s.belt || 'White')));
   const done = i >= JOURNEY.length - 1 || BELTS.findIndex((b) => b.value === s.belt) >= JOURNEY.length - 1;
   const pct = done ? 100 : Math.round((i / (JOURNEY.length - 1)) * 100);
@@ -671,19 +669,7 @@ function BeltJourney({ s, since, tapes }) {
               <BeltWithTapes belt={b.value} tapes={tapes} width="100%" height={22} outline="2.5px solid var(--dp-ink)" />
             </div>
           ) : (
-            <div
-              key={b.value}
-              title={b.value}
-              style={{
-                flex: 1,
-                height: 22,
-                borderRadius: 4,
-                background: b.bg,
-                opacity: k < i ? 1 : 0.22,
-                border: `1px solid ${b.border}`,
-                boxSizing: 'border-box',
-              }}
-            />
+            <JourneyBelt key={b.value} belt={b.value} faded={k > i} />
           )
         )}
       </div>
@@ -696,6 +682,18 @@ function BeltJourney({ s, since, tapes }) {
           {hint.includes('more') ? `${hint} and ${first} is ready to test for ${next}.`.replace(' and ' + first, `, then ${first}`) : `${first} is ready to test for ${next}.`}
         </p>
       )}
+      {children && <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--dp-line)' }}>{children}</div>}
+    </div>
+  );
+}
+
+// One belt in the journey strip: the belt colour, and for stripe belts the
+// next colour as a stripe along the middle (like the real belt).
+function JourneyBelt({ belt, faded }) {
+  const p = beltPaint(belt);
+  return (
+    <div title={belt} style={{ flex: 1, height: 22, borderRadius: 4, background: p.fill, border: `1px solid ${p.edge}`, boxSizing: 'border-box', position: 'relative', overflow: 'hidden', opacity: faded ? 0.25 : 1 }}>
+      {p.stripe && <div style={{ position: 'absolute', left: 0, right: 0, top: '34%', height: '32%', background: p.stripe }} />}
     </div>
   );
 }
