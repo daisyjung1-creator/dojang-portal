@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, RotateCcw, Plus } from 'lucide-react';
 import { loadPayHours, savePayDay, clearPayDay, fmtHours, parseHoursInput, EARLY_ALLOWANCE_MIN } from '../../lib/clockPayHours';
 import { formatTime12h, formatClockTime } from './clockUtils.js';
 
@@ -20,6 +20,8 @@ export default function PayHoursTab({ employees }) {
   const [openEmp, setOpenEmp] = useState(null);
   const [edit, setEdit] = useState(null); // { emp, date, value, note }
   const [err, setErr] = useState('');
+  const [adding, setAdding] = useState(null); // { date, value, note, emps: {id: true} }
+  const [addErr, setAddErr] = useState('');
 
   const load = async () => setData(await loadPayHours(from, to));
   useEffect(() => { setData(null); load(); }, [from]);
@@ -34,6 +36,29 @@ export default function PayHoursTab({ employees }) {
     setEdit(null); setErr('');
     load();
   }
+  // Time with no clock record or shift, e.g. an event, tournament or meeting.
+  // Adds to any time already paid that day.
+  async function saveAdd() {
+    const mins = parseHoursInput(adding.value);
+    const ids = Object.keys(adding.emps).filter((k) => adding.emps[k]);
+    if (!adding.date) return setAddErr('Pick a date.');
+    if (mins == null || mins <= 0 || mins > 1440) return setAddErr('Type hours like 2:30 or 2.5');
+    if (!ids.length) return setAddErr('Pick at least one person.');
+    const day = await loadPayHours(adding.date, adding.date);
+    for (const id of ids) {
+      const cur = day[id]?.days[0];
+      const total = Math.min(1440, (cur?.minutes || 0) + mins);
+      const note = [cur?.override?.note, adding.note.trim() || 'Added time'].filter(Boolean).join(' · ');
+      const { error } = await savePayDay(id, adding.date, total, note);
+      if (error) return setAddErr(error.message);
+    }
+    setAdding(null); setAddErr('');
+    const m = adding.date.slice(0, 7);
+    if (m !== from.slice(0, 7)) {
+      const [yy, mm] = m.split('-').map(Number);
+      setOffset((yy - base.getFullYear()) * 12 + (mm - 1 - base.getMonth()));
+    } else load();
+  }
   async function reset(empId, date) {
     await clearPayDay(empId, date);
     load();
@@ -45,7 +70,34 @@ export default function PayHoursTab({ employees }) {
         <button className="dp-btn" aria-label="Previous month" onClick={() => setOffset((o) => o - 1)}><ChevronLeft size={16} /></button>
         <div style={{ fontWeight: 600, fontSize: 16, minWidth: 150, textAlign: 'center' }}>{monthLabel}</div>
         <button className="dp-btn" aria-label="Next month" onClick={() => setOffset((o) => o + 1)}><ChevronRight size={16} /></button>
+        <button className="dp-btn dp-btn-primary" style={{ marginLeft: 'auto' }} onClick={() => { setAddErr(''); setAdding({ date: '', value: '', note: '', emps: {} }); }}>
+          <Plus size={15} /> Add time
+        </button>
       </div>
+      {adding && (
+        <div style={{ background: 'var(--dp-paper)', border: '1px solid var(--dp-line)', borderRadius: 12, padding: 16, margin: '8px 0 14px' }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Add time</div>
+          <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', marginBottom: 10 }}>For events, tournaments, meetings — time that wasn't clocked. It's added on top of anything already paid that day.</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+            <label style={{ fontSize: 13 }}>Date<br /><input className="dp-input" type="date" value={adding.date} onChange={(e) => setAdding({ ...adding, date: e.target.value })} /></label>
+            <label style={{ fontSize: 13 }}>Hours<br /><input className="dp-input" style={{ width: 90 }} placeholder="2:30" value={adding.value} onChange={(e) => setAdding({ ...adding, value: e.target.value })} /></label>
+            <label style={{ fontSize: 13, flex: 1, minWidth: 180 }}>What for<br /><input className="dp-input" style={{ width: '100%' }} placeholder="e.g. Belt test, tournament" value={adding.note} onChange={(e) => setAdding({ ...adding, note: e.target.value })} /></label>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12, fontSize: 14 }}>
+            {employees.map((emp) => (
+              <label key={emp.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={!!adding.emps[emp.id]} onChange={(e) => setAdding({ ...adding, emps: { ...adding.emps, [emp.id]: e.target.checked } })} /> {emp.name}
+              </label>
+            ))}
+            <button className="dp-btn" style={{ fontSize: 12 }} onClick={() => setAdding({ ...adding, emps: Object.fromEntries(employees.map((e) => [e.id, true])) })}>Everyone</button>
+          </div>
+          {addErr && <div style={{ color: 'var(--dp-danger)', fontSize: 13, marginBottom: 8 }}>{addErr}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="dp-btn" onClick={() => setAdding(null)}>Cancel</button>
+            <button className="dp-btn dp-btn-primary" onClick={saveAdd}>Add</button>
+          </div>
+        </div>
+      )}
       <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '0 0 14px' }}>
         Paid from clock-in (up to {EARLY_ALLOWANCE_MIN} min before the shift) to the scheduled end. Tap a day to change it. Payroll uses these totals.
       </p>
@@ -88,7 +140,7 @@ export default function PayHoursTab({ employees }) {
                             return (
                               <tr key={d.date}>
                                 <td style={{ whiteSpace: 'nowrap' }}>{dayLabel(d.date)}</td>
-                                <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>{d.shift ? `${formatTime12h(d.shift.start_time)}–${formatTime12h(d.shift.end_time)}` : '—'}</td>
+                                <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>{d.shift ? `${formatTime12h(d.shift.start_time)}–${formatTime12h(d.shift.end_time)}` : (!d.entries.length && d.override ? 'Added' : '—')}</td>
                                 <td style={{ fontSize: 13 }}>
                                   {d.entries.length ? d.entries.map((e) => (
                                     <div key={e.id} style={{ whiteSpace: 'nowrap' }}>{formatClockTime(new Date(e.clock_in))}–{e.clock_out ? formatClockTime(new Date(e.clock_out)) : '?'}</div>
@@ -115,7 +167,7 @@ export default function PayHoursTab({ employees }) {
                                       {fmtHours(d.minutes)}
                                     </button>
                                   )}
-                                  {d.override && !editing && <div style={{ fontSize: 11.5, color: 'var(--dp-info)' }}>Changed (calc {fmtHours(d.calcMinutes)})</div>}
+                                  {d.override && !editing && (d.entries.length || d.shift) && <div style={{ fontSize: 11.5, color: 'var(--dp-info)' }}>Changed (calc {fmtHours(d.calcMinutes)})</div>}
                                 </td>
                                 <td>
                                   {d.override && !editing && (
