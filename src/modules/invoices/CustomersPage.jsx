@@ -9,7 +9,10 @@ import StatementModal from './StatementModal';
 import YearReceiptsModal from './YearReceiptsModal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { money, formatDate, downloadCSV, localISO } from '../../lib/invoiceUtils';
-import { loadCustomers, fetchAll } from './api';
+import { loadCustomers, loadSettings, fetchAll } from './api';
+import { isBillable, onHold, tuitionLines } from '../../lib/tuitionBilling';
+import { nextDueDate, todayISO } from '../../lib/billingDates';
+import { calcTotals } from '../../lib/invoiceUtils';
 import { CardLinkButton } from './CardLink';
 import CardWallet from '../../components/CardWallet';
 import { StatusPill } from './InvoicesPage';
@@ -33,6 +36,8 @@ function emptyForm() {
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
   const [credits, setCredits] = useState({});
+  const [lastPaid, setLastPaid] = useState({}); // customer_id → { date, amount }
+  const [settings, setSettings] = useState({});
   const [balances, setBalances] = useState({});
   const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
@@ -52,12 +57,25 @@ export default function CustomersPage() {
   }, []);
 
   async function loadAll() {
-    const [c, { data: b }, { data: s }, { data: cr }] = await Promise.all([
+    const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
+    const [c, { data: b }, { data: s }, { data: cr }, st, { data: pays }] = await Promise.all([
       loadCustomers(),
       fetchAll(() => supabase.from('customer_balances').select('*')),
-      supabase.from('students').select('id, name, guardian_name, guardian_email, guardian_phone, address, customer_id, status').order('name'),
+      supabase.from('students').select('*').order('name'),
       supabase.from('customer_credit').select('customer_id, credit').neq('credit', 0),
+      loadSettings(),
+      fetchAll(() => supabase.from('invoice_payments').select('customer_id, payment_date, amount').gte('payment_date', since).order('payment_date', { ascending: false })),
     ]);
+    // Most recent payment per family.
+    const lp = {};
+    (pays || []).forEach((p) => {
+      if (!p.customer_id || Number(p.amount) <= 0) return;
+      const cur = lp[p.customer_id];
+      if (!cur) lp[p.customer_id] = { date: p.payment_date, amount: Number(p.amount) };
+      else if (cur.date === p.payment_date) cur.amount += Number(p.amount);
+    });
+    setLastPaid(lp);
+    setSettings(st || {});
     setCredits(Object.fromEntries((cr || []).map((r) => [r.customer_id, Number(r.credit)])));
     setCustomers(c);
     setBalances(Object.fromEntries((b || []).map((r) => [r.customer_id, r])));
@@ -79,6 +97,26 @@ export default function CustomersPage() {
     students.forEach((s) => s.customer_id && (m[s.customer_id] = [...(m[s.customer_id] || []), s]));
     return m;
   }, [students]);
+
+  // Next tuition billing per family: the earliest upcoming billing date of its
+  // students, and the estimated total (with GST) of everyone billed that day.
+  const nextBill = useMemo(() => {
+    const today = todayISO();
+    const out = {};
+    Object.entries(studentsByCustomer).forEach(([cid, kids]) => {
+      const dated = kids.filter(isBillable).map((k) => {
+        let d = nextDueDate(k, today);
+        for (let n = 0; n < 6 && d && onHold(k, d); n++) d = nextDueDate(k, d);
+        if (!d || (k.billing_end_date && d > k.billing_end_date)) return null;
+        return { k, d };
+      }).filter(Boolean);
+      if (!dated.length) return;
+      const first = dated.reduce((a, x) => (x.d < a ? x.d : a), dated[0].d);
+      const lines = dated.filter((x) => x.d === first).flatMap((x) => tuitionLines(x.k, first, settings));
+      out[cid] = { date: first, total: calcTotals(lines, settings.gst_rate ?? 5).total };
+    });
+    return out;
+  }, [studentsByCustomer, settings]);
 
   const filtered = useMemo(() => {
     const k = search.trim().toLowerCase();
@@ -280,12 +318,11 @@ export default function CustomersPage() {
           <table className="dp-table">
             <thead>
               <tr>
-                <th>Customer</th>
+                <th>Family</th>
                 <th>Payment</th>
+                <th>Next billing</th>
+                <th>Last payment</th>
                 <th style={{ textAlign: 'right' }}>Balance</th>
-                <th>Due Date</th>
-                <th>Last Invoice</th>
-                <th>Students</th>
                 <th></th>
               </tr>
             </thead>
@@ -294,15 +331,32 @@ export default function CustomersPage() {
                 const bal = Number(balances[c.id]?.balance || 0);
                 return (
                   <tr key={c.id} className="dp-row" style={{ cursor: 'pointer', opacity: c.active === false ? 0.55 : 1 }} onClick={() => openEdit(c)}>
-                    <td style={{ fontWeight: 500 }}>{c.name}</td>
-                    <td><PayChip c={c} /></td>
-                    <td style={{ textAlign: 'right', color: bal > 0 ? 'var(--dp-danger)' : 'var(--dp-ink-faint)' }}>
-                      {money(bal)}
-                      {credits[c.id] > 0.004 && <div style={{ fontSize: 12.5, color: 'var(--dp-success)' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
+                    <td style={{ maxWidth: 280 }}>
+                      <div style={{ fontWeight: 600 }}>{c.name}</div>
+                      <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginTop: 2 }}>{(studentsByCustomer[c.id] || []).filter((x) => (x.status || 'active') !== 'withdrawn').map((x) => x.name).join(', ') || 'No active students'}</div>
                     </td>
-                    <td>{bal > 0 ? balances[c.id]?.oldest_due_date : ''}</td>
-                    <td>{balances[c.id]?.last_invoice_number || ''}</td>
-                    <td style={{ color: 'var(--dp-ink-soft)' }}>{(studentsByCustomer[c.id] || []).map((s) => s.name).join(', ')}</td>
+                    <td><PayChip c={c} /></td>
+                    <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {nextBill[c.id] ? (
+                        <>
+                          <div>{formatDate(nextBill[c.id].date)}</div>
+                          <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }} title="Estimated tuition with GST">≈ {money(nextBill[c.id].total)}</div>
+                        </>
+                      ) : <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {lastPaid[c.id] ? (
+                        <>
+                          <div>{formatDate(lastPaid[c.id].date)}</div>
+                          <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }}>{money(lastPaid[c.id].amount)}</div>
+                        </>
+                      ) : <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}
+                    </td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      <div style={{ color: bal > 0 ? 'var(--dp-danger)' : 'var(--dp-ink-faint)', fontWeight: bal > 0 ? 600 : 400 }}>{money(bal)}</div>
+                      {bal > 0 && balances[c.id]?.oldest_due_date && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)' }}>since {formatDate(balances[c.id].oldest_due_date)}</div>}
+                      {credits[c.id] > 0.004 && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-success)' }} title="Account credit from overpayments">Credit {money(credits[c.id])}</div>}
+                    </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setStatementFor(c)}><FileText size={13} /> Statement</button>
                     </td>
