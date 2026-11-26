@@ -809,10 +809,6 @@ function Billing({ d, open, onDoc }) {
         )}
         onDownload={(list, label) => onDoc({ kind: 'many', title: `Receipts — ${label}`, docs: list.map((p) => <ReceiptDoc key={p.id} d={d} payment={p} />) })}
       />
-
-          onDownload={(list, label) => onDoc({ kind: 'many', title: `Invoices — ${label}`, docs: list.map((i) => <InvoiceDoc key={i.id} d={d} invoice={i} />) })}
-        />
-      )}
     </>
   );
 }
