@@ -285,8 +285,6 @@ export default function CustomersPage() {
                 <th style={{ textAlign: 'right' }}>Balance</th>
                 <th>Due Date</th>
                 <th>Last Invoice</th>
-                <th>Phone</th>
-                <th>Email</th>
                 <th>Students</th>
                 <th></th>
               </tr>
@@ -304,8 +302,6 @@ export default function CustomersPage() {
                     </td>
                     <td>{bal > 0 ? balances[c.id]?.oldest_due_date : ''}</td>
                     <td>{balances[c.id]?.last_invoice_number || ''}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{c.phone}</td>
-                    <td>{c.email}</td>
                     <td style={{ color: 'var(--dp-ink-soft)' }}>{(studentsByCustomer[c.id] || []).map((s) => s.name).join(', ')}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => setStatementFor(c)}><FileText size={13} /> Statement</button>
