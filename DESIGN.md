@@ -144,10 +144,14 @@ Shades of HP Orange show how far a skill has come (Introduced → Developed → 
 - **Danger** (#9A2B2B on #FBEAEA): absent, overdue, delete. Always paired with an icon or a word.
 - **Info** (#1E4566): links and neutral notices.
 
+### Class colours
+Each class has its own chip colour (dark text on a light tint), defined once in `src/lib/classes.js` (`CLASS_COLORS`, `classColor()`):
+Beginner green · Intermediate B blue · Beginner/Intermediate teal · Intermediate A purple · Intermediate/Advance pink · Advance Poomsae amber · Advance Sparring red · HP orange · Comp Team charcoal. Always shown with the class name.
+
 ### Named Rules
 **The One Red Rule.** Hankook Red covers less than 5% of any screen. If two things are red, one of them is wrong.
 
-**The Fifteen Colors Rule.** Only the colors listed above are allowed. A new hex value in a component means a new token here first, or it does not ship.
+**The Fifteen Colors Rule.** Only the colors listed above (plus the class colours) are allowed. A new hex value in a component means a new token here first, or it does not ship.
 
 **The Never Color Alone Rule.** Attendance, payment, and belt states always carry a word or icon as well as a color.
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Send, Users, RefreshCw, Copy } from 'lucide-react';
+import { Send, Users, RefreshCw, Copy, Paperclip, X, Mail } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
@@ -18,6 +18,20 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const splitEmails = (v) => String(v || '').split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter((e) => EMAIL_RE.test(e));
 
 const DEFAULT_MESSAGE = 'Hello {guardian},\n\n\n\nBest Regards,\nMaster Daisy';
+
+// Attachments: stored once (email_attachments), every family's email lists them.
+const MAX_FILES = 5;
+const MAX_TOTAL = 10 * 1024 * 1024; // 10 MB together
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.gif,.heic,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv';
+const BLOCKED = /\.(exe|bat|cmd|com|js|vbs|scr|msi|sh|jar|apk|zip|rar|7z)$/i;
+export const fileSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const readBase64 = (file) =>
+  new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1] || '');
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
 
 function personalize(text, fam) {
   const kids = fam.students.map((s) => s.name.split(' ')[0]);
@@ -41,10 +55,29 @@ export default function EmailPage() {
   const [page, setPage] = useState('compose'); // compose | log
   const [find, setFind] = useState('');
   const [viewing, setViewing] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [testing, setTesting] = useState(false);
+  const [ownEmail, setOwnEmail] = useState('');
+  useEffect(() => {
+    supabase.from('invoice_settings').select('email').eq('id', 1).maybeSingle().then(({ data }) => setOwnEmail(data?.email || ''));
+  }, []); // { name, mime, size, data? , id? (already stored) }
+  const total = files.reduce((t, f) => t + f.size, 0);
+
+  async function addFiles(list) {
+    const next = [...files];
+    for (const f of list) {
+      if (next.length >= MAX_FILES) { say(`Up to ${MAX_FILES} files per email.`, true); break; }
+      if (BLOCKED.test(f.name)) { say(`${f.name}: this kind of file can't be attached.`, true); continue; }
+      if (next.reduce((t, x) => t + x.size, 0) + f.size > MAX_TOTAL) { say(`${f.name} is too big — attachments can be ${fileSize(MAX_TOTAL)} in total. Try a PDF or a smaller photo.`, true); continue; }
+      next.push({ name: f.name, mime: f.type || 'application/octet-stream', size: f.size, data: await readBase64(f) });
+    }
+    setFiles(next);
+  }
 
   function reuse(item) {
     setSubject(item.subject || '');
     setMessage(item.message || DEFAULT_MESSAGE);
+    setFiles((item.attachments || []).map((a) => ({ id: a.id, name: a.name, size: a.size || 0, mime: '' })));
     setViewing(null);
     setPage('compose');
     say('Message copied into Group email — check who it goes to, then send.');
@@ -140,11 +173,61 @@ export default function EmailPage() {
     setFlash({ text, error });
   }
 
+  // Save new attachments once; already-saved ones (test send, "Use again") keep their id.
+  async function storeFiles() {
+    const stored = [];
+    const next = [];
+    for (const f of files) {
+      if (f.id) {
+        stored.push({ id: f.id, name: f.name, size: f.size });
+        next.push(f);
+        continue;
+      }
+      const { data: a, error } = await supabase.from('email_attachments').insert({ file_name: f.name, mime: f.mime, size_bytes: f.size, data: f.data }).select('id').single();
+      if (error) throw new Error(`Could not attach ${f.name}: ${error.message}`);
+      stored.push({ id: a.id, name: f.name, size: f.size });
+      next.push({ id: a.id, name: f.name, size: f.size, mime: f.mime });
+    }
+    setFiles(next);
+    return stored;
+  }
+
+  // One copy to the dojang's own email (as the first family would get it).
+  async function sendTest() {
+    if (!subject.trim()) return say('Please enter a subject.', true);
+    if (!message.trim()) return say('Please write a message.', true);
+    if (!ownEmail) return say('Add the dojang email in Invoice Settings first.', true);
+    setTesting(true);
+    try {
+      const stored = await storeFiles();
+      const f = preview || { students: [], guardian: '' };
+      const { error } = await supabase.from('email_queue').insert({
+        type: 'welcome',
+        recipient_email: ownEmail,
+        payload: { subject: '[Test] ' + personalize(subject.trim(), f), message: personalize(message, f), ...(stored.length ? { attachments: stored.map((a) => a.id) } : {}) },
+      });
+      if (error) throw error;
+      say(`Test sent to ${ownEmail}${preview ? ` (written as ${preview.students.map((x) => x.name.split(' ')[0]).join(' & ')}'s family would get it)` : ''}. Check your inbox in a minute.`);
+    } catch (e) {
+      say('Test not sent: ' + e.message, true);
+    }
+    setTesting(false);
+  }
+
   async function send() {
     setSending(true);
+    let stored;
+    try {
+      stored = await storeFiles();
+    } catch (e) {
+      setSending(false);
+      setConfirm(false);
+      return say(e.message, true);
+    }
+    const attachmentIds = stored.map((a) => a.id);
     const { data: b, error: e1 } = await supabase
       .from('email_broadcasts')
-      .insert({ subject: subject.trim(), message, audience: audienceLabel, recipient_count: recipients.length })
+      .insert({ subject: subject.trim(), message, audience: audienceLabel, recipient_count: recipients.length, attachments: stored })
       .select()
       .single();
     if (e1) {
@@ -157,7 +240,7 @@ export default function EmailPage() {
       broadcast_id: b.id,
       student_id: f.students[0]?.id || null,
       recipient_email: f.emails.join(', '),
-      payload: { subject: personalize(subject.trim(), f), message: personalize(message, f) },
+      payload: { subject: personalize(subject.trim(), f), message: personalize(message, f), ...(attachmentIds.length ? { attachments: attachmentIds } : {}) },
     }));
     for (let i = 0; i < rows.length; i += 50) {
       const { error } = await supabase.from('email_queue').insert(rows.slice(i, i + 50));
@@ -171,6 +254,7 @@ export default function EmailPage() {
     setConfirm(false);
     setSubject('');
     setMessage(DEFAULT_MESSAGE);
+    setFiles([]);
     setExcluded(new Set());
     say(`Sending to ${rows.length} families. It can take a minute or two — check the history below.`);
     setTimeout(loadHistory, 4000);
@@ -252,10 +336,32 @@ export default function EmailPage() {
           <Field label="Message" required>
             <textarea className="dp-input" rows={14} style={{ width: '100%', resize: 'vertical', fontSize: 13.5, lineHeight: 1.5 }} value={message} onChange={(e) => setMessage(e.target.value)} />
           </Field>
+          <div style={{ margin: '-4px 0 12px' }} data-testid="attachments">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <label className="dp-btn" style={{ cursor: 'pointer', fontSize: 13 }}>
+                <Paperclip size={14} /> Attach files
+                <input type="file" multiple accept={ACCEPT} style={{ display: 'none' }} onChange={(e) => { addFiles([...e.target.files]); e.target.value = ''; }} aria-label="Attach files" />
+              </label>
+              <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>PDF, photos, Word, Excel… up to {MAX_FILES} files, {fileSize(MAX_TOTAL)} total{files.length ? ` · ${fileSize(total)} used` : ''}</span>
+            </div>
+            {files.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {files.map((f, i) => (
+                  <span key={i} data-file={f.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--dp-canvas)', border: '1px solid var(--dp-line)', borderRadius: 999, padding: '3px 6px 3px 10px', fontSize: 12.5 }}>
+                    <Paperclip size={12} /> {f.name} <span style={{ color: 'var(--dp-ink-faint)' }}>{f.size ? fileSize(f.size) : ''}</span>
+                    <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles(files.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 2, display: 'flex' }}><X size={13} /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
           <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '-4px 0 14px' }}>
             {'{guardian}'} = parent's name · {'{student}'} = their child's first name (siblings: "Adam & Lily"). Links become clickable. One copy also goes to the dojang's own email so you can find it later.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+            <button className="dp-btn" onClick={sendTest} disabled={testing || sending} title={ownEmail ? `Send one copy to ${ownEmail} first` : 'Set the dojang email in Invoice Settings'}>
+              <Mail size={15} /> {testing ? 'Sending test…' : `Send test to me${ownEmail ? ` (${ownEmail})` : ''}`}
+            </button>
             <button className="dp-btn dp-btn-primary" onClick={check} disabled={sending}>
               <Send size={15} /> Review & Send to {recipients.length} {recipients.length === 1 ? 'family' : 'families'}
             </button>
@@ -320,7 +426,7 @@ export default function EmailPage() {
                   {history.map((h) => (
                     <tr key={h.id} className="dp-row" style={{ cursor: 'pointer' }} title="Click to see the message" onClick={() => setViewing(h)}>
                       <td style={{ fontSize: 12.5 }}>
-                        <div style={{ fontWeight: 500 }}>{h.subject}</div>
+                        <div style={{ fontWeight: 500 }}>{h.subject}{h.attachments?.length > 0 && <span title={h.attachments.map((a) => a.name).join(', ')} style={{ color: 'var(--dp-ink-faint)', fontWeight: 400 }}> · <Paperclip size={11} style={{ verticalAlign: -1 }} /> {h.attachments.length}</span>}</div>
                         <div style={{ color: 'var(--dp-ink-faint)' }}>{new Date(h.created_at).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {h.audience}</div>
                       </td>
                       <td style={{ fontSize: 12.5, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -360,6 +466,11 @@ export default function EmailPage() {
           <div style={{ border: '1px solid #EDEAE0', borderRadius: 8, padding: 14, fontSize: 13.5, lineHeight: 1.55 }}>
             <div style={{ fontWeight: 600, marginBottom: 10 }}>{personalize(subject, preview)}</div>
             <div style={{ whiteSpace: 'pre-line' }}>{personalize(message, preview)}</div>
+            {files.length > 0 && (
+              <div style={{ borderTop: '1px solid #EDEAE0', marginTop: 12, paddingTop: 8, fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>
+                <Paperclip size={12} style={{ verticalAlign: -2 }} /> {files.length} attachment{files.length === 1 ? '' : 's'}: {files.map((f) => f.name).join(', ')}
+              </div>
+            )}
           </div>
         </Modal>
       )}

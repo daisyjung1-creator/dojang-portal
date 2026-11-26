@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, CornerUpLeft } from 'lucide-react';
+import { Copy, CornerUpLeft, Paperclip } from 'lucide-react';
 import Modal from '../../components/Modal';
 
 // Preview of an email already sent, with "copy" and "use again" so the same
@@ -46,6 +46,7 @@ export default function MessagePreview({ item, onClose, onReuse }) {
       <div style={{ border: '1px solid #EDEAE0', borderRadius: 8, padding: 14, fontSize: 13.5, lineHeight: 1.55, maxHeight: '55vh', overflowY: 'auto' }}>
         <div style={{ fontWeight: 600, marginBottom: 10 }}>{item.subject}</div>
         <div style={{ whiteSpace: 'pre-wrap' }}>{item.message}</div>
+        {item.attachments?.length > 0 && <div style={{ borderTop: '1px solid #EDEAE0', marginTop: 12, paddingTop: 8, fontSize: 12.5, color: '#5B5F56' }}><Paperclip size={12} style={{ verticalAlign: -2 }} /> {item.attachments.map((x) => x.name).join(', ')}</div>}
       </div>
       {onReuse && (
         <p style={{ fontSize: 12, color: 'var(--dp-ink-faint)', margin: '8px 0 0' }}>

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { LogOut, CalendarX, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download, CircleCheck } from 'lucide-react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { LogOut, CalendarX, Users, Ticket, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download, CircleCheck } from 'lucide-react';
 import logo from '../../assets/logo.png';
 import { supabase } from '../../supabaseClient';
 import { useAuth, IDLE_FLAG, touch } from '../../auth/AuthContext';
@@ -15,6 +15,7 @@ import { nextDueDate, todayISO } from '../../lib/billingDates';
 import { money } from '../../lib/invoiceUtils';
 import { holidaysBetween } from '../../lib/holidays';
 import { FormQuestions, SignaturePad, checkAnswers } from '../../components/EventFormFields';
+import ClassChip from '../../components/ClassChip';
 
 // Parent portal (/parent). Parents sign in with the email the dojang has on
 // file (invited by the dojang, password set from the emailed link). Everything
@@ -23,6 +24,40 @@ import { FormQuestions, SignaturePad, checkAnswers } from '../../components/Even
 
 // Colours from DESIGN.md (src/styles/tokens.css). brand = Hankook Red, accents only; red = danger text.
 const C = { brand: 'var(--dp-hankook-red)', red: 'var(--dp-danger)', ink: 'var(--dp-ink)', soft: 'var(--dp-ink-soft)', faint: 'var(--dp-ink-faint)', line: 'var(--dp-line)', bg: 'var(--dp-canvas)', green: 'var(--dp-success)', greenTint: 'var(--dp-success-tint)', amber: 'var(--dp-warning)', amberTint: 'var(--dp-warning-tint)', redTint: 'var(--dp-danger-tint)' };
+// Admin "View as parent" preview (/parent?preview=<family id>): the admin sees
+// exactly what that family sees, but nothing can be sent, paid or saved.
+const PreviewCtx = createContext(false);
+const usePreview = () => useContext(PreviewCtx);
+const PREVIEW_MSG = 'Preview only — nothing was sent or saved. Parents can do this from their own login.';
+const PREVIEW_ID = (() => {
+  try {
+    const v = new URLSearchParams(window.location.search).get('preview') || '';
+    return /^[0-9a-f-]{36}$/i.test(v) ? v : null;
+  } catch {
+    return null;
+  }
+})();
+// Pay / card links: in the preview they don't open (no payments from here).
+function PLink({ href, style, children }) {
+  const preview = usePreview();
+  if (!preview) return <a style={style} href={href}>{children}</a>;
+  return <a style={style} href={href} onClick={(e) => { e.preventDefault(); window.alert(PREVIEW_MSG); }} title="Preview only">{children}</a>;
+}
+
+// Phone-size screens get a tighter layout (tab bar as icons, stacked rows).
+const NARROW_Q = '(max-width: 600px)';
+function useNarrow() {
+  const [n, setN] = useState(() => typeof window !== 'undefined' && window.matchMedia?.(NARROW_Q).matches);
+  useEffect(() => {
+    const m = window.matchMedia?.(NARROW_Q);
+    if (!m) return undefined;
+    const on = () => setN(m.matches);
+    m.addEventListener?.('change', on);
+    return () => m.removeEventListener?.('change', on);
+  }, []);
+  return !!n;
+}
+
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const fdate = (d) => (d ? new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const addDaysIso = (iso, n) => new Date(new Date(iso + 'T12:00:00').getTime() + n * 864e5).toISOString().slice(0, 10);
@@ -82,6 +117,12 @@ export default function ParentApp() {
   if (mode === 'setpw' && linkLogin) return <SetPassword login={linkLogin} onDone={() => { setMode(null); setLinkLogin(null); }} />;
   if (loading || verifying || (session && !role)) return <Shell><p style={{ color: C.soft }}>Loading…</p></Shell>;
   if (!session) return <ParentLogin notice={linkError} />;
+  if (PREVIEW_ID && role === 'admin')
+    return (
+      <PreviewCtx.Provider value={true}>
+        <ParentPortal preview={PREVIEW_ID} />
+      </PreviewCtx.Provider>
+    );
   if (role !== 'parent')
     return (
       <Shell>
@@ -95,16 +136,20 @@ export default function ParentApp() {
 }
 
 function Shell({ children, right, wide }) {
+  const narrow = useNarrow();
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--dp-font)', color: C.ink }}>
+    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: 'var(--dp-font)', color: C.ink, overflowX: 'hidden' }}>
       <div style={{ background: '#fff', borderBottom: `1px solid ${C.line}` }}>
-        <div style={{ maxWidth: wide ? 980 : 560, margin: '0 auto', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src={logo} alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />
-          <div style={{ fontWeight: 700, fontSize: 16, flex: 1, lineHeight: 1.25, fontFamily: 'var(--dp-font-display)' }}>Champion Hankook Taekwondo<div style={{ fontWeight: 400, fontSize: 13, color: C.soft }}>Parent portal</div></div>
+        <div style={{ maxWidth: wide ? 980 : 560, margin: '0 auto', padding: narrow ? '10px 14px' : '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src={logo} alt="" style={{ width: narrow ? 32 : 36, height: narrow ? 32 : 36, objectFit: 'contain', flexShrink: 0 }} />
+          <div style={{ fontWeight: 700, fontSize: narrow ? 15 : 16, flex: 1, minWidth: 0, lineHeight: 1.25, fontFamily: 'var(--dp-font-display)' }}>
+            {narrow ? 'Hankook Taekwondo' : 'Champion Hankook Taekwondo'}
+            <div style={{ fontWeight: 400, fontSize: 13, color: C.soft }}>Parent portal</div>
+          </div>
           {right}
         </div>
       </div>
-      <div style={{ maxWidth: wide ? 980 : 560, margin: '0 auto', padding: '18px 16px 40px' }}>{children}</div>
+      <div style={{ maxWidth: wide ? 980 : 560, margin: '0 auto', padding: narrow ? '14px 14px 40px' : '18px 16px 40px' }}>{children}</div>
     </div>
   );
 }
@@ -224,7 +269,8 @@ function SetPassword({ login, onDone }) {
 }
 
 // ── The portal ─────────────────────────────────────────────────────────────
-function ParentPortal({ onSignOut }) {
+function ParentPortal({ onSignOut, preview }) {
+  const narrow = useNarrow();
   const [d, setD] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('kids');
@@ -232,6 +278,7 @@ function ParentPortal({ onSignOut }) {
   const [flash, setFlash] = useState('');
 
   async function load() {
+    if (preview) return loadPreview();
     const today = todayISO();
     const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
     const [{ data: core, error: e1 }, inv, pays, att, tapes, events, signups, guests, makeups, notices, closed, cals] = await Promise.all([
@@ -251,9 +298,42 @@ function ParentPortal({ onSignOut }) {
     if (e1) return setError(e1.message);
     setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
   }
+  // Admin preview: the same data, read for one family. The admin login can read
+  // every family, so each list is narrowed to this family here.
+  async function loadPreview() {
+    const today = todayISO();
+    const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
+    const fam = preview;
+    const { data: core, error: e1 } = await supabase.rpc('admin_parent_portal_data', { p_family: fam });
+    if (e1) return setError(e1.message);
+    const sids = (core.students || []).map((s) => s.id);
+    const ids = sids.length ? sids : ['00000000-0000-0000-0000-000000000000'];
+    const [inv, att, tapes, events, signups, guests, makeups, notices, closed, cals] = await Promise.all([
+      supabase.from('invoice_summary').select('*').eq('customer_id', fam).eq('voided', false).order('invoice_date', { ascending: false }),
+      supabase.from('attendance').select('student_id, date, status, class_name').in('student_id', ids).gte('date', since),
+      supabase.from('student_tapes').select('student_id, belt, tape').in('student_id', ids),
+      supabase.from('events').select('*').eq('published', true).eq('archived', false).order('start_date'),
+      supabase.from('event_signups').select('*').eq('customer_id', fam),
+      supabase.from('event_guests').select('*').eq('customer_id', fam).is('removed_at', null),
+      supabase.from('makeup_records').select('*').in('student_id', ids).gte('created_at', new Date(Date.now() - 120 * 864e5).toISOString()).order('absence_date', { ascending: false }),
+      supabase.from('absence_notices').select('*').eq('customer_id', fam).gte('absence_date', today).order('absence_date'),
+      supabase.from('class_cancellations').select('date, class_name, reason').gte('date', today),
+      supabase.from('monthly_calendars').select('month, title, file_name, mime, file_data').gte('month', today.slice(0, 8) + '01').order('month').limit(3),
+    ]);
+    const invIds = (inv.data || []).map((i) => i.id);
+    const pays = await supabase.from('invoice_payments').select('*')
+      .or(invIds.length ? `customer_id.eq.${fam},invoice_id.in.(${invIds.join(',')})` : `customer_id.eq.${fam}`)
+      .order('payment_date', { ascending: false });
+    const bad = [inv, att, tapes, events, signups, guests, makeups, notices, closed, cals, pays].find((r) => r.error);
+    if (bad) return setError(bad.error.message);
+    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
+  }
   useEffect(() => {
     load();
   }, []);
+  useEffect(() => {
+    if (preview && d?.family?.name) document.title = `Preview: ${d.family.name}`;
+  }, [preview, d?.family?.name]);
   const done = (m) => {
     setModal(null);
     setFlash(m);
@@ -261,8 +341,17 @@ function ParentPortal({ onSignOut }) {
     window.scrollTo(0, 0);
   };
 
-  const signOutBtn = (
-    <button style={{ ...btn, padding: '8px 12px', fontSize: 16 }} onClick={onSignOut}><LogOut size={16} aria-hidden="true" /> Sign out</button>
+  // In the preview there's no Sign out (that would sign the admin out) — just close the tab.
+  const signOutBtn = preview ? (
+    <button style={{ ...btn, padding: '8px 12px', fontSize: 15, flexShrink: 0 }} onClick={() => { window.close(); window.location.href = '/'; }}><X size={16} aria-hidden="true" /> {narrow ? 'Close' : 'Close preview'}</button>
+  ) : (
+    <button style={{ ...btn, padding: '8px 12px', fontSize: 15, flexShrink: 0 }} onClick={onSignOut}><LogOut size={16} aria-hidden="true" /> Sign out</button>
+  );
+  const previewBar = preview && (
+    <div role="note" style={{ background: 'var(--dp-warning-tint)', color: 'var(--dp-warning)', border: '1px solid var(--dp-warning)', borderRadius: 10, padding: narrow ? '8px 12px' : '10px 14px', fontSize: narrow ? 14 : 15, marginBottom: 14, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <Eye size={18} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+      <span><b>Parent view preview.</b> {narrow ? 'Read only — nothing is sent, paid or saved.' : 'This is what this family sees when they sign in. Read only: nothing can be sent, paid or saved here.'}</span>
+    </div>
   );
   if (error) return <Shell right={signOutBtn}><div style={card}>Something went wrong: {error}</div></Shell>;
   if (!d) return <Shell right={signOutBtn}><p style={{ color: C.soft }}>Loading…</p></Shell>;
@@ -270,29 +359,42 @@ function ParentPortal({ onSignOut }) {
   const open = d.invoices.filter((i) => Number(i.balance) > 0.004);
   const due = open.reduce((t, i) => t + Number(i.balance), 0);
   const TABS = [
-    ['kids', 'My children'],
-    ['billing', `Billing${open.length ? ` (${open.length})` : ''}`],
-    ['events', 'Events'],
-    ['calendar', 'Calendar'],
-    ['contact', 'Contact'],
+    ['kids', narrow ? 'Children' : 'My children', Users],
+    ['billing', 'Billing', FileText],
+    ['events', 'Events', Ticket],
+    ['calendar', 'Calendar', CalendarDays],
+    ['contact', 'Contact', Mail],
   ];
 
   return (
     <Shell right={signOutBtn} wide>
+      {previewBar}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.15, margin: 0 }}>{d.family?.name}</h1>
+        <h1 style={{ fontSize: narrow ? 24 : 28, fontWeight: 700, lineHeight: 1.15, margin: 0 }}>{d.family?.name}</h1>
         {due > 0 && (
           <button style={{ ...btn, padding: '6px 14px', fontSize: 16, color: C.red, borderColor: C.redTint, background: C.redTint, borderRadius: 999 }} onClick={() => setTab('billing')}>
             {money(due)} due
           </button>
         )}
       </div>
-      <div role="tablist" style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${C.line}`, marginBottom: 16, overflowX: 'auto' }}>
-        {TABS.map(([id, l]) => (
-          <button key={id} role="tab" aria-selected={tab === id} onClick={() => { setTab(id); setFlash(''); }} style={{ border: 'none', background: 'none', minHeight: 48, padding: '10px 14px', fontSize: 16, fontWeight: tab === id ? 700 : 500, color: tab === id ? C.ink : C.soft, borderBottom: `3px solid ${tab === id ? C.brand : 'transparent'}`, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
-            {l}
-          </button>
-        ))}
+      {/* Phones: five equal tabs with an icon over a short label, so all fit on one row. */}
+      <div role="tablist" style={narrow ? { display: 'grid', gridTemplateColumns: `repeat(${TABS.length}, 1fr)`, borderBottom: `1px solid ${C.line}`, marginBottom: 14 } : { display: 'flex', gap: 4, borderBottom: `1px solid ${C.line}`, marginBottom: 16, overflowX: 'auto' }}>
+        {TABS.map(([id, l, Icon]) => {
+          const on = tab === id;
+          const badge = id === 'billing' && open.length > 0;
+          return (
+            <button key={id} role="tab" aria-selected={on} aria-label={badge ? `${l}, ${open.length} to pay` : undefined} onClick={() => { setTab(id); setFlash(''); }}
+              style={narrow
+                ? { position: 'relative', border: 'none', background: 'none', minHeight: 56, padding: '8px 2px 6px', fontSize: 13, fontWeight: on ? 700 : 500, color: on ? C.ink : C.soft, borderBottom: `3px solid ${on ? C.brand : 'transparent'}`, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 0 }
+                : { border: 'none', background: 'none', minHeight: 48, padding: '10px 14px', fontSize: 16, fontWeight: on ? 700 : 500, color: on ? C.ink : C.soft, borderBottom: `3px solid ${on ? C.brand : 'transparent'}`, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+              {narrow && <Icon size={20} aria-hidden="true" />}
+              <span style={narrow ? { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' } : undefined}>
+                {l}{!narrow && badge ? ` (${open.length})` : ''}
+              </span>
+              {narrow && badge && <span aria-hidden="true" style={{ position: 'absolute', top: 4, left: '50%', marginLeft: 8, minWidth: 18, height: 18, borderRadius: 9, background: C.brand, color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{open.length}</span>}
+            </button>
+          );
+        })}
       </div>
       {flash && <p role="status" style={{ background: C.greenTint, color: C.green, padding: '12px 14px', borderRadius: 10, fontSize: 15, display: 'flex', gap: 8, alignItems: 'flex-start' }}><CircleCheck size={18} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />{flash}</p>}
 
@@ -321,11 +423,21 @@ function BeltChip({ belt }) {
   );
 }
 
+// How each attendance mark reads for parents. Excused = told the dojang ahead
+// (gets a make-up); unexcused = absent without notice (no make-up).
+function attLook(st) {
+  if (st === 'present' || st === 'double') return { t: 'present', bg: C.greenTint, c: C.green };
+  if (st === 'private') return { t: 'private lesson', bg: C.greenTint, c: C.green };
+  if (st === 'excused') return { t: 'excused', bg: C.amberTint, c: C.amber };
+  if (st === 'vacation') return { t: 'vacation', bg: 'var(--dp-canvas)', c: C.soft };
+  return { t: 'unexcused', bg: C.redTint, c: C.red };
+}
+
 function Kids({ d, onAbsence, onTest }) {
   const today = todayISO();
   if (!d.students.length) return <div style={card}>No active students on this account.</div>;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 14 }}>
       {d.students.map((s) => {
         const att = d.attendance.filter((a) => a.student_id === s.id);
         const n = s.classes_since_test ?? classesSince(s, att);
@@ -346,11 +458,18 @@ function Kids({ d, onAbsence, onTest }) {
 
             <Section title="Classes">
               {plan.length ? (
-                plan.map((c, i) => (
-                  <div key={i} style={{ fontSize: 16 }}>
-                    <b style={{ fontWeight: 600 }}>{WD[c.weekday]}</b> {ftime(c.start_time)}–{ftime(c.end_time)} · {c.class_name}
-                  </div>
-                ))
+                // One grid for all rows so day, time and class chip line up in columns.
+                <div style={{ display: 'grid', gridTemplateColumns: 'max-content max-content minmax(0, 1fr)', columnGap: 10, rowGap: 8, alignItems: 'center', fontSize: 16 }}>
+                  {plan.map((c, i) => (
+                    <React.Fragment key={i}>
+                      <b style={{ fontWeight: 600 }}>{WD[c.weekday]}</b>
+                      <span style={{ whiteSpace: 'nowrap' }}>{ftime(c.start_time)}–{ftime(c.end_time)}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <ClassChip name={c.class_name} size={14} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'middle' }} />
+                      </span>
+                    </React.Fragment>
+                  ))}
+                </div>
               ) : (
                 <div style={{ fontSize: 16 }}>{splitClasses(s.class_name).join(', ') || '—'}</div>
               )}
@@ -378,8 +497,8 @@ function Kids({ d, onAbsence, onTest }) {
               ) : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                   {recent.map((a, i) => (
-                    <span key={i} title={a.class_name} style={{ fontSize: 13, padding: '4px 9px', borderRadius: 8, background: a.status === 'present' ? C.greenTint : C.redTint, color: a.status === 'present' ? C.green : C.red }}>
-                      {fday(a.date)} · {a.status === 'present' ? 'present' : 'absent'}
+                    <span key={i} title={a.class_name} style={{ fontSize: 13, padding: '4px 9px', borderRadius: 8, background: attLook(a.status).bg, color: attLook(a.status).c }}>
+                      {fday(a.date)} · {attLook(a.status).t}
                     </span>
                   ))}
                 </div>
@@ -447,6 +566,7 @@ function TestStatus({ d, s, n, tapes, onHold, onTest }) {
 }
 
 function TestModal({ d, student, onClose, onDone }) {
+  const preview = usePreview();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -457,6 +577,7 @@ function TestModal({ d, student, onClose, onDone }) {
   const first = student.name.split(' ')[0];
   const finish = () => onDone(`${first} is registered for the belt test on ${fdate(d.next_test.date)}.${result?.invoice_number ? ` Invoice #${result.invoice_number} is under Billing.` : ''}`);
   async function go() {
+    if (preview) return setError(PREVIEW_MSG);
     setBusy(true);
     setError('');
     const { data, error: err } = await supabase.rpc('parent_test_register', { p_student: student.id });
@@ -502,7 +623,7 @@ function CalendarTab({ d }) {
   const events = (d.events || []).filter((e) => e.published && !e.archived && (e.end_date || e.start_date) >= today).slice(0, 6);
   const monthName = (m) => new Date(m.slice(0, 10) + 'T12:00:00').toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 14, alignItems: 'start' }}>
       <div style={card} data-testid="calendars">
         <h2 style={h2}><CalendarDays size={17} /> Monthly calendar</h2>
         {!d.calendars?.length && <p style={{ fontSize: 16, color: C.faint, margin: 0 }}>This month's calendar will be posted here.</p>}
@@ -526,7 +647,7 @@ function CalendarTab({ d }) {
           {!closed.length && <p style={{ fontSize: 16, color: C.faint, margin: 0 }}>No closures in the next 3 months.</p>}
           {closed.map((c, i) => (
             <div key={i} style={{ display: 'flex', gap: 10, fontSize: 16, padding: '5px 0', borderTop: i ? `1px solid ${C.line}` : 'none' }}>
-              <span style={{ width: 118, flexShrink: 0, fontWeight: 600 }}>{fday(c.date)}</span>
+              <span style={{ width: 112, flexShrink: 0, fontWeight: 600 }}>{fday(c.date)}</span>
               <span style={{ color: C.soft }}>{c.class_name ? `No ${c.class_name} class` : 'No classes'}{c.reason ? ` — ${c.reason}` : ''}</span>
             </div>
           ))}
@@ -535,7 +656,10 @@ function CalendarTab({ d }) {
         <div style={card}>
           <h2 style={h2}><Award size={17} /> Key dates</h2>
           {d.next_test && (
-            <div style={{ fontSize: 16, padding: '4px 0' }}><b style={{ fontWeight: 600 }}>{fday(d.next_test.date)}</b> · Belt test (no regular classes)</div>
+            <div style={{ fontSize: 16, padding: '4px 0' }}>
+              <b style={{ fontWeight: 600 }}>{fday(d.next_test.date)}</b> · Belt test (no regular classes)
+              <div style={{ fontSize: 13, color: C.faint }}>Tentative — to be confirmed by official dojang announcement.</div>
+            </div>
           )}
           {events.map((e) => (
             <div key={e.id} style={{ fontSize: 16, padding: '4px 0' }}><b style={{ fontWeight: 600 }}>{fday(e.start_date)}</b> · {e.title}</div>
@@ -597,7 +721,6 @@ function Section({ title, children }) {
 function Billing({ d, open, onDoc }) {
   const f = d.family || {};
   const today = todayISO();
-  const paid = d.invoices.filter((i) => Number(i.balance) <= 0.004);
   return (
     <>
       <div style={card}>
@@ -607,7 +730,7 @@ function Billing({ d, open, onDoc }) {
         ) : (
           open.map((i) => (
             <Row key={i.id}>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <b style={{ fontWeight: 600 }}>Invoice #{i.invoice_number}</b> <span style={{ color: C.soft }}>· {fdate(i.invoice_date)}</span>
                 {i.notes && <div style={{ fontSize: 16, color: C.faint }}>{i.notes}</div>}
                 <div style={{ fontSize: 13, color: (i.due_date || i.invoice_date) < today ? C.red : C.soft }}>Due {fdate(i.due_date || i.invoice_date)}</div>
@@ -616,7 +739,7 @@ function Billing({ d, open, onDoc }) {
                 <div style={{ fontWeight: 700 }}>{money(i.balance)}</div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                   <button style={{ ...btn, padding: '8px 14px', fontSize: 16 }} onClick={() => onDoc({ kind: 'invoice', invoice: i })}>View</button>
-                  {i.pay_token && <a style={{ ...primary, padding: '8px 14px', fontSize: 16 }} href={`/pay/${i.pay_token}`}>Pay now</a>}
+                  {i.pay_token && <PLink style={{ ...primary, padding: '8px 14px', fontSize: 16 }} href={`/pay/${i.pay_token}`}>Pay now</PLink>}
                 </div>
               </div>
             </Row>
@@ -667,7 +790,7 @@ function Billing({ d, open, onDoc }) {
           <p style={{ margin: '0 0 10px', fontSize: 16, color: C.soft }}>{f.payment_type === 'manual' ? 'You pay tuition by invoice (debit or cash).' : 'No card saved yet.'}</p>
         )}
         {f.card_link_token && (
-          <a style={{ ...btn, marginTop: 10 }} href={`/card/${f.card_link_token}`}>{(d.cards || []).length ? 'Add or change cards' : 'Save a card'}</a>
+          <PLink style={{ ...btn, marginTop: 10 }} href={`/card/${f.card_link_token}`}>{(d.cards || []).length ? 'Add or change cards' : 'Save a card'}</PLink>
         )}
         {(d.cards || []).length > 0 && <p style={{ fontSize: 16, color: C.faint, margin: '8px 0 0' }}>You can add cards and choose which one is used for tuition. A card can be removed only when you have another card saved.</p>}
       </div>
@@ -681,38 +804,17 @@ function Billing({ d, open, onDoc }) {
         items={[...d.payments].sort((a, b) => (a.payment_date < b.payment_date ? 1 : a.payment_date > b.payment_date ? -1 : Number(b.receipt_number) - Number(a.receipt_number)))}
         dateOf={(p) => p.payment_date}
         row={(p) => (
-          <Row key={p.id}>
-            <div style={{ flex: 1 }}>
-              {fdate(p.payment_date)} <span style={{ color: C.soft }}>· Receipt #{p.receipt_number}</span>
-              <div style={{ fontSize: 16, color: C.faint }}>{p.method}</div>
-            </div>
-            <div style={{ fontWeight: 600, marginRight: 8 }}>{money(p.amount)}</div>
-            <button style={{ ...btn, padding: '8px 14px', fontSize: 16 }} onClick={() => onDoc({ kind: 'receipt', payment: p })}>Receipt</button>
-          </Row>
+          <DocRow
+            key={p.id}
+            date={fdate(p.payment_date)}
+            sub={`Receipt #${p.receipt_number}${p.method ? ` · ${p.method}` : ''}`}
+            amount={money(p.amount)}
+            action="Receipt"
+            onOpen={() => onDoc({ kind: 'receipt', payment: p })}
+          />
         )}
         onDownload={(list, label) => onDoc({ kind: 'many', title: `Receipts — ${label}`, docs: list.map((p) => <ReceiptDoc key={p.id} d={d} payment={p} />) })}
       />
-
-      {paid.length > 0 && (
-        <DocList
-          testid="past-invoices"
-          title="Past invoices"
-          icon={FileText}
-          noun="invoice"
-          items={[...paid].sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : a.invoice_date > b.invoice_date ? -1 : Number(b.invoice_number) - Number(a.invoice_number)))}
-          dateOf={(i) => i.invoice_date}
-          row={(i) => (
-            <Row key={i.id}>
-              <div style={{ flex: 1 }}>
-                Invoice #{i.invoice_number} <span style={{ color: C.soft }}>· {fdate(i.invoice_date)}</span>
-              </div>
-              <div style={{ marginRight: 8 }}>{money(i.total)}</div>
-              <button style={{ ...btn, padding: '8px 14px', fontSize: 16 }} onClick={() => onDoc({ kind: 'invoice', invoice: i })}>View</button>
-            </Row>
-          )}
-          onDownload={(list, label) => onDoc({ kind: 'many', title: `Invoices — ${label}`, docs: list.map((i) => <InvoiceDoc key={i.id} d={d} invoice={i} />) })}
-        />
-      )}
     </>
   );
 }
@@ -721,6 +823,8 @@ const h2 = { fontSize: 20, fontWeight: 700, margin: '0 0 12px', display: 'flex',
 // Receipts / invoices, newest first. The latest few show; past that, pick
 // dates (or a year) to list older ones and download them all as one PDF.
 const RECENT = 5;
+// Full-width date box (iOS shows an empty date input as a blank grey pill otherwise).
+const dateInput = { ...input, display: 'block', width: '100%', minWidth: 0, marginTop: 4, padding: '8px 10px', background: '#fff', color: C.ink, WebkitAppearance: 'none', appearance: 'none', textAlign: 'left' };
 const MAX_DOWNLOAD = 60;
 function DocList({ testid, title, icon: Icon, noun, empty, items, dateOf, row, onDownload }) {
   const [from, setFrom] = useState('');
@@ -743,11 +847,11 @@ function DocList({ testid, title, icon: Icon, noun, empty, items, dateOf, row, o
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
             {years.map((y) => <button key={y} type="button" style={chip(from === `${y}-01-01` && to === `${y}-12-31`)} onClick={() => pickYear(y)}>{y}</button>)}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 15, color: C.soft }}>From <input type="date" aria-label={`${title} from`} style={{ ...input, width: 'auto', display: 'inline-block', padding: '7px 8px' }} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
-            <label style={{ fontSize: 15, color: C.soft }}>To <input type="date" aria-label={`${title} to`} style={{ ...input, width: 'auto', display: 'inline-block', padding: '7px 8px' }} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
-            {ranged && <button type="button" style={{ ...btn, padding: '7px 12px', fontSize: 15 }} onClick={() => { setFrom(''); setTo(''); }}>Latest only</button>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8, maxWidth: 420 }}>
+            <label style={{ fontSize: 14, color: C.soft, minWidth: 0 }}>From<input type="date" aria-label={`${title} from`} style={dateInput} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label>
+            <label style={{ fontSize: 14, color: C.soft, minWidth: 0 }}>To<input type="date" aria-label={`${title} to`} style={dateInput} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label>
           </div>
+          {ranged && <button type="button" style={{ ...btn, padding: '7px 12px', fontSize: 15, marginTop: 8 }} onClick={() => { setFrom(''); setTo(''); }}>Latest only</button>}
           {ranged && inRange.length > 0 && (
             <button type="button" style={{ ...primary, marginTop: 10 }} disabled={inRange.length > MAX_DOWNLOAD} onClick={() => onDownload([...inRange].reverse(), label)}>
               <Download size={16} /> Download {inRange.length} {noun}{inRange.length === 1 ? '' : 's'} (PDF)
@@ -763,10 +867,25 @@ function DocList({ testid, title, icon: Icon, noun, empty, items, dateOf, row, o
 }
 
 function Row({ children }) {
-  return <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderTop: `1px solid ${C.line}`, fontSize: 16, flexWrap: 'wrap' }}>{children}</div>;
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderTop: `1px solid ${C.line}`, fontSize: 16 }}>{children}</div>;
+}
+
+// One receipt / invoice line: date and details on the left, amount and button on the right.
+function DocRow({ date, sub, amount, action, onOpen }) {
+  return (
+    <Row>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600 }}>{date}</div>
+        <div style={{ fontSize: 14, color: C.soft, lineHeight: 1.35 }}>{sub}</div>
+      </div>
+      <div style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{amount}</div>
+      <button style={{ ...btn, padding: '8px 12px', fontSize: 15, flexShrink: 0 }} onClick={onOpen}>{action}</button>
+    </Row>
+  );
 }
 
 function Events({ d, onSignUp }) {
+  const narrow = useNarrow();
   const today = todayISO();
   const upcoming = d.events.filter((e) => (e.end_date || e.start_date || today) >= today);
   if (!upcoming.length) return <div style={card}>No upcoming events right now. Check back soon!</div>;
@@ -782,31 +901,39 @@ function Events({ d, onSignUp }) {
     const owing = [...new Map(inv.map((i) => [i.id, i])).values()].filter((i) => Number(i.balance) > 0.004);
     return (
       <div key={e.id} style={card} data-event={e.title}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 220 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexDirection: narrow ? 'column' : 'row' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 700 }}>{e.title}</div>
-            <div style={{ fontSize: 16, color: C.soft }}>
+            <div style={{ fontSize: 16, color: C.soft, marginTop: 2 }}>
               {fday(e.start_date)}
               {e.end_date && e.end_date !== e.start_date ? ` – ${fday(e.end_date)}` : ''}
               {e.start_time ? ` · ${ftime(e.start_time)}${e.end_time ? `–${ftime(e.end_time)}` : ''}` : ''}
-              {e.location ? ` · ${e.location}` : ''}
             </div>
+            {e.location && <div style={{ fontSize: 16, color: C.soft }}>{e.location}</div>}
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontWeight: 700 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</div>
-            {Number(e.price) > 0 && <div style={{ fontSize: 13, color: C.faint }}>per student{e.taxable ? ' + GST' : ''}</div>}
-            {e.allow_guests && <div style={{ fontSize: 13, color: C.faint }}>Guests {Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}</div>}
-          </div>
+          {narrow ? (
+            <div style={{ fontSize: 15, color: C.soft, background: C.bg, borderRadius: 8, padding: '6px 10px', alignSelf: 'stretch' }}>
+              <b style={{ color: C.ink, fontSize: 16 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</b>
+              {Number(e.price) > 0 ? ` per student${e.taxable ? ' + GST' : ''}` : ''}
+              {e.allow_guests ? ` · Guests ${Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}` : ''}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontWeight: 700 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</div>
+              {Number(e.price) > 0 && <div style={{ fontSize: 13, color: C.faint }}>per student{e.taxable ? ' + GST' : ''}</div>}
+              {e.allow_guests && <div style={{ fontSize: 13, color: C.faint }}>Guests {Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}</div>}
+            </div>
+          )}
         </div>
         {e.description && <p style={{ fontSize: 16, whiteSpace: 'pre-wrap', margin: '10px 0 0' }}>{e.description}</p>}
         {e.signup_deadline && <p style={{ fontSize: 13, color: closed ? C.red : C.soft, margin: '8px 0 0' }}>{closed ? 'Sign-up closed' : `Sign up by ${fdate(e.signup_deadline)}`}</p>}
         {names.length > 0 && <p style={{ fontSize: 16, color: C.green, margin: '8px 0 0' }}><Check size={15} style={{ verticalAlign: -2 }} /> Signed up: {names.join(', ')}{myGuests.length ? ` + guests: ${myGuests.map((g) => g.name).join(', ')}` : ''}</p>}
         {answer && e.question && <p style={{ fontSize: 16, color: C.soft, margin: '4px 0 0' }}>{e.question} <b style={{ color: C.ink }}>{answer}</b></p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          {canAdd && <button style={primary} onClick={() => onSignUp(e)}>Sign up</button>}
+          {canAdd && <button style={{ ...primary, ...(narrow ? { flex: 1 } : {}) }} onClick={() => onSignUp(e)}>Sign up</button>}
           {!canAdd && canGuests && <button style={btn} onClick={() => onSignUp(e)}>Add guests</button>}
           {owing.map((i) => (
-            <a key={i.id} style={btn} href={`/pay/${i.pay_token}`}>Pay {money(i.balance)}</a>
+            <PLink key={i.id} style={btn} href={`/pay/${i.pay_token}`}>Pay {money(i.balance)}</PLink>
           ))}
         </div>
       </div>
@@ -816,7 +943,7 @@ function Events({ d, onSignUp }) {
 
 function Modal({ title, children, onClose, footer, maxWidth = 480, sticky = false }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(20,22,18,.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 12px', zIndex: 50, overflowY: 'auto' }} onClick={sticky ? undefined : onClose}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(20,22,18,.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '4vh 10px', zIndex: 50, overflowY: 'auto' }} onClick={sticky ? undefined : onClose}>
       <div role="dialog" aria-label={title} style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth, padding: 18 }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
           <h2 style={{ fontSize: 18, margin: 0, flex: 1 }}>{title}</h2>
@@ -846,6 +973,7 @@ function classDays(student, d, weeks = 5) {
 }
 
 function AbsenceModal({ d, student, onClose, onDone }) {
+  const preview = usePreview();
   const today = todayISO();
   const days = useMemo(() => classDays(student, d), [student, d]);
   const byDate = Object.fromEntries(days.map((x) => [x.date, x]));
@@ -864,6 +992,7 @@ function AbsenceModal({ d, student, onClose, onDone }) {
   async function send() {
     if (!date) return setError('Pick the class day.');
     setError('');
+    if (preview) return setError(PREVIEW_MSG);
     setBusy(true);
     const r = await callFn({ action: 'absence', student_id: student.id, date, class_name: cls, note });
     setBusy(false);
@@ -940,6 +1069,7 @@ function AbsenceModal({ d, student, onClose, onDone }) {
 }
 
 function SignUpModal({ d, event, onClose, onDone }) {
+  const preview = usePreview();
   const taken = new Set(d.signups.filter((s) => s.event_id === event.id && s.status === 'signed_up').map((s) => s.student_id));
   const kids = d.students.filter((k) => !taken.has(k.id));
   const already = taken.size > 0 && d.students.some((k) => taken.has(k.id));
@@ -970,6 +1100,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
       if (needSign && !signature) return setError('Please sign in the signature box.');
       if (needSign && !signer.trim()) return setError('Please type your full name under the signature.');
     }
+    if (preview) return setError(PREVIEW_MSG);
     setBusy(true);
     setError('');
     // keep only the answers for the children being signed up
@@ -1045,6 +1176,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
 }
 
 function Contact({ d, onSent }) {
+  const preview = usePreview();
   const b = d.business || {};
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -1053,6 +1185,7 @@ function Contact({ d, onSent }) {
   async function send() {
     setError('');
     if (message.trim().length < 2) return setError('Write your message first.');
+    if (preview) return setError(PREVIEW_MSG);
     setBusy(true);
     const r = await callFn({ action: 'message', subject, message });
     setBusy(false);

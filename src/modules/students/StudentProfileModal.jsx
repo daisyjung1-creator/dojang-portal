@@ -10,7 +10,7 @@ import { hasTapes, loadTapes, TAPE_COUNT } from '../../lib/tapes';
 import StudentFlags from '../../components/StudentFlags';
 import { BELTS } from '../../lib/constants';
 import { todayISO, addDaysISO, billingAnchor, nextDueDate, planMonths } from '../../lib/billingDates';
-import { weeklyPlan, splitClasses } from '../../lib/classes';
+import { weeklyPlan, splitClasses, classColor } from '../../lib/classes';
 import { MIN_CLASSES, classesSince } from '../../lib/beltTesting';
 import { formatDate, money } from '../../lib/invoiceUtils';
 import { PATCHES } from '../../lib/testAwards';
@@ -197,7 +197,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <Row k="Every week">
             {plan.length ? (
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {plan.map((c, i) => <Pill key={i} wrap c="var(--dp-ink)" bg="var(--dp-canvas)">{WD[c.weekday]} {shortTime(c.start_time)} · {c.class_name}</Pill>)}
+                {plan.map((c, i) => { const cc = classColor(c.class_name); return <Pill key={i} wrap c={cc.text} bg={cc.bg}>{WD[c.weekday]} {shortTime(c.start_time)} · {c.class_name}</Pill>; })}
               </span>
             ) : '—'}
           </Row>
@@ -447,6 +447,9 @@ function ParentInvite({ customerId }) {
       <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12 }} disabled={busy || !state.email} title={state.email ? `Email ${state.email}` : 'Add an email to the family first'} onClick={invite}>
         {busy ? 'Sending…' : state.invited ? 'Resend invite' : 'Send invite'}
       </button>
+      <a className="dp-btn" style={{ padding: '1px 8px', fontSize: 12, marginLeft: 6, textDecoration: 'none' }} href={`/parent?preview=${customerId}`} target="_blank" rel="noopener" title="Open this family's parent portal as they see it (read only)">
+        View as parent
+      </a>
       {msg && <div style={{ fontSize: 12, color: 'var(--dp-ink-soft)', marginTop: 3 }}>{msg}</div>}
     </div>
   );
