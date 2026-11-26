@@ -296,7 +296,9 @@ export default function RegisterPage() {
     const first = String(family.guardian_name || '').trim();
     setFormEmail({
       title: 'Email the registration form',
-      type: 'broadcast',
+      // Sent as a 'welcome'-type email so the dojang gets a copy (Bcc), like other family emails.
+      type: 'welcome',
+      payload: { kind: 'registration_form' },
       to: family.guardian_email || '',
       subject: `Registration form — ${business}`,
       message: `Hello${first ? ' ' + first : ''},

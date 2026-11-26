@@ -15,13 +15,14 @@ const TYPES = {
   receipt: 'Receipt',
   refund: 'Refund',
   welcome: 'Welcome',
+  regform: 'Registration form',
   tryout_confirmation: 'Trial confirmation',
   subsidy_reminder: 'Grant reminder',
   broadcast: 'Group email',
   makeup: 'Makeup class',
   absence_check: 'Absence check',
 };
-const kindOf = (q) => (q.type === 'invoice' && q.payload?.reminder ? 'reminder' : q.type === 'tryout_confirmation' && q.payload?.lead_id ? 'lead' : q.type);
+const kindOf = (q) => (q.type === 'welcome' && q.payload?.kind === 'registration_form' ? 'regform' : q.type === 'invoice' && q.payload?.reminder ? 'reminder' : q.type === 'tryout_confirmation' && q.payload?.lead_id ? 'lead' : q.type);
 
 export default function EmailLog({ onReuse }) {
   const [rows, setRows] = useState([]);
