@@ -54,6 +54,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const [msg, setMsg] = useState('');
   const [subUsed, setSubUsed] = useState(null);
   const [gstRate, setGstRate] = useState(5);
+  const [makeups, setMakeups] = useState(null);
   const [lastBill, setLastBill] = useState(undefined); // { cycle, total, balance, number } | null
   const [tapes, setTapes] = useState(null);
   useEffect(() => {
@@ -105,6 +106,10 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
       live = false;
     };
   }, [s.id, isAdmin]);
+
+  useEffect(() => {
+    supabase.from('makeup_records').select('id, absence_date, class_name, status, expiration_date, reservation_date, reservation_class_name, conditional').eq('student_id', s.id).order('absence_date', { ascending: false }).limit(30).then(({ data }) => setMakeups(data || []));
+  }, [s.id]);
 
   const belt = BELTS.find((b) => b.value === s.belt) || BELTS[0];
   const plan = weeklyPlan(s, schedule);
@@ -297,7 +302,12 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
       </div>
 
       <div style={{ marginBottom: 14, border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 12px' }}>Attendance</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, flex: 1 }}>Attendance</h2>
+          <button type="button" className="dp-btn" style={{ fontSize: 13 }} onClick={() => (window.location.hash = `attendance/history/${s.id}`)}>
+            <Pencil size={12} /> Edit in Attendance
+          </button>
+        </div>
         <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14 }}>
           <Ring label="This month" value={attSum?.month.classes} goal={attSum?.month.expected} sub={attSum ? `${attSum.month.absent} absent · ${attSum.month.excused} excused` : ''} />
           <Ring label="This billing cycle" value={attSum?.cycle?.classes} goal={attSum?.cycle?.expected} sub={attSum?.cycle ? `${formatDate(attSum.cycle.from).replace(/, \d{4}$/, '')} – ${formatDate(attSum.cycle.to).replace(/, \d{4}$/, '')}` : 'No billing date'} />
@@ -323,6 +333,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
             })}
           </div>
         )}
+        <MakeupList makeups={makeups} onOpen={() => (window.location.hash = `attendance/makeup/${s.id}`)} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
@@ -449,6 +460,46 @@ function AwardsBox({ studentId }) {
         <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)', margin: '6px 0 0' }}>Given on Belt Testing → Awards. Not shown in the parent portal.</p>
       </div>
     </Box>
+  );
+}
+
+// Makeup classes from excused absences: open ones first (to book / booked),
+// then the latest used or expired ones.
+function MakeupList({ makeups, onOpen }) {
+  if (makeups == null) return null;
+  const today = todayISO();
+  const state = (m) => (m.status === 'completed' ? 'used' : m.status === 'reserved' ? 'booked' : m.expiration_date && m.expiration_date < today ? 'expired' : 'open');
+  const open = makeups.filter((m) => ['open', 'booked'].includes(state(m)));
+  const past = makeups.filter((m) => !['open', 'booked'].includes(state(m))).slice(0, 4);
+  const md = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' }) : '');
+  const tone = { open: ['var(--dp-warning)', 'var(--dp-warning-tint)'], booked: ['var(--dp-info)', 'var(--dp-canvas)'], used: ['var(--dp-success)', 'var(--dp-success-tint)'], expired: ['var(--dp-ink-faint)', 'var(--dp-canvas)'] };
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--dp-line)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, flex: 1 }}>
+          Makeup classes{open.length ? <span style={{ color: 'var(--dp-warning)', fontWeight: 600 }}> · {open.length} open</span> : ''}
+        </h3>
+        <button type="button" className="dp-btn" style={{ fontSize: 13 }} onClick={onOpen}><Pencil size={12} /> Edit makeups</button>
+      </div>
+      {open.length + past.length === 0 ? (
+        <span style={{ fontSize: 13, color: 'var(--dp-ink-faint)' }}>No makeup classes. They come from excused absences.</span>
+      ) : (
+        <div style={{ display: 'grid', gap: 4 }}>
+          {[...open, ...past].map((m) => {
+            const st = state(m);
+            return (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: tone[st][0], background: tone[st][1], border: '1px solid var(--dp-line)', borderRadius: 999, padding: '1px 8px', minWidth: 58, textAlign: 'center' }}>{st === 'open' ? 'To book' : st === 'booked' ? 'Booked' : st === 'used' ? 'Used' : 'Expired'}</span>
+                <span>Missed {md(m.absence_date)} · {m.class_name}</span>
+                <span style={{ color: 'var(--dp-ink-soft)' }}>
+                  {st === 'booked' ? `→ ${md(m.reservation_date)}${m.reservation_class_name && m.reservation_class_name !== m.class_name ? ` · ${m.reservation_class_name}` : ''}` : st === 'open' ? `use by ${md(m.expiration_date)}${m.conditional ? ' (after next payment)' : ''}` : st === 'used' && m.reservation_date ? `on ${md(m.reservation_date)}` : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
