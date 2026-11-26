@@ -60,7 +60,7 @@ export default function StaffHomePage({ setActiveTab }) {
   const items = [];
   offToday.forEach((c) => items.push({ tone: 'warn', icon: CalendarOff, text: `No ${c.class_name || 'classes'} today${c.reason ? ` — ${c.reason}` : ''}` }));
   if (d.trials.length) items.push({ icon: UserPlus, text: `Trial class${d.trials.length === 1 ? '' : 'es'}: ${d.trials.map((t) => `${t.student_name}${t.time ? ' ' + t12(t.time) : ''}${t.class_name ? ` (${t.class_name})` : ''}`).join(', ')}`, tab: 'tryouts', label: 'Trials' });
-  if (d.makeups.length) items.push({ icon: RotateCcw, text: `Makeup today: ${d.makeups.map((m) => `${nameOf(m.student_id)} (${m.reservation_class_name})`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
+  if (d.makeups.length) items.push({ icon: RotateCcw, text: `Makeup today: ${d.makeups.map((m) => `${nameOf(m.student_id)}${m.reservation_class_name || m.class_name ? ` (${m.reservation_class_name || m.class_name})` : ''}`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
   if (bdays.length) items.push({ tone: 'good', icon: Cake, text: `Birthday today: ${bdays.map((x) => x.name).join(', ')}` });
   if (nextOff) items.push({ icon: CalendarDays, text: `Next day off: ${new Date(nextOff.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}${nextOff.class_name ? ` (${nextOff.class_name})` : ''}${nextOff.reason ? ` — ${nextOff.reason}` : ''}` });
   const TONE = { warn: 'var(--dp-warning)', good: 'var(--dp-success)' };

@@ -418,7 +418,7 @@ export default function HomePage({ setActiveTab }) {
   if (billToday.length) todayItems.push({ tone: 'info', text: `Billing today: ${billToday.map((x) => x.name).join(', ')}`, tab: 'billing', label: 'Billing' });
   if (d.regs.length) todayItems.push({ tone: 'warn', text: `${d.regs.length} online registration${d.regs.length === 1 ? '' : 's'} to review`, tab: 'register', label: 'Enrollment' });
   const mkToday = d.makeups.filter((m) => m.reservation_date === today);
-  if (mkToday.length) todayItems.push({ tone: 'info', text: `Makeup today: ${mkToday.map((m) => `${studentById[m.student_id]?.name || '?'} (${m.reservation_class_name})`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
+  if (mkToday.length) todayItems.push({ tone: 'info', text: `Makeup today: ${mkToday.map((m) => `${studentById[m.student_id]?.name || '?'}${m.reservation_class_name || m.class_name ? ` (${m.reservation_class_name || m.class_name})` : ''}`).join(', ')}`, tab: 'attendance', label: 'Attendance' });
   const expToday = d.expiring.filter((m) => m.expiration_date === today);
   if (expToday.length) todayItems.push({ tone: 'warn', text: `Makeup expires today: ${expToday.map((m) => studentById[m.student_id]?.name || '?').join(', ')}`, tab: 'attendance', label: 'Attendance' });
   // Subsidy applications still waiting for approval 30+ days after applying.
