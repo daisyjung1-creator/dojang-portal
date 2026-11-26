@@ -131,6 +131,15 @@ table.dp-table td {
   border-bottom: 1px solid var(--dp-line);
   color: var(--dp-ink);
 }
+/* Tables whose cells hold several lines: line everything up at the top. */
+table.dp-table-top td {
+  vertical-align: top;
+}
+table.dp-table-top th,
+table.dp-table-top td {
+  padding-left: 10px;
+  padding-right: 10px;
+}
 table.dp-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -260,6 +269,9 @@ table.dp-table tbody tr:last-child td {
 
   .dp-hide-sm {
     display: none !important;
+  }
+  .dp-main table.dp-table-top td {
+    white-space: normal;
   }
   .dp-main table.dp-table td.dp-att-actions {
     white-space: normal;

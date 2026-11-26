@@ -1,5 +1,7 @@
 import StudentFlags from '../../components/StudentFlags';
 import BeltStrip from '../../components/BeltStrip';
+import ClassChip from '../../components/ClassChip';
+import { splitClasses } from '../../lib/classes';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Search, Plus, Upload, Pencil, Trash2, Check, AlertTriangle, Mail, CalendarX, FileText } from 'lucide-react';
@@ -286,6 +288,27 @@ export default function StudentsPage() {
     students.forEach((x) => x.customer_id && x.status !== 'withdrawn' && (m[x.customer_id] ||= []).push(x));
     return m;
   }, [students]);
+  const narrow = useNarrow(860); // phones and iPad portrait: cards; iPad landscape and up: table
+  // Plan + status chips, and the next billing date (shared by the table and the phone cards).
+  const PlanCell = ({ s }) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+      <span style={{ marginRight: 2 }}>{s.billing_exempt ? <Badge c={GREY}>Staff · no invoice</Badge> : s.plan || '1 Month'}</span>
+                      {families[s.customer_id]?.payment_type === 'manual' && !s.billing_exempt && <Badge c={GREY} title="Pays manually (debit / cash)">Manual pay</Badge>}
+      {s.classes_per_week ? <Badge c={GREY}>{s.classes_per_week}x/wk</Badge> : null}
+      {s.family_discount && <Badge c={GREY} title="Big family discount">Family -20%</Badge>}
+      {families[s.customer_id]?.credit > 0.004 && <Badge c={GREEN} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
+      {onHold(s, todayISO()) && <Badge c={AMBER} title={`${s.hold_reason || 'On hold'} — until ${s.hold_until}`}>On hold · {new Date(s.hold_until + 'T00:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</Badge>}
+      {s.subsidy && s.subsidy_status === 'pending' && <Badge c={AMBER} title={`Applied ${s.subsidy_applied_on || '?'}`}>{(s.subsidy_name || 'Subsidy').trim()} — waiting</Badge>}
+      {s.subsidy && s.subsidy_status !== 'pending' && <Badge c={GREEN} title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`}>Subsidy</Badge>}
+
+    </div>
+  );
+  const NextBilling = ({ s }) => (
+    <div style={{ fontVariantNumeric: 'tabular-nums' }}>
+      {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: 'var(--dp-danger)', fontSize: 'var(--dp-text-label)', fontWeight: 600 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
+      {s.reregistration_fee_due && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-warning)' }}>+ re-registration fee</div>}
+    </div>
+  );
   const filtered = useMemo(() => {
     return students.filter((s) => {
       const fam = families[s.customer_id];
@@ -479,16 +502,48 @@ export default function StudentsPage() {
             </p>
           </div>
         ) : (
-          <table className="dp-table">
+          narrow ? (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              {filtered.map((s, i) => {
+                const sibs = s.customer_id ? (siblingsBy[s.customer_id] || []).filter((x) => x.id !== s.id) : [];
+                return (
+                  <li key={s.id} style={{ padding: '14px 16px', borderBottom: i < filtered.length - 1 ? '1px solid var(--dp-line)' : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <button onClick={() => setProfileId(s.id)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: 16, fontWeight: 600, color: 'var(--dp-ink)', cursor: 'pointer', textAlign: 'left' }}>{s.name}</button>
+                        <StudentFlags s={s} style={{ marginLeft: 6 }} />
+                        {s.status === 'withdrawn' && <span style={{ marginLeft: 6 }}><Badge c={GREY}>Withdrawn</Badge></span>}
+                        {sibs.length > 0 && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginTop: 2 }}>Sibling{sibs.length > 1 ? 's' : ''}: {sibs.map((x) => x.name.split(' ')[0]).join(', ')}</div>}
+                      </div>
+                      {isAdmin && <button aria-label={`Edit ${s.name}`} className="dp-btn" style={{ width: 44, minHeight: 44, padding: 0, justifyContent: 'center' }} onClick={() => openEdit(s)}><Pencil size={16} /></button>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 'var(--dp-text-label)' }}>
+                      <BeltStrip belt={s.belt} width={44} />
+                      <span>{s.belt || 'White'}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>{splitClasses(s.class_name).map((c) => <ClassChip key={c} name={c} size={12} />)}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', rowGap: 6, columnGap: 8, marginTop: 10, fontSize: 'var(--dp-text-label)' }}>
+                      <span style={{ color: 'var(--dp-ink-soft)' }}>Guardian</span>
+                      <div>{s.guardian_name || '—'}<div style={{ color: 'var(--dp-ink-soft)' }}><Phones value={s.guardian_phone} /></div></div>
+                      <span style={{ color: 'var(--dp-ink-soft)' }}>Plan</span>
+                      <PlanCell s={s} />
+                      <span style={{ color: 'var(--dp-ink-soft)' }}>Next billing</span>
+                      <NextBilling s={s} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+          <div style={{ overflowX: 'auto' }}>
+          <table className="dp-table dp-table-top" style={{ minWidth: 760 }}>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Belt</th>
+                <th style={{ minWidth: 160 }}>Name</th>
                 <th>Class</th>
                 <th>Guardian</th>
-                <th>Phone</th>
-                <th>Plan</th>
-                <th>Next billing</th>
+                <th style={{ minWidth: 120 }}>Plan</th>
+                <th style={{ whiteSpace: 'nowrap' }}>Next billing</th>
                 {isAdmin && <th style={{ width: 50 }}></th>}
               </tr>
             </thead>
@@ -506,8 +561,12 @@ export default function StudentsPage() {
                         {s.name}
                       </button>
                       <StudentFlags s={s} style={{ marginLeft: 6 }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 'var(--dp-text-caption)', fontWeight: 400, color: 'var(--dp-ink-soft)', whiteSpace: 'nowrap' }}>
+                        <BeltStrip belt={s.belt} width={36} />
+                        {s.belt || 'White'}
+                      </div>
                       {s.status === 'withdrawn' && (
-                        <Badge c={GREY}>Withdrawn</Badge>
+                        <span style={{ marginLeft: 6 }}><Badge c={GREY}>Withdrawn</Badge></span>
                       )}
                       {sibs.length > 0 && (
                         <div style={{ fontSize: 'var(--dp-text-caption)', fontWeight: 400, color: 'var(--dp-ink-soft)', marginTop: 2 }} title={`Same family: ${families[s.customer_id]?.name || ''}`}>
@@ -515,29 +574,13 @@ export default function StudentsPage() {
                         </div>
                       )}
                     </td>
+                    <td><ClassList value={s.class_name} /></td>
                     <td>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', fontSize: 'var(--dp-text-label)' }}>
-                        <BeltStrip belt={s.belt} width={44} />
-                        {s.belt || 'White'}
-                      </span>
+                      {s.guardian_name || '—'}
+                      <div style={{ fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', marginTop: 2 }}><Phones value={s.guardian_phone} /></div>
                     </td>
-                    <td>{s.class_name || '—'}</td>
-                    <td>{s.guardian_name || '—'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{s.guardian_phone || '—'}</td>
-                    <td>
-                      {s.billing_exempt ? <Badge c={GREY}>Staff · no invoice</Badge> : s.plan || '1 Month'}
-                      {families[s.customer_id]?.payment_type === 'manual' && !s.billing_exempt && <Badge c={GREY} title="Pays manually (debit / cash)">Manual pay</Badge>}
-                      {s.classes_per_week ? <Badge c={GREY}>{s.classes_per_week}x/wk</Badge> : null}
-                      {s.family_discount && <Badge c={GREY} title="Big family discount">Family -20%</Badge>}
-                      {families[s.customer_id]?.credit > 0.004 && <Badge c={GREEN} title="Family account credit — used on the next invoice">Credit ${Number(families[s.customer_id].credit).toFixed(2)}</Badge>}
-                      {onHold(s, todayISO()) && <Badge c={AMBER} title={s.hold_reason || ''}>On hold until {s.hold_until}</Badge>}
-                      {s.subsidy && s.subsidy_status === 'pending' && <Badge c={AMBER} title={`Applied ${s.subsidy_applied_on || '?'}`}>{(s.subsidy_name || 'Subsidy').trim()} — waiting</Badge>}
-                      {s.subsidy && s.subsidy_status !== 'pending' && <Badge c={GREEN} title={`${s.subsidy_name || 'Subsidy'} until ${s.subsidy_end_date || '?'}`}>Subsidy</Badge>}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      {s.billing_end_date && nextDueDate(s, todayISO()) > s.billing_end_date ? <span style={{ color: 'var(--dp-danger)', fontSize: 'var(--dp-text-label)', fontWeight: 600 }}>Ends {s.billing_end_date}</span> : billingAnchor(s) ? nextDueDate(s, todayISO()) : '—'}
-                      {s.reregistration_fee_due && <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-warning)' }}>+ re-registration fee</div>}
-                    </td>
+                    <td><PlanCell s={s} /></td>
+                    <td style={{ whiteSpace: 'nowrap' }}><NextBilling s={s} /></td>
                     {isAdmin && (
                       <td>
                         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -552,6 +595,8 @@ export default function StudentsPage() {
               })}
             </tbody>
           </table>
+          </div>
+          )
         )}
       </div>
       </>)}
@@ -928,7 +973,7 @@ const GREY = ['var(--dp-ink-soft)', 'var(--dp-canvas)'];
 const GREEN = ['var(--dp-success)', 'var(--dp-success-tint)'];
 const AMBER = ['var(--dp-warning)', 'var(--dp-warning-tint)'];
 function Badge({ c, title, children }) {
-  return <span title={title} style={{ display: 'inline-block', margin: '2px 0 2px 6px', fontSize: 'var(--dp-text-caption)', fontWeight: 500, color: c[0], background: c[1], border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-pill)', padding: '1px 8px', whiteSpace: 'nowrap', lineHeight: 1.5 }}>{children}</span>;
+  return <span title={title} style={{ display: 'inline-block', margin: 0, fontSize: 'var(--dp-text-caption)', fontWeight: 500, color: c[0], background: c[1], border: '1px solid var(--dp-line)', borderRadius: 'var(--dp-radius-pill)', padding: '1px 8px', whiteSpace: 'nowrap', lineHeight: 1.5 }}>{children}</span>;
 }
 
 // Standard tuition (before GST) for a number of classes a week.
@@ -936,4 +981,35 @@ export function suggestedTuition(perWeek, plan) {
   if (!perWeek) return '';
   if (plan === '3 Months') return perWeek === 2 ? 435 : perWeek === 3 ? 495 : perWeek >= 4 ? 585 : '';
   return perWeek === 1 ? 135 : perWeek === 2 ? 150 : perWeek === 3 ? 170 : 200;
+}
+
+
+// Phones: the student list shows cards instead of the wide table.
+function useNarrow(px = 700) {
+  const q = `(max-width: ${px}px)`;
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, [q]);
+  return narrow;
+}
+
+// "780-111-2222 (Mom), 780-333-4444" → one number per line, never split inside a number.
+function Phones({ value }) {
+  const list = String(value || '').split(/\s*[,;\/]\s*/).filter(Boolean);
+  if (!list.length) return <>—</>;
+  return list.map((p, i) => (
+    <div key={i} style={{ whiteSpace: 'nowrap' }}>
+      <a href={`tel:${p.replace(/[^\d+]/g, '')}`} style={{ color: 'inherit', textDecoration: 'none' }}>{p}</a>
+    </div>
+  ));
+}
+
+function ClassList({ value }) {
+  const list = splitClasses(value);
+  if (!list.length) return <>—</>;
+  return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>{list.map((c) => <ClassChip key={c} name={c} size={12} />)}</div>;
 }
