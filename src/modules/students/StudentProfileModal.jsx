@@ -12,7 +12,8 @@ import { BELTS } from '../../lib/constants';
 import { todayISO, addDaysISO, billingAnchor, nextDueDate, planMonths } from '../../lib/billingDates';
 import { weeklyPlan, splitClasses, classColor } from '../../lib/classes';
 import { MIN_CLASSES, classesSince } from '../../lib/beltTesting';
-import { formatDate, money } from '../../lib/invoiceUtils';
+import { formatDate, money, calcTotals } from '../../lib/invoiceUtils';
+import { tuitionLines } from '../../lib/tuitionBilling';
 import { PATCHES } from '../../lib/testAwards';
 
 // Everything about one student on one screen: details, family, health,
@@ -51,6 +52,8 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const [copied, setCopied] = useState('');
   const [msg, setMsg] = useState('');
   const [subUsed, setSubUsed] = useState(null);
+  const [gstRate, setGstRate] = useState(5);
+  const [lastBill, setLastBill] = useState(undefined); // { cycle, total, balance, number } | null
   const [tapes, setTapes] = useState(null);
   useEffect(() => {
     loadTapes([s]).then((m) => setTapes(m[s.id] || new Set()));
@@ -73,6 +76,35 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
     });
   }, [s.id]);
 
+  // Last tuition billing for this student: their lines on the most recent
+  // (not voided) tuition invoice, with GST, and whether it has been paid.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let live = true;
+    (async () => {
+      const [{ data: st }, { data: ls }] = await Promise.all([
+        supabase.from('invoice_settings').select('gst_rate').eq('id', 1).maybeSingle(),
+        supabase.from('invoice_lines').select('invoice_id, cycle_start, amount, taxable, line_kind, quantity, unit_price').eq('student_id', s.id).not('cycle_start', 'is', null).order('cycle_start', { ascending: false }).limit(40),
+      ]);
+      const rate = st?.gst_rate ?? 5;
+      if (!live) return;
+      setGstRate(rate);
+      const ids = Array.from(new Set((ls || []).map((l) => l.invoice_id)));
+      if (!ids.length) return setLastBill(null);
+      const { data: invs } = await supabase.from('invoice_summary').select('id, invoice_number, balance, voided').in('id', ids);
+      const ok = new Map((invs || []).filter((i) => !i.voided).map((i) => [i.id, i]));
+      const top = (ls || []).find((l) => ok.has(l.invoice_id));
+      if (!live) return;
+      if (!top) return setLastBill(null);
+      const lines = ls.filter((l) => l.invoice_id === top.invoice_id);
+      const inv = ok.get(top.invoice_id);
+      setLastBill({ cycle: top.cycle_start, total: calcTotals(lines, rate).total, balance: Number(inv.balance || 0), number: inv.invoice_number });
+    })();
+    return () => {
+      live = false;
+    };
+  }, [s.id, isAdmin]);
+
   const belt = BELTS.find((b) => b.value === s.belt) || BELTS[0];
   const plan = weeklyPlan(s, schedule);
   const age = ageOf(s.dob);
@@ -82,6 +114,7 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
   const last = att?.find((r) => ['present', 'double'].includes(r.status));
   const withdrawn = s.status === 'withdrawn';
   const next = billingAnchor(s) ? nextDueDate(s, todayISO()) : null;
+  const nextTotal = next && Number(s.tuition) > 0 && !s.billing_exempt ? calcTotals(tuitionLines(subUsed != null ? { ...s, _subsidyUsed: subUsed } : s, next), gstRate).total : null;
   const streak = att ? weekStreak(att) : 0;
   const card = { border: '1px solid var(--dp-line)', borderRadius: 12, padding: '16px 18px', background: '#fff' };
 
@@ -236,7 +269,26 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
                 <Row k="Plan">{s.plan || '1 Month'} · {s.tuition ? `${money(s.tuition)}${planMonths(s) > 1 ? ' / 3 months' : ' / month'} + GST` : 'tuition not set'}</Row>
                 <Row k="Pays by">{family?.payment_type === 'manual' ? 'Manual (debit / cash / e-transfer)' : 'Pre-authorized credit card'}</Row>
                 {s.customer_id && <Row k="Card"><FamilyCard customerId={s.customer_id} /></Row>}
-                <Row k="Next billing">{s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? formatDate(next) : '—'}</Row>
+                <Row k="Next billing">
+                  {s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? (
+                    <>
+                      {formatDate(next)}
+                      {nextTotal != null && <span style={{ fontVariantNumeric: 'tabular-nums' }}> · <b style={{ fontWeight: 600 }}>{money(nextTotal)}</b> <span style={{ color: 'var(--dp-ink-soft)', fontSize: 12.5 }}>incl. GST (est.)</span></span>}
+                    </>
+                  ) : '—'}
+                </Row>
+                <Row k="Last billing">
+                  {lastBill === undefined ? <span style={{ color: 'var(--dp-ink-faint)' }}>…</span> : !lastBill ? '—' : (
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {formatDate(lastBill.cycle)} · <b style={{ fontWeight: 600 }}>{money(lastBill.total)}</b>{' '}
+                      {lastBill.balance > 0.004 ? (
+                        <span style={{ color: 'var(--dp-danger)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Unpaid · #{lastBill.number}</span>
+                      ) : (
+                        <span style={{ color: 'var(--dp-success)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Paid · #{lastBill.number}</span>
+                      )}
+                    </span>
+                  )}
+                </Row>
                 {s.family_discount && <Row k="Discount">Big family −20%</Row>}
                 {s.subsidy && (
                   <Row k="Subsidy">
