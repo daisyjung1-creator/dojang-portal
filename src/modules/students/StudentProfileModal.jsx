@@ -216,16 +216,83 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
             <TapeList student={s} onChange={setTapes} editable />
           </div>
         )}
-        <div style={card}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Family</h2>
-          <Row k="Parent / guardian">{s.guardian_name || '—'}</Row>
-          <Row k="Phone">{s.guardian_phone ? <a href={`tel:${s.guardian_phone}`}>{s.guardian_phone}</a> : '—'}</Row>
-          <Row k="Email">{s.guardian_email || '—'}</Row>
-          <Row k="Address">{s.address || '—'}</Row>
-          <Row k="Emergency">{[s.emergency_name, s.emergency_phone].filter(Boolean).join(' · ') || '—'}</Row>
-          {siblings.length > 0 && <Row k="Siblings">{siblings.map((x) => x.name).join(', ')}</Row>}
-          {family?.name && <Row k="Family account">{family.name}</Row>}
-          {isAdmin && s.customer_id && <Row k="Parent portal"><ParentInvite customerId={s.customer_id} /></Row>}
+        {/* Family + Billing: stacked beside the tapes; side by side when there are no tapes. */}
+        <div style={{ display: 'grid', gridTemplateColumns: hasTapes(s.belt) ? 'minmax(0, 1fr)' : 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, alignContent: 'start', minWidth: 0 }}>
+          <div style={card}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 10px' }}>Family</h2>
+            <Row k="Parent / guardian">{s.guardian_name || '—'}</Row>
+            <Row k="Phone">{s.guardian_phone ? <a href={`tel:${s.guardian_phone}`}>{s.guardian_phone}</a> : '—'}</Row>
+            <Row k="Email">{s.guardian_email || '—'}</Row>
+            <Row k="Address">{s.address || '—'}</Row>
+            <Row k="Emergency">{[s.emergency_name, s.emergency_phone].filter(Boolean).join(' · ') || '—'}</Row>
+            {siblings.length > 0 && <Row k="Siblings">{siblings.map((x) => x.name).join(', ')}</Row>}
+            {family?.name && <Row k="Family account">{family.name}</Row>}
+            {isAdmin && s.customer_id && <Row k="Parent portal"><ParentInvite customerId={s.customer_id} /></Row>}
+          </div>
+          {isAdmin && (
+            <Box title="Billing">
+              {s.billing_exempt ? (
+                <Row k="Plan">Staff — no invoices</Row>
+              ) : (
+                <>
+                  <Row k="Plan">{s.plan || '1 Month'} · {s.tuition ? `${money(s.tuition)}${planMonths(s) > 1 ? ' / 3 months' : ' / month'} + GST` : 'tuition not set'}</Row>
+                  <Row k="Pays by">{family?.payment_type === 'manual' ? 'Manual (debit / cash / e-transfer)' : 'Pre-authorized credit card'}</Row>
+                  {s.customer_id && <Row k="Card"><FamilyCard customerId={s.customer_id} /></Row>}
+                  <Row k="Next billing">
+                    {s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? (
+                      <>
+                        <div>{formatDate(next)}{nextCalc && <> · <b style={{ fontWeight: 700 }}>{money(nextCalc.total)}</b></>}</div>
+                        {nextLines && (
+                          <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--dp-ink-soft)', fontVariantNumeric: 'tabular-nums' }}>
+                            {nextLines.map((l, i) => (
+                              <div key={i} style={{ display: 'flex', gap: 8 }}>
+                                <span style={{ flex: 1 }}>{l.line_kind === 'tuition' ? 'Tuition' : l.line_kind === 'discount' ? 'Family discount' : l.line_kind === 'subsidy' ? (s.subsidy_name || 'Subsidy').trim() : 'Re-registration fee'}</span>
+                                <span>{Number(l.quantity * l.unit_price) < 0 ? '−' : ''}{money(Math.abs(l.quantity * l.unit_price))}</span>
+                              </div>
+                            ))}
+                            {nextCalc.gst > 0 && <div style={{ display: 'flex', gap: 8 }}><span style={{ flex: 1 }}>GST</span><span>{money(nextCalc.gst)}</span></div>}
+                            <div style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--dp-line)', marginTop: 3, paddingTop: 3, color: 'var(--dp-ink)', fontWeight: 600 }}><span style={{ flex: 1 }}>{s.name.split(' ')[0]} pays</span><span>{money(nextCalc.total)}</span></div>
+                            {familyNext != null && (
+                              <div style={{ display: 'flex', gap: 8, color: 'var(--dp-ink)', fontWeight: 600 }}><span style={{ flex: 1 }}>Family total ({sameDaySibs.length + 1} kids)</span><span>{money(familyNext)}</span></div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : '—'}
+                  </Row>
+                  <Row k="Last billing">
+                    {lastBill === undefined ? <span style={{ color: 'var(--dp-ink-faint)' }}>…</span> : !lastBill ? '—' : (
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {formatDate(lastBill.cycle)} · <b style={{ fontWeight: 700 }}>{money(lastBill.total)}</b>{' '}
+                        {lastBill.balance > 0.004 ? (
+                          <span style={{ color: 'var(--dp-danger)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Unpaid</span>
+                        ) : (
+                          <span style={{ color: 'var(--dp-success)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Paid</span>
+                        )}
+                        {Math.abs(lastBill.invoiceTotal - lastBill.total) > 0.004 && (
+                          <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>Family invoice #{lastBill.number}: {money(lastBill.invoiceTotal)}</div>
+                        )}
+                        {Math.abs(lastBill.invoiceTotal - lastBill.total) <= 0.004 && <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}> · #{lastBill.number}</span>}
+                      </span>
+                    )}
+                  </Row>
+                  {s.family_discount && <Row k="Discount">Big family −20%</Row>}
+                  {s.subsidy && (
+                    <Row k="Subsidy">
+                      {(s.subsidy_name || 'Subsidy').trim()}{s.subsidy_amount ? ` ${money(s.subsidy_amount)} per billing` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}
+                      {s.subsidy_status === 'pending' && <div style={{ color: 'var(--dp-warning)' }}>Waiting for approval{s.subsidy_applied_on ? ` — applied ${formatDate(s.subsidy_applied_on)}` : ''}</div>}
+                      {s.subsidy_status === 'denied' && <div style={{ color: 'var(--dp-danger)' }}>Not approved{s.subsidy_applied_on ? ` (applied ${formatDate(s.subsidy_applied_on)})` : ''}</div>}
+                      {s.subsidy_status === 'approved' && s.subsidy_applied_on && <div style={{ color: 'var(--dp-ink-soft)' }}>Approved — applied {formatDate(s.subsidy_applied_on)}</div>}
+                      {!s.subsidy_status && s.subsidy_applied_on && <div style={{ color: 'var(--dp-ink-soft)' }}>Applied {formatDate(s.subsidy_applied_on)}</div>}
+                      {Number(s.subsidy_total) > 0 && subUsed != null && <div style={{ color: 'var(--dp-success)' }}>{money(Math.max(Number(s.subsidy_total) - subUsed, 0))} left of the {money(s.subsidy_total)} grant</div>}
+                    </Row>
+                  )}
+                  {family?.credit > 0.004 && <Row k="Family credit">{money(family.credit)}</Row>}
+                  {s.reregistration_fee_due && <Row k="Next invoice">+ $20 re-registration fee</Row>}
+                </>
+              )}
+            </Box>
+          )}
         </div>
       </div>
 
@@ -281,71 +348,6 @@ export default function StudentProfileModal({ student: s, family, siblings = [],
           <Row k="Date of birth">{s.dob ? formatDate(s.dob) : '—'}</Row>
           {s.notes && <Row k="Notes"><span style={{ whiteSpace: 'pre-line' }}>{s.notes}</span></Row>}
         </Box>
-
-        {isAdmin && (
-          <Box title="Billing">
-            {s.billing_exempt ? (
-              <Row k="Plan">Staff — no invoices</Row>
-            ) : (
-              <>
-                <Row k="Plan">{s.plan || '1 Month'} · {s.tuition ? `${money(s.tuition)}${planMonths(s) > 1 ? ' / 3 months' : ' / month'} + GST` : 'tuition not set'}</Row>
-                <Row k="Pays by">{family?.payment_type === 'manual' ? 'Manual (debit / cash / e-transfer)' : 'Pre-authorized credit card'}</Row>
-                {s.customer_id && <Row k="Card"><FamilyCard customerId={s.customer_id} /></Row>}
-                <Row k="Next billing">
-                  {s.billing_end_date && next && next > s.billing_end_date ? `none — ends ${formatDate(s.billing_end_date)}` : next ? (
-                    <>
-                      <div>{formatDate(next)}{nextCalc && <> · <b style={{ fontWeight: 700 }}>{money(nextCalc.total)}</b></>}</div>
-                      {nextLines && (
-                        <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--dp-ink-soft)', fontVariantNumeric: 'tabular-nums' }}>
-                          {nextLines.map((l, i) => (
-                            <div key={i} style={{ display: 'flex', gap: 8 }}>
-                              <span style={{ flex: 1 }}>{l.line_kind === 'tuition' ? 'Tuition' : l.line_kind === 'discount' ? 'Family discount' : l.line_kind === 'subsidy' ? (s.subsidy_name || 'Subsidy').trim() : 'Re-registration fee'}</span>
-                              <span>{Number(l.quantity * l.unit_price) < 0 ? '−' : ''}{money(Math.abs(l.quantity * l.unit_price))}</span>
-                            </div>
-                          ))}
-                          {nextCalc.gst > 0 && <div style={{ display: 'flex', gap: 8 }}><span style={{ flex: 1 }}>GST</span><span>{money(nextCalc.gst)}</span></div>}
-                          <div style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--dp-line)', marginTop: 3, paddingTop: 3, color: 'var(--dp-ink)', fontWeight: 600 }}><span style={{ flex: 1 }}>{s.name.split(' ')[0]} pays</span><span>{money(nextCalc.total)}</span></div>
-                          {familyNext != null && (
-                            <div style={{ display: 'flex', gap: 8, color: 'var(--dp-ink)', fontWeight: 600 }}><span style={{ flex: 1 }}>Family total ({sameDaySibs.length + 1} kids)</span><span>{money(familyNext)}</span></div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : '—'}
-                </Row>
-                <Row k="Last billing">
-                  {lastBill === undefined ? <span style={{ color: 'var(--dp-ink-faint)' }}>…</span> : !lastBill ? '—' : (
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {formatDate(lastBill.cycle)} · <b style={{ fontWeight: 700 }}>{money(lastBill.total)}</b>{' '}
-                      {lastBill.balance > 0.004 ? (
-                        <span style={{ color: 'var(--dp-danger)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Unpaid</span>
-                      ) : (
-                        <span style={{ color: 'var(--dp-success)', fontSize: 12.5, whiteSpace: 'nowrap' }}>Paid</span>
-                      )}
-                      {Math.abs(lastBill.invoiceTotal - lastBill.total) > 0.004 && (
-                        <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>Family invoice #{lastBill.number}: {money(lastBill.invoiceTotal)}</div>
-                      )}
-                      {Math.abs(lastBill.invoiceTotal - lastBill.total) <= 0.004 && <span style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}> · #{lastBill.number}</span>}
-                    </span>
-                  )}
-                </Row>
-                {s.family_discount && <Row k="Discount">Big family −20%</Row>}
-                {s.subsidy && (
-                  <Row k="Subsidy">
-                    {(s.subsidy_name || 'Subsidy').trim()}{s.subsidy_amount ? ` ${money(s.subsidy_amount)} per billing` : ''}{s.subsidy_end_date ? ` until ${formatDate(s.subsidy_end_date)}` : ''}
-                    {s.subsidy_status === 'pending' && <div style={{ color: 'var(--dp-warning)' }}>Waiting for approval{s.subsidy_applied_on ? ` — applied ${formatDate(s.subsidy_applied_on)}` : ''}</div>}
-                    {s.subsidy_status === 'denied' && <div style={{ color: 'var(--dp-danger)' }}>Not approved{s.subsidy_applied_on ? ` (applied ${formatDate(s.subsidy_applied_on)})` : ''}</div>}
-                    {s.subsidy_status === 'approved' && s.subsidy_applied_on && <div style={{ color: 'var(--dp-ink-soft)' }}>Approved — applied {formatDate(s.subsidy_applied_on)}</div>}
-                    {!s.subsidy_status && s.subsidy_applied_on && <div style={{ color: 'var(--dp-ink-soft)' }}>Applied {formatDate(s.subsidy_applied_on)}</div>}
-                    {Number(s.subsidy_total) > 0 && subUsed != null && <div style={{ color: 'var(--dp-success)' }}>{money(Math.max(Number(s.subsidy_total) - subUsed, 0))} left of the {money(s.subsidy_total)} grant</div>}
-                  </Row>
-                )}
-                {family?.credit > 0.004 && <Row k="Family credit">{money(family.credit)}</Row>}
-                {s.reregistration_fee_due && <Row k="Next invoice">+ $20 re-registration fee</Row>}
-              </>
-            )}
-          </Box>
-        )}
 
         {isAdmin && (
           <Box
