@@ -131,6 +131,13 @@ table.dp-table td {
   border-bottom: 1px solid var(--dp-line);
   color: var(--dp-ink);
 }
+/* Compact one-line-per-row lists (Students): nothing wraps; the table scrolls sideways. */
+table.dp-table-compact th,
+table.dp-table-compact td {
+  white-space: nowrap;
+  padding: 8px 8px;
+  vertical-align: middle;
+}
 /* Tables whose cells hold several lines: line everything up at the top. */
 table.dp-table-top td {
   vertical-align: top;
