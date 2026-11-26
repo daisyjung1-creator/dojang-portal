@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Mail, Plus, X, Users } from 'lucide-react';
+import { Check, Mail, Plus, X, Users, Send } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { BELTS } from '../../lib/constants';
@@ -11,7 +11,8 @@ import WelcomeEmailModal from '../../components/WelcomeEmailModal';
 import { allClassNames } from '../../lib/classes';
 import { suggestedTuition } from '../students/StudentsPage';
 import CustomerPicker from '../invoices/CustomerPicker';
-import OnlineRegistrations, { kidName } from './OnlineRegistrations';
+import OnlineRegistrations, { kidName, JOIN_URL } from './OnlineRegistrations';
+import EmailComposeModal from '../../components/EmailComposeModal';
 import { REREGISTRATION_FEE } from '../../lib/tuitionBilling';
 
 // Parent / family details — entered once for all the children.
@@ -67,6 +68,7 @@ export default function RegisterPage() {
   const [recent, setRecent] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [welcomeFor, setWelcomeFor] = useState(null); // array of students
+  const [formEmail, setFormEmail] = useState(null); // draft: email the online registration form
   // The online registration (from /join) currently loaded into the form.
   const [fromOnline, setFromOnline] = useState(null);
   const [onlineReload, setOnlineReload] = useState(0);
@@ -287,6 +289,33 @@ export default function RegisterPage() {
 
   const inp = { width: '100%' };
 
+  // Email the online registration form (/join) to a new family.
+  async function openFormEmail() {
+    const { data: st } = await supabase.from('invoice_settings').select('business_name').eq('id', 1).maybeSingle();
+    const business = st?.business_name || 'Champion Hankook Taekwondo';
+    const first = String(family.guardian_name || '').trim();
+    setFormEmail({
+      title: 'Email the registration form',
+      type: 'broadcast',
+      to: family.guardian_email || '',
+      subject: `Registration form — ${business}`,
+      message: `Hello${first ? ' ' + first : ''},
+
+Thank you for choosing ${business}! Please fill in the student registration form online:
+
+${JOIN_URL}
+
+It takes about 10 minutes. You'll enter the student and parent details, choose the classes, read the membership terms and sign at the end. You can register brothers and sisters on the same form.
+
+Once we receive it, we'll confirm the classes and tuition and send you a welcome email.
+
+If you have any questions, just reply to this email.
+
+Best regards,
+Master Daisy`,
+    });
+  }
+
   return (
     <>
       <div style={styles.header}>
@@ -303,6 +332,12 @@ export default function RegisterPage() {
       </div>
 
       <div id="enroll-form" className="dp-ea-form" style={{ ...styles.card, padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '0 0 16px', marginBottom: 16, borderBottom: '1px solid var(--dp-line)' }}>
+          <span style={{ flex: '1 1 220px', fontSize: 13, color: 'var(--dp-ink-soft)' }}>New family registering from home? Email them the online registration form.</span>
+          <button className="dp-btn" style={{ minHeight: 40 }} onClick={openFormEmail}>
+            <Send size={14} /> Email registration form
+          </button>
+        </div>
         {fromOnline && (
           <div style={{ background: 'var(--dp-canvas)', border: '1px solid var(--dp-line)', color: 'var(--dp-info)', borderRadius: 'var(--dp-radius-md)', padding: '10px 12px', fontSize: 13, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ flex: 1 }}>
@@ -501,6 +536,8 @@ export default function RegisterPage() {
         )}
       </div>
       </div>
+
+      {formEmail && <EmailComposeModal draft={formEmail} onClose={() => setFormEmail(null)} onSent={() => { setFormEmail(null); setSuccess('Registration form emailed.'); }} />}
 
       {welcomeFor && (
         <WelcomeEmailModal
