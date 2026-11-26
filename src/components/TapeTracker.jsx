@@ -8,7 +8,7 @@ import { TAPES, TAPE_COUNT, hasTapes, setTape } from '../lib/tapes';
 // so every slot shows which tape it is.
 const faint = (t) => ({ background: `${t.color}2E`, border: `dashed ${t.id === 'white' ? '#BDB9AC' : `${t.border}B3`}` });
 
-export default function TapeTracker({ student, earned, onChange, size = 'md', editable = true, showCount = true }) {
+export default function TapeTracker({ student, earned, onChange, size = 'md', editable = true, showCount = true, wrap = true }) {
   const [busy, setBusy] = useState('');
   const [err, setErr] = useState('');
   if (!hasTapes(student.belt)) return <span style={{ fontSize: size === 'touch' ? 'var(--dp-text-label)' : 12, color: size === 'touch' ? 'var(--dp-ink-soft)' : '#8A8D84' }}>No tapes for {student.belt}</span>;
@@ -30,7 +30,7 @@ export default function TapeTracker({ student, earned, onChange, size = 'md', ed
     onChange?.(next);
   }
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: touch ? 2 : big ? 6 : 3, flexWrap: 'wrap' }} data-tapes={student.name} data-count={set.size}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: touch ? 2 : big ? 6 : 3, flexWrap: wrap ? 'wrap' : 'nowrap' }} data-tapes={student.name} data-count={set.size}>
       {TAPES.map((t) => {
         const on = set.has(t.id);
         return (

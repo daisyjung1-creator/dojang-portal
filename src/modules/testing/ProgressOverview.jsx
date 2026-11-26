@@ -204,6 +204,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
             ))}
           </ul>
         ) : (
+          <div style={{ overflowX: 'auto' }}>
           <table className="dp-table">
             <thead>
               <tr>
@@ -220,11 +221,11 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
                 const m = beltMeta(s.belt);
                 return (
                   <tr key={s.id} className="dp-row" data-student={s.name}>
-                    <td style={{ fontWeight: 500 }}>
+                    <td style={{ fontWeight: 500, maxWidth: 300 }}>
                       {isAdmin ? (
                         <a href={`#students/${s.id}`} style={{ color: 'var(--dp-ink)', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }}>{s.name}</a>
                       ) : s.name}
-                      <div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{s.class_name}</div>
+                      <div title={s.class_name} style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.class_name}</div>
                     </td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, whiteSpace: 'nowrap' }}>
@@ -232,7 +233,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
                         {s.belt || 'White'}
                       </span>
                     </td>
-                    <td><TapeTracker student={s} earned={tp} onChange={(set) => setOne(s.id, set)} /></td>
+                    <td style={{ whiteSpace: 'nowrap' }}><TapeTracker student={s} earned={tp} wrap={false} onChange={(set) => setOne(s.id, set)} /></td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: enough ? 'var(--dp-success)' : 'var(--dp-ink)' }}><b>{n}</b> / {MIN_CLASSES}</td>
                     <td style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', whiteSpace: 'nowrap' }}>{nextBelt(s.belt)}</td>
                     <td>{ready && <span style={{ fontSize: 12.5, color: 'var(--dp-success)', background: 'var(--dp-success-tint)', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>Ready</span>}</td>
@@ -241,6 +242,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
