@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { LogOut, CalendarX, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download, CircleCheck } from 'lucide-react';
 import logo from '../../assets/logo.png';
 import { supabase } from '../../supabaseClient';
@@ -24,6 +24,26 @@ import ClassChip from '../../components/ClassChip';
 
 // Colours from DESIGN.md (src/styles/tokens.css). brand = Hankook Red, accents only; red = danger text.
 const C = { brand: 'var(--dp-hankook-red)', red: 'var(--dp-danger)', ink: 'var(--dp-ink)', soft: 'var(--dp-ink-soft)', faint: 'var(--dp-ink-faint)', line: 'var(--dp-line)', bg: 'var(--dp-canvas)', green: 'var(--dp-success)', greenTint: 'var(--dp-success-tint)', amber: 'var(--dp-warning)', amberTint: 'var(--dp-warning-tint)', redTint: 'var(--dp-danger-tint)' };
+// Admin "View as parent" preview (/parent?preview=<family id>): the admin sees
+// exactly what that family sees, but nothing can be sent, paid or saved.
+const PreviewCtx = createContext(false);
+const usePreview = () => useContext(PreviewCtx);
+const PREVIEW_MSG = 'Preview only — nothing was sent or saved. Parents can do this from their own login.';
+const PREVIEW_ID = (() => {
+  try {
+    const v = new URLSearchParams(window.location.search).get('preview') || '';
+    return /^[0-9a-f-]{36}$/i.test(v) ? v : null;
+  } catch {
+    return null;
+  }
+})();
+// Pay / card links: in the preview they don't open (no payments from here).
+function PLink({ href, style, children }) {
+  const preview = usePreview();
+  if (!preview) return <a style={style} href={href}>{children}</a>;
+  return <a style={style} href={href} onClick={(e) => { e.preventDefault(); window.alert(PREVIEW_MSG); }} title="Preview only">{children}</a>;
+}
+
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const fdate = (d) => (d ? new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const addDaysIso = (iso, n) => new Date(new Date(iso + 'T12:00:00').getTime() + n * 864e5).toISOString().slice(0, 10);
@@ -83,6 +103,12 @@ export default function ParentApp() {
   if (mode === 'setpw' && linkLogin) return <SetPassword login={linkLogin} onDone={() => { setMode(null); setLinkLogin(null); }} />;
   if (loading || verifying || (session && !role)) return <Shell><p style={{ color: C.soft }}>Loading…</p></Shell>;
   if (!session) return <ParentLogin notice={linkError} />;
+  if (PREVIEW_ID && role === 'admin')
+    return (
+      <PreviewCtx.Provider value={true}>
+        <ParentPortal preview={PREVIEW_ID} />
+      </PreviewCtx.Provider>
+    );
   if (role !== 'parent')
     return (
       <Shell>
@@ -225,7 +251,7 @@ function SetPassword({ login, onDone }) {
 }
 
 // ── The portal ─────────────────────────────────────────────────────────────
-function ParentPortal({ onSignOut }) {
+function ParentPortal({ onSignOut, preview }) {
   const [d, setD] = useState(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('kids');
@@ -233,6 +259,7 @@ function ParentPortal({ onSignOut }) {
   const [flash, setFlash] = useState('');
 
   async function load() {
+    if (preview) return loadPreview();
     const today = todayISO();
     const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
     const [{ data: core, error: e1 }, inv, pays, att, tapes, events, signups, guests, makeups, notices, closed, cals] = await Promise.all([
@@ -252,9 +279,42 @@ function ParentPortal({ onSignOut }) {
     if (e1) return setError(e1.message);
     setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
   }
+  // Admin preview: the same data, read for one family. The admin login can read
+  // every family, so each list is narrowed to this family here.
+  async function loadPreview() {
+    const today = todayISO();
+    const since = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
+    const fam = preview;
+    const { data: core, error: e1 } = await supabase.rpc('admin_parent_portal_data', { p_family: fam });
+    if (e1) return setError(e1.message);
+    const sids = (core.students || []).map((s) => s.id);
+    const ids = sids.length ? sids : ['00000000-0000-0000-0000-000000000000'];
+    const [inv, att, tapes, events, signups, guests, makeups, notices, closed, cals] = await Promise.all([
+      supabase.from('invoice_summary').select('*').eq('customer_id', fam).eq('voided', false).order('invoice_date', { ascending: false }),
+      supabase.from('attendance').select('student_id, date, status, class_name').in('student_id', ids).gte('date', since),
+      supabase.from('student_tapes').select('student_id, belt, tape').in('student_id', ids),
+      supabase.from('events').select('*').eq('published', true).eq('archived', false).order('start_date'),
+      supabase.from('event_signups').select('*').eq('customer_id', fam),
+      supabase.from('event_guests').select('*').eq('customer_id', fam).is('removed_at', null),
+      supabase.from('makeup_records').select('*').in('student_id', ids).gte('created_at', new Date(Date.now() - 120 * 864e5).toISOString()).order('absence_date', { ascending: false }),
+      supabase.from('absence_notices').select('*').eq('customer_id', fam).gte('absence_date', today).order('absence_date'),
+      supabase.from('class_cancellations').select('date, class_name, reason').gte('date', today),
+      supabase.from('monthly_calendars').select('month, title, file_name, mime, file_data').gte('month', today.slice(0, 8) + '01').order('month').limit(3),
+    ]);
+    const invIds = (inv.data || []).map((i) => i.id);
+    const pays = await supabase.from('invoice_payments').select('*')
+      .or(invIds.length ? `customer_id.eq.${fam},invoice_id.in.(${invIds.join(',')})` : `customer_id.eq.${fam}`)
+      .order('payment_date', { ascending: false });
+    const bad = [inv, att, tapes, events, signups, guests, makeups, notices, closed, cals, pays].find((r) => r.error);
+    if (bad) return setError(bad.error.message);
+    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
+  }
   useEffect(() => {
     load();
   }, []);
+  useEffect(() => {
+    if (preview && d?.family?.name) document.title = `Preview: ${d.family.name}`;
+  }, [preview, d?.family?.name]);
   const done = (m) => {
     setModal(null);
     setFlash(m);
@@ -262,8 +322,17 @@ function ParentPortal({ onSignOut }) {
     window.scrollTo(0, 0);
   };
 
-  const signOutBtn = (
+  // In the preview there's no Sign out (that would sign the admin out) — just close the tab.
+  const signOutBtn = preview ? (
+    <button style={{ ...btn, padding: '8px 12px', fontSize: 16 }} onClick={() => { window.close(); window.location.href = '/'; }}><X size={16} aria-hidden="true" /> Close preview</button>
+  ) : (
     <button style={{ ...btn, padding: '8px 12px', fontSize: 16 }} onClick={onSignOut}><LogOut size={16} aria-hidden="true" /> Sign out</button>
+  );
+  const previewBar = preview && (
+    <div role="note" style={{ background: 'var(--dp-warning-tint)', color: 'var(--dp-warning)', border: '1px solid var(--dp-warning)', borderRadius: 10, padding: '10px 14px', fontSize: 15, marginBottom: 14, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <Eye size={18} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+      <span><b>Parent view preview{d?.family?.name ? ` — ${d.family.name}` : ''}.</b> This is what this family sees when they sign in. Read only: nothing can be sent, paid or saved here.</span>
+    </div>
   );
   if (error) return <Shell right={signOutBtn}><div style={card}>Something went wrong: {error}</div></Shell>;
   if (!d) return <Shell right={signOutBtn}><p style={{ color: C.soft }}>Loading…</p></Shell>;
@@ -280,6 +349,7 @@ function ParentPortal({ onSignOut }) {
 
   return (
     <Shell right={signOutBtn} wide>
+      {previewBar}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.15, margin: 0 }}>{d.family?.name}</h1>
         {due > 0 && (
@@ -448,6 +518,7 @@ function TestStatus({ d, s, n, tapes, onHold, onTest }) {
 }
 
 function TestModal({ d, student, onClose, onDone }) {
+  const preview = usePreview();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -458,6 +529,7 @@ function TestModal({ d, student, onClose, onDone }) {
   const first = student.name.split(' ')[0];
   const finish = () => onDone(`${first} is registered for the belt test on ${fdate(d.next_test.date)}.${result?.invoice_number ? ` Invoice #${result.invoice_number} is under Billing.` : ''}`);
   async function go() {
+    if (preview) return setError(PREVIEW_MSG);
     setBusy(true);
     setError('');
     const { data, error: err } = await supabase.rpc('parent_test_register', { p_student: student.id });
@@ -617,7 +689,7 @@ function Billing({ d, open, onDoc }) {
                 <div style={{ fontWeight: 700 }}>{money(i.balance)}</div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                   <button style={{ ...btn, padding: '8px 14px', fontSize: 16 }} onClick={() => onDoc({ kind: 'invoice', invoice: i })}>View</button>
-                  {i.pay_token && <a style={{ ...primary, padding: '8px 14px', fontSize: 16 }} href={`/pay/${i.pay_token}`}>Pay now</a>}
+                  {i.pay_token && <PLink style={{ ...primary, padding: '8px 14px', fontSize: 16 }} href={`/pay/${i.pay_token}`}>Pay now</PLink>}
                 </div>
               </div>
             </Row>
@@ -668,7 +740,7 @@ function Billing({ d, open, onDoc }) {
           <p style={{ margin: '0 0 10px', fontSize: 16, color: C.soft }}>{f.payment_type === 'manual' ? 'You pay tuition by invoice (debit or cash).' : 'No card saved yet.'}</p>
         )}
         {f.card_link_token && (
-          <a style={{ ...btn, marginTop: 10 }} href={`/card/${f.card_link_token}`}>{(d.cards || []).length ? 'Add or change cards' : 'Save a card'}</a>
+          <PLink style={{ ...btn, marginTop: 10 }} href={`/card/${f.card_link_token}`}>{(d.cards || []).length ? 'Add or change cards' : 'Save a card'}</PLink>
         )}
         {(d.cards || []).length > 0 && <p style={{ fontSize: 16, color: C.faint, margin: '8px 0 0' }}>You can add cards and choose which one is used for tuition. A card can be removed only when you have another card saved.</p>}
       </div>
@@ -807,7 +879,7 @@ function Events({ d, onSignUp }) {
           {canAdd && <button style={primary} onClick={() => onSignUp(e)}>Sign up</button>}
           {!canAdd && canGuests && <button style={btn} onClick={() => onSignUp(e)}>Add guests</button>}
           {owing.map((i) => (
-            <a key={i.id} style={btn} href={`/pay/${i.pay_token}`}>Pay {money(i.balance)}</a>
+            <PLink key={i.id} style={btn} href={`/pay/${i.pay_token}`}>Pay {money(i.balance)}</PLink>
           ))}
         </div>
       </div>
@@ -847,6 +919,7 @@ function classDays(student, d, weeks = 5) {
 }
 
 function AbsenceModal({ d, student, onClose, onDone }) {
+  const preview = usePreview();
   const today = todayISO();
   const days = useMemo(() => classDays(student, d), [student, d]);
   const byDate = Object.fromEntries(days.map((x) => [x.date, x]));
@@ -865,6 +938,7 @@ function AbsenceModal({ d, student, onClose, onDone }) {
   async function send() {
     if (!date) return setError('Pick the class day.');
     setError('');
+    if (preview) return setError(PREVIEW_MSG);
     setBusy(true);
     const r = await callFn({ action: 'absence', student_id: student.id, date, class_name: cls, note });
     setBusy(false);
@@ -941,6 +1015,7 @@ function AbsenceModal({ d, student, onClose, onDone }) {
 }
 
 function SignUpModal({ d, event, onClose, onDone }) {
+  const preview = usePreview();
   const taken = new Set(d.signups.filter((s) => s.event_id === event.id && s.status === 'signed_up').map((s) => s.student_id));
   const kids = d.students.filter((k) => !taken.has(k.id));
   const already = taken.size > 0 && d.students.some((k) => taken.has(k.id));
@@ -971,6 +1046,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
       if (needSign && !signature) return setError('Please sign in the signature box.');
       if (needSign && !signer.trim()) return setError('Please type your full name under the signature.');
     }
+    if (preview) return setError(PREVIEW_MSG);
     setBusy(true);
     setError('');
     // keep only the answers for the children being signed up
@@ -1046,6 +1122,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
 }
 
 function Contact({ d, onSent }) {
+  const preview = usePreview();
   const b = d.business || {};
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -1054,6 +1131,7 @@ function Contact({ d, onSent }) {
   async function send() {
     setError('');
     if (message.trim().length < 2) return setError('Write your message first.');
+    if (preview) return setError(PREVIEW_MSG);
     setBusy(true);
     const r = await callFn({ action: 'message', subject, message });
     setBusy(false);

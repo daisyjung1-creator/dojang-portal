@@ -447,6 +447,9 @@ function ParentInvite({ customerId }) {
       <button className="dp-btn" style={{ padding: '1px 8px', fontSize: 12 }} disabled={busy || !state.email} title={state.email ? `Email ${state.email}` : 'Add an email to the family first'} onClick={invite}>
         {busy ? 'Sending…' : state.invited ? 'Resend invite' : 'Send invite'}
       </button>
+      <a className="dp-btn" style={{ padding: '1px 8px', fontSize: 12, marginLeft: 6, textDecoration: 'none' }} href={`/parent?preview=${customerId}`} target="_blank" rel="noopener" title="Open this family's parent portal as they see it (read only)">
+        View as parent
+      </a>
       {msg && <div style={{ fontSize: 12, color: 'var(--dp-ink-soft)', marginTop: 3 }}>{msg}</div>}
     </div>
   );
