@@ -48,30 +48,30 @@ export default function OnlineRegistrations({ onLoad, reloadKey }) {
 
   const list = showDone ? handled : pending;
   return (
-    <div style={{ ...styles.card, padding: 16, marginBottom: 20, maxWidth: 680 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-        <Globe size={17} />
-        <b style={{ fontSize: 15 }}>Online registrations</b>
-        {pending.length > 0 && <span style={{ background: '#BF1C21', color: '#fff', borderRadius: 999, padding: '1px 9px', fontSize: 12.5, fontWeight: 700 }}>{pending.length} new</span>}
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button className="dp-btn" onClick={copy}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy form link'}</button>
-          <a className="dp-btn" href="/join" target="_blank" rel="noreferrer">Open form</a>
-          <a className="dp-btn" href="/enrollment-form.pdf" target="_blank" rel="noreferrer" title="Print for families who register in person">Paper form (PDF)</a>
-          <a className="dp-btn" href="/preauth-form.pdf" target="_blank" rel="noreferrer" title="Credit card pre-authorized payment form (Part 7.1)">Card pre-auth form (PDF)</a>
-        </span>
+    <div style={{ ...styles.card, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Globe size={17} aria-hidden="true" />
+        <h2 style={{ fontSize: 'var(--dp-text-title)', fontWeight: 700, margin: 0, flex: 1 }}>Online registrations</h2>
+        {pending.length > 0 && <span style={{ background: 'var(--dp-hankook-red)', color: '#fff', borderRadius: 999, padding: '1px 9px', fontSize: 12, fontWeight: 600 }}>{pending.length} new</span>}
       </div>
-      <div style={{ fontSize: 12.5, color: '#8A8D84', marginBottom: 10, wordBreak: 'break-all' }}>{JOIN_URL} — send this to new families (email, text, QR code).</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+        <button className="dp-btn" onClick={copy}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy form link'}</button>
+        <a className="dp-btn" style={{ textDecoration: 'none' }} href="/join" target="_blank" rel="noreferrer">Open form</a>
+        <a className="dp-btn" style={{ textDecoration: 'none' }} href="/enrollment-form.pdf" target="_blank" rel="noreferrer" title="Print for families who register in person">Paper form (PDF)</a>
+        <a className="dp-btn" style={{ textDecoration: 'none' }} href="/preauth-form.pdf" target="_blank" rel="noreferrer" title="Credit card pre-authorized payment form (Part 7.1)">Card pre-auth (PDF)</a>
+      </div>
+      <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginBottom: 10, wordBreak: 'break-all' }}>{JOIN_URL} — send this to new families (email, text, QR code).</div>
 
       {list.length === 0 ? (
-        <p style={{ fontSize: 13.5, color: '#5B5F56', margin: '6px 0' }}>{showDone ? 'Nothing handled yet.' : 'No new registrations.'}</p>
+        <p style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '6px 0 0' }}>{showDone ? 'Nothing handled yet.' : 'No new registrations.'}</p>
       ) : (
         list.map((r) => (
-          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: '1px solid #F1EFE7', flexWrap: 'wrap' }}>
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderTop: '1px solid var(--dp-line)', flexWrap: 'wrap' }}>
             <div style={{ flex: '1 1 220px', minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{(r.kids || []).map(kidName).join(', ')}</div>
-              <div style={{ fontSize: 12.5, color: '#8A8D84' }}>
+              <div style={{ fontSize: 'var(--dp-text-caption)', color: 'var(--dp-ink-soft)', marginTop: 2 }}>
                 {r.family?.guardian_name}{r.adult_student ? ' (adult student)' : ''} · {fmtDate(r.created_at)} · {r.plan}
-                {r.card_profile_code && <> · <b style={{ color: '#2A5A30' }}>Card saved ··{r.card_last4}</b></>}
+                {r.card_profile_code && <> · <b style={{ color: 'var(--dp-success)' }}>Card saved ··{r.card_last4}</b></>}
                 {r.status !== 'new' && <> · <b>{r.status === 'approved' ? 'Enrolled' : 'Dismissed'}</b></>}
               </div>
             </div>

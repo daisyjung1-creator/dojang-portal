@@ -131,6 +131,24 @@ table.dp-table td {
   border-bottom: 1px solid var(--dp-line);
   color: var(--dp-ink);
 }
+/* Enrollment: form left, online + recent registrations right on wide screens; stacked otherwise. */
+.dp-enroll-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'online' 'form' 'recent';
+  align-items: start;
+}
+.dp-ea-online { grid-area: online; }
+.dp-ea-form { grid-area: form; }
+.dp-ea-recent { grid-area: recent; }
+@media (min-width: 1100px) {
+  .dp-enroll-grid {
+    grid-template-columns: minmax(0, 720px) minmax(300px, 1fr);
+    grid-template-areas: 'form online' 'form recent';
+    grid-template-rows: auto 1fr;
+  }
+}
 /* Compact one-line-per-row lists (Students): nothing wraps; the table scrolls sideways. */
 table.dp-table-compact th,
 table.dp-table-compact td {
