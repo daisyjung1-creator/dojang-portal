@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { eventPriceLabel, eventCharge } from '../../lib/eventPricing';
 import { Plus, Check, Pencil, Copy, ArrowLeft, Users, X, Eye } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
@@ -23,7 +24,7 @@ export const EVENT_KINDS = {
   seminar: 'Seminar / clinic',
   other: 'Other',
 };
-const empty = { title: '', kind: 'camp', description: '', start_date: '', end_date: '', start_time: '', end_time: '', location: '', price: '', taxable: true, fee_item_id: '', signup_deadline: '', capacity: '', published: true, allow_guests: false, guest_price: '', question: '', question_required: false, form: [], signature_required: false, signature_text: '' };
+const empty = { title: '', kind: 'camp', description: '', start_date: '', end_date: '', start_time: '', end_time: '', location: '', price: '', pricing: 'per_student', family_price: '', family_includes: 4, extra_price: '', taxable: true, fee_item_id: '', signup_deadline: '', capacity: '', published: true, allow_guests: false, guest_price: '', question: '', question_required: false, form: [], signature_required: false, signature_text: '' };
 const ftime = (t) => {
   if (!t) return '';
   const [h, m] = String(t).split(':').map(Number);
@@ -130,7 +131,7 @@ export default function EventsPage() {
                 <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '2px 0 8px' }}>{when(e)}</div>
                 <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--dp-ink)' }}>
                   <span><Users size={13} style={{ verticalAlign: -2 }} /> {st.count}{st.guests ? ` + ${st.guests} guest${st.guests > 1 ? 's' : ''}` : ''}{e.capacity ? ` / ${e.capacity}` : ''} signed up</span>
-                  <span>{Number(e.price) > 0 ? money(e.price) : 'Free'}</span>
+                  <span>{eventPriceLabel(e, { gst: false })}</span>
                   {st.owing > 0 && <span style={{ color: 'var(--dp-danger)' }}>{money(st.owing)} unpaid</span>}
                 </div>
               </button>
@@ -193,7 +194,7 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
         <div>
           <h1 style={styles.title}>{e.title}</h1>
           <p style={styles.subtitle}>
-            {EVENT_KINDS[e.kind]} · {when(e)}{e.location ? ` · ${e.location}` : ''} · {Number(e.price) > 0 ? `${money(e.price)} per student${e.taxable ? ' + GST' : ''}` : 'Free'}
+            {EVENT_KINDS[e.kind]} · {when(e)}{e.location ? ` · ${e.location}` : ''} · {eventPriceLabel(e)}
             {e.signup_deadline ? ` · sign up by ${formatDate(e.signup_deadline)}` : ''}
           </p>
         </div>
@@ -227,7 +228,7 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
                     <td style={{ fontWeight: 500 }}>{s?.name || '—'}{su.note && <div style={{ fontSize: 12, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>“{su.note}”</div>}</td>
                     {e.question && <td style={{ fontSize: 13 }}>{su.answer || <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}</td>}
                     <td style={{ fontSize: 13, color: 'var(--dp-ink-soft)' }}>{formatDate(su.created_at?.slice(0, 10))} · {su.source === 'parent' ? 'by parent' : 'by you'}</td>
-                    <td>{inv ? `#${inv.invoice_number}${inv.voided ? ' (void)' : ''}` : Number(e.price) > 0 ? '—' : 'free'}</td>
+                    <td>{inv ? `#${inv.invoice_number}${inv.voided ? ' (void)' : ''}` : eventPriceLabel(e) !== 'Free' ? '—' : 'free'}</td>
                     <td style={{ textAlign: 'right', color: paid ? 'var(--dp-success)' : 'var(--dp-danger)', fontWeight: 500 }}>{inv ? (paid ? <><Check size={13} /> Paid</> : money(inv.balance)) : ''}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -308,14 +309,18 @@ function EventForm({ event, items, onClose, onDone }) {
       start_time: f.start_time || null,
       end_time: f.end_time || null,
       location: f.location.trim() || null,
-      price: Number(f.price) || 0,
+      price: f.pricing === 'per_family' ? 0 : Number(f.price) || 0,
+      pricing: f.pricing === 'per_family' ? 'per_family' : 'per_student',
+      family_price: f.pricing === 'per_family' ? Number(f.family_price) || 0 : 0,
+      family_includes: f.pricing === 'per_family' ? Math.max(1, parseInt(f.family_includes, 10) || 4) : 4,
+      extra_price: f.pricing === 'per_family' ? Number(f.extra_price) || 0 : 0,
       taxable: !!f.taxable,
       fee_item_id: f.fee_item_id || null,
       signup_deadline: f.signup_deadline || null,
       capacity: f.capacity === '' ? null : Number(f.capacity),
       published: !!f.published,
       allow_guests: !!f.allow_guests,
-      guest_price: f.allow_guests ? Number(f.guest_price) || 0 : 0,
+      guest_price: f.allow_guests && f.pricing !== 'per_family' ? Number(f.guest_price) || 0 : 0,
       question: null,
       question_required: false,
       form: cleanForm(f.form),
@@ -362,8 +367,29 @@ function EventForm({ event, items, onClose, onDone }) {
       </div>
       <div style={styles.formRow}>
         <Field label="Item (for reports)"><SearchSelect options={itemOptions} value={f.fee_item_id} onChange={pickItem} placeholder="Optional — e.g. Summer Camp" /></Field>
-        <Field label="Price per student"><input type="number" min="0" step="0.01" className="dp-input" style={{ width: '100%' }} value={f.price} onChange={set('price')} placeholder="0 = free" /></Field>
+        <Field label="Price">
+          <select className="dp-select" style={{ width: '100%' }} value={f.pricing || 'per_student'} onChange={set('pricing')}>
+            <option value="per_student">Per student</option>
+            <option value="per_family">Per family</option>
+          </select>
+        </Field>
       </div>
+      {f.pricing === 'per_family' ? (
+        <div style={styles.formRow}>
+          <Field label="Family price"><input type="number" min="0" step="0.01" className="dp-input" style={{ width: '100%' }} value={f.family_price} onChange={set('family_price')} placeholder="e.g. 50" /></Field>
+          <Field label="Covers up to (people)"><input type="number" min="1" step="1" className="dp-input" style={{ width: '100%' }} value={f.family_includes} onChange={set('family_includes')} /></Field>
+          <Field label="Each extra person"><input type="number" min="0" step="0.01" className="dp-input" style={{ width: '100%' }} value={f.extra_price} onChange={set('extra_price')} placeholder="e.g. 10" /></Field>
+        </div>
+      ) : (
+        <div style={{ ...styles.formRow, maxWidth: 360 }}>
+          <Field label="Price per student"><input type="number" min="0" step="0.01" className="dp-input" style={{ width: '100%' }} value={f.price} onChange={set('price')} placeholder="0 = free" /></Field>
+        </div>
+      )}
+      {f.pricing === 'per_family' && (
+        <p style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)', margin: '-4px 0 10px' }}>
+          Students and guests both count as people. e.g. 2 kids + 3 guests = 5 people → {money(Number(f.family_price) || 0)} + 1 × {money(Number(f.extra_price) || 0)} = {money(eventCharge({ ...f, pricing: 'per_family' }, { kids: 2, guests: 3 }))}{f.taxable ? ' + GST' : ''}.
+        </p>
+      )}
       <div style={styles.formRow}>
         <Field label="Sign up by"><input type="date" className="dp-input" style={{ width: '100%' }} value={f.signup_deadline} onChange={set('signup_deadline')} /></Field>
         <Field label="Spots (empty = no limit)"><input type="number" min="1" className="dp-input" style={{ width: '100%' }} value={f.capacity} onChange={set('capacity')} /></Field>
@@ -371,7 +397,7 @@ function EventForm({ event, items, onClose, onDone }) {
       <Field label="Details for parents"><textarea className="dp-input" style={{ width: '100%', minHeight: 90 }} value={f.description} onChange={set('description')} placeholder="What to bring, pick-up time…" /></Field>
       <div style={{ border: '1px solid #E4E6DF', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
         <label style={{ display: 'flex', gap: 8, fontSize: 14, alignItems: 'center' }}><input type="checkbox" checked={!!f.allow_guests} onChange={set('allow_guests')} /> Families can bring guests (they enter each guest's name)</label>
-        {f.allow_guests && (
+        {f.allow_guests && f.pricing !== 'per_family' && (
           <div style={{ marginTop: 8, maxWidth: 260 }}>
             <Field label="Price per guest"><input type="number" min="0" step="0.01" className="dp-input" style={{ width: '100%' }} value={f.guest_price} onChange={set('guest_price')} placeholder="0 = free" /></Field>
           </div>

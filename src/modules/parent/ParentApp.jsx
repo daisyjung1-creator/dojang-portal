@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { isFamilyPriced, eventPriceLabel, eventCharge } from '../../lib/eventPricing';
 import { LogOut, CalendarX, Users, Ticket, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download, CircleCheck } from 'lucide-react';
 import logo from '../../assets/logo.png';
 import { supabase } from '../../supabaseClient';
@@ -913,15 +914,31 @@ function Events({ d, onSignUp }) {
           </div>
           {narrow ? (
             <div style={{ fontSize: 15, color: C.soft, background: C.bg, borderRadius: 8, padding: '6px 10px', alignSelf: 'stretch' }}>
-              <b style={{ color: C.ink, fontSize: 16 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</b>
-              {Number(e.price) > 0 ? ` per student${e.taxable ? ' + GST' : ''}` : ''}
-              {e.allow_guests ? ` · Guests ${Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}` : ''}
+              {isFamilyPriced(e) ? (
+                <b style={{ color: C.ink, fontSize: 16 }}>{eventPriceLabel(e)}</b>
+              ) : (
+                <>
+                  <b style={{ color: C.ink, fontSize: 16 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</b>
+                  {Number(e.price) > 0 ? ` per student${e.taxable ? ' + GST' : ''}` : ''}
+                  {e.allow_guests ? ` · Guests ${Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}` : ''}
+                </>
+              )}
             </div>
           ) : (
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontWeight: 700 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</div>
-              {Number(e.price) > 0 && <div style={{ fontSize: 13, color: C.soft }}>per student{e.taxable ? ' + GST' : ''}</div>}
-              {e.allow_guests && <div style={{ fontSize: 13, color: C.soft }}>Guests {Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}</div>}
+              {isFamilyPriced(e) ? (
+                <>
+                  <div style={{ fontWeight: 700 }}>{money(e.family_price)}</div>
+                  <div style={{ fontSize: 13, color: C.soft }}>per family · up to {e.family_includes || 4}{e.taxable ? ' + GST' : ''}</div>
+                  {Number(e.extra_price) > 0 && <div style={{ fontSize: 13, color: C.soft }}>{money(e.extra_price)} each extra person</div>}
+                </>
+              ) : (
+                <>
+                  <div style={{ fontWeight: 700 }}>{Number(e.price) > 0 ? money(e.price) : 'Free'}</div>
+                  {Number(e.price) > 0 && <div style={{ fontSize: 13, color: C.soft }}>per student{e.taxable ? ' + GST' : ''}</div>}
+                  {e.allow_guests && <div style={{ fontSize: 13, color: C.soft }}>Guests {Number(e.guest_price) > 0 ? `${money(e.guest_price)} each` : 'free'}</div>}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1085,7 +1102,9 @@ function SignUpModal({ d, event, onClose, onDone }) {
   const price = Number(event.price) || 0;
   const gprice = Number(event.guest_price) || 0;
   const names = guests.map((g) => g.trim()).filter(Boolean);
-  const sub = price * pick.length + (event.allow_guests ? gprice * names.length : 0);
+  // Per-family events count everyone already signed up (kids + guests).
+  const prevPeople = taken.size + (d.guests || []).filter((g) => g.event_id === event.id).length;
+  const sub = eventCharge(event, { prevPeople, kids: pick.length, guests: event.allow_guests ? names.length : 0 });
   const total = sub + (event.taxable ? Math.round(sub * 5) / 100 : 0);
   const form = Array.isArray(event.form) ? event.form : [];
   const pickedKids = kids.filter((k) => pick.includes(k.id));
@@ -1142,7 +1161,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
       )}
       {event.allow_guests && (
         <div data-testid="guests">
-          <label style={label}>Guests {gprice > 0 ? `(${money(gprice)} each${event.taxable ? ' + GST' : ''})` : '(free)'}</label>
+          <label style={label}>Guests {isFamilyPriced(event) ? `(count toward the family's ${event.family_includes || 4})` : gprice > 0 ? `(${money(gprice)} each${event.taxable ? ' + GST' : ''})` : '(free)'}</label>
           {guests.map((g, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
               <input style={input} placeholder="Guest's name" aria-label={`Guest ${i + 1} name`} value={g} maxLength={80} autoFocus={i === guests.length - 1} onChange={(e) => setGuests((x) => x.map((y, j) => (j === i ? e.target.value : y)))} />

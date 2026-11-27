@@ -142,7 +142,7 @@ export function PreviewBody({ form, signatureRequired, signatureText, event }) {
           {event.description && <div style={{ fontSize: 13.5, color: 'var(--dp-ink-soft)', whiteSpace: 'pre-wrap', marginTop: 4 }}>{event.description}</div>}
           <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '10px 0 4px' }}>Who is coming?</div>
           {kids.map((k) => <label key={k.id} style={{ display: 'flex', gap: 8, fontSize: 15, padding: '4px 0' }}><input type="checkbox" defaultChecked /> {k.name}</label>)}
-          {event.allow_guests && <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 6 }}>Guests: families can add guest names{Number(event.guest_price) > 0 ? ` ($${Number(event.guest_price).toFixed(2)} each)` : ' (free)'}.</div>}
+          {event.allow_guests && <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 6 }}>Guests: families can add guest names{event.pricing === 'per_family' ? ' (they count toward the family price)' : Number(event.guest_price) > 0 ? ` ($${Number(event.guest_price).toFixed(2)} each)` : ' (free)'}.</div>}
         </div>
       )}
       {!form.length && !signatureRequired && <p style={{ fontSize: 13, color: 'var(--dp-ink-faint)', margin: '10px 0 0' }}>This event has no questions or signature — families just choose who is coming.</p>}
