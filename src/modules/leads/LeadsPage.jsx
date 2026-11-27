@@ -185,7 +185,11 @@ export default function LeadsPage({ setActiveTab, tabs }) {
         !search.trim() ||
         (l.student_name || '').toLowerCase().includes(search.toLowerCase()) ||
         (l.guardian_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (l.phone || '').includes(search);
+        (l.phone || '').includes(search) ||
+        (l.email || '').toLowerCase().includes(search.toLowerCase()) ||
+        // children on the inquiry and on its trial bookings
+        (Array.isArray(l.children) ? l.children : []).some((k) => (k?.name || '').toLowerCase().includes(search.toLowerCase())) ||
+        tl.some((t) => (t.student_name || '').toLowerCase().includes(search.toLowerCase()));
       return matchesStatus && matchesSearch;
     });
   }, [leads, statusFilter, search, trialsByLead]);
