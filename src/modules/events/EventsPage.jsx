@@ -11,6 +11,7 @@ import { fetchAll } from '../invoices/api';
 import MonthlyCalendars from './MonthlyCalendars';
 import FormBuilder, { cleanForm, formProblem, PreviewBody } from './FormBuilder';
 import EventResponses from './EventResponses';
+import EventSummary from './EventSummary';
 
 // Events: camps, tournaments, movie nights… Signing a student up adds an
 // invoice for the family (price per student + GST), which they can pay with
@@ -152,6 +153,11 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(false);
   const byId = useMemo(() => Object.fromEntries(students.map((s) => [s.id, s])), [students]);
+  // Form answers, newest first — shared by the summary (top) and the list (bottom).
+  const [respRows, setRespRows] = useState(null);
+  useEffect(() => {
+    supabase.from('event_responses').select('*').eq('event_id', e.id).order('created_at', { ascending: false }).then(({ data }) => setRespRows(data || []));
+  }, [e.id, signups.length]);
   const active = signups.filter((s) => s.status === 'signed_up');
   const taken = new Set(active.map((s) => s.student_id));
   const options = students.filter((s) => !taken.has(s.id)).map((s) => ({ value: s.id, label: s.name, hint: s.class_name || '' }));
@@ -207,7 +213,9 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
       {msg && <p style={{ background: 'var(--dp-success-tint)', color: 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{msg}</p>}
       {err && <p style={{ background: 'var(--dp-danger-tint)', color: 'var(--dp-danger)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{err}</p>}
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, maxWidth: 560 }}>
+      <EventSummary event={e} students={active.length} guests={guests.length} rows={respRows} kidsOf={(r) => (r.student_ids || []).map((id) => byId[id] || { id, name: 'Student' })} />
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '16px 0 12px', maxWidth: 560 }}>
         <div style={{ flex: 1 }}><SearchSelect options={options} value={pick} onChange={setPick} placeholder="Add a student…" /></div>
         <button className="dp-btn dp-btn-primary" disabled={!pick || busy} onClick={add}><Plus size={14} /> Sign up</button>
       </div>
@@ -267,7 +275,8 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
           </table>
         </div>
       )}
-      <EventResponses event={e} students={students} />
+
+      <EventResponses event={e} students={students} rows={respRows} setRows={setRespRows} />
       {preview && (
         <Modal title="Preview — what families see" maxWidth={640} onClose={() => setPreview(false)} footer={<button className="dp-btn" onClick={() => setPreview(false)}>Close preview</button>}>
           <PreviewBody event={e} form={Array.isArray(e.form) ? e.form : []} signatureRequired={!!e.signature_required} signatureText={e.signature_text} />

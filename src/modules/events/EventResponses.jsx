@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, PenLine, Printer } from 'lucide-react';
+import { Download, PenLine, Printer, Trash2 } from 'lucide-react';
+import { askConfirm } from '../../lib/dialogs';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Modal from '../../components/Modal';
@@ -10,21 +11,42 @@ import { PrintPortal } from '../invoices/InvoicePreview';
 // parent's signature. CSV download for lists (T-shirt sizes, food…).
 const when = (ts) => (ts ? new Date(ts).toLocaleString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
-export default function EventResponses({ event: e, students }) {
-  const [rows, setRows] = useState(null);
+// rows / setRows can come from the page, so the summary at the top
+// (EventSummary) and this list stay in step when answers are deleted.
+export default function EventResponses({ event: e, students, rows: extRows, setRows: extSetRows }) {
+  const [ownRows, setOwnRows] = useState(null);
+  const rows = extSetRows ? extRows : ownRows;
+  const setRows = extSetRows || setOwnRows;
   const [open, setOpen] = useState(null);
   const form = Array.isArray(e.form) ? e.form : [];
-  useEffect(() => {
+  const load = () =>
     supabase
       .from('event_responses')
       .select('*')
       .eq('event_id', e.id)
-      .order('created_at')
+      .order('created_at', { ascending: false })
       .then(({ data }) => setRows(data || []));
-  }, [e.id]);
+  useEffect(() => { if (!extSetRows) load(); }, [e.id]);
   const byId = useMemo(() => Object.fromEntries(students.map((s) => [s.id, s])), [students]);
-  if (!form.length && !e.signature_required && !rows?.length) return null;
   const kidsOf = (r) => (r.student_ids || []).map((id) => byId[id] || { id, name: 'Student' });
+  // Newest first, grouped by the day the form was sent.
+  const byDay = useMemo(() => {
+    const groups = [];
+    (rows || []).forEach((r) => {
+      const day = r.created_at ? new Date(r.created_at).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'No date';
+      const g = groups[groups.length - 1];
+      if (g && g.day === day) g.rows.push(r);
+      else groups.push({ day, rows: [r] });
+    });
+    return groups;
+  }, [rows]);
+  async function remove(r) {
+    const names = kidsOf(r).map((k) => k.name).join(', ');
+    if (!(await askConfirm(`Delete the form answers from ${names || 'this family'}? Their sign-up and invoice stay as they are.`, { title: 'Delete answers', confirmLabel: 'Delete' }))) return;
+    setRows((list) => list.filter((x) => x.id !== r.id));
+    await supabase.from('event_responses').delete().eq('id', r.id);
+  }
+  if (!form.length && !e.signature_required && !rows?.length) return null;
 
   function csv() {
     const head = ['Children', ...form.map((q) => q.label), ...(e.signature_required ? ['Signed by', 'Signed at'] : []), 'Submitted'];
@@ -41,6 +63,7 @@ export default function EventResponses({ event: e, students }) {
   }
 
   return (
+    <>
     <div style={{ ...styles.card, marginTop: 12 }} data-testid="responses">
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px 4px', gap: 8 }}>
         <div style={{ fontWeight: 600, flex: 1 }}>Form answers{rows ? ` (${rows.length})` : ''}</div>
@@ -58,14 +81,18 @@ export default function EventResponses({ event: e, students }) {
                 <th>Children</th>
                 {form.map((q) => <th key={q.id}>{q.label}</th>)}
                 {e.signature_required && <th>Signature</th>}
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {byDay.map((g) => (
+                <React.Fragment key={g.day}>
+                <tr><td colSpan={form.length + (e.signature_required ? 3 : 2)} style={{ background: 'var(--dp-canvas)', fontSize: 12.5, fontWeight: 600, color: 'var(--dp-ink-soft)', padding: '5px 12px' }}>{g.day} · {g.rows.length}</td></tr>
+              {g.rows.map((r) => {
                 const kids = kidsOf(r);
                 return (
                   <tr key={r.id} className="dp-row" data-response={kids.map((k) => k.name).join(', ')}>
-                    <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{kids.map((k) => <div key={k.id}>{k.name}</div>)}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{when(r.created_at)}</div></td>
+                    <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{kids.map((k) => <div key={k.id}>{k.name}</div>)}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{r.created_at ? new Date(r.created_at).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' }) : ''}</div></td>
                     {form.map((q) => (
                       <td key={q.id} style={{ fontSize: 13, maxWidth: 260 }}>{answerText(q, r.answers, kids) || <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}</td>
                     ))}
@@ -81,15 +108,21 @@ export default function EventResponses({ event: e, students }) {
                         {r.signer_name && <div style={{ fontSize: 12.5, color: 'var(--dp-ink-soft)' }}>{r.signer_name}</div>}
                       </td>
                     )}
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="dp-btn dp-btn-danger" style={{ padding: 5 }} aria-label="Delete answers" title="Delete these answers" onClick={() => remove(r)}><Trash2 size={13} /></button>
+                    </td>
                   </tr>
                 );
               })}
+                </React.Fragment>
+              ))}
             </tbody>
           </table>
         </div>
       )}
       {open && <SignedForm event={e} form={form} r={open} kids={kidsOf(open)} onClose={() => setOpen(null)} />}
     </div>
+    </>
   );
 }
 
