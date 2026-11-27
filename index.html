@@ -6,6 +6,19 @@
     <title>Dojang Portal</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      // /clock (Time Clock on the front-desk iPad) gets its own name and
+      // home-screen icon, so it doesn't look like the portal.
+      if (/^\/clock\/?$/.test(location.pathname)) {
+        document.title = 'Time Clock';
+        document.querySelector('link[rel="apple-touch-icon"]').href = '/clock-touch-icon.png';
+        document.querySelector('link[rel="icon"]').href = '/clock-favicon.png';
+        var m = document.createElement('meta');
+        m.name = 'apple-mobile-web-app-title';
+        m.content = 'Time Clock';
+        document.head.appendChild(m);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
