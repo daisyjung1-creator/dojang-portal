@@ -191,6 +191,7 @@ export default function PayPage({ token }) {
                 {done.auto?.error ? ' (Automatic tuition could not be set up — the Dojang has been notified and will contact you.)' : ''}
                 {done.test ? ' (Test mode: approved by the TD test account; nothing was recorded on the invoice.)' : done.recorded ? ` Your receipt${done.receipt ? ` #${done.receipt}` : ''} has been emailed to you.` : ' The Dojang will send your receipt shortly.'}
               </p>
+              <a href="/parent" style={{ display: 'inline-block', marginTop: 12, fontSize: 16, fontWeight: 600, color: C.ink }}>Back to the parent portal</a>
             </div>
           ) : !inv.enabled ? (
             <div style={box}>Online card payment isn't available right now. Please contact the Dojang at {SCHOOL.email}.</div>

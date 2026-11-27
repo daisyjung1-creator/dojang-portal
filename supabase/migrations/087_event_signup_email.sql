@@ -165,7 +165,7 @@ begin
     select * into st from invoice_settings where id = 1;
     select string_agg(split_part(name, ' ', 1), ', ' order by name) into kid_names from students where id = any (new_ids);
     msg := 'Hello ' || coalesce(nullif(split_part(btrim(coalesce(c.contact_name, '')), ' ', 1), ''), 'there') || ',' || E'\n\n'
-      || 'Thank you for signing up for ' || e.title
+      || case when inv_id is not null then 'Thank you for signing up for ' else 'You''re signed up for ' end || e.title
       || coalesce(' on ' || to_char(e.start_date, 'FMDay, FMMonth FMDD'), '')
       || coalesce(' at ' || ltrim(to_char(e.start_time, 'HH12:MI AM'), '0'), '')
       || coalesce(' (' || nullif(btrim(e.location), '') || ')', '') || '.' || E'\n\n'
@@ -173,14 +173,15 @@ begin
       || case when cardinality(guests) > 0 then 'Guests: ' || array_to_string(guests, ', ') || E'\n' else '' end
       || case when inv_id is not null then
            E'\n' || 'Invoice #' || inv_no || ': $' || to_char((select total from invoices where id = inv_id), 'FM999,990.00') || E'\n'
-           || 'Pay online: https://dojang-portal.netlify.app/pay/' || tok || E'\n'
-           || 'You can also pay at the front desk, or later from Billing in the parent portal.' || E'\n'
+           || 'Your sign-up is complete once this invoice is paid.' || E'\n'
+           || 'Pay online (saved card or another card): https://dojang-portal.netlify.app/pay/' || tok || E'\n'
+           || 'You can also pay from Billing in the parent portal.' || E'\n'
          else E'\n' || 'There is no charge for this sign-up.' || E'\n' end
       || E'\n' || 'See you there!' || E'\n\n' || 'Master Daisy' || E'\n' || coalesce(st.business_name, 'Champion Hankook Taekwondo');
     insert into email_queue (type, student_id, recipient_email, payload)
     values ('welcome', new_ids[1], c.email,
             jsonb_build_object('kind', 'event_signup', 'event_id', p_event,
-                               'subject', 'You''re signed up: ' || e.title || case when inv_id is not null then ' (Invoice #' || inv_no || ')' else '' end,
+                               'subject', case when inv_id is not null then 'Almost done: ' || e.title || ' — please pay Invoice #' || inv_no else 'You''re signed up: ' || e.title end,
                                'message', msg));
   end if;
 

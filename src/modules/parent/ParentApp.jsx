@@ -944,13 +944,21 @@ function Events({ d, onSignUp }) {
         </div>
         {e.description && <p style={{ fontSize: 16, whiteSpace: 'pre-wrap', margin: '10px 0 0' }}>{e.description}</p>}
         {e.signup_deadline && <p style={{ fontSize: 13, color: closed ? C.red : C.soft, margin: '8px 0 0' }}>{closed ? 'Sign-up closed' : `Sign up by ${fdate(e.signup_deadline)}`}</p>}
-        {names.length > 0 && <p style={{ fontSize: 16, color: C.green, margin: '8px 0 0' }}><Check size={15} style={{ verticalAlign: -2 }} /> Signed up: {names.join(', ')}{myGuests.length ? ` + guests: ${myGuests.map((g) => g.name).join(', ')}` : ''}</p>}
+        {names.length > 0 && (owing.length > 0 ? (
+          // Not complete until the invoice is paid.
+          <div style={{ fontSize: 16, margin: '8px 0 0', padding: '10px 12px', borderRadius: 10, background: '#FBF3E2', color: '#7A5512' }}>
+            <b>Payment needed to finish signing up</b>
+            <div style={{ fontSize: 15, marginTop: 2 }}>{names.join(', ')}{myGuests.length ? ` + guests: ${myGuests.map((g) => g.name).join(', ')}` : ''} — your spot is held, and the sign-up is complete once {money(owing.reduce((t, i) => t + Number(i.balance), 0))} is paid.</div>
+          </div>
+        ) : (
+          <p style={{ fontSize: 16, color: C.green, margin: '8px 0 0' }}><Check size={15} style={{ verticalAlign: -2 }} /> Signed up: {names.join(', ')}{myGuests.length ? ` + guests: ${myGuests.map((g) => g.name).join(', ')}` : ''}</p>
+        ))}
         {answer && e.question && <p style={{ fontSize: 16, color: C.soft, margin: '4px 0 0' }}>{e.question} <b style={{ color: C.ink }}>{answer}</b></p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           {canAdd && <button style={{ ...primary, ...(narrow ? { flex: 1 } : {}) }} onClick={() => onSignUp(e)}>Sign up</button>}
           {!canAdd && canGuests && <button style={btn} onClick={() => onSignUp(e)}>Add guests</button>}
           {owing.map((i) => (
-            <PLink key={i.id} style={btn} href={`/pay/${i.pay_token}`}>Pay {money(i.balance)}</PLink>
+            <PLink key={i.id} style={primary} href={`/pay/${i.pay_token}`}>Pay {money(i.balance)} to finish</PLink>
           ))}
         </div>
       </div>
@@ -1138,11 +1146,12 @@ function SignUpModal({ d, event, onClose, onDone }) {
   }
   if (result)
     return (
-      <Modal title="You're signed up!" onClose={() => onDone(`You're signed up for ${result.what}. Invoice #${result.invoice_number} is under Billing.`)}>
-        <p style={{ fontSize: 15 }}>Invoice #{result.invoice_number} for <b>{money(result.total)}</b> was added to your account.</p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <a style={primary} href={`/pay/${result.pay_token}`}>Pay now</a>
-          <button style={btn} onClick={() => onDone(`You're signed up for ${result.what}. Invoice #${result.invoice_number} is under Billing.`)}>Pay later</button>
+      <Modal title="Almost done — pay to finish" onClose={() => onDone(`Not finished yet: pay Invoice #${result.invoice_number} to complete the sign-up for ${result.what}.`)}>
+        <p style={{ fontSize: 15 }}>Your spot for <b>{result.what}</b> is held. The sign-up is <b>complete once Invoice #{result.invoice_number} ({money(result.total)}) is paid</b>.</p>
+        <p style={{ fontSize: 14, color: C.soft }}>Pay with your saved card or another card.</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <a style={primary} href={`/pay/${result.pay_token}`}>Pay {money(result.total)} now</a>
+          <button style={btn} onClick={() => onDone(`Not finished yet: pay Invoice #${result.invoice_number} to complete the sign-up for ${result.what}. It's under Billing.`)}>Pay later</button>
         </div>
       </Modal>
     );
