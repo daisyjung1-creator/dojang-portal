@@ -8,9 +8,25 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const splitEmails = (v) => String(v || '').split(/[,;\s]+/).map((e) => e.trim()).filter(Boolean);
 
 // Review / edit an email, then put it in the send queue.
-// draft = { title, type, to, subject, message, studentId, payload, note }
+// draft = { title, type, to, subject, message, studentId, payload, note,
+//           extras: [{ key, label, text, on }] } — optional paragraphs the
+//           sender can tick on/off (added before the sign-off).
+const SIGNOFF = /\n\n(?=(Best|Kind) regards)/i;
+function addBlock(msg, text) {
+  if (msg.includes(text)) return msg;
+  const m = msg.match(SIGNOFF);
+  return m ? msg.slice(0, m.index) + '\n\n' + text + msg.slice(m.index) : msg.replace(/\s*$/, '') + '\n\n' + text;
+}
+const dropBlock = (msg, text) => msg.replace('\n\n' + text, '').replace(text, '');
+
 export default function EmailComposeModal({ draft, onClose, onSent }) {
-  const [d, setD] = useState({ ...draft, error: '', sending: false });
+  const [d, setD] = useState(() => {
+    let message = draft.message || '';
+    (draft.extras || []).forEach((x) => { if (x.on) message = addBlock(message, x.text); });
+    return { ...draft, message, error: '', sending: false };
+  });
+  const isOn = (x) => d.message.includes(x.text);
+  const toggle = (x) => setD({ ...d, message: isOn(x) ? dropBlock(d.message, x.text) : addBlock(d.message, x.text) });
 
   async function send() {
     const emails = splitEmails(d.to);
@@ -42,6 +58,16 @@ export default function EmailComposeModal({ draft, onClose, onSent }) {
       {d.note && <p style={{ fontSize: 12.5, color: 'var(--dp-warning)', margin: '0 0 10px' }}>{d.note}</p>}
       <Field label="To (comma-separated)"><input className="dp-input" style={{ width: '100%' }} value={d.to} onChange={(e) => setD({ ...d, to: e.target.value })} /></Field>
       <Field label="Subject"><input className="dp-input" style={{ width: '100%' }} value={d.subject} onChange={(e) => setD({ ...d, subject: e.target.value })} /></Field>
+      {(d.extras || []).length > 0 && (
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', margin: '0 0 10px', fontSize: 13.5 }}>
+          <span style={{ color: 'var(--dp-ink-soft)' }}>Include:</span>
+          {d.extras.map((x) => (
+            <label key={x.key} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={isOn(x)} onChange={() => toggle(x)} /> {x.label}
+            </label>
+          ))}
+        </div>
+      )}
       <Field label="Message (you can edit it before sending)">
         <textarea className="dp-input" rows={12} style={{ width: '100%', resize: 'vertical', fontSize: 13, lineHeight: 1.5 }} value={d.message} onChange={(e) => setD({ ...d, message: e.target.value })} />
       </Field>

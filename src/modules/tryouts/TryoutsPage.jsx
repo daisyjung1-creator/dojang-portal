@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, Check, Mail, Link2, MessageSquare, Copy, Clock } from 'lucide-react';
-import { TRIAL_LINK, JOIN_LINK } from '../leads/LeadMessageModal';
+import { TRIAL_LINK, JOIN_LINK, KIDSPORT_URL } from '../leads/LeadMessageModal';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import { TRYOUT_STATUSES } from '../../lib/constants';
@@ -62,6 +62,11 @@ export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd 
       payload: { tryout_id: t.id },
       note: t.confirmation_sent ? 'A confirmation was already sent for this booking.' : '',
       tryoutId: t.id,
+      // Same extras as the inquiry reply: registration link and KidSport info.
+      extras: [
+        { key: 'join', label: 'Registration (join online)', on: !fillTemplate(settings.tryout_message || '', vars).includes(JOIN_LINK), text: `When you are ready to join, registration takes about 5 minutes online.\n${JOIN_LINK}` },
+        { key: 'kidsport', label: 'KidSport grant info', on: true, text: `KidSport grant — help with fees for families who qualify. Please create a KidSport account first. Once registration is complete, we will email you the Proof of Enrollment for your application.\n${KIDSPORT_URL}` },
+      ],
     });
   }
 
