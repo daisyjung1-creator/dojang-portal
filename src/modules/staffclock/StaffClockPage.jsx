@@ -11,7 +11,7 @@ import ClockSignIn from './ClockSignIn';
 // or when they leave the tab, and nothing is remembered on the device.
 const IDLE_MS = 3 * 60 * 1000;
 
-export default function StaffClockPage() {
+export default function StaffClockPage({ kiosk = false }) {
   const { isAdmin } = useAuth();
   const [employee, setEmployee] = useState(null);
 
@@ -31,7 +31,15 @@ export default function StaffClockPage() {
     };
   }, [employee]);
 
-  if (isAdmin) return <StaffClockAdmin />;
-  if (!employee) return <ClockSignIn onSuccess={setEmployee} />;
-  return <EmployeeClock employee={employee} onLogout={() => setEmployee(null)} />;
+  if (isAdmin && !kiosk) return <StaffClockAdmin />;
+  const body = !employee
+    ? <ClockSignIn onSuccess={setEmployee} />
+    : <EmployeeClock employee={employee} onLogout={() => setEmployee(null)} />;
+  if (!kiosk) return body;
+  // Own page (/clock): full screen, no portal sidebar.
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--dp-canvas)', padding: 16 }}>
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>{body}</div>
+    </div>
+  );
 }

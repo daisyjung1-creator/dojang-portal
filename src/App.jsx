@@ -51,7 +51,7 @@ export default function App() {
   }, []);
   useEffect(() => {
     const p = window.location.pathname;
-    if (p === '/join' || p === '/trial' || p.startsWith('/pay/') || p.startsWith('/card/') || p.startsWith('/parent')) return;
+    if (p === '/join' || p === '/trial' || p.startsWith('/clock') || p.startsWith('/pay/') || p.startsWith('/card/') || p.startsWith('/parent')) return;
     const want = activeTab ? `#${activeTab}` : '';
     if (activeTab && window.location.hash.startsWith(`${want}/`)) return; // keep a sub-page (e.g. a student)
     if (window.location.hash !== want) window.history.replaceState(null, '', `${p}${window.location.search}${want}`);
@@ -74,6 +74,10 @@ export default function App() {
     return <LoginPage />;
   }
   if (!role) return <div style={{ padding: 40, color: '#5B5F56' }}>Loading...</div>;
+
+  // /clock: the Time Clock on its own page (like the old clock-in app) for the
+  // front-desk iPad — staff or admin login, employees sign in with their PIN.
+  if (publicPath === '/clock' && (isAdmin || role === 'staff')) return <StaffClockPage kiosk />;
 
   // A staff account landing on an admin-only tab (e.g. via a stale link) gets
   // bounced to a page it actually has access to.
