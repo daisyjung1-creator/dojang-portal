@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Pencil, Trash2, Check, TrendingUp, MessageSquare } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Check, TrendingUp, MessageSquare, CalendarPlus, Mail } from 'lucide-react';
+import TryoutsPage from '../tryouts/TryoutsPage';
+import { timeLabel } from '../../lib/emailTemplates';
 import LeadMessageModal from './LeadMessageModal';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
-import { LEAD_SOURCES, LEAD_STATUSES } from '../../lib/constants';
+import { LEAD_SOURCES, LEAD_STATUSES, TRYOUT_STATUSES } from '../../lib/constants';
 import { todayISO } from '../../lib/billingDates';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
@@ -34,14 +36,32 @@ export default function LeadsPage({ setActiveTab, tabs }) {
   const [linkedStudent, setLinkedStudent] = useState(null);
   const [messaging, setMessaging] = useState(null);
   const [flash, setFlash] = useState('');
+  // Trials are part of an inquiry (tryouts.lead_id); the trial windows live in TryoutsPage.
+  const [trials, setTrials] = useState([]);
+  const [trialCmd, setTrialCmd] = useState(null);
+  const trialsByLead = useMemo(() => {
+    const m = {};
+    trials.forEach((t) => { if (t.lead_id) (m[t.lead_id] ||= []).push(t); });
+    Object.values(m).forEach((list) => list.sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))));
+    return m;
+  }, [trials]);
 
   useEffect(() => {
     fetchLeads();
   }, []);
 
   async function fetchLeads() {
-    const { data } = await supabase.from('leads').select('*').order('inquiry_date', { ascending: false });
+    const [{ data }, { data: tr }] = await Promise.all([
+      supabase.from('leads').select('*').order('inquiry_date', { ascending: false }),
+      supabase.from('tryouts').select('*'),
+    ]);
     setLeads(data || []);
+    setTrials(tr || []);
+  }
+  async function setTrialStatus(t, status) {
+    setTrials((list) => list.map((x) => (x.id === t.id ? { ...x, status } : x)));
+    await supabase.from('tryouts').update({ status }).eq('id', t.id);
+    fetchLeads(); // the inquiry status follows the trial
   }
 
   async function searchPastStudents() {
@@ -119,6 +139,7 @@ export default function LeadsPage({ setActiveTab, tabs }) {
   }
 
   async function confirmDelete(id) {
+    await supabase.from('tryouts').delete().eq('lead_id', id); // its trial bookings go too
     await supabase.from('leads').delete().eq('id', id);
     setConfirmDeleteId(null);
     fetchLeads();
@@ -154,7 +175,12 @@ export default function LeadsPage({ setActiveTab, tabs }) {
 
   const filtered = useMemo(() => {
     return leads.filter((l) => {
-      const matchesStatus = statusFilter === 'all' || l.status === statusFilter;
+      const today = todayISO();
+      const tl = trialsByLead[l.id] || [];
+      const matchesStatus = statusFilter === 'all'
+        || (statusFilter === 'trial-upcoming' ? tl.some((t) => t.date >= today && t.status === 'Scheduled')
+          : statusFilter === 'trial-check' ? tl.some((t) => t.date < today && t.status === 'Scheduled')
+          : l.status === statusFilter);
       const matchesSearch =
         !search.trim() ||
         (l.student_name || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -162,7 +188,7 @@ export default function LeadsPage({ setActiveTab, tabs }) {
         (l.phone || '').includes(search);
       return matchesStatus && matchesSearch;
     });
-  }, [leads, statusFilter, search]);
+  }, [leads, statusFilter, search, trialsByLead]);
 
   const statusMeta = (status) => LEAD_STATUSES.find((s) => s.value === status) || LEAD_STATUSES[0];
 
@@ -170,13 +196,20 @@ export default function LeadsPage({ setActiveTab, tabs }) {
     <>
       <div style={styles.header}>
         <div>
-          {tabs || <h1 style={styles.title}>Leads</h1>}
-          <p style={styles.subtitle}>{leads.length} inquiries on record</p>
+          {tabs || <h1 style={styles.title}>Leads & Trials</h1>}
+          <p style={styles.subtitle}>{leads.length} inquiries · {trials.length} trials — a trial booking is part of its inquiry</p>
         </div>
-        <button className="dp-btn dp-btn-primary" onClick={openAdd}>
-          <Plus size={15} /> Add Inquiry
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="dp-btn" onClick={() => setTrialCmd({ kind: 'book', lead: null, at: Date.now() })}>
+            <CalendarPlus size={15} /> Book Trial
+          </button>
+          <button className="dp-btn dp-btn-primary" onClick={openAdd}>
+            <Plus size={15} /> Add Inquiry
+          </button>
+        </div>
       </div>
+
+      <TryoutsPage embedded setActiveTab={setActiveTab} cmd={trialCmd} onChanged={fetchLeads} />
 
       <div className="dp-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
         <div style={styles.metricCard}>
@@ -184,7 +217,7 @@ export default function LeadsPage({ setActiveTab, tabs }) {
           <p style={styles.metricValue}>{stats.total}</p>
         </div>
         <div style={styles.metricCard}>
-          <p style={styles.metricLabel}>In Consultation</p>
+          <p style={styles.metricLabel}>Booked a Trial or Further</p>
           <p style={styles.metricValue}>{stats.consulted}</p>
         </div>
         <div style={styles.metricCard}>
@@ -205,9 +238,11 @@ export default function LeadsPage({ setActiveTab, tabs }) {
         </div>
         <select className="dp-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All Statuses</option>
+          <option value="trial-upcoming">Trial coming up</option>
+          <option value="trial-check">Trial passed — not updated</option>
           {LEAD_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
-              {s.value}
+              {s.label || s.value}
             </option>
           ))}
         </select>
@@ -225,6 +260,7 @@ export default function LeadsPage({ setActiveTab, tabs }) {
                 <th>Phone</th>
                 <th>Source</th>
                 <th>Inquiry Date</th>
+                <th>Trial</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -250,6 +286,38 @@ export default function LeadsPage({ setActiveTab, tabs }) {
                     </td>
                     <td>{l.source}</td>
                     <td>{l.inquiry_date || '—'}</td>
+                    <td style={{ minWidth: 210 }}>
+                      {(trialsByLead[l.id] || []).map((t) => {
+                        const tm = TRYOUT_STATUSES.find((x) => x.value === t.status) || TRYOUT_STATUSES[0];
+                        const late = t.status === 'Scheduled' && t.date && t.date < todayISO();
+                        return (
+                          <div key={t.id} style={{ fontSize: 12.5, marginBottom: 4 }}>
+                            <div style={{ whiteSpace: 'nowrap' }}>
+                              {leadKids(l).length > 1 && <b>{String(t.student_name || '').split(' ')[0]} · </b>}
+                              {t.date ? new Date(t.date + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' }) : 'No date'}{t.time ? `, ${timeLabel(t.time)}` : ''}
+                              <span style={{ color: 'var(--dp-ink-faint)' }}> · {t.class_name || '—'}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
+                              <select className="dp-select" aria-label="Trial status" style={{ fontSize: 12, padding: '2px 4px', background: tm.bg, color: tm.text, borderColor: late ? 'var(--dp-warning)' : tm.border }} value={t.status} onChange={(e) => setTrialStatus(t, e.target.value)}>
+                                {TRYOUT_STATUSES.map((x) => <option key={x.value} value={x.value}>{x.value}</option>)}
+                              </select>
+                              {t.guardian_email ? (
+                                <button className="dp-btn" style={{ padding: '2px 6px', fontSize: 11.5 }} title="Trial confirmation email" onClick={() => setTrialCmd({ kind: 'email', t, at: Date.now() })}><Mail size={11} /> {t.confirmation_sent ? 'Sent ✓' : 'Confirm'}</button>
+                              ) : t.guardian_phone ? (
+                                <button className="dp-btn" style={{ padding: '2px 6px', fontSize: 11.5 }} title="Text the confirmation" onClick={() => setTrialCmd({ kind: 'text', t, at: Date.now() })}><MessageSquare size={11} /> {t.confirmation_sent ? 'Texted ✓' : 'Text'}</button>
+                              ) : null}
+                              <button className="dp-btn" aria-label="Edit trial" style={{ padding: 3 }} onClick={() => setTrialCmd({ kind: 'edit', t, at: Date.now() })}><Pencil size={11} /></button>
+                            </div>
+                            {late && <div style={{ fontSize: 11.5, color: 'var(--dp-warning)' }}>Did they come?</div>}
+                          </div>
+                        );
+                      })}
+                      {l.status !== 'Enrolled' && l.status !== 'Not Enrolled' && (
+                        <button className="dp-btn" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => setTrialCmd({ kind: 'book', lead: l, at: Date.now() })}>
+                          <CalendarPlus size={12} /> {(trialsByLead[l.id] || []).length ? 'Another' : 'Book trial'}
+                        </button>
+                      )}
+                    </td>
                     <td>
                       <select
                         className="dp-select"
@@ -259,7 +327,7 @@ export default function LeadsPage({ setActiveTab, tabs }) {
                       >
                         {LEAD_STATUSES.map((s) => (
                           <option key={s.value} value={s.value}>
-                            {s.value}
+                            {s.label || s.value}
                           </option>
                         ))}
                       </select>
@@ -390,7 +458,7 @@ export default function LeadsPage({ setActiveTab, tabs }) {
               <select className="dp-select" style={{ width: '100%' }} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 {LEAD_STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
-                    {s.value}
+                    {s.label || s.value}
                   </option>
                 ))}
               </select>
@@ -412,7 +480,7 @@ export default function LeadsPage({ setActiveTab, tabs }) {
       )}
       {flash && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'var(--dp-ink)', color: '#fff', padding: '8px 16px', borderRadius: 8, fontSize: 13.5, zIndex: 300 }}>{flash}</div>}
 
-      {confirmDeleteId && <ConfirmDialog message="Delete this inquiry? This can't be undone." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
+      {confirmDeleteId && <ConfirmDialog message={(trialsByLead[confirmDeleteId] || []).length ? "Delete this inquiry and its trial bookings? This can't be undone." : "Delete this inquiry? This can't be undone."} onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
     </>
   );
 }

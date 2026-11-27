@@ -26,8 +26,8 @@ export const LEAD_SOURCES = ['Phone', 'Walk-in', 'Online', 'Referral', 'Other'];
 // Status chips use the design-token colours (DESIGN.md); screen use only.
 export const LEAD_STATUSES = [
   { value: 'New Inquiry', bg: 'var(--dp-canvas)', text: 'var(--dp-ink-soft)', border: 'var(--dp-line)' },
-  { value: 'Consultation Scheduled', bg: 'var(--dp-canvas)', text: 'var(--dp-info)', border: 'var(--dp-line)' },
-  { value: 'Consultation Done', bg: 'var(--dp-warning-tint)', text: 'var(--dp-warning)', border: 'var(--dp-warning-tint)' },
+  { value: 'Consultation Scheduled', label: 'Trial Booked', bg: 'var(--dp-canvas)', text: 'var(--dp-info)', border: 'var(--dp-line)' },
+  { value: 'Consultation Done', label: 'Trial Done', bg: 'var(--dp-warning-tint)', text: 'var(--dp-warning)', border: 'var(--dp-warning-tint)' },
   { value: 'Enrolled', bg: 'var(--dp-success-tint)', text: 'var(--dp-success)', border: 'var(--dp-success-tint)' },
   { value: 'Not Enrolled', bg: 'var(--dp-danger-tint)', text: 'var(--dp-danger)', border: 'var(--dp-danger-tint)' },
 ];

@@ -19,10 +19,14 @@ const daysAgo = (iso) => { const n = Math.round((new Date(todayISO() + 'T12:00:0
 
 // Trials are usually at 4:30 pm (changeable in Invoice Settings).
 function emptyForm(time = '16:30') {
-  return { student_name: '', student_age: '', experience: '', guardian_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time, status: 'Scheduled', notes: '' };
+  return { lead_id: null, student_name: '', student_age: '', experience: '', guardian_name: '', guardian_phone: '', guardian_email: '', class_name: '', date: todayISO(), time, status: 'Scheduled', notes: '' };
 }
 
-export default function TryoutsPage({ setActiveTab, tabs }) {
+// embedded: shown inside Leads & Trials (admin) — only the booking link,
+// the follow-up list and the booking / email windows; the trials themselves
+// are listed on each inquiry. cmd opens a window from there:
+// { kind: 'book', lead } | { kind: 'edit' | 'email' | 'text', t }.
+export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd = null, onChanged }) {
   const { isAdmin } = useAuth();
   const [tryouts, setTryouts] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -74,12 +78,33 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
     if (t.guardian_email || t.confirmation_sent) return;
     await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', t.id);
     setTryouts((prev) => prev.map((x) => (x.id === t.id ? { ...x, confirmation_sent: true } : x)));
+    onChanged?.();
   }
 
   async function fetchTryouts() {
     const { data } = await supabase.from('tryouts').select('*').order('date', { ascending: false });
     setTryouts(data || []);
+    onChanged?.();
   }
+
+  useEffect(() => {
+    if (!cmd) return;
+    if (cmd.kind === 'book') {
+      const l = cmd.lead;
+      const booked = new Set(tryouts.filter((t) => l && t.lead_id === l.id).map((t) => norm(t.student_name)));
+      const kids = l ? (Array.isArray(l.children) && l.children.length ? l.children : [{ name: l.student_name, age: l.student_age }]) : [];
+      const kid = kids.find((k) => k.name && !booked.has(norm(k.name))) || kids[0] || {};
+      setEditingId(null);
+      setForm({
+        ...emptyForm(defaultTime),
+        ...(l ? { lead_id: l.id, student_name: kid.name || '', student_age: kid.age ?? '', guardian_name: l.guardian_name || '', guardian_phone: l.phone || '', guardian_email: l.email || '' } : {}),
+      });
+      setFormError('');
+      setModalOpen(true);
+    } else if (cmd.kind === 'edit') openEdit(cmd.t);
+    else if (cmd.kind === 'email') openEmail(cmd.t);
+    else if (cmd.kind === 'text') { markTexted(cmd.t); window.location.href = smsHref(cmd.t); }
+  }, [cmd]);
 
   function openAdd() {
     setEditingId(null);
@@ -132,6 +157,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
   async function setStatus(id, status) {
     const { data } = await supabase.from('tryouts').update({ status }).eq('id', id).select();
     if (data) setTryouts((prev) => prev.map((t) => (t.id === id ? data[0] : t)));
+    onChanged?.(); // the inquiry's status follows the trial
   }
 
   async function convertToRegistration(t) {
@@ -184,7 +210,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
 
   return (
     <div style={T ? { fontFamily: 'var(--dp-font)', color: 'var(--dp-ink)', fontWeight: 400 } : undefined}>
-      <div style={styles.header}>
+      {!embedded && <div style={styles.header}>
         <div>
           {tabs || <h1 style={T ? { fontSize: 'var(--dp-text-display)', fontWeight: 700, lineHeight: 1.15, margin: 0 } : styles.title}>Trials</h1>}
           <p style={T ? { fontSize: 'var(--dp-text-body)', color: 'var(--dp-ink-soft)', margin: '6px 0 0' } : styles.subtitle}>{tryouts.length} trial bookings</p>
@@ -192,7 +218,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
         <button className="dp-btn dp-btn-primary" style={T ? { ...tb, background: 'var(--dp-ink)', borderColor: 'var(--dp-ink)' } : undefined} onClick={openAdd}>
           <Plus size={15} /> Add Booking
         </button>
-      </div>
+      </div>}
 
       {/* The link families use to book a free trial themselves */}
       <div style={{ ...styles.card, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -268,6 +294,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
         </div>
       )}
 
+      {!embedded && <>
       <div style={styles.filterBar}>
         <select className="dp-select" aria-label="Status" style={T ? { minHeight: 'var(--dp-touch)', fontSize: 'var(--dp-text-body)' } : undefined} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All Statuses</option>
@@ -438,6 +465,7 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
         )}
       </div>
       )}
+      </>}
 
       {modalOpen && (
         <Modal
