@@ -133,7 +133,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
+      <div className="dp-stack dp-stack-md" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
         <div style={{ ...styles.card, overflowX: 'auto' }}>
           <table className="dp-table">
             <thead>

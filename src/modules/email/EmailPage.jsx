@@ -299,7 +299,7 @@ export default function EmailPage() {
       {page === 'log' ? <EmailLog onReuse={reuse} /> : (<>
       {flash.text && <p style={{ background: flash.error ? 'var(--dp-danger-tint)' : 'var(--dp-success-tint)', color: flash.error ? 'var(--dp-danger)' : 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
 
-      <div className="dp-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
+      <div className="dp-stack dp-stack-md" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
         <div style={{ ...styles.card, padding: 18 }}>
           <p style={{ ...styles.metricLabel, marginBottom: 8 }}>Send to</p>
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>

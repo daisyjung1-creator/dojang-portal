@@ -68,6 +68,7 @@ select.dp-select {
   color: var(--dp-ink-faint);
 }
 .dp-btn {
+  white-space: nowrap;
   font-size: 14px;
   font-weight: 500;
   min-height: 38px;
@@ -142,7 +143,7 @@ table.dp-table td {
 .dp-ea-online { grid-area: online; }
 .dp-ea-form { grid-area: form; }
 .dp-ea-recent { grid-area: recent; }
-@media (min-width: 1100px) {
+@media (min-width: 1300px) {
   .dp-enroll-grid {
     grid-template-columns: minmax(0, 720px) minmax(300px, 1fr);
     grid-template-areas: 'form online' 'form recent';
@@ -268,7 +269,8 @@ table.dp-table tbody tr:last-child td {
   .dp-main div[style*='display: flex']:not([style*='flex-direction: column']) {
     flex-wrap: wrap;
   }
-  .dp-main table div[style*='display: flex'] {
+  /* …but button groups inside table cells stay on one line (the table scrolls). */
+  .dp-main table div[style*='display: flex']:not([style*='flex-direction: column']) {
     flex-wrap: nowrap;
   }
   .dp-main input,
@@ -324,6 +326,35 @@ table.dp-table tbody tr:last-child td {
   .dp-kiosk-foot {
     padding: 10px 14px calc(78px + env(safe-area-inset-bottom)) !important;
   }
+}
+
+/* In filter bars, dates and dropdowns keep their size and move to the next
+   line instead of being squeezed until the text is cut off. */
+.dp-main div[style*='display: flex'] > input[type='date'],
+.dp-main div[style*='display: flex'] > .dp-select {
+  flex-shrink: 0;
+}
+
+/* Two-panel pages (table + side panel) stack on tablets so the table gets the width. */
+@media (max-width: 1280px) {
+  .dp-stack-md { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+/* Attendance check-in: when the list is grouped by class the coloured class
+   rows already name it, so the Class column goes on tablets to give the
+   buttons room. On phones each student is a card: name, then the buttons. */
+@media (max-width: 1280px) {
+  table.dp-att-grouped .dp-att-classcol { display: none; }
+}
+@media (max-width: 640px) {
+  .dp-main div:has(> table.dp-att-table) { overflow-x: visible !important; }
+  table.dp-att-table thead { display: none; }
+  table.dp-att-table, table.dp-att-table tbody { display: block; width: 100%; }
+  table.dp-att-table tr { display: block; border-bottom: 1px solid var(--dp-line); }
+  table.dp-att-table td { display: block; border: none !important; padding: 8px 12px !important; white-space: normal !important; }
+  table.dp-att-table tr.dp-row td:first-child { padding-bottom: 2px !important; }
+  table.dp-att-table td.dp-att-actions { min-width: 0 !important; padding-top: 4px !important; padding-bottom: 12px !important; }
+  .dp-main table.dp-att-table td > div[style*='display: flex'] { flex-wrap: wrap !important; }
 }
 
 /* Student page: tapes + family stack on narrow screens */

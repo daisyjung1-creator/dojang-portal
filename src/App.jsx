@@ -32,7 +32,7 @@ import ParentApp from './modules/parent/ParentApp';
 import EventsPage from './modules/events/EventsPage';
 import StaffClockPage from './modules/staffclock/StaffClockPage';
 
-const TABS = ['home', 'today', 'tapes', 'students', 'events', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins', 'clock'];
+const TABS = ['home', 'today', 'tapes', 'students', 'events', 'leads', 'tryouts', 'register', 'attendance', 'testing', 'billing', 'email', 'invoices', 'payments', 'customers', 'reports', 'payroll', 'inventory', 'invoice-settings', 'staff-logins', 'clock', 'hp'];
 const tabFromHash = () => {
   // #students/<id> = a student's page inside the Students tab.
   const t = decodeURIComponent(window.location.hash.slice(1)).split('/')[0];

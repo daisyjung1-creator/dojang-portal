@@ -221,7 +221,7 @@ export default function ProgressOverview({ onOpenTest, onNewTest, isAdmin = true
                 const m = beltMeta(s.belt);
                 return (
                   <tr key={s.id} className="dp-row" data-student={s.name}>
-                    <td style={{ fontWeight: 500, maxWidth: 300 }}>
+                    <td style={{ fontWeight: 500, maxWidth: 240 }}>
                       {isAdmin ? (
                         <a href={`#students/${s.id}`} style={{ color: 'var(--dp-ink)', textDecorationColor: 'var(--dp-line)', textUnderlineOffset: 3 }}>{s.name}</a>
                       ) : s.name}

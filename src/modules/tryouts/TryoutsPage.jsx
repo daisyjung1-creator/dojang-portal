@@ -367,17 +367,17 @@ export default function TryoutsPage({ setActiveTab, tabs }) {
                 const meta = statusMeta(t.status);
                 return (
                   <tr key={t.id} className="dp-row">
-                    <td style={{ fontWeight: 500 }}>
+                    <td style={{ fontWeight: 500, minWidth: 140 }}>
                       {t.student_name}
                       {t.student_age != null && <span style={{ fontWeight: 400, color: 'var(--dp-ink-faint)' }}> · {t.student_age}y</span>}
                       {t.experience && t.experience !== 'None' && <div style={{ fontSize: 12, color: 'var(--dp-warning)', fontWeight: 600 }}>{t.experience === 'Black belt' ? 'Black belt (Adv)' : 'Color belt (Inter)'}</div>}
                       {/^Booked online/.test(t.notes || '') && <div style={{ fontSize: 12, color: 'var(--dp-info)', fontWeight: 400 }}>Booked online</div>}
                     </td>
                     <td>{t.guardian_name || '—'}</td>
-                    <td>{t.guardian_phone || '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{t.guardian_phone || '—'}</td>
                     <td>{t.class_name || '—'}</td>
-                    <td>{t.date || '—'}</td>
-                    <td>{timeLabel(t.time) || '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{t.date || '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{timeLabel(t.time) || '—'}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap' }}>
                         {t.guardian_email && (

@@ -34,10 +34,10 @@ export const styles = {
     padding: '1px 6px',
   },
   main: { flex: 1, padding: '28px 32px', minWidth: 0 },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px 16px', marginBottom: 18 },
   title: { fontSize: 'var(--dp-text-headline)', fontWeight: 700, margin: 0, lineHeight: 1.25, fontFamily: 'var(--dp-font-display)' },
   subtitle: { fontSize: 'var(--dp-text-label)', color: 'var(--dp-ink-soft)', margin: '4px 0 0' },
-  filterBar: { display: 'flex', gap: 8, marginBottom: 14 },
+  filterBar: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 14 },
   searchBox: {
     display: 'flex',
     alignItems: 'center',

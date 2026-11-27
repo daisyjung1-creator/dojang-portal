@@ -613,11 +613,11 @@ export default function AttendancePage() {
             {checkinList.length === 0 && makeupGuests.length === 0 ? (
               <p style={{ padding: 20, color: 'var(--dp-ink-soft)', fontSize: 14 }}>No matching students.</p>
             ) : (
-              <table className="dp-table">
+              <table className={`dp-table dp-att-table${sortBy === 'class' && checkinClass === 'all' ? ' dp-att-grouped' : ''}`}>
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th className="dp-hide-sm">Class</th>
+                    <th className="dp-hide-sm dp-att-classcol">Class</th>
                     <th>Attendance</th>
                   </tr>
                 </thead>
@@ -654,7 +654,7 @@ export default function AttendancePage() {
                               </button>
                             </div>
                           </td>
-                          <td className="dp-hide-sm">{className}</td>
+                          <td className="dp-hide-sm dp-att-classcol">{className}</td>
                           <td className="dp-att-actions">
                             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
                               {kindButton('present', st === 'present', () => setAttendanceStatus(s.id, checkinDate, className, 'present'), <CircleCheck size={13} />)}
@@ -691,7 +691,7 @@ export default function AttendancePage() {
                           <StudentFlags s={st} style={{ marginLeft: 6 }} />
                           <span style={{ marginLeft: 6, fontSize: 12.5, color: 'var(--dp-info)', border: '1px solid var(--dp-line)', background: 'var(--dp-canvas)', borderRadius: 999, padding: '1px 6px' }}>Drop-in</span>
                         </td>
-                        <td className="dp-hide-sm">{a.class_name} (home class: {st.class_name || 'Unassigned'})</td>
+                        <td className="dp-hide-sm dp-att-classcol">{a.class_name} (home class: {st.class_name || 'Unassigned'})</td>
                         <td className="dp-att-actions">
                           <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => clearAttendance(a)}>Remove</button>
                         </td>
