@@ -93,6 +93,19 @@ export default function PayPage({ token }) {
       .catch((e) => setErr(e.message));
   }, [canPay]);
 
+  const [savedOk, setSavedOk] = useState(false);
+  const [savedErr, setSavedErr] = useState('');
+  // Charge the family's saved card for this invoice (they tick to approve first).
+  async function paySaved() {
+    if (!savedOk || busy) return;
+    setBusy('saved');
+    setSavedErr('');
+    const r = await call({ action: 'pay_saved', pay_token: token, confirm: true });
+    setBusy(false);
+    if (r?.approved) setDone({ ...r, card: inv.saved_card?.last4 || '' });
+    else setSavedErr(r?.error || 'The payment did not go through. Please try again or use a different card.');
+  }
+
   function pay() {
     if (!cc.current || busy) return;
     setBusy(true);
@@ -184,8 +197,25 @@ export default function PayPage({ token }) {
           ) : !(inv.balance > 0.004) ? (
             <div style={{ ...box, color: C.green, fontWeight: 600 }}>This invoice is paid in full. Thank you!</div>
           ) : (
+            <>
+            {inv.saved_card && (
+              <div style={{ ...box, marginBottom: 14 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Pay with your saved card</div>
+                <div style={{ fontSize: 15, marginBottom: 10 }}>
+                  {inv.saved_card.type} ending <b>{inv.saved_card.last4 || '····'}</b>
+                </div>
+                <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 14, lineHeight: 1.5, marginBottom: 12, cursor: 'pointer' }}>
+                  <input type="checkbox" style={{ width: 20, height: 20, marginTop: 1, flexShrink: 0 }} checked={savedOk} onChange={(e) => setSavedOk(e.target.checked)} />
+                  <span>I approve charging {money(inv.balance)} to this card for Invoice #{inv.number}.</span>
+                </label>
+                <button type="button" disabled={!savedOk || busy} onClick={paySaved} style={{ width: '100%', minHeight: 48, borderRadius: 10, border: 'none', background: savedOk && !busy ? C.ink : '#C9C6BC', color: '#fff', fontSize: 16, fontWeight: 700, fontFamily: 'inherit', cursor: savedOk && !busy ? 'pointer' : 'default' }}>
+                  {busy === 'saved' ? 'Charging…' : `Pay ${money(inv.balance)} with card ending ${inv.saved_card.last4 || ''}`}
+                </button>
+                {savedErr && <div style={{ color: C.danger, fontSize: 14, marginTop: 8 }}>{savedErr}</div>}
+              </div>
+            )}
             <div style={box}>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>Pay by credit card</div>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{inv.saved_card ? 'Or pay with a different card' : 'Pay by credit card'}</div>
               <In label="Name on card" placeholder="As shown on the card" value={name} onChange={(e) => setName(e.target.value)} autoComplete="cc-name" />
               <div style={lbl}>Card number</div>
               <div id="cc-card-number" style={fieldBox} />
@@ -235,6 +265,7 @@ export default function PayPage({ token }) {
                 Card details are entered on TD Online Mart's secure form and are never stored by the Dojang. A receipt is emailed after payment.
               </p>
             </div>
+            </>
           )}
         </>
       )}
