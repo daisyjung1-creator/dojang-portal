@@ -58,7 +58,7 @@ export default function ClockSignIn({ onSuccess }) {
     <div className="sc-root" style={{ minHeight: '80vh', background: COLORS.bg, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <style>{globalFontImport}</style>
       <div style={{ width: '100%', maxWidth: 460 }}>
-        <div style={{ fontSize: 28, fontWeight: 700, color: COLORS.navy, marginBottom: 20, textAlign: 'center', fontFamily: 'var(--dp-font-display)' }}>Time Clock</div>
+        <div style={{ fontSize: 30, fontWeight: 800, color: COLORS.navy, marginBottom: 8, textAlign: 'center' }}>Employee Sign In</div>
 
         {fetching ? (
           <div style={{ color: COLORS.textFaint, fontSize: 16, textAlign: 'center', marginTop: 20 }}>Loading…</div>

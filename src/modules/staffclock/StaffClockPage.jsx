@@ -38,7 +38,7 @@ export default function StaffClockPage({ kiosk = false }) {
   if (!kiosk) return body;
   // Own page (/clock): full screen, no portal sidebar.
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--dp-canvas)', padding: 16 }}>
+    <div style={{ minHeight: '100vh', background: '#F5F3EE', padding: 16 }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>{body}</div>
     </div>
   );

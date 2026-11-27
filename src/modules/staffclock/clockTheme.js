@@ -1,18 +1,18 @@
-// Colours for the Staff Clock screens, matched to the portal's tokens
-// (src/styles/tokens.css). Kept as hex because the screens add alpha
+// Colours and fonts of the original clock-in app (attendance-portal), kept so
+// the Time Clock looks the same as before. Hex because the screens add alpha
 // suffixes (e.g. `${COLORS.rust}14`).
 export const COLORS = {
-  bg: '#F6F5F2',        // --dp-canvas
-  navy: '#20241F',      // --dp-ink
-  slate: '#3A3E36',
-  slateLine: '#5B5F56', // --dp-ink-soft
+  bg: '#F5F3EE',
+  navy: '#1C2333',
+  slate: '#2F3B52',
+  slateLine: '#3E4A63',
   amber: '#E8871E',
-  teal: '#2A5A30',      // --dp-success
-  rust: '#BE1C21',      // --dp-hankook-red
-  cardLine: '#E2DFD6',  // --dp-line
-  inputLine: '#E2DFD6',
-  textMuted: '#5B5F56',
-  textFaint: '#8A8D84',
+  teal: '#4A7A6C',
+  rust: '#C94F3D',
+  cardLine: '#ECE9E0',
+  inputLine: '#E2E0D8',
+  textMuted: '#6B7280',
+  textFaint: '#9CA3AF',
 }
 
 export const inputStyle = {
@@ -34,7 +34,9 @@ export const navBtnStyle = {
 
 // Scoped to the Staff Clock screens only (the old app styled the whole page).
 export const globalFontImport = `
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
   .sc-root, .sc-root * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  .sc-root { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: ${COLORS.navy}; }
   .sc-root button { font-family: inherit; cursor: pointer; }
-  .sc-root .mono { font-variant-numeric: tabular-nums; }
+  .sc-root .mono { font-family: 'JetBrains Mono', monospace; }
 `
