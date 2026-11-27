@@ -9,6 +9,7 @@ import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmailComposeModal from '../../components/EmailComposeModal';
+import TextCopyModal from '../../components/TextCopyModal';
 import { useAuth } from '../../auth/AuthContext';
 import { fillTemplate, tryoutVars, timeLabel, trialFollowup } from '../../lib/emailTemplates';
 import { notice } from '../../lib/dialogs';
@@ -40,6 +41,7 @@ export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd 
   const [copied, setCopied] = useState(false);
   const [studentNames, setStudentNames] = useState(null);
   const [showFollow, setShowFollow] = useState(true);
+  const [textMsg, setTextMsg] = useState(null); // text to copy and send from the dojang phone
   // This site's own /trial page (so the preview site links to the preview form).
   const bookingLink = `${window.location.origin}/trial`;
 
@@ -79,6 +81,8 @@ export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd 
     const phone = String(t.guardian_phone || '').replace(/[^\d+]/g, '');
     return `sms:${phone}${/iPhone|iPad|Mac/i.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(trialText(t))}`;
   }
+  const openText = (t) => setTextMsg({ title: `Trial confirmation text — ${t.student_name}`, phone: t.guardian_phone, body: trialText(t), onDone: () => markTexted(t) });
+  const openFollowText = (t) => setTextMsg({ title: `Follow-up text — ${t.student_name}`, phone: t.guardian_phone, body: trialFollowup(t, settings, JOIN_LINK).text, onDone: () => markFollowed(t.id) });
   async function markTexted(t) {
     if (t.guardian_email || t.confirmation_sent) return;
     await supabase.from('tryouts').update({ confirmation_sent: true }).eq('id', t.id);
@@ -108,7 +112,7 @@ export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd 
       setModalOpen(true);
     } else if (cmd.kind === 'edit') openEdit(cmd.t);
     else if (cmd.kind === 'email') openEmail(cmd.t);
-    else if (cmd.kind === 'text') { markTexted(cmd.t); window.location.href = smsHref(cmd.t); }
+    else if (cmd.kind === 'text') openText(cmd.t);
   }, [cmd]);
 
   function openAdd() {
@@ -276,9 +280,9 @@ export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd 
                             <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} onClick={() => openFollowEmail(t)}><Mail size={12} /> Email</button>
                           )}
                           {t.guardian_phone && (
-                            <a className="dp-btn" style={{ padding: '3px 8px', fontSize: 12, textDecoration: 'none' }} href={followSmsHref(t)} title="Opens your phone's messages with the follow-up written" onClick={() => markFollowed(t.id)}>
+                            <button className="dp-btn" style={{ padding: '3px 8px', fontSize: 12 }} title="Copy the follow-up to text from the dojang phone" onClick={() => openFollowText(t)}>
                               <MessageSquare size={12} /> Text
-                            </a>
+                            </button>
                           )}
                           {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>No contact</span>}
                           {t.followup_sent_at && <span style={{ fontSize: 12.5, color: 'var(--dp-success)' }}>Sent ✓ {t.followup_sent_at.slice(5, 10).replace('-', '/')}</span>}
@@ -351,9 +355,9 @@ export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd 
                           </button>
                         )}
                         {t.guardian_phone && (
-                          <a className="dp-btn" style={{ ...tb, textDecoration: 'none' }} href={smsHref(t)} onClick={() => markTexted(t)}>
+                          <button className="dp-btn" style={tb} onClick={() => openText(t)}>
                             <MessageSquare size={15} aria-hidden="true" /> {!t.guardian_email && t.confirmation_sent ? 'Texted' : 'Text'}
-                          </a>
+                          </button>
                         )}
                         <select
                           className="dp-select"
@@ -418,15 +422,14 @@ export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd 
                           </button>
                         )}
                         {t.guardian_phone && (
-                          <a
+                          <button
                             className="dp-btn"
-                            style={{ padding: '3px 8px', fontSize: 12, textDecoration: 'none', ...(!t.guardian_email && !t.confirmation_sent ? { background: 'var(--dp-hankook-red)', color: '#fff', borderColor: 'var(--dp-hankook-red)' } : {}) }}
-                            href={smsHref(t)}
-                            title="Opens your phone's messages with the confirmation written"
-                            onClick={() => markTexted(t)}
+                            style={{ padding: '3px 8px', fontSize: 12, ...(!t.guardian_email && !t.confirmation_sent ? { background: 'var(--dp-hankook-red)', color: '#fff', borderColor: 'var(--dp-hankook-red)' } : {}) }}
+                            title="Copy the confirmation to text from the dojang phone"
+                            onClick={() => openText(t)}
                           >
                             <MessageSquare size={12} /> {!t.guardian_email && t.confirmation_sent ? 'Texted ✓' : 'Text'}
-                          </a>
+                          </button>
                         )}
                         {!t.guardian_email && !t.guardian_phone && <span style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)' }}>No contact</span>}
                       </div>
@@ -570,6 +573,8 @@ export default function TryoutsPage({ setActiveTab, tabs, embedded = false, cmd 
           }}
         />
       )}
+
+      {textMsg && <TextCopyModal msg={textMsg} onClose={() => setTextMsg(null)} />}
 
       {confirmDeleteId && <ConfirmDialog message="Delete this booking? This can't be undone." onCancel={() => setConfirmDeleteId(null)} onConfirm={() => confirmDelete(confirmDeleteId)} />}
     </div>
