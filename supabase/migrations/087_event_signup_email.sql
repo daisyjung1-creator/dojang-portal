@@ -174,7 +174,7 @@ begin
       || case when inv_id is not null then
            E'\n' || 'Invoice #' || inv_no || ': $' || to_char((select total from invoices where id = inv_id), 'FM999,990.00') || E'\n'
            || 'Your sign-up is complete once this invoice is paid.' || E'\n'
-           || 'Pay online (saved card or another card): https://dojang-portal.netlify.app/pay/' || tok || E'\n'
+           || 'Pay online by credit card: https://dojang-portal.netlify.app/pay/' || tok || E'\n'
            || 'You can also pay from Billing in the parent portal.' || E'\n'
          else E'\n' || 'There is no charge for this sign-up.' || E'\n' end
       || E'\n' || 'See you there!' || E'\n\n' || 'Master Daisy' || E'\n' || coalesce(st.business_name, 'Champion Hankook Taekwondo');

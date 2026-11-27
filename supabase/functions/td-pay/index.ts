@@ -310,7 +310,7 @@ async function autoOffer(inv: any) {
 }
 
 // Charges a family's saved card for one invoice's balance (records + receipt in live mode).
-async function chargeOne(s: any, mode: string, id: string, how = 'Saved card (automatic tuition)', what = 'tuition') {
+async function chargeOne(s: any, mode: string, id: string) {
   const { data: inv } = await admin.from('invoice_summary').select('*').eq('id', id).maybeSingle();
   if (!inv || inv.voided) return { id, error: 'Invoice not found' };
   const balance = r2(inv.balance);
@@ -326,7 +326,7 @@ async function chargeOne(s: any, mode: string, id: string, how = 'Saved card (au
       payment_profile: { customer_code: c.card_profile_code, card_id: 1, complete: true },
       // A card saved without a payment (save-card link) starts its card-on-file series here.
       card_on_file: c.card_series_id ? { type: 'subsequent_recurring', series_id: Number(c.card_series_id) || c.card_series_id } : { type: 'first_recurring' },
-      comments: `Invoice #${inv.invoice_number} (${what})`,
+      comments: `Invoice #${inv.invoice_number} (tuition)`,
     });
   } catch (e) {
     return { id, number: inv.invoice_number, customer: inv.customer_name, error: String((e as Error).message || e) };
@@ -340,7 +340,7 @@ async function chargeOne(s: any, mode: string, id: string, how = 'Saved card (au
   if (!c.card_series_id && t.card_on_file?.series_id) await admin.from('customers').update({ card_series_id: String(t.card_on_file.series_id) }).eq('id', c.id);
   if (c.card_declined_at) await admin.from('customers').update({ card_declined_at: null, card_decline_message: null, card_declined_invoice_id: null, card_decline_emailed_at: null, card_decline_reminded_at: null }).eq('id', c.id);
   if (mode === 'test') return { id, number: inv.invoice_number, customer: inv.customer_name, approved: true, test: true, amount: balance };
-  const pay = await recordPayment(s, inv, t, balance, how);
+  const pay = await recordPayment(s, inv, t, balance, 'Saved card (automatic tuition)');
   return { id, number: inv.invoice_number, customer: inv.customer_name, approved: true, recorded: !!pay, amount: balance };
 }
 
@@ -653,9 +653,6 @@ Deno.serve(async (req) => {
       (summary as any).auto = offer.plan;
       (summary as any).auto_required = offer.required;
       (summary as any).auto_method = profilesReady(mode) ? 'card' : 'rb';
-      // The family's saved card (if any), so they can pay this invoice with it.
-      const { data: fam } = await admin.from('customers').select('card_profile_code, card_profile_mode, card_last4, card_type, card_legacy_rb_pending').eq('id', inv.customer_id).maybeSingle();
-      (summary as any).saved_card = fam?.card_profile_code && fam.card_profile_mode === mode ? { last4: fam.card_last4 || '', type: fam.card_type || 'Card' } : null;
       if (b.action === 'invoice') return json(summary);
 
       // ── pay ──
@@ -780,20 +777,6 @@ Deno.serve(async (req) => {
       const pay = await recordPayment(s, inv, t, balance, saved ? 'Paid online, card saved for tuition' : 'Paid online (Pay now)', b.email);
       if (!pay) return json({ ok: true, approved: true, recorded: false, transaction: t.id, amount: balance });
       return json({ ok: true, approved: true, recorded: true, saved: !!saved, auto, receipt: pay.receipt_number, amount: balance, card: t.card?.last_four || '', mode });
-    }
-
-    // Parent pays this invoice with the card already saved for the family.
-    if (b.action === 'pay_saved') {
-      const inv: any = await invoiceByToken(b.pay_token);
-      if (!inv || inv.voided) return json({ error: 'This payment link is not valid. Please contact the Dojang.' }, 404);
-      if (!s.online_pay) return json({ error: 'Online payment is not turned on. Please contact the Dojang.' }, 400);
-      if (!(r2(inv.balance) > 0.004)) return json({ error: 'This invoice is already paid. Thank you!', paid: true }, 400);
-      if (!b.confirm) return json({ error: 'Please confirm the payment.' }, 400);
-      const blocked = await payBlocked(inv.id);
-      if (blocked) return json({ error: blocked }, 429);
-      const res: any = await chargeOne(s, mode, inv.id, 'Paid online with saved card', 'paid by parent with saved card');
-      if (res.approved) return json({ ok: true, approved: true, recorded: !!res.recorded, test: !!res.test, amount: res.amount, mode });
-      return json({ error: res.declined ? `The card was declined: ${res.declined}` : res.error || 'The payment did not go through.' }, 400);
     }
 
     if (b.action === 'charge') {

@@ -1148,7 +1148,6 @@ function SignUpModal({ d, event, onClose, onDone }) {
     return (
       <Modal title="Almost done — pay to finish" onClose={() => onDone(`Not finished yet: pay Invoice #${result.invoice_number} to complete the sign-up for ${result.what}.`)}>
         <p style={{ fontSize: 15 }}>Your spot for <b>{result.what}</b> is held. The sign-up is <b>complete once Invoice #{result.invoice_number} ({money(result.total)}) is paid</b>.</p>
-        <p style={{ fontSize: 14, color: C.soft }}>Pay with your saved card or another card.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <a style={primary} href={`/pay/${result.pay_token}`}>Pay {money(result.total)} now</a>
           <button style={btn} onClick={() => onDone(`Not finished yet: pay Invoice #${result.invoice_number} to complete the sign-up for ${result.what}. It's under Billing.`)}>Pay later</button>
