@@ -11,6 +11,9 @@ const COLORS = {
   Black: { fill: '#1A1A1A', edge: '#000000' },
 };
 const GOLD = '#D4AF37';
+// Black stripe 1–4: a coloured sticker is wrapped round the belt for each
+// level (no new belt): 1 yellow, 2 + green, 3 + blue, 4 + red.
+export const STICKERS = ['Yellow', 'Green', 'Blue', 'Red'];
 
 // rank → [base colour, stripe colour, black-stripe number, dan]
 const RANKS = {
@@ -37,7 +40,7 @@ const RANKS = {
 export function beltPaint(belt) {
   const [baseName, stripeName, marks = 0, dan = 0] = RANKS[belt] || RANKS.White;
   const base = COLORS[baseName];
-  return { fill: base.fill, stripe: stripeName ? COLORS[stripeName].fill : null, edge: dan ? GOLD : base.edge, marks, dan };
+  return { fill: base.fill, stripe: stripeName ? COLORS[stripeName].fill : null, edge: dan ? GOLD : base.edge, marks, dan, stickers: STICKERS.slice(0, marks).map((c) => COLORS[c].fill) };
 }
 
 export default function BeltStrip({ belt, width = 52, style }) {
@@ -49,7 +52,7 @@ export default function BeltStrip({ belt, width = 52, style }) {
     <svg width={width} height={(width * 14) / 72} viewBox="0 0 72 14" role="img" aria-label={`${belt || 'White'} belt`} style={{ display: 'block', flexShrink: 0, ...style }}>
       <rect x="0.75" y="0.75" width="70.5" height="12.5" rx="2.5" fill={base.fill} stroke={edge} strokeWidth="1.5" />
       {stripe && <rect x="1.5" y="5" width="69" height="4" fill={stripe} />}
-      {Array.from({ length: marks }, (_, i) => <rect key={`s${i}`} x={63 - i * 5} y="1.5" width="2.5" height="11" fill={GOLD} />)}
+      {STICKERS.slice(0, marks).map((c, i) => <rect key={`s${i}`} x={62 - i * 5} y="0.75" width="3.5" height="12.5" fill={COLORS[c].fill} stroke={COLORS[c].edge} strokeWidth="0.6" />)}
       {Array.from({ length: dan }, (_, i) => <rect key={`d${i}`} x={6 + i * 5} y="1.5" width="2.5" height="11" fill={GOLD} />)}
     </svg>
   );

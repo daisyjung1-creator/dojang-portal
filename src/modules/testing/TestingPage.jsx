@@ -63,7 +63,7 @@ export default function TestingPage() {
     (async () => {
       const [{ data: t }, { data: st }, { data: cu }, { data: fi }, s, { data: fa }] = await Promise.all([
         supabase.from('belt_tests').select('*').order('test_date', { ascending: false }),
-        fetchAll(() => supabase.from('students').select('id, name, belt, dob, status, customer_id, guardian_name, guardian_email, enroll_date, last_test_date, class_name, billing_exempt').order('name')),
+        fetchAll(() => supabase.from('students').select('id, name, belt, belt_size, dob, status, customer_id, guardian_name, guardian_email, enroll_date, last_test_date, class_name, billing_exempt').order('name')),
         fetchAll(() => supabase.from('customers').select('id, name, email, address, printed_info, active, separate_invoices')),
         supabase.from('fee_items').select('*'),
         loadSettings(),
@@ -311,6 +311,7 @@ export default function TestingPage() {
     loadFees();
   }
 
+  const [beltSizes, setBeltSizes] = useState({}); // studentId → '1'..'4' (belt size picked on Promote)
   async function promote() {
     setBusy(true);
     let n = 0;
@@ -326,7 +327,10 @@ export default function TestingPage() {
         break;
       }
       await supabase.from('belt_test_entries').update({ promoted_at: new Date().toISOString() }).eq('id', e.id);
-      if (beltStock && (beltStock.sizes || []).includes(e.target_belt)) handed.push({ fee_item_id: beltStock.id, size: e.target_belt, kind: 'promotion', quantity: -1, movement_date: test.test_date, note: `Promoted: ${s.name}` });
+      const bs = beltSizes[s.id] || s.belt_size || '';
+      const key = `${e.target_belt} ${bs}`;
+      if (bs && s.belt_size !== bs) await supabase.from('students').update({ belt_size: bs }).eq('id', s.id);
+      if (beltStock && (beltStock.sizes || []).includes(key)) handed.push({ fee_item_id: beltStock.id, size: key, kind: 'promotion', quantity: -1, movement_date: test.test_date, note: `Promoted: ${s.name}` });
       n++;
     }
     if (handed.length) await supabase.from('inventory_movements').insert(handed);
@@ -335,7 +339,7 @@ export default function TestingPage() {
     if (others.length) await supabase.from('students').update({ last_test_date: test.test_date }).in('id', others);
     setBusy(false);
     setModal(null);
-    const { data: st } = await fetchAll(() => supabase.from('students').select('id, name, belt, dob, status, customer_id, guardian_name, guardian_email, enroll_date, last_test_date, class_name, billing_exempt').order('name'));
+    const { data: st } = await fetchAll(() => supabase.from('students').select('id, name, belt, belt_size, dob, status, customer_id, guardian_name, guardian_email, enroll_date, last_test_date, class_name, billing_exempt').order('name'));
     setStudents(st || []);
     say(`${n} student${n === 1 ? '' : 's'} moved up to their new belt.`);
     loadEntries();
@@ -602,12 +606,29 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid 
             </>
           }
         >
-          <p style={{ fontSize: 13.5, margin: '0 0 10px' }}>These students’ belts will change in their records, and their class count for the next test starts again from {formatDate(test.test_date)}:</p>
-          <ul style={{ fontSize: 13.5, margin: 0, paddingLeft: 18 }}>
-            {stats.toPromote.map(({ e, s }) => (
-              <li key={e.id}>{s.name}: {e.current_belt} → <b>{e.target_belt}</b></li>
-            ))}
-          </ul>
+          <p style={{ fontSize: 13.5, margin: '0 0 10px' }}>These students’ belts will change in their records, and their class count for the next test starts again from {formatDate(test.test_date)}. The new colour belt comes out of stock in the size shown (black stripe levels get a sticker, no belt):</p>
+          <div style={{ fontSize: 13.5 }}>
+            {stats.toPromote.map(({ e, s }) => {
+              const newBelt = !/^Black Stripe \d|^Black Belt/.test(e.target_belt || '');
+              const v = beltSizes[s.id] ?? s.belt_size ?? '';
+              return (
+                <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderBottom: '1px solid var(--dp-canvas)' }}>
+                  <span style={{ flex: 1 }}>{s.name}: {e.current_belt} → <b>{e.target_belt}</b></span>
+                  {newBelt && (
+                    <span style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--dp-ink-faint)' }}>Size</span>
+                      {['1', '2', '3', '4'].map((z) => (
+                        <button key={z} type="button" onClick={() => setBeltSizes((m) => ({ ...m, [s.id]: v === z ? '' : z }))} style={{
+                          width: 26, height: 24, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5,
+                          border: `1px solid ${v === z ? 'var(--dp-ink)' : 'var(--dp-line)'}`, background: v === z ? 'var(--dp-ink)' : '#fff', color: v === z ? '#fff' : 'var(--dp-ink)',
+                        }}>{z}</button>
+                      ))}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </Modal>
       )}
       {confirm && (

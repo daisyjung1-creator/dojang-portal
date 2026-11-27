@@ -498,6 +498,37 @@ export default function InvoiceEditor({ settings, customers, items, students, ed
 
 // Size buttons with stock left under each; out-of-stock sizes are red but still pickable.
 function SizeChips({ sizes, value, stockFor, onPick }) {
+  // Sizes like "Green 1 … Green 4" (colour + size) show as one row per colour.
+  const split = sizes.map((z) => z.match(/^(.*\S)\s+(\S+)$/));
+  if (sizes.length > 8 && split.every(Boolean)) {
+    const rows = [];
+    split.forEach((m, i) => {
+      const last = rows[rows.length - 1];
+      if (last && last.label === m[1]) last.items.push([sizes[i], m[2]]);
+      else rows.push({ label: m[1], items: [[sizes[i], m[2]]] });
+    });
+    return (
+      <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {rows.map((r) => (
+          <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 11.5, width: 82, color: 'var(--dp-ink-soft)' }}>{r.label}</span>
+            {r.items.map(([full, short]) => {
+              const on = value === full;
+              const st = stockFor(full);
+              const out = st !== undefined && st <= 0;
+              return (
+                <button key={full} type="button" onClick={() => onPick(on ? '' : full)} title={st !== undefined ? `${st} in stock` : ''} style={{
+                  minWidth: 28, padding: '1px 5px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, lineHeight: 1.2,
+                  border: `1px solid ${on ? 'var(--dp-ink)' : out ? 'var(--dp-danger-tint)' : 'var(--dp-line)'}`,
+                  background: on ? 'var(--dp-ink)' : '#fff', color: on ? '#fff' : out ? 'var(--dp-danger)' : 'var(--dp-ink)',
+                }}>{short}{st !== undefined && <span style={{ fontSize: 9.5, opacity: 0.7 }}> {st}</span>}</button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
       {sizes.map((z) => {
