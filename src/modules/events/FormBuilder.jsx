@@ -16,7 +16,7 @@ export function cleanForm(form) {
     help: (q.help || '').trim(),
     required: !!q.required,
     per_child: !!q.per_child,
-    ...(q.share && SHAREABLE.includes(q.type) ? { share: true, ...(q.type === 'short' && q.group_by ? { group_by: q.group_by, ...(q.focus ? { focus: q.focus } : {}) } : {}) } : {}),
+    ...(q.share && SHAREABLE.includes(q.type) ? { share: true, ...(q.type === 'short' && q.group_by ? { group_by: q.group_by, ...(q.focus ? { focus: q.focus } : {}), ...(q.multiple && !q.per_child ? { multiple: true } : {}) } : {}) } : {}),
     options: HAS_OPTIONS.includes(q.type) ? [...new Set((q.options || []).map((o) => o.trim()).filter(Boolean))] : [],
   }));
 }
@@ -79,6 +79,9 @@ function QuestionCard({ q, i, n, groupable, onChange, onMove, onCopy, onDelete }
               {groupable.map((g) => <option key={g.id} value={g.id}>{g.label || 'Untitled question'}</option>)}
             </select>
           </label>
+        )}
+        {q.share && q.type === 'short' && q.group_by && groupable.find((g) => g.id === q.group_by) && !q.per_child && (
+          <label style={toggle} title="Families can add several lines — e.g. a main dish and a dessert"><input type="checkbox" checked={!!q.multiple} onChange={(e) => set('multiple', e.target.checked)} /> Families can add more than one</label>
         )}
         {q.share && q.type === 'short' && q.group_by && groupable.find((g) => g.id === q.group_by) && (
           <label style={toggle} title="Shown first and always marked as wanted — e.g. Main Dish">

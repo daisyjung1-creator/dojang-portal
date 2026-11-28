@@ -17,6 +17,12 @@ export const HAS_OPTIONS = ['choice', 'checkboxes', 'dropdown'];
 // Question types whose answers the admin can show to parents.
 export const SHAREABLE = ['short', 'choice', 'dropdown', 'checkboxes'];
 
+// A short answer grouped by a choice question that families can repeat:
+// each line = option + text, stored as two same-length lists
+// (e.g. ["Main Dish", "Desserts"] + ["Lasagna", "Brownies"]).
+export const isMulti = (q) => !!(q && q.type === 'short' && q.share && q.group_by && q.multiple && !q.per_child);
+export const MAX_LINES = 6;
+
 // All values in one answer (per-child answers and checkbox lists flattened).
 function flat(v) {
   if (v == null) return [];
@@ -57,8 +63,12 @@ export function sharedSummary(form, rows) {
       for (const r of rows || []) {
         const vals = flat(r?.[q.id]);
         if (!vals.length) continue;
-        const key = flat(r?.[g.id])[0];
-        (key && by.has(key) ? by.get(key) : other).push(...vals);
+        const keys = flat(r?.[g.id]);
+        // Lists line up one-to-one (several dishes); a single answer uses the one option.
+        vals.forEach((v, i) => {
+          const key = Array.isArray(r?.[q.id]) ? keys[i] : keys[0];
+          (key && by.has(key) ? by.get(key) : other).push(v);
+        });
       }
       groups = [...by.entries()].map(([name, v]) => ({ name, count: v.length, items: tally(v) }));
       if (other.length) groups.push({ name: 'Other', count: other.length, items: tally(other) });
@@ -109,6 +119,13 @@ export function setAnswer(answers, q, kidId, value) {
 
 // First problem with the answers, or '' if all required ones are filled.
 export function checkAnswers(form, kids, answers) {
+  for (const q of (form || []).filter(isMulti)) {
+    const names = Array.isArray(answers?.[q.id]) ? answers[q.id] : [];
+    const cats = Array.isArray(answers?.[q.group_by]) ? answers[q.group_by] : [];
+    for (let i = 0; i < names.length; i++) {
+      if (!filled(names[i]) || !filled(cats[i])) return `Please finish line ${i + 1} of "${q.label}" (or remove it).`;
+    }
+  }
   for (const q of form || []) {
     if (!q.required) continue;
     if (q.per_child) {
@@ -119,8 +136,13 @@ export function checkAnswers(form, kids, answers) {
 }
 
 // Plain-text answer for lists / CSV.
-export function answerText(q, answers, kids) {
+export function answerText(q, answers, kids, form) {
   const one = (v) => (Array.isArray(v) ? v.join(', ') : v == null ? '' : String(v));
+  if (isMulti(q) && Array.isArray(answers?.[q.id])) {
+    const g = (form || []).find((x) => x.id === q.group_by);
+    const cats = Array.isArray(answers?.[q.group_by]) ? answers[q.group_by] : [];
+    return answers[q.id].map((v, i) => (g && cats[i] ? `${cats[i]}: ${v}` : v)).join('; ');
+  }
   if (!q.per_child) return one(answers?.[q.id]);
   return (kids || [])
     .map((k) => {
@@ -172,13 +194,48 @@ const defaultSt = {
   option: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 15, cursor: 'pointer' },
 };
 
+// Repeatable lines: option dropdown + text, "+ Add another".
+function MultiLines({ q, g, answers, onChange, st }) {
+  const names = Array.isArray(answers?.[q.id]) ? answers[q.id] : [''];
+  const cats = Array.isArray(answers?.[g.id]) ? answers[g.id] : [''];
+  const n = Math.max(names.length, cats.length, 1);
+  const lines = Array.from({ length: n }, (_, i) => ({ cat: cats[i] || '', name: names[i] || '' }));
+  const put = (ls) => onChange({ ...answers, [g.id]: ls.map((l) => l.cat), [q.id]: ls.map((l) => l.name) });
+  const set = (i, k, v) => put(lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  return (
+    <div>
+      {lines.map((l, i) => (
+        <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'stretch' }} data-line={i}>
+          <select style={{ ...st.input, flex: '0 0 38%', width: 'auto', minWidth: 0, paddingRight: 4 }} value={l.cat} onChange={(e) => set(i, 'cat', e.target.value)} aria-label={`${g.label} — line ${i + 1}`}>
+            <option value="">Choose…</option>
+            {g.options.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+          <input style={{ ...st.input, flex: '1 1 auto', width: 'auto', minWidth: 0 }} value={l.name} maxLength={300} placeholder={q.label} onChange={(e) => set(i, 'name', e.target.value)} aria-label={`${q.label} — line ${i + 1}`} />
+          {n > 1 && (
+            <button type="button" aria-label={`Remove line ${i + 1}`} onClick={() => put(lines.filter((_, j) => j !== i))} style={{ border: '1px solid var(--dp-line)', background: '#fff', borderRadius: 8, padding: '0 10px', fontSize: 18, cursor: 'pointer', color: 'var(--dp-ink-soft)', minHeight: 40, flex: 'none' }}>×</button>
+          )}
+        </div>
+      ))}
+      {n < MAX_LINES && (
+        <button type="button" onClick={() => put([...lines, { cat: '', name: '' }])} style={{ border: '1px solid var(--dp-line)', background: '#fff', borderRadius: 8, padding: '8px 14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--dp-ink)' }}>+ Add another</button>
+      )}
+    </div>
+  );
+}
+
 // The questions, each in its own card like Google Forms.
 export function FormQuestions({ form, kids, answers, onChange, st: stIn }) {
   const st = { ...defaultSt, ...(stIn || {}) };
   if (!form?.length) return null;
+  // A choice question used inside repeatable lines isn't asked on its own.
+  const inLines = new Set(form.filter(isMulti).map((q) => q.group_by));
   return (
     <div data-testid="event-form">
-      {form.map((q, i) => (
+      {form.filter((q) => !inLines.has(q.id)).map((q0, i) => {
+        // Repeatable lines take their title from the choice question (e.g. "What potluck dish…").
+        const g0 = isMulti(q0) ? form.find((x) => x.id === q0.group_by) : null;
+        const q = g0 ? { ...q0, label: g0.label || q0.label, help: g0.help || q0.help, required: q0.required || g0.required } : q0;
+        return (
         <div key={q.id} style={{ border: '1px solid var(--dp-line)', borderRadius: 12, padding: '12px 14px', margin: '10px 0', background: '#fff' }} data-question={q.label}>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--dp-ink)' }}>
             {q.label || `Question ${i + 1}`}
@@ -186,7 +243,9 @@ export function FormQuestions({ form, kids, answers, onChange, st: stIn }) {
           </div>
           {q.help && <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', marginTop: 2, whiteSpace: 'pre-wrap' }}>{q.help}</div>}
           <div style={{ marginTop: 8 }}>
-            {q.per_child ? (
+            {g0 && HAS_OPTIONS.includes(g0.type) ? (
+              <MultiLines q={q0} g={g0} answers={answers} onChange={onChange} st={st} />
+            ) : q.per_child ? (
               kids.length ? (
                 kids.map((k) => (
                   <div key={k.id} style={{ marginBottom: 8 }}>
@@ -202,7 +261,8 @@ export function FormQuestions({ form, kids, answers, onChange, st: stIn }) {
             )}
           </div>
         </div>
-      ))}
+      );
+      })}
     </div>
   );
 }

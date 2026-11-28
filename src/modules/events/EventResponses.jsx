@@ -52,7 +52,7 @@ export default function EventResponses({ event: e, students, rows: extRows, setR
     const head = ['Children', ...form.map((q) => q.label), ...(e.signature_required ? ['Signed by', 'Signed at'] : []), 'Submitted'];
     const lines = rows.map((r) => {
       const kids = kidsOf(r);
-      return [kids.map((k) => k.name).join(', '), ...form.map((q) => answerText(q, r.answers, kids)), ...(e.signature_required ? [r.signer_name || '', when(r.signed_at)] : []), when(r.created_at)];
+      return [kids.map((k) => k.name).join(', '), ...form.map((q) => answerText(q, r.answers, kids, form)), ...(e.signature_required ? [r.signer_name || '', when(r.signed_at)] : []), when(r.created_at)];
     });
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const blob = new Blob(['﻿' + [head, ...lines].map((l) => l.map(esc).join(',')).join('\r\n')], { type: 'text/csv' });
@@ -94,7 +94,7 @@ export default function EventResponses({ event: e, students, rows: extRows, setR
                   <tr key={r.id} className="dp-row" data-response={kids.map((k) => k.name).join(', ')}>
                     <td style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{kids.map((k) => <div key={k.id}>{k.name}</div>)}<div style={{ fontSize: 12.5, color: 'var(--dp-ink-faint)', fontWeight: 400 }}>{r.created_at ? new Date(r.created_at).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' }) : ''}</div></td>
                     {form.map((q) => (
-                      <td key={q.id} style={{ fontSize: 13, maxWidth: 260 }}>{answerText(q, r.answers, kids) || <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}</td>
+                      <td key={q.id} style={{ fontSize: 13, maxWidth: 260 }}>{answerText(q, r.answers, kids, form) || <span style={{ color: 'var(--dp-ink-faint)' }}>—</span>}</td>
                     ))}
                     {e.signature_required && (
                       <td>
@@ -147,7 +147,7 @@ function SignedBody({ e, form, r, kids }) {
         {form.map((q) => (
           <div key={q.id} style={{ marginBottom: 8 }}>
             <div style={{ fontWeight: 600 }}>{q.label}</div>
-            <div style={{ whiteSpace: 'pre-wrap' }}>{answerText(q, r.answers, kids) || '—'}</div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{answerText(q, r.answers, kids, form) || '—'}</div>
           </div>
         ))}
         {e.signature_text && <p style={{ fontSize: 13, color: '#3A3D36', whiteSpace: 'pre-wrap', borderTop: '1px solid #E4E6DF', paddingTop: 10 }}>{e.signature_text}</p>}
