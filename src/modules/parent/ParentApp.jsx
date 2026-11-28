@@ -15,7 +15,7 @@ import { weeklyPlan, splitClasses } from '../../lib/classes';
 import { nextDueDate, todayISO } from '../../lib/billingDates';
 import { money } from '../../lib/invoiceUtils';
 import { holidaysBetween } from '../../lib/holidays';
-import { FormQuestions, SignaturePad, checkAnswers } from '../../components/EventFormFields';
+import { FormQuestions, SignaturePad, checkAnswers, sharedSummary, sharedDuplicates } from '../../components/EventFormFields';
 import ClassChip from '../../components/ClassChip';
 
 // Parent portal (/parent). Parents sign in with the email the dojang has on
@@ -278,6 +278,13 @@ function ParentPortal({ onSignOut, preview }) {
   const [modal, setModal] = useState(null);
   const [flash, setFlash] = useState('');
 
+  // Shared form answers (e.g. potluck dishes) for upcoming events that have any.
+  async function loadShared(events) {
+    const today = todayISO();
+    const want = events.filter((e) => (e.end_date || e.start_date || today) >= today && (Array.isArray(e.form) ? e.form : []).some((q) => q.share));
+    const res = await Promise.all(want.map((e) => supabase.rpc('event_shared_answers', { p_event: e.id })));
+    return Object.fromEntries(want.map((e, i) => [e.id, res[i].data || []]));
+  }
   async function load() {
     if (preview) return loadPreview();
     const today = todayISO();
@@ -297,7 +304,8 @@ function ParentPortal({ onSignOut, preview }) {
       supabase.from('monthly_calendars').select('month, title, file_name, mime, file_data').gte('month', today.slice(0, 8) + '01').order('month').limit(3),
     ]);
     if (e1) return setError(e1.message);
-    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
+    const shared = await loadShared(events.data || []);
+    setD({ ...core, shared, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
   }
   // Admin preview: the same data, read for one family. The admin login can read
   // every family, so each list is narrowed to this family here.
@@ -327,7 +335,8 @@ function ParentPortal({ onSignOut, preview }) {
       .order('payment_date', { ascending: false });
     const bad = [inv, att, tapes, events, signups, guests, makeups, notices, closed, cals, pays].find((r) => r.error);
     if (bad) return setError(bad.error.message);
-    setD({ ...core, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
+    const shared = await loadShared(events.data || []);
+    setD({ ...core, shared, invoices: inv.data || [], payments: pays.data || [], attendance: att.data || [], tapes: tapes.data || [], events: events.data || [], signups: signups.data || [], guests: guests.data || [], makeups: makeups.data || [], notices: notices.data || [], closed: [...(closed.data || []), ...holidaysBetween(today, addDaysIso(today, 400)).map((h) => ({ date: h.date, class_name: null, reason: h.name, holiday: true }))], calendars: cals.data || [] });
   }
   useEffect(() => {
     load();
@@ -950,6 +959,7 @@ function Events({ d, onSignUp }) {
           <p style={{ fontSize: 16, color: C.green, margin: '8px 0 0' }}><Check size={15} style={{ verticalAlign: -2 }} /> Signed up: {names.join(', ')}{myGuests.length ? ` + guests: ${myGuests.map((g) => g.name).join(', ')}` : ''}</p>
         ))}
         {answer && e.question && <p style={{ fontSize: 16, color: C.soft, margin: '4px 0 0' }}>{e.question} <b style={{ color: C.ink }}>{answer}</b></p>}
+        <SharedAnswers form={e.form} rows={d.shared?.[e.id]} />
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           {canAdd && <button style={{ ...primary, ...(narrow ? { flex: 1 } : {}) }} onClick={() => onSignUp(e)}>Sign up</button>}
           {!canAdd && canGuests && <button style={btn} onClick={() => onSignUp(e)}>Add guests</button>}
@@ -960,6 +970,29 @@ function Events({ d, onSignUp }) {
       </div>
     );
   });
+}
+
+// What other families have entered so far (only questions the dojang chose to
+// share; no family names). E.g. potluck: Main Dish · 3 — Lasagna, Fried Rice.
+function SharedAnswers({ form, rows }) {
+  const blocks = sharedSummary(Array.isArray(form) ? form : [], rows || []);
+  if (!blocks.length) return null;
+  const words = (items) => items.map((it) => (it.n > 1 ? `${it.text} ×${it.n}` : it.text)).join(', ');
+  return blocks.map(({ q, total, groups, items }) => (
+    <div key={q.id} data-testid="shared-answers" style={{ margin: '12px 0 0', padding: '10px 12px', borderRadius: 10, background: C.bg, border: `1px solid ${C.line}` }}>
+      <div style={{ fontSize: 16, fontWeight: 600 }}>So far{total ? ` (${total})` : ''}</div>
+      <div style={{ fontSize: 13, color: C.soft, marginBottom: 4 }}>{q.label}</div>
+      {!total && <div style={{ fontSize: 15, color: C.soft }}>Nothing yet — you could be the first!</div>}
+      {total > 0 && groups.map((g) => (
+        <div key={g.name} style={{ fontSize: 15, padding: '3px 0', lineHeight: 1.45 }}>
+          <b style={{ fontWeight: 600 }}>{g.name}</b> · {g.count}
+          {g.items.length > 0 && <span style={{ color: C.soft }}> — {words(g.items)}</span>}
+          {g.needed && <span style={{ marginLeft: 8, fontSize: 13, fontWeight: 600, color: C.green, background: C.greenTint, borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap' }}>More needed</span>}
+        </div>
+      ))}
+      {total > 0 && !groups.length && <div style={{ fontSize: 15, color: C.soft, lineHeight: 1.45 }}>{words(items)}</div>}
+    </div>
+  ));
 }
 
 function Modal({ title, children, onClose, footer, maxWidth = 480, sticky = false }) {
@@ -1175,7 +1208,11 @@ function SignUpModal({ d, event, onClose, onDone }) {
           {guests.length < 10 && <button type="button" style={{ ...btn, padding: '6px 12px', fontSize: 16 }} onClick={() => setGuests((x) => [...x, ''])}>+ Add guest</button>}
         </div>
       )}
+      {kids.length > 0 && form.length > 0 && <SharedAnswers form={form} rows={d.shared?.[event.id]} />}
       {kids.length > 0 && form.length > 0 && <FormQuestions form={form} kids={pickedKids} answers={answers} onChange={setAnswers} st={{ input }} />}
+      {kids.length > 0 && sharedDuplicates(form, d.shared?.[event.id], answers).map((v) => (
+        <p key={v} style={{ fontSize: 15, color: '#7A5512', background: '#FBF3E2', borderRadius: 8, padding: '8px 10px', margin: '8px 0 0' }}>“{v}” is already on the list. That's okay — just letting you know.</p>
+      ))}
       {kids.length > 0 && (
         <>
           <label style={label}>Note for the dojang (optional)</label>

@@ -14,6 +14,79 @@ export const QUESTION_TYPES = [
 ];
 export const HAS_OPTIONS = ['choice', 'checkboxes', 'dropdown'];
 
+// Question types whose answers the admin can show to parents.
+export const SHAREABLE = ['short', 'choice', 'dropdown', 'checkboxes'];
+
+// All values in one answer (per-child answers and checkbox lists flattened).
+function flat(v) {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v.flatMap(flat);
+  if (typeof v === 'object') return Object.values(v).flatMap(flat);
+  const t = String(v).trim();
+  return t ? [t] : [];
+}
+const norm = (t) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+
+// Tally repeated free-text answers: [{ text, n }], first spelling kept.
+function tally(list) {
+  const m = new Map();
+  for (const t of list) {
+    const k = norm(t);
+    if (m.has(k)) m.get(k).n += 1;
+    else m.set(k, { text: t, n: 1 });
+  }
+  return [...m.values()];
+}
+
+// Summary of shared answers for parents. rows = answer objects from
+// event_shared_answers (no family info). Returns one block per shared question:
+// { q, total, groups: [{ name, count, items: [{ text, n }], needed }], items }
+export function sharedSummary(form, rows) {
+  const list = form || [];
+  const shared = list.filter((q) => q.share && SHAREABLE.includes(q.type));
+  const groupTargets = new Set(shared.map((q) => q.group_by).filter(Boolean));
+  const out = [];
+  for (const q of shared) {
+    if (groupTargets.has(q.id) && shared.some((x) => x.group_by === q.id && x.id !== q.id)) continue; // shown inside the grouped question
+    const g = q.type === 'short' && q.group_by ? list.find((x) => x.id === q.group_by && HAS_OPTIONS.includes(x.type)) : null;
+    let groups = [];
+    let items = [];
+    if (g) {
+      const by = new Map((g.options || []).map((o) => [o, []]));
+      const other = [];
+      for (const r of rows || []) {
+        const vals = flat(r?.[q.id]);
+        if (!vals.length) continue;
+        const key = flat(r?.[g.id])[0];
+        (key && by.has(key) ? by.get(key) : other).push(...vals);
+      }
+      groups = [...by.entries()].map(([name, v]) => ({ name, count: v.length, items: tally(v) }));
+      if (other.length) groups.push({ name: 'Other', count: other.length, items: tally(other) });
+    } else if (HAS_OPTIONS.includes(q.type)) {
+      const all = (rows || []).flatMap((r) => flat(r?.[q.id]));
+      groups = (q.options || []).map((o) => ({ name: o, count: all.filter((x) => x === o).length, items: [] }));
+    } else {
+      items = tally((rows || []).flatMap((r) => flat(r?.[q.id])));
+    }
+    const total = groups.length ? groups.reduce((t, x) => t + x.count, 0) : items.reduce((t, x) => t + x.n, 0);
+    // Nudge toward the options that are falling behind.
+    const max = Math.max(0, ...groups.map((x) => x.count));
+    groups.forEach((x) => { x.needed = total >= 3 && max - x.count >= 2; });
+    out.push({ q, group: g, total, groups, items });
+  }
+  return out;
+}
+
+// Free-text answers to shared questions that match one already given.
+export function sharedDuplicates(form, rows, answers) {
+  const hits = [];
+  for (const q of (form || []).filter((x) => x.share && x.type === 'short')) {
+    const seen = new Set((rows || []).flatMap((r) => flat(r?.[q.id])).map(norm));
+    for (const v of flat(answers?.[q.id])) if (seen.has(norm(v))) hits.push(v);
+  }
+  return [...new Set(hits)];
+}
+
 export const DEFAULT_SIGNATURE_TEXT =
   'I give permission for my child(ren) to take part in this event. I understand that taekwondo and event activities involve physical activity and a risk of injury. In an emergency, I authorize the instructors of Champion Hankook Taekwondo to arrange medical care for my child. I confirm the information I have given is correct.';
 

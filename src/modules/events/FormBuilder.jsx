@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Copy, ArrowUp, ArrowDown, Eye, X, PenLine } from 'lucide-react';
 import Modal from '../../components/Modal';
-import { QUESTION_TYPES, HAS_OPTIONS, DEFAULT_SIGNATURE_TEXT, newQuestion, FormQuestions, SignaturePad } from '../../components/EventFormFields';
+import { QUESTION_TYPES, HAS_OPTIONS, SHAREABLE, DEFAULT_SIGNATURE_TEXT, newQuestion, FormQuestions, SignaturePad } from '../../components/EventFormFields';
 
 // Google-Forms-style editor for an event's sign-up questions + signature.
 const box = { border: '1px solid #E4E6DF', borderLeft: '4px solid var(--dp-hankook-red)', borderRadius: 8, padding: '10px 12px', marginBottom: 10, background: '#fff' };
@@ -16,6 +16,7 @@ export function cleanForm(form) {
     help: (q.help || '').trim(),
     required: !!q.required,
     per_child: !!q.per_child,
+    ...(q.share && SHAREABLE.includes(q.type) ? { share: true, ...(q.type === 'short' && q.group_by ? { group_by: q.group_by } : {}) } : {}),
     options: HAS_OPTIONS.includes(q.type) ? [...new Set((q.options || []).map((o) => o.trim()).filter(Boolean))] : [],
   }));
 }
@@ -27,7 +28,7 @@ export function formProblem(form) {
   return '';
 }
 
-function QuestionCard({ q, i, n, onChange, onMove, onCopy, onDelete }) {
+function QuestionCard({ q, i, n, groupable, onChange, onMove, onCopy, onDelete }) {
   const set = (k, v) => onChange({ ...q, [k]: v });
   const opts = q.options?.length ? q.options : [''];
   return (
@@ -67,6 +68,18 @@ function QuestionCard({ q, i, n, onChange, onMove, onCopy, onDelete }) {
       <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 10, paddingTop: 8, borderTop: '1px solid #F0EEE8', flexWrap: 'wrap' }}>
         <label style={toggle}><input type="checkbox" checked={!!q.required} onChange={(e) => set('required', e.target.checked)} /> Required</label>
         <label style={toggle} title="e.g. T-shirt size or allergies — one answer per child"><input type="checkbox" checked={!!q.per_child} onChange={(e) => set('per_child', e.target.checked)} /> Ask for each child</label>
+        {SHAREABLE.includes(q.type) && (
+          <label style={toggle} title="Parents see the answers (no family names) — e.g. potluck dishes already coming"><input type="checkbox" checked={!!q.share} onChange={(e) => set('share', e.target.checked)} /> Show answers to parents</label>
+        )}
+        {q.share && q.type === 'short' && groupable.length > 0 && (
+          <label style={toggle}>
+            Group by
+            <select className="dp-select" style={{ fontSize: 13, padding: '2px 6px' }} value={q.group_by || ''} aria-label={`Question ${i + 1} group by`} onChange={(e) => set('group_by', e.target.value)}>
+              <option value="">— none —</option>
+              {groupable.map((g) => <option key={g.id} value={g.id}>{g.label || 'Untitled question'}</option>)}
+            </select>
+          </label>
+        )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
           <button type="button" className="dp-btn" style={iconBtn} aria-label="Move up" disabled={i === 0} onClick={() => onMove(-1)}><ArrowUp size={13} /></button>
           <button type="button" className="dp-btn" style={iconBtn} aria-label="Move down" disabled={i === n - 1} onClick={() => onMove(1)}><ArrowDown size={13} /></button>
@@ -102,6 +115,7 @@ export default function FormBuilder({ form, onForm, signatureRequired, onSignatu
           q={q}
           i={i}
           n={list.length}
+          groupable={list.filter((x) => x.id !== q.id && (x.type === 'choice' || x.type === 'dropdown'))}
           onChange={(nq) => update(i, nq)}
           onMove={(d) => move(i, d)}
           onCopy={() => onForm([...list.slice(0, i + 1), { ...q, id: newQuestion().id, options: [...(q.options || [])] }, ...list.slice(i + 1)])}
