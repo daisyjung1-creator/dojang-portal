@@ -71,8 +71,14 @@ export function sharedSummary(form, rows) {
     const total = groups.length ? groups.reduce((t, x) => t + x.count, 0) : items.reduce((t, x) => t + x.n, 0);
     // Nudge toward the options that are falling behind.
     const max = Math.max(0, ...groups.map((x) => x.count));
-    groups.forEach((x) => { x.needed = total >= 3 && max - x.count >= 2; });
-    out.push({ q, group: g, total, groups, items });
+    // A "most wanted" option (e.g. Main Dish) goes first and is always wanted;
+    // the others are only nudged when nobody has picked them yet.
+    const focus = g && q.focus && groups.some((x) => x.name === q.focus) ? q.focus : '';
+    if (focus) {
+      groups.sort((a, b) => (b.name === focus) - (a.name === focus));
+      groups.forEach((x) => { x.focus = x.name === focus; x.needed = x.focus || (total >= 3 && x.count === 0); });
+    } else groups.forEach((x) => { x.needed = total >= 3 && max - x.count >= 2; });
+    out.push({ q, group: g, total, groups, items, focus });
   }
   return out;
 }

@@ -16,7 +16,7 @@ export function cleanForm(form) {
     help: (q.help || '').trim(),
     required: !!q.required,
     per_child: !!q.per_child,
-    ...(q.share && SHAREABLE.includes(q.type) ? { share: true, ...(q.type === 'short' && q.group_by ? { group_by: q.group_by } : {}) } : {}),
+    ...(q.share && SHAREABLE.includes(q.type) ? { share: true, ...(q.type === 'short' && q.group_by ? { group_by: q.group_by, ...(q.focus ? { focus: q.focus } : {}) } : {}) } : {}),
     options: HAS_OPTIONS.includes(q.type) ? [...new Set((q.options || []).map((o) => o.trim()).filter(Boolean))] : [],
   }));
 }
@@ -77,6 +77,15 @@ function QuestionCard({ q, i, n, groupable, onChange, onMove, onCopy, onDelete }
             <select className="dp-select" style={{ fontSize: 13, padding: '2px 6px' }} value={q.group_by || ''} aria-label={`Question ${i + 1} group by`} onChange={(e) => set('group_by', e.target.value)}>
               <option value="">— none —</option>
               {groupable.map((g) => <option key={g.id} value={g.id}>{g.label || 'Untitled question'}</option>)}
+            </select>
+          </label>
+        )}
+        {q.share && q.type === 'short' && q.group_by && groupable.find((g) => g.id === q.group_by) && (
+          <label style={toggle} title="Shown first and always marked as wanted — e.g. Main Dish">
+            Most wanted
+            <select className="dp-select" style={{ fontSize: 13, padding: '2px 6px' }} value={q.focus || ''} aria-label={`Question ${i + 1} most wanted`} onChange={(e) => set('focus', e.target.value)}>
+              <option value="">— none —</option>
+              {(groupable.find((g) => g.id === q.group_by).options || []).filter(Boolean).map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
         )}

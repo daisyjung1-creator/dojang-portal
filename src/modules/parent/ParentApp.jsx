@@ -978,16 +978,17 @@ function SharedAnswers({ form, rows }) {
   const blocks = sharedSummary(Array.isArray(form) ? form : [], rows || []);
   if (!blocks.length) return null;
   const words = (items) => items.map((it) => (it.n > 1 ? `${it.text} ×${it.n}` : it.text)).join(', ');
-  return blocks.map(({ q, total, groups, items }) => (
+  return blocks.map(({ q, total, groups, items, focus }) => (
     <div key={q.id} data-testid="shared-answers" style={{ margin: '12px 0 0', padding: '10px 12px', borderRadius: 10, background: C.bg, border: `1px solid ${C.line}` }}>
       <div style={{ fontSize: 16, fontWeight: 600 }}>So far{total ? ` (${total})` : ''}</div>
       <div style={{ fontSize: 13, color: C.soft, marginBottom: 4 }}>{q.label}</div>
+      {focus && <div style={{ fontSize: 15, marginBottom: 6 }}><b>{focus}</b> is most wanted — please bring more! Doubles are welcome.</div>}
       {!total && <div style={{ fontSize: 15, color: C.soft }}>Nothing yet — you could be the first!</div>}
       {total > 0 && groups.map((g) => (
-        <div key={g.name} style={{ fontSize: 15, padding: '3px 0', lineHeight: 1.45 }}>
+        <div key={g.name} style={{ fontSize: 15, padding: g.focus ? '6px 8px' : '3px 0', lineHeight: 1.45, ...(g.focus ? { background: '#fff', borderRadius: 8, borderLeft: `3px solid ${C.green}`, margin: '2px 0 4px' } : {}) }}>
           <b style={{ fontWeight: 600 }}>{g.name}</b> · {g.count}
           {g.items.length > 0 && <span style={{ color: C.soft }}> — {words(g.items)}</span>}
-          {g.needed && <span style={{ marginLeft: 8, fontSize: 13, fontWeight: 600, color: C.green, background: C.greenTint, borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap' }}>More needed</span>}
+          {g.needed && <span style={{ marginLeft: 8, fontSize: 13, fontWeight: 600, color: C.green, background: C.greenTint, borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap' }}>{g.focus ? 'Most wanted' : 'More needed'}</span>}
         </div>
       ))}
       {total > 0 && !groups.length && <div style={{ fontSize: 15, color: C.soft, lineHeight: 1.45 }}>{words(items)}</div>}
@@ -1211,7 +1212,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
       {kids.length > 0 && form.length > 0 && <SharedAnswers form={form} rows={d.shared?.[event.id]} />}
       {kids.length > 0 && form.length > 0 && <FormQuestions form={form} kids={pickedKids} answers={answers} onChange={setAnswers} st={{ input }} />}
       {kids.length > 0 && sharedDuplicates(form, d.shared?.[event.id], answers).map((v) => (
-        <p key={v} style={{ fontSize: 15, color: '#7A5512', background: '#FBF3E2', borderRadius: 8, padding: '8px 10px', margin: '8px 0 0' }}>“{v}” is already on the list. That's okay — just letting you know.</p>
+        <p key={v} style={{ fontSize: 15, color: C.green, background: C.greenTint, borderRadius: 8, padding: '8px 10px', margin: '8px 0 0' }}>Another family is bringing “{v}” too — doubles are welcome!</p>
       ))}
       {kids.length > 0 && (
         <>
