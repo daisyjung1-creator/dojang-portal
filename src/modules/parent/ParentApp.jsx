@@ -410,13 +410,13 @@ function ParentPortal({ onSignOut, preview }) {
 
       {tab === 'kids' && <Kids d={d} onAbsence={(s) => setModal({ kind: 'absence', student: s })} onTest={(s) => setModal({ kind: 'test', student: s })} />}
       {tab === 'billing' && <Billing d={d} open={open} onDoc={(m) => setModal(m)} />}
-      {tab === 'events' && <Events d={d} onSignUp={(e) => setModal({ kind: 'signup', event: e })} />}
+      {tab === 'events' && <Events d={d} onSignUp={(e, guestOnly) => setModal({ kind: 'signup', event: e, guestOnly })} />}
       {tab === 'calendar' && <CalendarTab d={d} />}
       {tab === 'contact' && <Contact d={d} onSent={() => done('Thank you — your message was sent to the dojang. We will reply by email.')} />}
 
       {modal?.kind === 'absence' && <AbsenceModal d={d} student={modal.student} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'test' && <TestModal d={d} student={modal.student} onClose={() => setModal(null)} onDone={done} />}
-      {modal?.kind === 'signup' && <SignUpModal d={d} event={modal.event} onClose={() => setModal(null)} onDone={done} />}
+      {modal?.kind === 'signup' && <SignUpModal d={d} event={modal.event} guestOnly={!!modal.guestOnly} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'invoice' && <DocModal title={`Invoice #${modal.invoice.invoice_number}`} onClose={() => setModal(null)} doc={<InvoiceDoc d={d} invoice={modal.invoice} />} />}
       {modal?.kind === 'many' && <DocModal title={modal.title} onClose={() => setModal(null)} doc={<>{modal.docs.map((doc, i) => <div key={i} style={{ breakAfter: 'page', pageBreakAfter: 'always' }}>{doc}</div>)}</>} />}
       {modal?.kind === 'receipt' && <DocModal title={`Receipt #${modal.payment.receipt_number}`} onClose={() => setModal(null)} doc={<ReceiptDoc d={d} payment={modal.payment} />} />}
@@ -950,11 +950,17 @@ function Events({ d, onSignUp }) {
         ) : (
           <p style={{ fontSize: 16, color: C.green, margin: '8px 0 0' }}><Check size={15} style={{ verticalAlign: -2 }} /> Signed up: {names.join(', ')}{myGuests.length ? ` + guests: ${myGuests.map((g) => g.name).join(', ')}` : ''}</p>
         ))}
+        {canGuests && myGuests.length === 0 && (
+          <div data-testid="add-parents-nudge" style={{ fontSize: 16, margin: '8px 0 0', padding: '10px 12px', borderRadius: 10, background: '#FBF3E2', color: '#7A5512' }}>
+            <b>Are parents coming too?</b>
+            <div style={{ fontSize: 15, marginTop: 2 }}>Please add the names of everyone coming with your child (moms, dads, siblings) with <b>Add parents / guests</b>, so we can plan food and seats.</div>
+          </div>
+        )}
         {answer && e.question && <p style={{ fontSize: 16, color: C.soft, margin: '4px 0 0' }}>{e.question} <b style={{ color: C.ink }}>{answer}</b></p>}
         <SharedAnswers form={e.form} rows={d.shared?.[e.id]} />
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           {canAdd && <button style={{ ...primary, ...(narrow ? { flex: 1 } : {}) }} onClick={() => onSignUp(e)}>Sign up</button>}
-          {!canAdd && canGuests && <button style={btn} onClick={() => onSignUp(e)}>Add guests</button>}
+          {canGuests && <button style={btn} onClick={() => onSignUp(e, true)}>Add parents / guests</button>}
           {owing.map((i) => (
             <PLink key={i.id} style={primary} href={`/pay/${i.pay_token}`}>Pay {money(i.balance)} to finish</PLink>
           ))}
@@ -1115,13 +1121,14 @@ function AbsenceModal({ d, student, onClose, onDone }) {
   );
 }
 
-function SignUpModal({ d, event, onClose, onDone }) {
+function SignUpModal({ d, event, guestOnly = false, onClose, onDone }) {
   const preview = usePreview();
   const taken = new Set(d.signups.filter((s) => s.event_id === event.id && s.status === 'signed_up').map((s) => s.student_id));
   const kids = d.students.filter((k) => !taken.has(k.id));
   const already = taken.size > 0 && d.students.some((k) => taken.has(k.id));
-  const [pick, setPick] = useState(() => (kids.length === 1 ? [kids[0].id] : []));
-  const [guests, setGuests] = useState([]);
+  const [pick, setPick] = useState(() => (!guestOnly && kids.length === 1 ? [kids[0].id] : []));
+  // Families often sign up only the child — start with one empty line so parents add themselves.
+  const [guests, setGuests] = useState(() => (event.allow_guests && (guestOnly || isFamilyPriced(event)) ? [''] : []));
   const [answers, setAnswers] = useState({});
   const [signer, setSigner] = useState('');
   const [signature, setSignature] = useState(null);
@@ -1142,7 +1149,7 @@ function SignUpModal({ d, event, onClose, onDone }) {
   async function go() {
     if (!pick.length && !names.length) return setError(kids.length ? 'Choose who is coming.' : 'Add at least one guest.');
     if (!pick.length && !already) return setError('Choose at least one student — guests come with a student.');
-    if (guests.some((g) => !g.trim())) return setError("Enter each guest's name (or remove the empty line).");
+    // empty guest lines are simply skipped
     if (pick.length) {
       const problem = checkAnswers(form, pickedKids, answers);
       if (problem) return setError(problem);
@@ -1191,14 +1198,15 @@ function SignUpModal({ d, event, onClose, onDone }) {
       )}
       {event.allow_guests && (
         <div data-testid="guests">
-          <label style={label}>Guests {isFamilyPriced(event) ? `(count toward the family's ${event.family_includes || 4})` : gprice > 0 ? `(${money(gprice)} each${event.taxable ? ' + GST' : ''})` : '(free)'}</label>
+          <label style={label}>Parents & other guests {isFamilyPriced(event) ? `(count toward the family's ${event.family_includes || 4})` : gprice > 0 ? `(${money(gprice)} each${event.taxable ? ' + GST' : ''})` : '(free)'}</label>
+          <div style={{ fontSize: 15, color: C.soft, margin: '-2px 0 8px' }}>Please add <b>everyone</b> else who is coming — moms and dads too, plus brothers, sisters or grandparents. Leave it empty if only the child is coming.</div>
           {guests.map((g, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-              <input style={input} placeholder="Guest's name" aria-label={`Guest ${i + 1} name`} value={g} maxLength={80} autoFocus={i === guests.length - 1} onChange={(e) => setGuests((x) => x.map((y, j) => (j === i ? e.target.value : y)))} />
+              <input style={input} placeholder="Name (e.g. a parent)" aria-label={`Guest ${i + 1} name`} value={g} maxLength={80} autoFocus={i === guests.length - 1} onChange={(e) => setGuests((x) => x.map((y, j) => (j === i ? e.target.value : y)))} />
               <button type="button" aria-label="Remove guest" style={{ ...btn, padding: '6px 10px' }} onClick={() => setGuests((x) => x.filter((_, j) => j !== i))}><X size={15} /></button>
             </div>
           ))}
-          {guests.length < 10 && <button type="button" style={{ ...btn, padding: '6px 12px', fontSize: 16 }} onClick={() => setGuests((x) => [...x, ''])}>+ Add guest</button>}
+          {guests.length < 10 && <button type="button" style={{ ...btn, padding: '6px 12px', fontSize: 16 }} onClick={() => setGuests((x) => [...x, ''])}>+ Add another person</button>}
         </div>
       )}
       {kids.length > 0 && form.length > 0 && <SharedAnswers form={form} rows={d.shared?.[event.id]} />}
