@@ -790,10 +790,6 @@ function Billing({ d, open, onDoc }) {
         ) : (
           <p style={{ margin: '0 0 10px', fontSize: 16, color: C.soft }}>{f.payment_type === 'manual' ? 'You pay tuition by invoice (debit or cash).' : 'No card saved yet.'}</p>
         )}
-        {f.card_link_token && (
-          <PLink style={{ ...btn, marginTop: 12, width: '100%', maxWidth: 400 }} href={`/card/${f.card_link_token}`}>{(d.cards || []).length ? 'Add or change cards' : 'Save a card'}</PLink>
-        )}
-        {(d.cards || []).length > 0 && <p style={{ fontSize: 14, color: C.soft, margin: '8px 0 0' }}>You can add cards and choose which one is used for tuition. A card can be removed only when you have another card saved.</p>}
       </div>
 
       <DocList
