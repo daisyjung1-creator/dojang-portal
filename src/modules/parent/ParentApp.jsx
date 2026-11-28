@@ -900,7 +900,7 @@ function Events({ d, onSignUp }) {
     const names = mine.map((s) => d.students.find((k) => k.id === s.student_id)?.name).filter(Boolean);
     const myGuests = (d.guests || []).filter((g) => g.event_id === e.id);
     const answer = mine.find((m) => m.answer)?.answer;
-    const closed = e.signup_deadline && e.signup_deadline < today;
+    const closed = !!e.signups_closed || !!(e.signup_deadline && e.signup_deadline < today);
     const canAdd = !closed && d.students.some((k) => !mine.some((m) => m.student_id === k.id));
     const inv = [...mine, ...myGuests].map((m) => d.invoices.find((i) => i.id === m.invoice_id)).filter(Boolean);
     const canGuests = !closed && e.allow_guests && mine.length > 0;
@@ -948,7 +948,16 @@ function Events({ d, onSignUp }) {
           )}
         </div>
         {e.description && <p style={{ fontSize: 16, whiteSpace: 'pre-wrap', margin: '10px 0 0' }}>{e.description}</p>}
-        {e.signup_deadline && <p style={{ fontSize: 13, color: closed ? C.red : C.soft, margin: '8px 0 0' }}>{closed ? 'Sign-up closed' : `Sign up by ${fdate(e.signup_deadline)}`}</p>}
+        {closed ? (
+          names.length === 0 && (
+            <div data-testid="signup-closed" style={{ fontSize: 16, margin: '10px 0 0', padding: '10px 12px', borderRadius: 10, background: C.redTint, color: C.red }}>
+              <b>Sign-up is closed</b>
+              <div style={{ fontSize: 15, marginTop: 2 }}>{e.signups_closed ? "We're full for this event — thank you for your interest!" : 'The sign-up date has passed.'} Questions? Email the dojang.</div>
+            </div>
+          )
+        ) : (
+          e.signup_deadline && <p style={{ fontSize: 13, color: C.soft, margin: '8px 0 0' }}>Sign up by {fdate(e.signup_deadline)}</p>
+        )}
         {names.length > 0 && (owing.length > 0 ? (
           // Not complete until the invoice is paid.
           <div style={{ fontSize: 16, margin: '8px 0 0', padding: '10px 12px', borderRadius: 10, background: '#FBF3E2', color: '#7A5512' }}>

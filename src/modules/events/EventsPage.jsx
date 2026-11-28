@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { eventPriceLabel, eventCharge } from '../../lib/eventPricing';
-import { Plus, Check, Pencil, Copy, ArrowLeft, Users, X, Eye } from 'lucide-react';
+import { Plus, Check, Pencil, Copy, ArrowLeft, Users, X, Eye, Lock } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
@@ -13,6 +13,7 @@ import FormBuilder, { cleanForm, formProblem, PreviewBody } from './FormBuilder'
 import EventResponses from './EventResponses';
 import EventSummary from './EventSummary';
 import AdminSignup from './AdminSignup';
+import { askConfirm } from '../../lib/dialogs';
 
 // Events: camps, tournaments, movie nights… Signing a student up adds an
 // invoice for the family (price per student + GST), which they can pay with
@@ -133,6 +134,7 @@ export default function EventsPage() {
                 <div style={{ fontSize: 13, color: 'var(--dp-ink-soft)', margin: '2px 0 8px' }}>{when(e)}</div>
                 <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--dp-ink)' }}>
                   <span><Users size={13} style={{ verticalAlign: -2 }} /> {st.count}{st.guests ? ` + ${st.guests} guest${st.guests > 1 ? 's' : ''}` : ''}{e.capacity ? ` / ${e.capacity}` : ''} signed up</span>
+                  {e.signups_closed && <span style={{ color: 'var(--dp-danger)', fontWeight: 600 }}>Sign-up closed</span>}
                   <span>{eventPriceLabel(e, { gst: false })}</span>
                   {st.owing > 0 && <span style={{ color: 'var(--dp-danger)' }}>{money(st.owing)} unpaid</span>}
                 </div>
@@ -175,6 +177,16 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
     // Opens the same choices parents get: brothers & sisters, guests, the sign-up form.
     setSignFor(s);
   }
+  async function toggleClosed() {
+    const closing = !e.signups_closed;
+    if (closing && !(await askConfirm(`Parents will see "Sign-up is closed" and can't sign up. You can still sign families up here, and reopen any time.`, { title: `Close sign-up for ${e.title}?`, confirmLabel: 'Close sign-up' }))) return;
+    setBusy(true);
+    const { error } = await supabase.from('events').update({ signups_closed: closing }).eq('id', e.id);
+    setBusy(false);
+    if (error) return setErr(error.message);
+    setMsg(closing ? 'Sign-up closed. Parents now see "Sign-up is closed".' : 'Sign-up reopened for parents.');
+    reload();
+  }
   async function cancel(su) {
     const s = byId[su.student_id];
     const inv = invoices[su.invoice_id];
@@ -203,6 +215,16 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="dp-btn"
+            data-testid="toggle-signups"
+            style={e.signups_closed ? { borderColor: 'var(--dp-danger)', color: 'var(--dp-danger)' } : undefined}
+            disabled={busy}
+            onClick={toggleClosed}
+            title={e.signups_closed ? 'Parents can sign up again' : 'Stop new sign-ups now (e.g. the event is full). You can still sign families up here.'}
+          >
+            {e.signups_closed ? <><Lock size={14} /> Sign-up closed · Reopen</> : <><Lock size={14} /> Close sign-up</>}
+          </button>
           <button className="dp-btn" onClick={() => setPreview(true)}><Eye size={14} /> Preview as parent</button>
           <button className="dp-btn" onClick={onEdit}><Pencil size={14} /> Edit event</button>
         </div>
