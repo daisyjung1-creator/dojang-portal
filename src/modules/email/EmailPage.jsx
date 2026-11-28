@@ -5,7 +5,6 @@ import { styles } from '../../lib/uiStyles';
 import Field from '../../components/Field';
 import Modal from '../../components/Modal';
 import { splitClasses, allClassNames } from '../../lib/classes';
-import PortalInvites from './PortalInvites';
 import EmailLog from './EmailLog';
 import MessagePreview from './MessagePreview';
 import { matchScore } from '../../components/SearchSelect';
@@ -298,7 +297,6 @@ export default function EmailPage() {
         </div>
       </div>
       {page === 'log' ? <EmailLog onReuse={reuse} /> : (<>
-      <PortalInvites />
       {flash.text && <p style={{ background: flash.error ? 'var(--dp-danger-tint)' : 'var(--dp-success-tint)', color: flash.error ? 'var(--dp-danger)' : 'var(--dp-success)', padding: '8px 12px', borderRadius: 6, fontSize: 13, margin: '0 0 12px' }}>{flash.text}</p>}
 
       <div className="dp-stack dp-stack-md" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
