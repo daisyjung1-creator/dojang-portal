@@ -7,6 +7,8 @@ import { askConfirm } from '../../lib/dialogs';
 // (active, with an email and at least one current student) gets the same
 // invite as "Send invite" on the student profile — every email on the family.
 // Sent one family at a time so the email service isn't flooded.
+// Links in the email always open the live portal, even when this runs on a preview site.
+const LIVE_SITE = 'https://dojang-portal.netlify.app';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default function PortalInvites() {
@@ -34,7 +36,7 @@ export default function PortalInvites() {
     const r = { done: 0, total: todo.length, sent: 0, skipped: [], running: true };
     setRun({ ...r });
     for (const c of todo) {
-      const { data, error } = await supabase.functions.invoke('parent-portal', { body: { action: 'invite', customer_id: c.id, origin: window.location.origin } });
+      const { data, error } = await supabase.functions.invoke('parent-portal', { body: { action: 'invite', customer_id: c.id, origin: LIVE_SITE } });
       if (error || data?.error) r.skipped.push({ name: c.name, reason: data?.error || error?.message || 'failed' });
       else {
         r.sent += (data?.sent || []).length;
