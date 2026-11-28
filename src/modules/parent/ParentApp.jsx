@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { isFamilyPriced, eventPriceLabel, eventCharge } from '../../lib/eventPricing';
-import { LogOut, CalendarX, Users, Ticket, CreditCard, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download, CircleCheck } from 'lucide-react';
+import { LogOut, CalendarX, Users, Ticket, Receipt, FileText, CalendarDays, Mail, Check, Printer, X, Eye, EyeOff, ChevronLeft, ChevronRight, Award, Download, CircleCheck } from 'lucide-react';
 import logo from '../../assets/logo.png';
 import { supabase } from '../../supabaseClient';
 import { useAuth, IDLE_FLAG, touch } from '../../auth/AuthContext';
@@ -782,23 +782,6 @@ function Billing({ d, open, onDoc }) {
             </div>
           </Row>
         ))}
-      </div>
-
-      <div style={card}>
-        <h2 style={h2}><CreditCard size={17} /> Saved cards</h2>
-        {(d.cards || []).length ? (
-          (d.cards || []).map((k, i) => (
-            <Row key={i}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <b style={{ fontWeight: 600 }}>{k.type || 'Card'} ending {k.last4}</b>
-                {k.expiry ? <div style={{ fontSize: 13, color: C.soft, marginTop: 2 }}>Expires {k.expiry}</div> : null}
-              </div>
-              {k.is_default && <span style={{ fontSize: 13, fontWeight: 600, color: C.green, background: C.greenTint, borderRadius: 999, padding: '3px 10px' }}>Used for tuition</span>}
-            </Row>
-          ))
-        ) : (
-          <p style={{ margin: '0 0 10px', fontSize: 16, color: C.soft }}>{f.payment_type === 'manual' ? 'You pay tuition by invoice (debit or cash).' : 'No card saved yet.'}</p>
-        )}
       </div>
 
       <DocList
