@@ -12,6 +12,7 @@ import MonthlyCalendars from './MonthlyCalendars';
 import FormBuilder, { cleanForm, formProblem, PreviewBody } from './FormBuilder';
 import EventResponses from './EventResponses';
 import EventSummary from './EventSummary';
+import AdminSignup from './AdminSignup';
 
 // Events: camps, tournaments, movie nights… Signing a student up adds an
 // invoice for the family (price per student + GST), which they can pay with
@@ -148,6 +149,7 @@ export default function EventsPage() {
 
 function EventDetail({ event: e, signups, guests = [], invoices, students, onBack, onEdit, reload, editModal }) {
   const [pick, setPick] = useState('');
+  const [signFor, setSignFor] = useState(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -160,7 +162,8 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
   }, [e.id, signups.length]);
   const active = signups.filter((s) => s.status === 'signed_up');
   const taken = new Set(active.map((s) => s.student_id));
-  const options = students.filter((s) => !taken.has(s.id)).map((s) => ({ value: s.id, label: s.name, hint: s.class_name || '' }));
+  // Already-signed-up students stay in the list so guests can be added to their family.
+  const options = students.map((s) => ({ value: s.id, label: s.name, hint: taken.has(s.id) ? 'signed up — add family / guests' : s.class_name || '' }));
   const payUrl = (tok) => `${window.location.origin}/pay/${tok}`;
 
   async function add() {
@@ -169,13 +172,8 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
     setMsg('');
     const s = byId[pick];
     if (!s?.customer_id) return setErr(`${s?.name || 'This student'} has no family account yet (Customers), so no invoice can be made.`);
-    setBusy(true);
-    const { data, error } = await supabase.rpc('event_register', { p_event: e.id, p_students: [pick] });
-    setBusy(false);
-    if (error) return setErr(error.message);
-    setPick('');
-    setMsg(data?.invoice_number ? `${s.name} signed up · invoice #${data.invoice_number} (${money(data.total)}) created.` : `${s.name} signed up.`);
-    reload();
+    // Opens the same choices parents get: brothers & sisters, guests, the sign-up form.
+    setSignFor(s);
   }
   async function cancel(su) {
     const s = byId[su.student_id];
@@ -217,8 +215,19 @@ function EventDetail({ event: e, signups, guests = [], invoices, students, onBac
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '16px 0 12px', maxWidth: 560 }}>
         <div style={{ flex: 1 }}><SearchSelect options={options} value={pick} onChange={setPick} placeholder="Add a student…" /></div>
-        <button className="dp-btn dp-btn-primary" disabled={!pick || busy} onClick={add}><Plus size={14} /> Sign up</button>
+        <button className="dp-btn dp-btn-primary" disabled={!pick || busy} onClick={add}><Plus size={14} /> Sign up for family</button>
       </div>
+      {signFor && (
+        <AdminSignup
+          event={e}
+          student={signFor}
+          students={students}
+          signups={signups}
+          guests={guests}
+          onClose={() => setSignFor(null)}
+          onDone={(m) => { setSignFor(null); setPick(''); setMsg(m); reload(); }}
+        />
+      )}
 
       <div style={styles.card}>
         {active.length === 0 ? (
