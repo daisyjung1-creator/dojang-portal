@@ -128,7 +128,6 @@ In the parent portal you can:
 - let us know if your child will be absent
 - sign up for camps, tournaments and other events, and pay online
 - view your billing and download past invoices and receipts
-- update the card used for tuition
 - email the dojang
 
 If the link has expired, click "Forgot password?" on the sign-in page to get a new one.
